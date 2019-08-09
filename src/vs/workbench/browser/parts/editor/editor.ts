@@ -81,13 +81,16 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 }
 
 export interface IEditorGroupsAccessor {
+
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
 
 	readonly partOptions: IEditorPartOptions;
 	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
 
-	getGroup(identifier: GroupIdentifier): IEditorGroupView;
+	readonly onDidVisibilityChange: Event<boolean>;
+
+	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
 	getGroups(order: GroupsOrder): IEditorGroupView[];
 
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
@@ -106,6 +109,9 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly whenRestored: Promise<void>;
 	readonly disposed: boolean;
 
+	readonly isEmpty: boolean;
+	readonly isMinimized: boolean;
+
 	readonly onDidFocus: Event<void>;
 	readonly onWillDispose: Event<void>;
 	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
@@ -113,9 +119,10 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
-	isEmpty(): boolean;
 	setActive(isActive: boolean): void;
-	setLabel(label: string): void;
+
+	notifyIndexChanged(newIndex: number): void;
+
 	relayout(): void;
 }
 

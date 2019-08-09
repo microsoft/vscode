@@ -24,7 +24,6 @@ export class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
-	public delayedUpdateHistoryPromise: Promise<void>;
 
 	private _findInputFocused: IContextKey<boolean>;
 
@@ -37,6 +36,7 @@ export class TestFindController extends CommonFindController {
 		super(editor, contextKeyService, storageService, clipboardService);
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
+		this.hasFocus = false;
 	}
 
 	protected _start(opts: IFindStartOptions): void {
@@ -67,7 +67,7 @@ suite('FindController', () => {
 		getBoolean: (key: string) => !!queryState[key],
 		getNumber: (key: string) => undefined,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => undefined
+		remove: () => undefined
 	} as any);
 
 	if (platform.isMacintosh) {
@@ -442,7 +442,7 @@ suite('FindController query options persistence', () => {
 		getBoolean: (key: string) => !!queryState[key],
 		getNumber: (key: string) => undefined,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => undefined
+		remove: () => undefined
 	} as any);
 
 	test('matchCase', () => {

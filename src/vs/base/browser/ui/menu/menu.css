@@ -133,7 +133,7 @@
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-item {
-	border: 1px solid transparent; /* prevents jumping behaviour on hover or focus */
+	border: thin solid transparent; /* prevents jumping behaviour on hover or focus */
 }
 
 

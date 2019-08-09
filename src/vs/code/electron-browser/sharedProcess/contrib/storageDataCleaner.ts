@@ -24,7 +24,7 @@ export class StorageDataCleaner extends Disposable {
 	}
 
 	private cleanUpStorageSoon(): void {
-		let handle: any = setTimeout(() => {
+		let handle: NodeJS.Timeout | undefined = setTimeout(() => {
 			handle = undefined;
 
 			// Leverage the backup workspace file to find out which empty workspace is currently in use to
@@ -52,6 +52,11 @@ export class StorageDataCleaner extends Disposable {
 			}).then(null, onUnexpectedError);
 		}, 30 * 1000);
 
-		this._register(toDisposable(() => clearTimeout(handle)));
+		this._register(toDisposable(() => {
+			if (handle) {
+				clearTimeout(handle);
+				handle = undefined;
+			}
+		}));
 	}
 }

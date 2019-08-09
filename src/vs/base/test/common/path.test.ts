@@ -143,12 +143,12 @@ suite('Paths (Node Implementation)', () => {
 				]
 			)
 		]);
-		joinTests.forEach((test) => {
+		joinTests.forEach((test: any[]) => {
 			if (!Array.isArray(test[0])) {
 				test[0] = [test[0]];
 			}
-			test[0].forEach((join) => {
-				test[1].forEach((test) => {
+			test[0].forEach((join: any) => {
+				test[1].forEach((test: any) => {
 					const actual = join.apply(null, test[0]);
 					const expected = test[1];
 					// For non-Windows specific tests with the Windows join(), we need to try

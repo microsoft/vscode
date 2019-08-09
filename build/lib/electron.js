@@ -24,7 +24,7 @@ module.exports.getElectronVersion = getElectronVersion;
 if (require.main === module) {
 	const version = getElectronVersion();
 	const versionFile = path.join(root, '.build', 'electron', 'version');
-	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `v${version}`;
+	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;
 
 	process.exit(isUpToDate ? 0 : 1);
 }

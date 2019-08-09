@@ -16,6 +16,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Range } from 'vs/editor/common/core/range';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { isDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
@@ -26,7 +27,7 @@ export const Context = {
 
 export class CompletionItem {
 
-	_brand: 'ISuggestionItem';
+	_brand!: 'ISuggestionItem';
 
 	readonly resolve: (token: CancellationToken) => Promise<void>;
 
@@ -121,7 +122,6 @@ export function provideSuggestionItems(
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItem[]> {
 
-	const allSuggestions: CompletionItem[] = [];
 	const wordUntil = model.getWordUntilPosition(position);
 	const defaultRange = new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
 
@@ -135,9 +135,12 @@ export function provideSuggestionItems(
 		supports.unshift([_snippetSuggestSupport]);
 	}
 
+	const allSuggestions: CompletionItem[] = [];
+	const disposables = new DisposableStore();
+	let hasResult = false;
+
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
-	let hasResult = false;
 	const factory = supports.map(supports => () => {
 		// for each support in the group ask for suggestions
 		return Promise.all(supports.map(provider => {
@@ -162,6 +165,9 @@ export function provideSuggestionItems(
 							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));
 						}
 					}
+					if (isDisposable(container)) {
+						disposables.add(container);
+					}
 				}
 
 				if (len !== allSuggestions.length && provider !== _snippetSuggestSupport) {
@@ -177,6 +183,7 @@ export function provideSuggestionItems(
 		return hasResult || token.isCancellationRequested;
 	}).then(() => {
 		if (token.isCancellationRequested) {
+			disposables.dispose();
 			return Promise.reject<any>(canceled());
 		}
 		return allSuggestions.sort(getSuggestionComparator(options.snippetSortOrder));
@@ -244,29 +251,35 @@ export function getSuggestionComparator(snippetConfig: SnippetSortOrder): (a: Co
 	return _snippetComparators.get(snippetConfig)!;
 }
 
-registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {
+registerDefaultLanguageCommand('_executeCompletionItemProvider', async (model, position, args) => {
 
 	const result: modes.CompletionList = {
 		incomplete: false,
 		suggestions: []
 	};
 
-	let resolving: Promise<any>[] = [];
-	let maxItemsToResolve = args['maxItemsToResolve'] || 0;
+	const disposables = new DisposableStore();
+	const resolving: Promise<any>[] = [];
+	const maxItemsToResolve = args['maxItemsToResolve'] || 0;
 
-	return provideSuggestionItems(model, position).then(items => {
-		for (const item of items) {
-			if (resolving.length < maxItemsToResolve) {
-				resolving.push(item.resolve(CancellationToken.None));
-			}
-			result.incomplete = result.incomplete || item.container.incomplete;
-			result.suggestions.push(item.completion);
+	const items = await provideSuggestionItems(model, position);
+	for (const item of items) {
+		if (resolving.length < maxItemsToResolve) {
+			resolving.push(item.resolve(CancellationToken.None));
 		}
-	}).then(() => {
-		return Promise.all(resolving);
-	}).then(() => {
+		result.incomplete = result.incomplete || item.container.incomplete;
+		result.suggestions.push(item.completion);
+		if (isDisposable(item.container)) {
+			disposables.add(item.container);
+		}
+	}
+
+	try {
+		await Promise.all(resolving);
 		return result;
-	});
+	} finally {
+		setTimeout(() => disposables.dispose(), 0);
+	}
 });
 
 interface SuggestController extends IEditorContribution {

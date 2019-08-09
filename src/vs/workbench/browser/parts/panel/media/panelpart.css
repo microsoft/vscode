@@ -25,9 +25,17 @@
 	border-top-style: solid;
 }
 
+.monaco-workbench.noeditorarea .part.panel.bottom .title {
+	border-top-width: 0; /* no border when editor area is hiden */
+}
+
 .monaco-workbench .part.panel.right {
 	border-left-width: 1px;
 	border-left-style: solid;
+}
+
+.monaco-workbench.noeditorarea .part.panel.right {
+	border-left-width: 0; /* no border when editor area is hiden */
 }
 
 .monaco-workbench .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
@@ -37,7 +45,7 @@
 /** Panel Switcher */
 
 .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
-	background-image: url('ellipsis.svg');
+	background-image: url('ellipsis-light.svg');
 	display: block;
 	height: 28px;
 	min-width: 28px;
@@ -46,6 +54,14 @@
 	background-size: 16px;
 	background-repeat: no-repeat;
 	background-position: center center;
+}
+
+.vs-dark .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
+	background-image: url('ellipsis-dark.svg');
+}
+
+.hc-black .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
+	background-image: url('ellipsis-hc.svg');
 }
 
 .monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
@@ -85,13 +101,15 @@
 }
 
 .monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
-	padding: 0.3em 0.5em;
-	border-radius: 1em;
+	padding: 3px 5px;
+	border-radius: 11px;
+	font-size: 11px;
+	min-width: 18px;
+	min-height: 18px;
+	line-height: 11px;
 	font-weight: normal;
 	text-align: center;
 	display: inline-block;
-	min-width: 1.6em;
-	line-height: 1em;
 	box-sizing: border-box;
 	}
 
@@ -107,52 +125,68 @@
 	margin-right: 10px;
 }
 
+/* Close */
 .monaco-workbench .hide-panel-action {
-	background: url('close.svg') center center no-repeat;
+	background: url('close-light.svg') center center no-repeat;
 }
 
-.monaco-workbench .maximize-panel-action {
-	background-image: url('up.svg');
+.vs-dark .monaco-workbench .hide-panel-action {
+	background: url('close-dark.svg') center center no-repeat;
 }
 
-.monaco-workbench .panel.right .maximize-panel-action {
-	background-image: url('left.svg');
-}
-
-.vs-dark .monaco-workbench .maximize-panel-action,
-.hc-black .monaco-workbench .maximize-panel-action {
-	background-image: url('up-inverse.svg');
-}
-
-.vs-dark .monaco-workbench .panel.right .maximize-panel-action,
-.hc-black .monaco-workbench .panel.right .maximize-panel-action {
-	background-image: url('left-inverse.svg');
-}
-
-.monaco-workbench .minimize-panel-action {
-	background-image: url('down.svg');
-}
-
-.monaco-workbench .panel.right .minimize-panel-action {
-	background-image: url('right.svg');
-}
-
-.vs-dark .monaco-workbench .minimize-panel-action,
-.hc-black .monaco-workbench .minimize-panel-action {
-	background-image: url('down-inverse.svg');
-}
-
-.vs-dark .monaco-workbench .panel.right .minimize-panel-action,
-.hc-black .monaco-workbench .panel.right .minimize-panel-action {
-	background-image: url('right-inverse.svg');
-}
-
-.vs-dark .monaco-workbench .hide-panel-action,
 .hc-black .monaco-workbench .hide-panel-action {
-	background: url('close-inverse.svg') center center no-repeat;
+	background: url('close-hc.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more,
-.hc-black .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
-	background-image: url('ellipsis-inverse.svg');
+
+/* Up */
+.monaco-workbench .maximize-panel-action {
+	background-image: url('chevron-up-light.svg');
+}
+
+.vs-dark .monaco-workbench .maximize-panel-action {
+	background-image: url('chevron-up-dark.svg');
+}
+
+.hc-black .monaco-workbench .maximize-panel-action {
+	background-image: url('chevron-up-hc.svg');
+}
+
+/* Down */
+.monaco-workbench .minimize-panel-action {
+	background-image: url('chevron-down-light.svg');
+}
+
+.vs-dark .monaco-workbench .minimize-panel-action {
+	background-image: url('chevron-down-dark.svg');
+}
+
+.hc-black .monaco-workbench .minimize-panel-action {
+	background-image: url('chevron-down-hc.svg');
+}
+
+/* Left */
+.monaco-workbench .panel.right .maximize-panel-action {
+	background-image: url('chevron-left-light.svg');
+}
+
+.vs-dark .monaco-workbench .panel.right .maximize-panel-action {
+	background-image: url('chevron-left-dark.svg');
+}
+
+.hc-black .monaco-workbench .panel.right .maximize-panel-action {
+	background-image: url('chevron-left-hc.svg');
+}
+
+/* Right */
+.monaco-workbench .panel.right .minimize-panel-action {
+	background-image: url('chevron-right-light.svg');
+}
+
+.vs-dark .monaco-workbench .panel.right .minimize-panel-action {
+	background-image: url('chevron-right-dark.svg');
+}
+
+.hc-black .monaco-workbench .panel.right .minimize-panel-action {
+	background-image: url('chevron-right-hc.svg');
 }

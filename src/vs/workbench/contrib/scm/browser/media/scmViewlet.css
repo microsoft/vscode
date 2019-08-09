@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .activitybar > .content .monaco-action-bar .action-label.scm {
-	-webkit-mask: url('icon-dark.svg') no-repeat 50% 50%;
+	-webkit-mask: url('scm-activity-bar.svg') no-repeat 50% 50%;
 }
 
 .monaco-workbench .viewlet.scm-viewlet .collapsible.header .actions {
@@ -32,6 +32,7 @@
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
+	height: 100%;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar {
@@ -72,7 +73,6 @@
 	flex: 1;
 	font-size: 11px;
 	font-weight: bold;
-	text-transform: uppercase;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }

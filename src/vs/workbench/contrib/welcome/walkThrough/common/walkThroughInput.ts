@@ -6,12 +6,10 @@
 import * as strings from 'vs/base/common/strings';
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { IReference, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -48,17 +46,14 @@ export interface WalkThroughInputOptions {
 
 export class WalkThroughInput extends EditorInput {
 
-	private disposables: IDisposable[] = [];
-
-	private promise: Promise<WalkThroughModel> | null;
+	private promise: Promise<WalkThroughModel> | null = null;
 
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;
 
 	constructor(
 		private options: WalkThroughInputOptions,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IHashService private readonly hashService: IHashService
+		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
 	}
@@ -83,14 +78,12 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.telemetryFrom;
 	}
 
-	getTelemetryDescriptor(): object {
+	getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
-		descriptor['resource'] = telemetryURIDescriptor(this.options.resource, path => this.hashService.createSHA1(path));
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {
-				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		return descriptor;
@@ -128,7 +121,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.promise;
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}
@@ -144,8 +137,6 @@ export class WalkThroughInput extends EditorInput {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
-
 		if (this.promise) {
 			this.promise.then(model => model.dispose());
 			this.promise = null;

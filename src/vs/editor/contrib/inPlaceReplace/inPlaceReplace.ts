@@ -37,8 +37,8 @@ class InPlaceReplaceController implements IEditorContribution {
 	private readonly editor: ICodeEditor;
 	private readonly editorWorkerService: IEditorWorkerService;
 	private decorationIds: string[] = [];
-	private currentRequest: CancelablePromise<IInplaceReplaceSupportResult | null>;
-	private decorationRemover: CancelablePromise<void>;
+	private currentRequest?: CancelablePromise<IInplaceReplaceSupportResult | null>;
+	private decorationRemover?: CancelablePromise<void>;
 
 	constructor(
 		editor: ICodeEditor,

@@ -218,6 +218,13 @@ export interface ISuggestOptions {
 	filteredTypes?: Record<string, boolean>;
 }
 
+export interface IGotoLocationOptions {
+	/**
+	 * Control how goto-command work when having multiple results.
+	 */
+	multiple?: 'peek' | 'gotoAndPeek' | 'goto';
+}
+
 /**
  * Configuration map for codeActionsOnSave
  */
@@ -262,8 +269,13 @@ export interface IEditorOptions {
 	 */
 	lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 	/**
+	 * Controls the minimal number of visible leading and trailing lines surrounding the cursor.
+	 * Defaults to 0.
+	*/
+	cursorSurroundingLines?: number;
+	/**
 	 * Render last line number when the file ends with a newline.
-	 * Defaults to true on Windows/Mac and to false on Linux.
+	 * Defaults to true.
 	*/
 	renderFinalNewline?: boolean;
 	/**
@@ -505,6 +517,10 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	/**
+	 *
+	 */
+	gotoLocation?: IGotoLocationOptions;
+	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
@@ -653,7 +669,7 @@ export interface IEditorOptions {
 	 * Enable rendering of whitespace.
 	 * Defaults to none.
 	 */
-	renderWhitespace?: 'none' | 'boundary' | 'all';
+	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'all';
 	/**
 	 * Enable rendering of control characters.
 	 * Defaults to false.
@@ -924,6 +940,10 @@ export interface InternalEditorHoverOptions {
 	readonly sticky: boolean;
 }
 
+export interface InternalGoToLocationOptions {
+	readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
+}
+
 export interface InternalSuggestOptions {
 	readonly filterGraceful: boolean;
 	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
@@ -967,6 +987,7 @@ export interface InternalEditorViewOptions {
 	readonly ariaLabel: string;
 	readonly renderLineNumbers: RenderLineNumbersType;
 	readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
+	readonly cursorSurroundingLines: number;
 	readonly renderFinalNewline: boolean;
 	readonly selectOnLineNumbers: boolean;
 	readonly glyphMargin: boolean;
@@ -984,7 +1005,7 @@ export interface InternalEditorViewOptions {
 	readonly scrollBeyondLastColumn: number;
 	readonly smoothScrolling: boolean;
 	readonly stopRenderingLineAfter: number;
-	readonly renderWhitespace: 'none' | 'boundary' | 'all';
+	readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'all';
 	readonly renderControlCharacters: boolean;
 	readonly fontLigatures: boolean;
 	readonly renderIndentGuides: boolean;
@@ -1014,6 +1035,7 @@ export interface EditorContribOptions {
 	readonly suggestLineHeight: number;
 	readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 	readonly suggest: InternalSuggestOptions;
+	readonly gotoLocation: InternalGoToLocationOptions;
 	readonly selectionHighlight: boolean;
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
@@ -1274,6 +1296,7 @@ export class InternalEditorOptions {
 			&& a.ariaLabel === b.ariaLabel
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
+			&& a.cursorSurroundingLines === b.cursorSurroundingLines
 			&& a.renderFinalNewline === b.renderFinalNewline
 			&& a.selectOnLineNumbers === b.selectOnLineNumbers
 			&& a.glyphMargin === b.glyphMargin
@@ -1385,7 +1408,18 @@ export class InternalEditorOptions {
 				&& a.localityBonus === b.localityBonus
 				&& a.shareSuggestSelections === b.shareSuggestSelections
 				&& a.showIcons === b.showIcons
-				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions;
+				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions
+				&& objects.equals(a.filteredTypes, b.filteredTypes);
+		}
+	}
+
+	private static _equalsGotoLocationOptions(a: InternalGoToLocationOptions | undefined, b: InternalGoToLocationOptions | undefined): boolean {
+		if (a === b) {
+			return true;
+		} else if (!a || !b) {
+			return false;
+		} else {
+			return a.multiple === b.multiple;
 		}
 	}
 
@@ -1429,6 +1463,7 @@ export class InternalEditorOptions {
 			&& a.suggestLineHeight === b.suggestLineHeight
 			&& a.tabCompletion === b.tabCompletion
 			&& this._equalsSuggestOptions(a.suggest, b.suggest)
+			&& InternalEditorOptions._equalsGotoLocationOptions(a.gotoLocation, b.gotoLocation)
 			&& a.selectionHighlight === b.selectionHighlight
 			&& a.occurrencesHighlight === b.occurrencesHighlight
 			&& a.codeLens === b.codeLens
@@ -1919,8 +1954,15 @@ export class EditorOptionsValidator {
 			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
 			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
 			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
-			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 12),
+			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 15),
 			filteredTypes: isObject(suggestOpts.filteredTypes) ? suggestOpts.filteredTypes : Object.create(null)
+		};
+	}
+
+	private static _sanitizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
+		const gotoOpts = opts.gotoLocation || {};
+		return {
+			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(gotoOpts.multiple, defaults.multiple, ['peek', 'gotoAndPeek', 'goto'])
 		};
 	}
 
@@ -1982,7 +2024,7 @@ export class EditorOptionsValidator {
 			} else if (<any>renderWhitespace === false) {
 				renderWhitespace = 'none';
 			}
-			renderWhitespace = _stringSet<'none' | 'boundary' | 'all'>(renderWhitespace, defaults.renderWhitespace, ['none', 'boundary', 'all']);
+			renderWhitespace = _stringSet<'none' | 'boundary' | 'selection' | 'all'>(renderWhitespace, defaults.renderWhitespace, ['none', 'boundary', 'selection', 'all']);
 		}
 
 		let renderLineHighlight = opts.renderLineHighlight;
@@ -2014,6 +2056,7 @@ export class EditorOptionsValidator {
 			disableMonospaceOptimizations: disableMonospaceOptimizations,
 			rulers: rulers,
 			ariaLabel: _string(opts.ariaLabel, defaults.ariaLabel),
+			cursorSurroundingLines: _clampedInt(opts.cursorSurroundingLines, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			renderLineNumbers: renderLineNumbers,
 			renderCustomLineNumbers: renderCustomLineNumbers,
 			renderFinalNewline: _boolean(opts.renderFinalNewline, defaults.renderFinalNewline),
@@ -2076,6 +2119,7 @@ export class EditorOptionsValidator {
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
 			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
+			gotoLocation: this._sanitizeGotoLocationOpts(opts, defaults.gotoLocation),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
@@ -2136,6 +2180,7 @@ export class InternalEditorOptionsFactory {
 				ariaLabel: (accessibilityIsOff ? nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.") : opts.viewInfo.ariaLabel),
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
+				cursorSurroundingLines: opts.viewInfo.cursorSurroundingLines,
 				renderFinalNewline: opts.viewInfo.renderFinalNewline,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
@@ -2155,7 +2200,7 @@ export class InternalEditorOptionsFactory {
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
 				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
-				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
+				fontLigatures: opts.viewInfo.fontLigatures,
 				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
 				highlightActiveIndentGuide: opts.viewInfo.highlightActiveIndentGuide,
 				renderLineHighlight: opts.viewInfo.renderLineHighlight,
@@ -2189,6 +2234,7 @@ export class InternalEditorOptionsFactory {
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
 				tabCompletion: opts.contribInfo.tabCompletion,
 				suggest: opts.contribInfo.suggest,
+				gotoLocation: opts.contribInfo.gotoLocation,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2599,7 +2645,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
-		renderFinalNewline: (platform.isLinux ? false : true),
+		cursorSurroundingLines: 0,
+		renderFinalNewline: true,
 		selectOnLineNumbers: true,
 		glyphMargin: true,
 		revealHorizontalRightPadding: 30,
@@ -2681,6 +2728,9 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			showIcons: true,
 			maxVisibleSuggestions: 12,
 			filteredTypes: Object.create(null)
+		},
+		gotoLocation: {
+			multiple: 'peek'
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

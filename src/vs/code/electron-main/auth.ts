@@ -54,7 +54,11 @@ export class ProxyAuthHandler {
 			width: 450,
 			height: 220,
 			show: true,
-			title: 'VS Code'
+			title: 'VS Code',
+			webPreferences: {
+				nodeIntegration: true,
+				webviewTag: true
+			}
 		};
 
 		const focusedWindow = this.windowsMainService.getFocusedWindow();

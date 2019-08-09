@@ -15,13 +15,23 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
-import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
 const updateImportsOnFileMoveName = 'updateImportsOnFileMove.enabled';
+
+function isDirectory(path: string): Promise<boolean> {
+	return new Promise<boolean>((resolve, reject) => {
+		fs.stat(path, (err, stat) => {
+			if (err) {
+				return reject(err);
+			}
+			return resolve(stat.isDirectory());
+		});
+	});
+}
 
 enum UpdateImportsOnFileMoveSetting {
 	Prompt = 'prompt',
@@ -30,6 +40,8 @@ enum UpdateImportsOnFileMoveSetting {
 }
 
 class UpdateImportsOnFileRenameHandler extends Disposable {
+	public static minVersion = API.v300;
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager,
@@ -51,13 +63,10 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		oldResource: vscode.Uri,
 		newResource: vscode.Uri,
 	): Promise<void> {
-		const targetResource = await this.getTargetResource(newResource);
-		if (!targetResource) {
-			return;
-		}
-
-		const targetFile = this.client.toPath(targetResource);
-		if (!targetFile) {
+		// Try to get a js/ts file that is being moved
+		// For directory moves, this returns a js/ts file under the directory.
+		const jsTsFileThatIsBeingMoved = await this.getJsTsFileBeingMoved(newResource);
+		if (!jsTsFileThatIsBeingMoved || !this.client.toPath(jsTsFileThatIsBeingMoved)) {
 			return;
 		}
 
@@ -71,7 +80,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return;
 		}
 
-		const document = await vscode.workspace.openTextDocument(targetResource);
+		const document = await vscode.workspace.openTextDocument(jsTsFileThatIsBeingMoved);
 
 		const config = this.getConfiguration(document);
 		const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
@@ -83,27 +92,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		this.client.bufferSyncSupport.closeResource(oldResource);
 		this.client.bufferSyncSupport.openTextDocument(document);
 
-		if (this.client.apiVersion.lt(API.v300) && !fs.lstatSync(newResource.fsPath).isDirectory()) {
-			// Workaround for https://github.com/Microsoft/vscode/issues/52967
-			// Never attempt to update import paths if the file does not contain something the looks like an export
-			try {
-				const response = await this.client.execute('navtree', { file: newFile }, nulToken);
-				if (response.type !== 'response' || !response.body) {
-					return;
-				}
-
-				const hasExport = (node: Proto.NavigationTree): boolean => {
-					return !!node.kindModifiers.match(/\bexports?\b/g) || !!(node.childItems && node.childItems.some(hasExport));
-				};
-				if (!hasExport(response.body)) {
-					return;
-				}
-			} catch {
-				// noop
-			}
-		}
-
-		const edits = await this.getEditsForFileRename(targetFile, document, oldFile, newFile);
+		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
 		if (!edits || !edits.size) {
 			return;
 		}
@@ -204,17 +193,12 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		return false;
 	}
 
-	private async getTargetResource(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
+	private async getJsTsFileBeingMoved(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
 		if (resource.scheme !== fileSchemes.file) {
 			return undefined;
 		}
 
-		const isDirectory = fs.lstatSync(resource.fsPath).isDirectory();
-		if (isDirectory && this.client.apiVersion.gte(API.v300)) {
-			return resource;
-		}
-
-		if (isDirectory && this.client.apiVersion.gte(API.v292)) {
+		if (await isDirectory(resource.fsPath)) {
 			const files = await vscode.workspace.findFiles({
 				base: resource.fsPath,
 				pattern: '**/*.{ts,tsx,js,jsx}',
@@ -226,17 +210,13 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 	}
 
 	private async getEditsForFileRename(
-		targetResource: string,
 		document: vscode.TextDocument,
 		oldFile: string,
 		newFile: string,
 	): Promise<vscode.WorkspaceEdit | undefined> {
-		const isDirectoryRename = fs.lstatSync(newFile).isDirectory();
-
 		const response = await this.client.interruptGetErr(() => {
 			this.fileConfigurationManager.setGlobalConfigurationFromDocument(document, nulToken);
-			const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
-				file: targetResource,
+			const args: Proto.GetEditsForFileRenameRequestArgs = {
 				oldFilePath: oldFile,
 				newFilePath: newFile,
 			};
@@ -246,65 +226,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			return;
 		}
 
-		const edits: Proto.FileCodeEdits[] = [];
-		for (const edit of response.body) {
-			// Workaround for https://github.com/Microsoft/vscode/issues/52675
-			if (this.client.apiVersion.lt(API.v300)) {
-				if (edit.fileName.match(/[\/\\]node_modules[\/\\]/gi)) {
-					continue;
-				}
-				for (const change of edit.textChanges) {
-					if (change.newText.match(/\/node_modules\//gi)) {
-						continue;
-					}
-				}
-			}
-
-			edits.push(await this.fixEdit(edit, isDirectoryRename, oldFile, newFile));
-		}
-		return typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, edits);
-	}
-
-	private async fixEdit(
-		edit: Proto.FileCodeEdits,
-		isDirectoryRename: boolean,
-		oldFile: string,
-		newFile: string,
-	): Promise<Proto.FileCodeEdits> {
-		if (!isDirectoryRename || this.client.apiVersion.gte(API.v300)) {
-			return edit;
-		}
-
-		const document = await vscode.workspace.openTextDocument(edit.fileName);
-		const oldFileRe = new RegExp('/' + escapeRegExp(path.basename(oldFile)) + '/');
-
-		// Workaround for https://github.com/Microsoft/TypeScript/issues/24968
-		const textChanges = edit.textChanges.map((change): Proto.CodeEdit => {
-			const existingText = document.getText(typeConverters.Range.fromTextSpan(change));
-			const existingMatch = existingText.match(oldFileRe);
-			if (!existingMatch) {
-				return change;
-			}
-
-			const match = new RegExp('/' + escapeRegExp(path.basename(newFile)) + '/(.+)$', 'g').exec(change.newText);
-			if (!match) {
-				return change;
-			}
-
-			return {
-				newText: change.newText.slice(0, -match[1].length),
-				start: change.start,
-				end: {
-					line: change.end.line,
-					offset: change.end.offset - match[1].length,
-				},
-			};
-		});
-
-		return {
-			fileName: edit.fileName,
-			textChanges,
-		};
+		return typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
 	}
 }
 
@@ -313,6 +235,6 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	handles: (uri: vscode.Uri) => Promise<boolean>,
 ) {
-	return new VersionDependentRegistration(client, API.v290, () =>
+	return new VersionDependentRegistration(client, UpdateImportsOnFileRenameHandler.minVersion, () =>
 		new UpdateImportsOnFileRenameHandler(client, fileConfigurationManager, handles));
 }

@@ -16,15 +16,15 @@ suite('Preferences Model test', () => {
 			this.validator = createValidator(settings)!;
 		}
 
-		public accepts(input) {
+		public accepts(input: string) {
 			assert.equal(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${input}\`. Got ${this.validator(input)}.`);
 		}
 
-		public rejects(input) {
+		public rejects(input: string) {
 			assert.notEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${input}\`.`);
 			return {
 				withMessage:
-					(message) => {
+					(message: string) => {
 						const actual = this.validator(input);
 						assert.ok(actual);
 						assert(actual!.indexOf(message) > -1,

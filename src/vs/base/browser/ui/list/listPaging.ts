@@ -35,7 +35,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		return { data, disposable: { dispose: () => { } } };
 	}
 
-	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>, dynamicHeightProbing?: boolean): void {
+	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>, height: number | undefined): void {
 		if (data.disposable) {
 			data.disposable.dispose();
 		}
@@ -47,7 +47,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		const model = this.modelProvider();
 
 		if (model.isResolved(index)) {
-			return this.renderer.renderElement(model.get(index), index, data.data, dynamicHeightProbing);
+			return this.renderer.renderElement(model.get(index), index, data.data, height);
 		}
 
 		const cts = new CancellationTokenSource();
@@ -55,7 +55,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		data.disposable = { dispose: () => cts.cancel() };
 
 		this.renderer.renderPlaceholder(index, data.data);
-		promise.then(entry => this.renderer.renderElement(entry, index, data.data!, dynamicHeightProbing));
+		promise.then(entry => this.renderer.renderElement(entry, index, data.data!, height));
 	}
 
 	disposeTemplate(data: ITemplateData<TTemplateData>): void {
@@ -73,7 +73,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 export class PagedList<T> implements IDisposable {
 
 	private list: List<number>;
-	private _model: IPagedModel<T>;
+	private _model!: IPagedModel<T>;
 
 	constructor(
 		container: HTMLElement,

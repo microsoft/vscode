@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
@@ -95,20 +95,20 @@ class DecorationRule {
 	}
 }
 
-class DecorationStyles {
+class DecorationStyles extends Disposable {
 
-	private readonly _disposables: IDisposable[];
 	private readonly _styleElement = createStyleSheet();
 	private readonly _decorationRules = new Map<string, DecorationRule>();
 
 	constructor(
 		private _themeService: IThemeService,
 	) {
-		this._disposables = [this._themeService.onThemeChange(this._onThemeChange, this)];
+		super();
+		this._register(this._themeService.onThemeChange(this._onThemeChange, this));
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		super.dispose();
 
 		const parent = this._styleElement.parentElement;
 		if (parent) {
@@ -291,7 +291,7 @@ class DecorationProviderWrapper {
 		}
 	}
 
-	private _fetchData(uri: URI): IDecorationData | undefined | null {
+	private _fetchData(uri: URI): IDecorationData | null {
 
 		// check for pending request and cancel it
 		const pendingRequest = this.data.get(uri.toString());
@@ -319,11 +319,11 @@ class DecorationProviderWrapper {
 			}));
 
 			this.data.set(uri.toString(), request);
-			return undefined;
+			return null;
 		}
 	}
 
-	private _keepItem(uri: URI, data: IDecorationData | null | undefined): IDecorationData | null {
+	private _keepItem(uri: URI, data: IDecorationData | undefined): IDecorationData | null {
 		const deco = data ? data : null;
 		const old = this.data.set(uri.toString(), deco);
 		if (deco || old) {

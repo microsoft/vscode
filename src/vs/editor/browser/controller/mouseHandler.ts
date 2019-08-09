@@ -109,6 +109,8 @@ export class MouseHandler extends ViewEventHandler {
 		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
 
 		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
+			this.viewController.emitMouseWheel(browserEvent);
+
 			if (!this._context.configuration.editor.viewInfo.mouseWheelZoom) {
 				return;
 			}
@@ -121,7 +123,7 @@ export class MouseHandler extends ViewEventHandler {
 				e.stopPropagation();
 			}
 		};
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, 'mousewheel', onMouseWheel, true));
+		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, browser.isEdgeOrIE ? 'mousewheel' : 'wheel', onMouseWheel, true));
 
 		this._context.addEventHandler(this);
 	}
@@ -258,6 +260,10 @@ export class MouseHandler extends ViewEventHandler {
 			event: e,
 			target: t
 		});
+	}
+
+	public _onMouseWheel(e: IMouseWheelEvent): void {
+		this.viewController.emitMouseWheel(e);
 	}
 }
 

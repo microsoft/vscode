@@ -125,6 +125,8 @@
 			"name": "Classes",
 			"scope": [
 				"entity.name.type",
+				"entity.name.namespace",
+				"entity.name.scope-resolution",
 				"entity.other.inherited-class",
 				"support.class"
 			],
@@ -516,6 +518,7 @@
 		"statusBar.background": "#705697",
 		"statusBar.noFolderBackground": "#705697",
 		"statusBar.debuggingBackground": "#705697",
+		"statusBarItem.remoteBackground": "#4e3c69",
 		"activityBar.background": "#EDEDF5",
 		"activityBar.foreground": "#705697",
 		"activityBarBadge.background": "#705697",

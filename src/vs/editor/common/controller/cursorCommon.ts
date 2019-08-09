@@ -21,6 +21,9 @@ import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IColumnSelectData {
+	isReal: boolean;
+	fromViewLineNumber: number;
+	fromViewVisualColumn: number;
 	toViewLineNumber: number;
 	toViewVisualColumn: number;
 }
@@ -65,8 +68,8 @@ export interface CharacterMap {
 	[char: string]: string;
 }
 
-const autoCloseAlways = _ => true;
-const autoCloseNever = _ => false;
+const autoCloseAlways = () => true;
+const autoCloseNever = () => false;
 const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
 
 export class CursorConfiguration {

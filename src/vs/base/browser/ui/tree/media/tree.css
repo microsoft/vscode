@@ -7,6 +7,30 @@
 	display: flex;
 	height: 100%;
 	align-items: center;
+	position: relative;
+}
+
+.monaco-tl-indent {
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 18px;
+	pointer-events: none;
+}
+
+.hide-arrows .monaco-tl-indent {
+	left: 12px;
+}
+
+.monaco-tl-indent > .indent-guide {
+	display: inline-block;
+	box-sizing: border-box;
+	height: 100%;
+	border-left: 1px solid transparent;
+}
+
+.monaco-tl-indent > .indent-guide {
+	transition: border-color 0.1s linear;
 }
 
 .monaco-tl-twistie,
@@ -31,28 +55,28 @@
 	background-size: 16px;
 	background-position: 3px 50%;
 	background-repeat: no-repeat;
-	background-image: url("expanded.svg");
+	background-image: url("tree-expanded-light.svg");
 }
 
 .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
 	display: inline-block;
-	background-image: url("collapsed.svg");
+	background-image: url("tree-collapsed-light.svg");
 }
 
 .vs-dark .monaco-tl-twistie.collapsible:not(.loading) {
-	background-image: url("expanded-dark.svg");
+	background-image: url("tree-expanded-dark.svg");
 }
 
 .vs-dark .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
-	background-image: url("collapsed-dark.svg");
+	background-image: url("tree-collapsed-dark.svg");
 }
 
 .hc-black .monaco-tl-twistie.collapsible:not(.loading) {
-	background-image: url("expanded-hc.svg");
+	background-image: url("tree-expanded-hc.svg");
 }
 
 .hc-black .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
-	background-image: url("collapsed-hc.svg");
+	background-image: url("tree-collapsed-hc.svg");
 }
 
 .monaco-tl-twistie.loading {

@@ -5,18 +5,15 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 
 suite('ExtHostDocumentsAndEditors', () => {
 
 	let editors: ExtHostDocumentsAndEditors;
 
 	setup(function () {
-		editors = new ExtHostDocumentsAndEditors({
-			getProxy: () => { return undefined!; },
-			set: undefined!,
-			assertRegistered: undefined!
-		});
+		editors = new ExtHostDocumentsAndEditors(new TestRPCProtocol());
 	});
 
 	test('The value of TextDocument.isClosed is incorrect when a text document is closed, #27949', () => {

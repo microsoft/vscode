@@ -53,11 +53,11 @@ export class RichEditSupport {
 	public readonly characterPair: CharacterPairSupport;
 	public readonly wordDefinition: RegExp;
 	public readonly onEnter: OnEnterSupport | null;
-	public readonly indentRulesSupport: IndentRulesSupport;
+	public readonly indentRulesSupport: IndentRulesSupport | null;
 	public readonly indentationRules: IndentationRule | undefined;
 	public readonly foldingRules: FoldingRules;
 
-	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
+	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport | undefined, rawConf: LanguageConfiguration) {
 		this._languageIdentifier = languageIdentifier;
 
 		this._brackets = null;
@@ -81,6 +81,8 @@ export class RichEditSupport {
 		this.indentationRules = this._conf.indentationRules;
 		if (this._conf.indentationRules) {
 			this.indentRulesSupport = new IndentRulesSupport(this._conf.indentationRules);
+		} else {
+			this.indentRulesSupport = null;
 		}
 
 		this.foldingRules = this._conf.folding || {};
@@ -170,39 +172,37 @@ export class RichEditSupport {
 }
 
 export class LanguageConfigurationChangeEvent {
-	languageIdentifier: LanguageIdentifier;
+	constructor(
+		public readonly languageIdentifier: LanguageIdentifier
+	) { }
 }
 
 export class LanguageConfigurationRegistryImpl {
 
-	private readonly _entries: RichEditSupport[];
+	private readonly _entries = new Map<LanguageId, RichEditSupport>();
 
 	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
 	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
 
-	constructor() {
-		this._entries = [];
-	}
-
 	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration): IDisposable {
 		let previous = this._getRichEditSupport(languageIdentifier.id);
 		let current = new RichEditSupport(languageIdentifier, previous, configuration);
-		this._entries[languageIdentifier.id] = current;
-		this._onDidChange.fire({ languageIdentifier });
+		this._entries.set(languageIdentifier.id, current);
+		this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
 		return toDisposable(() => {
-			if (this._entries[languageIdentifier.id] === current) {
-				this._entries[languageIdentifier.id] = previous;
-				this._onDidChange.fire({ languageIdentifier });
+			if (this._entries.get(languageIdentifier.id) === current) {
+				this._entries.set(languageIdentifier.id, previous);
+				this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
 			}
 		});
 	}
 
-	private _getRichEditSupport(languageId: LanguageId): RichEditSupport {
-		return this._entries[languageId] || null;
+	private _getRichEditSupport(languageId: LanguageId): RichEditSupport | undefined {
+		return this._entries.get(languageId);
 	}
 
 	public getIndentationRules(languageId: LanguageId) {
-		let value = this._entries[languageId];
+		const value = this._entries.get(languageId);
 
 		if (!value) {
 			return null;

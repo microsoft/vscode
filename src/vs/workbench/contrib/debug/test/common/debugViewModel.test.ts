@@ -16,21 +16,17 @@ suite('Debug - View Model', () => {
 		model = new ViewModel(new MockContextKeyService());
 	});
 
-	teardown(() => {
-		model = null;
-	});
-
 	test('focused stack frame', () => {
 		assert.equal(model.focusedStackFrame, null);
 		assert.equal(model.focusedThread, null);
 		const session = new MockSession();
 		const thread = new Thread(session, 'myThread', 1);
-		const frame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: undefined, endLineNumber: undefined }, 0);
+		const frame = new StackFrame(thread, 1, undefined!, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, 0);
 		model.setFocus(frame, thread, session, false);
 
-		assert.equal(model.focusedStackFrame.getId(), frame.getId());
-		assert.equal(model.focusedThread.threadId, 1);
-		assert.equal(model.focusedSession.getId(), session.getId());
+		assert.equal(model.focusedStackFrame!.getId(), frame.getId());
+		assert.equal(model.focusedThread!.threadId, 1);
+		assert.equal(model.focusedSession!.getId(), session.getId());
 	});
 
 	test('selected expression', () => {

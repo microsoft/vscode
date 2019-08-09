@@ -374,12 +374,12 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 
 		let code = text.charCodeAt(pos);
 		// trivia: whitespace
-		if (isWhiteSpace(code)) {
+		if (isWhitespace(code)) {
 			do {
 				pos++;
 				value += String.fromCharCode(code);
 				code = text.charCodeAt(pos);
-			} while (isWhiteSpace(code));
+			} while (isWhitespace(code));
 
 			return token = SyntaxKind.Trivia;
 		}
@@ -517,7 +517,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 	}
 
 	function isUnknownContentCharacter(code: CharacterCodes) {
-		if (isWhiteSpace(code) || isLineBreak(code)) {
+		if (isWhitespace(code) || isLineBreak(code)) {
 			return false;
 		}
 		switch (code) {
@@ -555,7 +555,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 	};
 }
 
-function isWhiteSpace(ch: number): boolean {
+function isWhitespace(ch: number): boolean {
 	return ch === CharacterCodes.space || ch === CharacterCodes.tab || ch === CharacterCodes.verticalTab || ch === CharacterCodes.formFeed ||
 		ch === CharacterCodes.nonBreakingSpace || ch === CharacterCodes.ogham || ch >= CharacterCodes.enQuad && ch <= CharacterCodes.zeroWidthSpace ||
 		ch === CharacterCodes.narrowNoBreakSpace || ch === CharacterCodes.mathematicalSpace || ch === CharacterCodes.ideographicSpace || ch === CharacterCodes.byteOrderMark;

@@ -10,7 +10,6 @@ import * as extpath from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { sanitizeFilePath } from 'vs/base/node/extfs';
 
 export function validatePaths(args: ParsedArgs): ParsedArgs {
 
@@ -45,7 +44,7 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 			pathCandidate = preparePath(cwd, pathCandidate);
 		}
 
-		const sanitizedFilePath = sanitizeFilePath(pathCandidate, cwd);
+		const sanitizedFilePath = extpath.sanitizeFilePath(pathCandidate, cwd);
 
 		const basename = path.basename(sanitizedFilePath);
 		if (basename /* can be empty if code is opened on root */ && !extpath.isValidBasename(basename)) {

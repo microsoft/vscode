@@ -12,17 +12,18 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
 import { isObject, isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { distinct } from 'vs/base/common/arrays';
+import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel, IReplElementSource,
 	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State
 } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+import { Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
 import { posix } from 'vs/base/common/path';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextEditor } from 'vs/workbench/common/editor';
 
 export class SimpleReplElement implements IReplElement {
 	constructor(
@@ -89,12 +90,12 @@ export class RawObjectReplElement implements IExpression {
 
 export class ExpressionContainer implements IExpressionContainer {
 
-	public static allValues: Map<string, string> = new Map<string, string>();
+	public static allValues = new Map<string, string>();
 	// Use chunks to support variable paging #9537
 	private static readonly BASE_CHUNK_SIZE = 100;
 
-	public valueChanged: boolean;
-	private _value: string;
+	public valueChanged = false;
+	private _value: string = '';
 	protected children?: Promise<IExpression[]>;
 
 	constructor(
@@ -123,7 +124,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		return this.children;
 	}
 
-	private doGetChildren(): Promise<IExpression[]> {
+	private async doGetChildren(): Promise<IExpression[]> {
 		if (!this.hasChildren) {
 			return Promise.resolve([]);
 		}
@@ -133,29 +134,28 @@ export class ExpressionContainer implements IExpressionContainer {
 		}
 
 		// Check if object has named variables, fetch them independent from indexed variables #9670
-		const childrenThenable = !!this.namedVariables ? this.fetchVariables(undefined, undefined, 'named') : Promise.resolve([]);
-		return childrenThenable.then(childrenArray => {
-			// Use a dynamic chunk size based on the number of elements #9774
-			let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
-			while (!!this.indexedVariables && this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {
-				chunkSize *= ExpressionContainer.BASE_CHUNK_SIZE;
+		const children = this.namedVariables ? await this.fetchVariables(undefined, undefined, 'named') : [];
+
+		// Use a dynamic chunk size based on the number of elements #9774
+		let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
+		while (!!this.indexedVariables && this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {
+			chunkSize *= ExpressionContainer.BASE_CHUNK_SIZE;
+		}
+
+		if (!!this.indexedVariables && this.indexedVariables > chunkSize) {
+			// There are a lot of children, create fake intermediate values that represent chunks #9537
+			const numberOfChunks = Math.ceil(this.indexedVariables / chunkSize);
+			for (let i = 0; i < numberOfChunks; i++) {
+				const start = (this.startOfVariables || 0) + i * chunkSize;
+				const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
+				children.push(new Variable(this.session, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, { kind: 'virtual' }, undefined, true, start));
 			}
 
-			if (!!this.indexedVariables && this.indexedVariables > chunkSize) {
-				// There are a lot of children, create fake intermediate values that represent chunks #9537
-				const numberOfChunks = Math.ceil(this.indexedVariables / chunkSize);
-				for (let i = 0; i < numberOfChunks; i++) {
-					const start = (this.startOfVariables || 0) + i * chunkSize;
-					const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-					childrenArray.push(new Variable(this.session, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, { kind: 'virtual' }, undefined, true, start));
-				}
+			return children;
+		}
 
-				return childrenArray;
-			}
-
-			return this.fetchVariables(this.startOfVariables, this.indexedVariables, 'indexed')
-				.then(variables => childrenArray.concat(variables));
-		});
+		const variables = await this.fetchVariables(this.startOfVariables, this.indexedVariables, 'indexed');
+		return children.concat(variables);
 	}
 
 	getId(): string {
@@ -172,7 +172,7 @@ export class ExpressionContainer implements IExpressionContainer {
 	}
 
 	private fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
-		return this.session!.variables(this.reference, filter, start, count).then(response => {
+		return this.session!.variables(this.reference || 0, filter, start, count).then(response => {
 			return response && response.body && response.body.variables
 				? distinct(response.body.variables.filter(v => !!v && isString(v.name)), (v: DebugProtocol.Variable) => v.name).map((v: DebugProtocol.Variable) =>
 					new Variable(this.session, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
@@ -201,7 +201,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 	static DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
 	public available: boolean;
-	public type: string;
+	public type: string | undefined;
 
 	constructor(public name: string, id = generateUuid()) {
 		super(undefined, 0, id);
@@ -213,7 +213,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	evaluate(session: IDebugSession, stackFrame: IStackFrame, context: string): Promise<void> {
+	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<void> {
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
 			this.available = false;
@@ -223,7 +223,8 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 
 		this.session = session;
-		return session.evaluate(this.name, stackFrame ? stackFrame.frameId : undefined, context).then(response => {
+		try {
+			const response = await session.evaluate(this.name, stackFrame ? stackFrame.frameId : undefined, context);
 			this.available = !!(response && response.body);
 			if (response && response.body) {
 				this.value = response.body.result;
@@ -232,11 +233,11 @@ export class Expression extends ExpressionContainer implements IExpression {
 				this.indexedVariables = response.body.indexedVariables;
 				this.type = response.body.type || this.type;
 			}
-		}, err => {
-			this.value = err.message;
+		} catch (e) {
+			this.value = e.message;
 			this.available = false;
 			this.reference = 0;
-		});
+		}
 	}
 
 	toString(): string {
@@ -267,12 +268,13 @@ export class Variable extends ExpressionContainer implements IExpression {
 		this.value = value;
 	}
 
-	setVariable(value: string): Promise<any> {
+	async setVariable(value: string): Promise<any> {
 		if (!this.session) {
 			return Promise.resolve(undefined);
 		}
 
-		return this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value).then(response => {
+		try {
+			const response = await this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value);
 			if (response && response.body) {
 				this.value = response.body.value;
 				this.type = response.body.type || this.type;
@@ -280,9 +282,9 @@ export class Variable extends ExpressionContainer implements IExpression {
 				this.namedVariables = response.body.namedVariables;
 				this.indexedVariables = response.body.indexedVariables;
 			}
-		}, err => {
+		} catch (err) {
 			this.errorMessage = err.message;
-		});
+		}
 	}
 
 	toString(): string {
@@ -302,7 +304,7 @@ export class Scope extends ExpressionContainer implements IScope {
 		indexedVariables?: number,
 		public range?: IRange
 	) {
-		super(stackFrame.thread.session, reference, `scope:${stackFrame.getId()}:${name}:${index}`, namedVariables, indexedVariables);
+		super(stackFrame.thread.session, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
 	}
 
 	toString(): string {
@@ -312,7 +314,7 @@ export class Scope extends ExpressionContainer implements IScope {
 
 export class StackFrame implements IStackFrame {
 
-	private scopes: Promise<Scope[]> | null;
+	private scopes: Promise<Scope[]> | undefined;
 
 	constructor(
 		public thread: IThread,
@@ -322,9 +324,7 @@ export class StackFrame implements IStackFrame {
 		public presentationHint: string | undefined,
 		public range: IRange,
 		private index: number
-	) {
-		this.scopes = null;
-	}
+	) { }
 
 	getId(): string {
 		return `stackframe:${this.thread.getId()}:${this.frameId}:${this.index}`;
@@ -380,11 +380,18 @@ export class StackFrame implements IStackFrame {
 		return this.thread.session.restartFrame(this.frameId, this.thread.threadId);
 	}
 
-	toString(): string {
-		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.range.startLineNumber})`;
+	forgetScopes(): void {
+		this.scopes = undefined;
 	}
 
-	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+	toString(): string {
+		const lineNumberToString = typeof this.range.startLineNumber === 'number' ? `:${this.range.startLineNumber}` : '';
+		const sourceToString = `${this.source.inMemory ? this.source.name : this.source.uri.fsPath}${lineNumberToString}`;
+
+		return sourceToString === UNKNOWN_SOURCE_LABEL ? this.name : `${this.name} (${sourceToString})`;
+	}
+
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | null> {
 		return !this.source.available ? Promise.resolve(null) :
 			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
 	}
@@ -393,7 +400,7 @@ export class StackFrame implements IStackFrame {
 export class Thread implements IThread {
 	private callStack: IStackFrame[];
 	private staleCallStack: IStackFrame[];
-	public stoppedDetails: IRawStoppedDetails;
+	public stoppedDetails: IRawStoppedDetails | undefined;
 	public stopped: boolean;
 
 	constructor(public session: IDebugSession, public name: string, public threadId: number) {
@@ -422,7 +429,7 @@ export class Thread implements IThread {
 	}
 
 	get stateLabel(): string {
-		if (this.stopped) {
+		if (this.stoppedDetails) {
 			return this.stoppedDetails.description ||
 				this.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", this.stoppedDetails.reason) : nls.localize('paused', "Paused");
 		}
@@ -482,9 +489,9 @@ export class Thread implements IThread {
 	}
 
 	/**
-	 * Returns exception info promise if the exception was thrown, otherwise null
+	 * Returns exception info promise if the exception was thrown, otherwise undefined
 	 */
-	get exceptionInfo(): Promise<IExceptionInfo | null> {
+	get exceptionInfo(): Promise<IExceptionInfo | undefined> {
 		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
 			if (this.session.capabilities.supportsExceptionInfoRequest) {
 				return this.session.exceptionInfo(this.threadId);
@@ -494,7 +501,7 @@ export class Thread implements IThread {
 				breakMode: null
 			});
 		}
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 
 	next(): Promise<any> {
@@ -544,7 +551,7 @@ export class Enablement implements IEnablement {
 export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 
 	private sessionData = new Map<string, DebugProtocol.Breakpoint>();
-	private sessionId: string;
+	private sessionId: string | undefined;
 
 	constructor(
 		enabled: boolean,
@@ -559,15 +566,15 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		}
 	}
 
-	protected getSessionData() {
-		return this.sessionData.get(this.sessionId);
+	protected getSessionData(): DebugProtocol.Breakpoint | undefined {
+		return this.sessionId ? this.sessionData.get(this.sessionId) : undefined;
 	}
 
 	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {
 		this.sessionData.set(sessionId, data);
 	}
 
-	setSessionId(sessionId: string): void {
+	setSessionId(sessionId: string | undefined): void {
 		this.sessionId = sessionId;
 	}
 
@@ -654,6 +661,13 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	get endColumn(): number | undefined {
 		const data = this.getSessionData();
 		return data ? data.endColumn : undefined;
+	}
+
+	get sessionAgnosticData(): { lineNumber: number, column: number | undefined } {
+		return {
+			lineNumber: this._lineNumber,
+			column: this._column
+		};
 	}
 
 	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {
@@ -754,7 +768,7 @@ export class DebugModel implements IDebugModel {
 	private sessions: IDebugSession[];
 	private toDispose: lifecycle.IDisposable[];
 	private schedulers = new Map<string, RunOnceScheduler>();
-	private breakpointsSessionId: string;
+	private breakpointsSessionId: string | undefined;
 	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent | undefined>;
 	private readonly _onDidChangeCallStack: Emitter<void>;
 	private readonly _onDidChangeWatchExpressions: Emitter<IExpression | undefined>;
@@ -778,6 +792,13 @@ export class DebugModel implements IDebugModel {
 		return 'root';
 	}
 
+	getSession(sessionId: string | undefined, includeInactive = false): IDebugSession | undefined {
+		if (sessionId) {
+			return this.getSessions(includeInactive).filter(s => s.getId() === sessionId).pop();
+		}
+		return undefined;
+	}
+
 	getSessions(includeInactive = false): IDebugSession[] {
 		// By default do not return inactive sesions.
 		// However we are still holding onto inactive sessions due to repl and debug service session revival (eh scenario)
@@ -790,14 +811,24 @@ export class DebugModel implements IDebugModel {
 				// Make sure to de-dupe if a session is re-intialized. In case of EH debugging we are adding a session again after an attach.
 				return false;
 			}
-			if (s.state === State.Inactive && s.getLabel() === session.getLabel()) {
+			if (s.state === State.Inactive && s.configuration.name === session.configuration.name) {
 				// Make sure to remove all inactive sessions that are using the same configuration as the new session
 				return false;
 			}
 
 			return true;
 		});
-		this.sessions.push(session);
+
+		let index = -1;
+		if (session.parentSession) {
+			// Make sure that child sessions are placed after the parent session
+			index = lastIndex(this.sessions, s => s.parentSession === session.parentSession || s === session.parentSession);
+		}
+		if (index >= 0) {
+			this.sessions.splice(index + 1, 0, session);
+		} else {
+			this.sessions.push(session);
+		}
 		this._onDidChangeCallStack.fire(undefined);
 	}
 
@@ -934,10 +965,10 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed: toRemove });
 	}
 
-	updateBreakpoints(data: { [id: string]: IBreakpointUpdateData }): void {
+	updateBreakpoints(data: Map<string, IBreakpointUpdateData>): void {
 		const updated: IBreakpoint[] = [];
 		this.breakpoints.forEach(bp => {
-			const bpData = data[bp.getId()];
+			const bpData = data.get(bp.getId());
 			if (bpData) {
 				bp.update(bpData);
 				updated.push(bp);
@@ -947,15 +978,15 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ changed: updated });
 	}
 
-	setBreakpointSessionData(sessionId: string, data: { [id: string]: DebugProtocol.Breakpoint }): void {
+	setBreakpointSessionData(sessionId: string, data: Map<string, DebugProtocol.Breakpoint>): void {
 		this.breakpoints.forEach(bp => {
-			const bpData = data[bp.getId()];
+			const bpData = data.get(bp.getId());
 			if (bpData) {
 				bp.setSessionData(sessionId, bpData);
 			}
 		});
 		this.functionBreakpoints.forEach(fbp => {
-			const fbpData = data[fbp.getId()];
+			const fbpData = data.get(fbp.getId());
 			if (fbpData) {
 				fbp.setSessionData(sessionId, fbpData);
 			}
@@ -966,7 +997,7 @@ export class DebugModel implements IDebugModel {
 		});
 	}
 
-	setBreakpointsSessionId(sessionId: string): void {
+	setBreakpointsSessionId(sessionId: string | undefined): void {
 		this.breakpointsSessionId = sessionId;
 		this.breakpoints.forEach(bp => bp.setSessionId(sessionId));
 		this.functionBreakpoints.forEach(fbp => fbp.setSessionId(sessionId));
@@ -1025,7 +1056,7 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}
 
-	addFunctionBreakpoint(functionName: string, id: string): IFunctionBreakpoint {
+	addFunctionBreakpoint(functionName: string, id?: string): IFunctionBreakpoint {
 		const newFunctionBreakpoint = new FunctionBreakpoint(functionName, true, undefined, undefined, undefined, id);
 		this.functionBreakpoints.push(newFunctionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint] });

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .part.activitybar {
-	width: 50px;
+	width: 48px;
 }
 
 .monaco-workbench .activitybar > .content {
@@ -24,5 +24,9 @@
 }
 
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-label.toggle-more {
-	-webkit-mask: url('ellipsis-global.svg') no-repeat 50% 50%;
+	-webkit-mask: url('ellipsis-activity-bar.svg') no-repeat 50% 50%;
+}
+
+.monaco-workbench .activitybar .global-activity .monaco-action-bar .action-label.update-activity {
+	-webkit-mask: url('settings-activity-bar.svg') no-repeat 50% 50%;
 }

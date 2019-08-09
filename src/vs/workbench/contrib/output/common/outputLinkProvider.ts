@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { LinkProviderRegistry, ILink } from 'vs/editor/common/modes';
+import { LinkProviderRegistry, ILink, ILinksList } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/contrib/output/common/output';
 import { MonacoWebWorker, createWebWorker } from 'vs/editor/common/services/webWorker';
@@ -19,7 +19,7 @@ export class OutputLinkProvider {
 
 	private worker?: MonacoWebWorker<OutputLinkComputer>;
 	private disposeWorkerScheduler: RunOnceScheduler;
-	private linkProviderRegistration: IDisposable;
+	private linkProviderRegistration: IDisposable | undefined;
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -42,13 +42,14 @@ export class OutputLinkProvider {
 		if (folders.length > 0) {
 			if (!this.linkProviderRegistration) {
 				this.linkProviderRegistration = LinkProviderRegistry.register([{ language: OUTPUT_MODE_ID, scheme: '*' }, { language: LOG_MODE_ID, scheme: '*' }], {
-					provideLinks: (model, token): Promise<ILink[]> => {
-						return this.provideLinks(model.uri);
+					provideLinks: (model): Promise<ILinksList> => {
+						return this.provideLinks(model.uri).then(links => links && { links });
 					}
 				});
 			}
 		} else {
-			this.linkProviderRegistration = dispose(this.linkProviderRegistration);
+			dispose(this.linkProviderRegistration);
+			this.linkProviderRegistration = undefined;
 		}
 
 		// Dispose worker to recreate with folders on next provideLinks request

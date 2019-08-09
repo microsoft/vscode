@@ -15,9 +15,10 @@ import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup, EditorsOrder, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, toResource } from 'vs/workbench/common/editor';
+import { EditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 
@@ -32,13 +33,13 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	getLabelOptions(): IIconLabelValueOptions {
 		return {
-			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource() || undefined),
+			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource()),
 			italic: !this._group.isPinned(this.editor)
 		};
 	}
 
 	getLabel() {
-		return this.editor.getName();
+		return withNullAsUndefined(this.editor.getName());
 	}
 
 	getIcon(): string {
@@ -50,7 +51,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	getResource() {
-		return toResource(this.editor, { supportSideBySide: true });
+		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}
 
 	getAriaLabel(): string {

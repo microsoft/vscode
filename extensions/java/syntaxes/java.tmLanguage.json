@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/f6d349a5ca698be25d3f48511888fe62d158e42c",
+	"version": "https://github.com/atom/language-java/commit/759a0ac02dc091018a112b25a5a6d894918a0aa8",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -124,15 +124,15 @@
 		"annotations": {
 			"patterns": [
 				{
-					"begin": "((@)[^\\s(]+)(\\()",
+					"begin": "((@)\\s*([^\\s(]+))(\\()",
 					"beginCaptures": {
-						"1": {
-							"name": "storage.type.annotation.java"
-						},
 						"2": {
 							"name": "punctuation.definition.annotation.java"
 						},
 						"3": {
+							"name": "storage.type.annotation.java"
+						},
+						"4": {
 							"name": "punctuation.definition.annotation-arguments.begin.bracket.round.java"
 						}
 					},
@@ -161,7 +161,7 @@
 					]
 				},
 				{
-					"match": "(@)(interface)\\s+(\\w*)|((@)\\w*)",
+					"match": "(@)(interface)\\s+(\\w*)|((@)\\s*(\\w+))",
 					"name": "meta.declaration.annotation.java",
 					"captures": {
 						"1": {
@@ -173,11 +173,11 @@
 						"3": {
 							"name": "storage.type.annotation.java"
 						},
-						"4": {
-							"name": "storage.type.annotation.java"
-						},
 						"5": {
 							"name": "punctuation.definition.annotation.java"
+						},
+						"6": {
+							"name": "storage.type.annotation.java"
 						}
 					}
 				}
@@ -209,7 +209,7 @@
 					"name": "keyword.control.new.java"
 				}
 			},
-			"end": "(?=;|\\)|,|:|}|\\+)",
+			"end": "(?=;|\\)|,|:|}|\\+|\\-|\\*|\\/|%|!|&|\\||=)",
 			"patterns": [
 				{
 					"include": "#comments"
@@ -1096,12 +1096,12 @@
 					"include": "#generics"
 				},
 				{
-					"begin": "\\b((?:[A-Za-z]\\w*\\s*\\.\\s*)*)([A-Z]\\w*)\\s*(?=\\[)",
+					"begin": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*)([A-Z_]\\w*)\\s*(?=\\[)",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
 								{
-									"match": "[A-Za-z]\\w*",
+									"match": "[A-Za-z_]\\w*",
 									"name": "storage.type.java"
 								},
 								{
@@ -1125,12 +1125,12 @@
 					]
 				},
 				{
-					"match": "\\b((?:[A-Za-z]\\w*\\s*\\.\\s*)*[A-Z]\\w*)\\s*(?=<)",
+					"match": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*[A-Z_]\\w*)\\s*(?=<)",
 					"captures": {
 						"1": {
 							"patterns": [
 								{
-									"match": "[A-Za-z]\\w*",
+									"match": "[A-Za-z_]\\w*",
 									"name": "storage.type.java"
 								},
 								{
@@ -1142,12 +1142,12 @@
 					}
 				},
 				{
-					"match": "\\b((?:[A-Za-z]\\w*\\s*\\.\\s*)*[A-Z]\\w*)\\b((?=\\s*[A-Za-z$_\\n])|(?=\\s*\\.\\.\\.))",
+					"match": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*[A-Z_]\\w*)\\b((?=\\s*[A-Za-z$_\\n])|(?=\\s*\\.\\.\\.))",
 					"captures": {
 						"1": {
 							"patterns": [
 								{
-									"match": "[A-Za-z]\\w*",
+									"match": "[A-Za-z_]\\w*",
 									"name": "storage.type.java"
 								},
 								{
@@ -1576,7 +1576,7 @@
 			]
 		},
 		"variables": {
-			"begin": "(?x)\n(?=\n  (\n    \\b(void|boolean|byte|char|short|int|float|long|double)\\b\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|:|;)\n)",
+			"begin": "(?x)\n(?=\n  (\n    \\b(void|boolean|byte|char|short|int|float|long|double)\\b\n    |\n    (?>(\\w+\\.)*[A-Z_]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  \\s*\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  \\s*\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|:|;)\n)",
 			"end": "(?=\\=|:|;)",
 			"name": "meta.definition.variable.java",
 			"patterns": [

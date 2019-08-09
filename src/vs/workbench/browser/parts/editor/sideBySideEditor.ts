@@ -21,6 +21,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 export class SideBySideEditor extends BaseEditor {
 
 	static readonly ID: string = 'workbench.editor.sidebysideEditor';
+	static MASTER: SideBySideEditor | undefined;
 
 	get minimumMasterWidth() { return this.masterEditor ? this.masterEditor.minimumWidth : 0; }
 	get maximumMasterWidth() { return this.masterEditor ? this.masterEditor.maximumWidth : Number.POSITIVE_INFINITY; }
@@ -92,10 +93,11 @@ export class SideBySideEditor extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		const oldInput = <SideBySideEditorInput>this.input;
-		return super.setInput(newInput, options, token)
-			.then(() => this.updateInput(oldInput, newInput, options, token));
+	async setInput(newInput: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+		const oldInput = this.input as SideBySideEditorInput;
+		await super.setInput(newInput, options, token);
+
+		return this.updateInput(oldInput, (newInput as SideBySideEditorInput), options, token);
 	}
 
 	setOptions(options: EditorOptions): void {
@@ -141,12 +143,12 @@ export class SideBySideEditor extends BaseEditor {
 		this.splitview.layout(dimension.width);
 	}
 
-	getControl(): IEditorControl | null {
+	getControl(): IEditorControl | undefined {
 		if (this.masterEditor) {
 			return this.masterEditor.getControl();
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getMasterEditor(): IEditor | undefined {
@@ -157,7 +159,7 @@ export class SideBySideEditor extends BaseEditor {
 		return this.detailsEditor;
 	}
 
-	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	private async updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
@@ -165,19 +167,20 @@ export class SideBySideEditor extends BaseEditor {
 
 			return this.setNewInput(newInput, options, token);
 		}
+
 		if (!this.detailsEditor || !this.masterEditor) {
-			return Promise.resolve();
+			return;
 		}
 
-		return Promise.all([
+		await Promise.all([
 			this.detailsEditor.setInput(newInput.details, null, token),
-			this.masterEditor.setInput(newInput.master, options, token)]
-		).then(() => undefined);
+			this.masterEditor.setInput(newInput.master, options, token)
+		]);
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		const detailsEditor = this.doCreateEditor(<EditorInput>newInput.details, this.detailsEditorContainer);
-		const masterEditor = this.doCreateEditor(<EditorInput>newInput.master, this.masterEditorContainer);
+		const detailsEditor = this.doCreateEditor(newInput.details, this.detailsEditorContainer);
+		const masterEditor = this.doCreateEditor(newInput.master, this.masterEditorContainer);
 
 		return this.onEditorsCreated(detailsEditor, masterEditor, newInput.details, newInput.master, options, token);
 	}
@@ -195,7 +198,7 @@ export class SideBySideEditor extends BaseEditor {
 		return editor;
 	}
 
-	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	private async onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 		this.detailsEditor = details;
 		this.masterEditor = master;
 
@@ -206,7 +209,10 @@ export class SideBySideEditor extends BaseEditor {
 
 		this.onDidCreateEditors.fire(undefined);
 
-		return Promise.all([this.detailsEditor.setInput(detailsInput, null, token), this.masterEditor.setInput(masterInput, options, token)]).then(() => this.focus());
+		await Promise.all([
+			this.detailsEditor.setInput(detailsInput, null, token),
+			this.masterEditor.setInput(masterInput, options, token)]
+		);
 	}
 
 	updateStyles(): void {

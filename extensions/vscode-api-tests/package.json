@@ -3,6 +3,7 @@
 	"description": "API tests for VS Code",
 	"version": "0.0.1",
 	"publisher": "vscode",
+	"license": "MIT",
 	"enableProposedApi": true,
 	"private": true,
 	"main": "horse",
@@ -49,7 +50,7 @@
 	},
 	"devDependencies": {
 		"@types/mocha": "2.2.43",
-		"@types/node": "^10.12.21",
+		"@types/node": "^10.14.8",
 		"mocha-junit-reporter": "^1.17.0",
 		"mocha-multi-reporters": "^1.1.7",
 		"typescript": "^1.6.2",

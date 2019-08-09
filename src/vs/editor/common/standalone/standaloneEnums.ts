@@ -7,7 +7,8 @@
 
 
 export enum MarkerTag {
-	Unnecessary = 1
+	Unnecessary = 1,
+	Deprecated = 2
 }
 
 export enum MarkerSeverity {
@@ -226,6 +227,13 @@ export enum OverviewRulerLane {
 	Center = 2,
 	Right = 4,
 	Full = 7
+}
+
+/**
+ * Position in the minimap to render the decoration.
+ */
+export enum MinimapPosition {
+	Inline = 1
 }
 
 /**

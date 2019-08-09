@@ -7,12 +7,13 @@ import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerD
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	_serviceBrand: any;
@@ -22,7 +23,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@IThemeService private readonly themeService: IThemeService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private readonly windowService: IWindowService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) { }
 
 	openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
@@ -60,7 +61,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 	openProcessExplorer(): Promise<void> {
 		const theme = this.themeService.getTheme();
 		const data: ProcessExplorerData = {
-			pid: this.windowService.getConfiguration().mainPid,
+			pid: this.environmentService.configuration.mainPid,
 			zoomLevel: webFrame.getZoomLevel(),
 			styles: {
 				backgroundColor: getColor(theme, editorBackground),

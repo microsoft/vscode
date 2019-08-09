@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
-import * as vscode from 'vscode';
-import { getLocation, visit, parse, ParseErrorCode } from 'jsonc-parser';
+import { getLocation, parse, visit } from 'jsonc-parser';
 import * as path from 'path';
+import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import { SettingsDocument } from './settingsDocumentHelper';
+const localize = nls.loadMessageBundle();
 
 const fadedDecoration = vscode.window.createTextEditorDecorationType({
 	light: {
@@ -45,50 +45,6 @@ export function activate(context: vscode.ExtensionContext): void {
 		}
 	}, null, context.subscriptions));
 	updateLaunchJsonDecorations(vscode.window.activeTextEditor);
-
-	context.subscriptions.push(vscode.workspace.onWillSaveTextDocument(e => {
-		if (!e.document.fileName.endsWith('/settings.json')) {
-			return;
-		}
-
-		autoFixSettingsJSON(e);
-	}));
-}
-
-function autoFixSettingsJSON(willSaveEvent: vscode.TextDocumentWillSaveEvent): void {
-	const document = willSaveEvent.document;
-	const text = document.getText();
-	const edit = new vscode.WorkspaceEdit();
-
-	let lastEndOfSomething = -1;
-	visit(text, {
-		onArrayEnd(offset: number, length: number): void {
-			lastEndOfSomething = offset + length;
-		},
-
-		onLiteralValue(_value: any, offset: number, length: number): void {
-			lastEndOfSomething = offset + length;
-		},
-
-		onObjectEnd(offset: number, length: number): void {
-			lastEndOfSomething = offset + length;
-		},
-
-		onError(error: ParseErrorCode, _offset: number, _length: number): void {
-			if (error === ParseErrorCode.CommaExpected && lastEndOfSomething > -1) {
-				const fixPosition = document.positionAt(lastEndOfSomething);
-
-				// Don't insert a comma immediately before a : or ' :'
-				const colonRange = document.getWordRangeAtPosition(fixPosition, / *:/);
-				if (!colonRange) {
-					edit.insert(document.uri, fixPosition, ',');
-				}
-			}
-		}
-	});
-
-	willSaveEvent.waitUntil(
-		vscode.workspace.applyEdit(edit));
 }
 
 function registerSettingsCompletions(): vscode.Disposable {
@@ -107,11 +63,20 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 				const indexOf$ = document.lineAt(position.line).text.indexOf('$');
 				const startPosition = indexOf$ >= 0 ? new vscode.Position(position.line, indexOf$) : position;
 
-				return [{ label: 'workspaceFolder', detail: localize('workspaceFolder', "The path of the folder opened in VS Code") }, { label: 'workspaceFolderBasename', detail: localize('workspaceFolderBasename', "The name of the folder opened in VS Code without any slashes (/)") },
-				{ label: 'relativeFile', detail: localize('relativeFile', "The current opened file relative to ${workspaceFolder}") }, { label: 'file', detail: localize('file', "The current opened file") }, { label: 'cwd', detail: localize('cwd', "The task runner's current working directory on startup") },
-				{ label: 'lineNumber', detail: localize('lineNumber', "The current selected line number in the active file") }, { label: 'selectedText', detail: localize('selectedText', "The current selected text in the active file") },
-				{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") }, { label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") }, { label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
-				{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") }].map(variable => ({
+				return [
+					{ label: 'workspaceFolder', detail: localize('workspaceFolder', "The path of the folder opened in VS Code") },
+					{ label: 'workspaceFolderBasename', detail: localize('workspaceFolderBasename', "The name of the folder opened in VS Code without any slashes (/)") },
+					{ label: 'relativeFile', detail: localize('relativeFile', "The current opened file relative to ${workspaceFolder}") },
+					{ label: 'relativeFileDirname', detail: localize('relativeFileDirname', "The current opened file's dirname relative to ${workspaceFolder}") },
+					{ label: 'file', detail: localize('file', "The current opened file") },
+					{ label: 'cwd', detail: localize('cwd', "The task runner's current working directory on startup") },
+					{ label: 'lineNumber', detail: localize('lineNumber', "The current selected line number in the active file") },
+					{ label: 'selectedText', detail: localize('selectedText', "The current selected text in the active file") },
+					{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") },
+					{ label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") },
+					{ label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
+					{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") }
+				].map(variable => ({
 					label: '${' + variable.label + '}',
 					range: new vscode.Range(startPosition, position),
 					detail: variable.detail

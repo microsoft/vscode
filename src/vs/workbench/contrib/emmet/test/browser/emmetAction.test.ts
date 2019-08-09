@@ -27,7 +27,7 @@ import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 //
 
 class MockGrammarContributions implements IGrammarContributions {
-	private scopeName;
+	private scopeName: string;
 
 	constructor(scopeName: string) {
 		this.scopeName = scopeName;

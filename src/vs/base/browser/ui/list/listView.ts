@@ -41,9 +41,11 @@ export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
 	getDragElements(element: T): T[];
 }
 
-export interface IAriaSetProvider<T> {
+export interface IAriaProvider<T> {
 	getSetSize(element: T, index: number, listLength: number): number;
 	getPosInSet(element: T, index: number): number;
+	getRole?(element: T): string;
+	isChecked?(element: T): boolean;
 }
 
 export interface IListViewOptions<T> {
@@ -54,7 +56,7 @@ export interface IListViewOptions<T> {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
-	readonly ariaSetProvider?: IAriaSetProvider<T>;
+	readonly ariaProvider?: IAriaProvider<T>;
 }
 
 const DefaultOptions = {
@@ -63,7 +65,7 @@ const DefaultOptions = {
 	setRowLineHeight: true,
 	supportDynamicHeights: false,
 	dnd: {
-		getDragElements(e) { return [e]; },
+		getDragElements<T>(e: T) { return [e]; },
 		getDragURI() { return null; },
 		onDragStart(): void { },
 		onDragOver() { return false; },
@@ -161,20 +163,19 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 	private renderWidth = 0;
-	private gesture: Gesture;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
-	private _scrollHeight: number;
+	private _scrollHeight: number = 0;
 	private scrollableElementUpdateDisposable: IDisposable | null = null;
 	private scrollableElementWidthDelayer = new Delayer<void>(50);
 	private splicing = false;
 	private dragOverAnimationDisposable: IDisposable | undefined;
 	private dragOverAnimationStopDisposable: IDisposable = Disposable.None;
-	private dragOverMouseY: number;
+	private dragOverMouseY: number = 0;
 	private setRowLineHeight: boolean;
 	private supportDynamicHeights: boolean;
 	private horizontalScrolling: boolean;
-	private ariaSetProvider: IAriaSetProvider<T>;
+	private ariaProvider: IAriaProvider<T>;
 	private scrollWidth: number | undefined;
 	private canUseTranslate3d: boolean | undefined = undefined;
 
@@ -191,15 +192,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event);
 	get contentHeight(): number { return this.rangeMap.size; }
 
-	readonly onDidScroll: Event<void>;
-
-	// private _onDragStart = new Emitter<{ element: T, uri: string, event: DragEvent }>();
-	// readonly onDragStart = this._onDragStart.event;
-
-	// readonly onDragOver: Event<IListDragEvent<T>>;
-	// readonly onDragLeave: Event<void>;
-	// readonly onDrop: Event<IListDragEvent<T>>;
-	// readonly onDragEnd: Event<void>;
+	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
 
 	constructor(
 		container: HTMLElement,
@@ -235,7 +228,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.horizontalScrolling = getOrDefault(options, o => o.horizontalScrolling, DefaultOptions.horizontalScrolling);
 		DOM.toggleClass(this.domNode, 'horizontal-scrolling', this.horizontalScrolling);
 
-		this.ariaSetProvider = options.ariaSetProvider || { getSetSize: (e, i, length) => length, getPosInSet: (_, index) => index + 1 };
+		this.ariaProvider = options.ariaProvider || { getSetSize: (e, i, length) => length, getPosInSet: (_, index) => index + 1 };
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
@@ -251,9 +244,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
 		container.appendChild(this.domNode);
 
-		this.disposables = [this.rangeMap, this.gesture, this.scrollableElement, this.cache];
+		this.disposables = [this.rangeMap, this.scrollableElement, this.cache];
 
-		this.onDidScroll = Event.signal(this.scrollableElement.onScroll);
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
 
@@ -575,7 +567,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
-			item.row!.domNode!.setAttribute('role', 'treeitem');
+			const role = this.ariaProvider.getRole ? this.ariaProvider.getRole(item.element) : 'treeitem';
+			item.row!.domNode!.setAttribute('role', role);
+			const checked = this.ariaProvider.isChecked ? this.ariaProvider.isChecked(item.element) : undefined;
+			if (typeof checked !== 'undefined') {
+				item.row!.domNode!.setAttribute('aria-checked', String(checked));
+			}
 		}
 
 		if (!item.row.domNode!.parentElement) {
@@ -595,7 +592,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (renderer) {
-			renderer.renderElement(item.element, index, item.row.templateData);
+			renderer.renderElement(item.element, index, item.row.templateData, item.size);
 		}
 
 		const uri = this.dnd.getDragURI(item.element);
@@ -643,8 +640,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		item.row!.domNode!.setAttribute('data-index', `${index}`);
 		item.row!.domNode!.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
-		item.row!.domNode!.setAttribute('aria-setsize', String(this.ariaSetProvider.getSetSize(item.element, index, this.length)));
-		item.row!.domNode!.setAttribute('aria-posinset', String(this.ariaSetProvider.getPosInSet(item.element, index)));
+		item.row!.domNode!.setAttribute('aria-setsize', String(this.ariaProvider.getSetSize(item.element, index, this.length)));
+		item.row!.domNode!.setAttribute('aria-posinset', String(this.ariaProvider.getPosInSet(item.element, index)));
 		item.row!.domNode!.setAttribute('id', this.getElementDomId(index));
 
 		DOM.toggleClass(item.row!.domNode!, 'drop-target', item.dropTarget);
@@ -656,7 +653,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const renderer = this.renderers.get(item.templateId);
 		if (renderer && renderer.disposeElement) {
-			renderer.disposeElement(item.element, index, item.row!.templateData);
+			renderer.disposeElement(item.element, index, item.row!.templateData, item.size);
 		}
 
 		this.cache.release(item.row!);
@@ -1097,14 +1094,19 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const renderer = this.renderers.get(item.templateId);
 		if (renderer) {
-			renderer.renderElement(item.element, index, row.templateData, true);
+			renderer.renderElement(item.element, index, row.templateData, undefined);
 
 			if (renderer.disposeElement) {
-				renderer.disposeElement(item.element, index, row.templateData, true);
+				renderer.disposeElement(item.element, index, row.templateData, undefined);
 			}
 		}
 
 		item.size = row.domNode!.offsetHeight;
+
+		if (this.virtualDelegate.setDynamicHeight) {
+			this.virtualDelegate.setDynamicHeight(item.element, item.size);
+		}
+
 		item.lastDynamicHeightWidth = this.renderWidth;
 		this.rowsContainer.removeChild(row.domNode!);
 		this.cache.release(row);

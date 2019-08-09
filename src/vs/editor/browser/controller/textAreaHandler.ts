@@ -446,14 +446,8 @@ export class TextAreaHandler extends ViewPart {
 	private _primaryCursorVisibleRange: HorizontalRange | null = null;
 
 	public prepareRender(ctx: RenderingContext): void {
-		if (this._accessibilitySupport === AccessibilitySupport.Enabled) {
-			// Do not move the textarea with the cursor, as this generates accessibility events that might confuse screen readers
-			// See https://github.com/Microsoft/vscode/issues/26730
-			this._primaryCursorVisibleRange = null;
-		} else {
-			const primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
-			this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(primaryCursorPosition);
-		}
+		const primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
+		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(primaryCursorPosition);
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
@@ -543,7 +537,7 @@ export class TextAreaHandler extends ViewPart {
 		}
 
 		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
-		// specifically, when doing Korean IME, setting the textare to 0x0 breaks IME badly.
+		// specifically, when doing Korean IME, setting the textarea to 0x0 breaks IME badly.
 
 		ta.setWidth(1);
 		ta.setHeight(1);

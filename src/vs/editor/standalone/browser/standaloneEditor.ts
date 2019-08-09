@@ -152,15 +152,13 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 	value = value || '';
 
 	if (!language) {
-		let path = uri ? uri.path : null;
-
 		let firstLF = value.indexOf('\n');
 		let firstLine = value;
 		if (firstLF !== -1) {
 			firstLine = value.substring(0, firstLF);
 		}
 
-		return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(path, firstLine), uri);
+		return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(uri || null, firstLine), uri);
 	}
 	return doCreateModel(value, StaticServices.modeService.get().create(language), uri);
 }
@@ -354,6 +352,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
+		MinimapPosition: standaloneEnums.MinimapPosition,
 		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
 		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
 		EndOfLineSequence: standaloneEnums.EndOfLineSequence,

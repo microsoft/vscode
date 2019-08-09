@@ -161,19 +161,19 @@ const SAMPLE: any = {
 };
 
 class TestDataSource implements _.IDataSource {
-	public getId(tree, element): string {
+	public getId(tree: _.ITree, element: any): string {
 		return element.id;
 	}
 
-	public hasChildren(tree, element): boolean {
+	public hasChildren(tree: _.ITree, element: any): boolean {
 		return !!element.children;
 	}
 
-	public getChildren(tree, element): Promise<any> {
+	public getChildren(tree: _.ITree, element: any): Promise<any> {
 		return Promise.resolve(element.children);
 	}
 
-	public getParent(tree, element): Promise<any> {
+	public getParent(tree: _.ITree, element: any): Promise<any> {
 		throw new Error('Not implemented');
 	}
 }
@@ -700,13 +700,13 @@ suite('TreeModel - Expansion', () => {
 
 class TestFilter implements _.IFilter {
 
-	public fn: (any) => boolean;
+	public fn: (element: any) => boolean;
 
 	constructor() {
 		this.fn = () => true;
 	}
 
-	public isVisible(tree, element): boolean {
+	public isVisible(tree: _.ITree, element: any): boolean {
 		return this.fn(element);
 	}
 }
@@ -1092,39 +1092,39 @@ class DynamicModel implements _.IDataSource {
 		this.promiseFactory = null;
 	}
 
-	public addChild(parent, child): void {
+	public addChild(parent: string, child: string): void {
 		if (!this.data[parent]) {
 			this.data[parent] = [];
 		}
 		this.data[parent].push(child);
 	}
 
-	public removeChild(parent, child): void {
+	public removeChild(parent: string, child: string): void {
 		this.data[parent].splice(this.data[parent].indexOf(child), 1);
 		if (this.data[parent].length === 0) {
 			delete this.data[parent];
 		}
 	}
 
-	public move(element, oldParent, newParent): void {
+	public move(element: string, oldParent: string, newParent: string): void {
 		this.removeChild(oldParent, element);
 		this.addChild(newParent, element);
 	}
 
-	public rename(parent, oldName, newName): void {
+	public rename(parent: string, oldName: string, newName: string): void {
 		this.removeChild(parent, oldName);
 		this.addChild(parent, newName);
 	}
 
-	public getId(tree, element): string {
+	public getId(tree: _.ITree, element: any): string {
 		return element;
 	}
 
-	public hasChildren(tree, element): boolean {
+	public hasChildren(tree: _.ITree, element: any): boolean {
 		return !!this.data[element];
 	}
 
-	public getChildren(tree, element): Promise<any> {
+	public getChildren(tree: _.ITree, element: any): Promise<any> {
 		this._onGetChildren.fire(element);
 		const result = this.promiseFactory ? this.promiseFactory() : Promise.resolve(null);
 		return result.then(() => {
@@ -1133,7 +1133,7 @@ class DynamicModel implements _.IDataSource {
 		});
 	}
 
-	public getParent(tree, element): Promise<any> {
+	public getParent(tree: _.ITree, element: any): Promise<any> {
 		throw new Error('Not implemented');
 	}
 }
@@ -1395,7 +1395,7 @@ suite('TreeModel - Dynamic data model', () => {
 						assert.equal(getTimes, 2);
 						assert.equal(gotTimes, 1);
 
-						let p2Complete;
+						let p2Complete: () => void;
 						dataModel.promiseFactory = () => { return new Promise((c) => { p2Complete = c; }); };
 						const p2 = model.refresh('father');
 
@@ -1412,7 +1412,7 @@ suite('TreeModel - Dynamic data model', () => {
 						assert.equal(getTimes, 3);
 						assert.equal(gotTimes, 2);
 
-						p2Complete();
+						p2Complete!();
 
 						// all good
 						assert.equal(refreshTimes, 5); // (+1) second son request

@@ -2,6 +2,7 @@
 	"displayName": "CSS Language Features",
 	"description": "Provides rich language support for CSS, LESS and SCSS files.",
 	"css.title": "CSS",
+	"css.completion.triggerPropertyValueCompletion.desc": "By default, VS Code triggers property value completion after selecting a CSS property. Use this setting to disable this behavior.",
 	"css.lint.argumentsInColorFunction.desc": "Invalid number of parameters.",
 	"css.lint.boxModel.desc": "Do not use `width` or `height` when using `padding` or `border`.",
 	"css.lint.compatibleVendorPrefixes.desc": "When using a vendor-specific prefix make sure to also include all other vendor-specific properties.",

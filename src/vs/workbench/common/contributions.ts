@@ -38,10 +38,10 @@ export interface IWorkbenchContributionsRegistry {
 }
 
 class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
-	private instantiationService: IInstantiationService;
-	private lifecycleService: ILifecycleService;
+	private instantiationService: IInstantiationService | undefined;
+	private lifecycleService: ILifecycleService | undefined;
 
-	private toBeInstantiated: Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]> = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
+	private readonly toBeInstantiated: Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]> = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
 
 	registerWorkbenchContribution(ctor: IWorkbenchContributionSignature, phase: LifecyclePhase = LifecyclePhase.Starting): void {
 
@@ -67,7 +67,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 		this.lifecycleService = accessor.get(ILifecycleService);
 
 		[LifecyclePhase.Starting, LifecyclePhase.Ready, LifecyclePhase.Restored, LifecyclePhase.Eventually].forEach(phase => {
-			this.instantiateByPhase(this.instantiationService, this.lifecycleService, phase);
+			this.instantiateByPhase(this.instantiationService!, this.lifecycleService!, phase);
 		});
 	}
 
@@ -80,9 +80,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 
 		// Otherwise wait for phase to be reached
 		else {
-			lifecycleService.when(phase).then(() => {
-				this.doInstantiateByPhase(instantiationService, phase);
-			});
+			lifecycleService.when(phase).then(() => this.doInstantiateByPhase(instantiationService, phase));
 		}
 	}
 

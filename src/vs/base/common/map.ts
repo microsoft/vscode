@@ -9,7 +9,7 @@ import { Iterator, IteratorResult, FIN } from './iterator';
 
 export function values<V = any>(set: Set<V>): V[];
 export function values<K = any, V = any>(map: Map<K, V>): V[];
-export function values<V>(forEachable: { forEach(callback: (value: V, ...more: any[]) => any) }): V[] {
+export function values<V>(forEachable: { forEach(callback: (value: V, ...more: any[]) => any): void }): V[] {
 	const result: V[] = [];
 	forEachable.forEach(value => result.push(value));
 	return result;
@@ -112,9 +112,9 @@ export class StringIterator implements IKeyIterator {
 
 export class PathIterator implements IKeyIterator {
 
-	private _value: string;
-	private _from: number;
-	private _to: number;
+	private _value!: string;
+	private _from!: number;
+	private _to!: number;
 
 	reset(key: string): this {
 		this._value = key.replace(/\\$|\/$/, '');
@@ -176,9 +176,9 @@ export class PathIterator implements IKeyIterator {
 }
 
 class TernarySearchTreeNode<E> {
-	segment: string;
+	segment!: string;
 	value: E | undefined;
-	key: string;
+	key!: string;
 	left: TernarySearchTreeNode<E> | undefined;
 	mid: TernarySearchTreeNode<E> | undefined;
 	right: TernarySearchTreeNode<E> | undefined;

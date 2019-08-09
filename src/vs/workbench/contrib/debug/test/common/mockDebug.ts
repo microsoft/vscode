@@ -51,7 +51,9 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	public updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }, sendOnResourceSaved: boolean): void { }
+	public updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void> {
+		throw new Error('not implemented');
+	}
 
 	public enableOrDisableBreakpoints(enabled: boolean): Promise<void> {
 		throw new Error('not implemented');
@@ -123,6 +125,17 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+
+	subId: string | undefined;
+
+	setSubId(subId: string | undefined): void {
+		throw new Error('Method not implemented.');
+	}
+
+	get parentSession(): IDebugSession | undefined {
+		return undefined;
+	}
+
 	getReplElements(): IReplElement[] {
 		return [];
 	}
@@ -142,7 +155,7 @@ export class MockSession implements IDebugSession {
 	configuration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	state = State.Stopped;
-	root: IWorkspaceFolder;
+	root!: IWorkspaceFolder;
 	capabilities: DebugProtocol.Capabilities = {};
 
 	getId(): string {
@@ -276,14 +289,21 @@ export class MockSession implements IDebugSession {
 		throw new Error('Method not implemented.');
 	}
 
+	gotoTargets(source: DebugProtocol.Source, line: number, column?: number | undefined): Promise<DebugProtocol.GotoTargetsResponse> {
+		throw new Error('Method not implemented.');
+	}
+	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse> {
+		throw new Error('Method not implemented.');
+	}
+
 	shutdown(): void { }
 }
 
 export class MockRawSession {
 
-	capabilities: DebugProtocol.Capabilities;
-	disconnected: boolean;
-	sessionLengthInSeconds: number;
+	capabilities: DebugProtocol.Capabilities = {};
+	disconnected = false;
+	sessionLengthInSeconds: number = 0;
 
 	public readyForBreakpoints = true;
 	public emittedStopped = true;

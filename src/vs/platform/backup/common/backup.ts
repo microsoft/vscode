@@ -23,7 +23,7 @@ export interface IBackupWorkspacesFormat {
 export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
 
 export interface IEmptyWindowBackupInfo {
-	backupFolder?: string;
+	backupFolder: string;
 	remoteAuthority?: string;
 }
 
@@ -43,7 +43,7 @@ export interface IBackupMainService {
 
 	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string): string;
 	registerFolderBackupSync(folderUri: URI): string;
-	registerEmptyWindowBackupSync(backupInfo: IEmptyWindowBackupInfo): string;
+	registerEmptyWindowBackupSync(backupFolder?: string, remoteAuthority?: string): string;
 
 	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void;
 	unregisterFolderBackupSync(folderUri: URI): void;

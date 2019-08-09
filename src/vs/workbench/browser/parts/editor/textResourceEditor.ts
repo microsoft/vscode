@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
@@ -54,45 +54,41 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options, token).then(() => {
-			return input.resolve().then((resolvedModel: EditorModel) => {
+		await super.setInput(input, options, token);
+		const resolvedModel = await input.resolve();
 
-				// Check for cancellation
-				if (token.isCancellationRequested) {
-					return undefined;
-				}
+		// Check for cancellation
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 
-				// Assert Model instance
-				if (!(resolvedModel instanceof BaseTextEditorModel)) {
-					return Promise.reject(new Error('Unable to open file as text'));
-				}
+		// Assert Model instance
+		if (!(resolvedModel instanceof BaseTextEditorModel)) {
+			throw new Error('Unable to open file as text');
+		}
 
-				// Set Editor Model
-				const textEditor = this.getControl();
-				const textEditorModel = resolvedModel.textEditorModel;
-				textEditor.setModel(textEditorModel);
+		// Set Editor Model
+		const textEditor = this.getControl();
+		const textEditorModel = resolvedModel.textEditorModel;
+		textEditor.setModel(textEditorModel);
 
-				// Apply Options from TextOptions
-				let optionsGotApplied = false;
-				const textOptions = <TextEditorOptions>options;
-				if (textOptions && types.isFunction(textOptions.apply)) {
-					optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
-				}
+		// Apply Options from TextOptions
+		let optionsGotApplied = false;
+		const textOptions = <TextEditorOptions>options;
+		if (textOptions && types.isFunction(textOptions.apply)) {
+			optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
+		}
 
-				// Otherwise restore View State
-				if (!optionsGotApplied) {
-					this.restoreTextResourceEditorViewState(input);
-				}
-
-				return undefined;
-			});
-		});
+		// Otherwise restore View State
+		if (!optionsGotApplied) {
+			this.restoreTextResourceEditorViewState(input);
+		}
 	}
 
 	private restoreTextResourceEditorViewState(input: EditorInput) {

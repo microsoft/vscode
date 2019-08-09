@@ -30,6 +30,16 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const path = require('path');
 
 	const args = parseURLQueryArgs();
+	/**
+	 * // configuration: IWindowConfiguration
+	 * @type {{
+	 * zoomLevel?: number,
+	 * extensionDevelopmentPath?: string | string[],
+	 * extensionTestsPath?: string,
+	 * userEnv?: { [key: string]: string | undefined },
+	 * appRoot?: string,
+	 * nodeCachedDataDir?: string
+	 * }} */
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
 	// Apply zoom level early to avoid glitches

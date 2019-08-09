@@ -221,6 +221,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			try {
 				action();
 			} catch (err) {
+				sub.dispose();
 				reject(err);
 			}
 		});
@@ -671,8 +672,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				_onDidSelectItem(item: ISelectedSuggestion) {
-					super._onDidSelectItem(item, false, true);
+				_insertSuggestion(item: ISelectedSuggestion) {
+					super._insertSuggestion(item, false, true);
 				}
 			}
 			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);
@@ -687,7 +688,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 				assert.equal(first.completion.label, 'bar');
 
-				ctrl._onDidSelectItem({ item: first, index: 0, model: event.completionModel });
+				ctrl._insertSuggestion({ item: first, index: 0, model: event.completionModel });
 			});
 
 			assert.equal(
@@ -776,9 +777,13 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			}, event => {
 				assert.equal(event.auto, true);
 				assert.equal(event.completionModel.items.length, 2);
-				assert.equal(disposeA, 1);
-				assert.equal(disposeB, 0);
+
+				// clean up
+				model.clear();
+				assert.equal(disposeA, 2); // provide got called two times!
+				assert.equal(disposeB, 1);
 			});
+
 		});
 	});
 });

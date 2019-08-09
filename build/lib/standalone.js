@@ -31,6 +31,7 @@ function extractEditor(options) {
     let compilerOptions;
     if (tsConfig.extends) {
         compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
+        delete tsConfig.extends;
     }
     else {
         compilerOptions = tsConfig.compilerOptions;
@@ -42,6 +43,7 @@ function extractEditor(options) {
     compilerOptions.declaration = false;
     compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
     options.compilerOptions = compilerOptions;
+    console.log(`Running with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
     let result = tss.shake(options);
     for (let fileName in result) {
         if (result.hasOwnProperty(fileName)) {

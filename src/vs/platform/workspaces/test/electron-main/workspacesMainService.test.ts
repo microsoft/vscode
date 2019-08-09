@@ -55,16 +55,16 @@ suite('WorkspacesMainService', () => {
 		service = new TestWorkspacesMainService(environmentService, logService);
 
 		// Delete any existing backups completely and then re-create it.
-		return pfs.del(untitledWorkspacesHomePath, os.tmpdir()).then(() => {
+		return pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE).then(() => {
 			return pfs.mkdirp(untitledWorkspacesHomePath);
 		});
 	});
 
 	teardown(() => {
-		return pfs.del(untitledWorkspacesHomePath, os.tmpdir());
+		return pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);
 	});
 
-	function assertPathEquals(p1: string, p2): void {
+	function assertPathEquals(p1: string, p2: string): void {
 		if (isWindows) {
 			p1 = normalizeDriveLetter(p1);
 			p2 = normalizeDriveLetter(p2);
@@ -311,6 +311,31 @@ suite('WorkspacesMainService', () => {
 
 			const ws = JSON.parse(newContent) as IStoredWorkspace;
 			assert.ok(ws.folders.every(f => (<IRawFileWorkspaceFolder>f).path.indexOf('\\') < 0));
+
+			service.deleteUntitledWorkspaceSync(workspace);
+		});
+	});
+
+	test('rewriteWorkspaceFileForNewLocation (unc paths)', () => {
+		if (!isWindows) {
+			return Promise.resolve();
+		}
+
+		const workspaceLocation = path.join(os.tmpdir(), 'wsloc');
+		const folder1Location = 'x:\\foo';
+		const folder2Location = '\\\\server\\share2\\some\\path';
+		const folder3Location = path.join(os.tmpdir(), 'wsloc', 'inner', 'more');
+
+		return createWorkspace([folder1Location, folder2Location, folder3Location]).then(workspace => {
+			const workspaceConfigPath = URI.file(path.join(workspaceLocation, `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`));
+			let origContent = fs.readFileSync(workspace.configPath.fsPath).toString();
+
+			const newContent = rewriteWorkspaceFileForNewLocation(origContent, workspace.configPath, workspaceConfigPath);
+
+			const ws = JSON.parse(newContent) as IStoredWorkspace;
+			assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, folder1Location);
+			assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, folder2Location);
+			assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, 'inner\\more');
 
 			service.deleteUntitledWorkspaceSync(workspace);
 		});

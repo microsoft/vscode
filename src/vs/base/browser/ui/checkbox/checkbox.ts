@@ -11,8 +11,8 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as objects from 'vs/base/common/objects';
-import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName?: string;
@@ -22,28 +22,36 @@ export interface ICheckboxOpts extends ICheckboxStyles {
 
 export interface ICheckboxStyles {
 	inputActiveOptionBorder?: Color;
+	inputActiveOptionBackground?: Color;
+}
+
+export interface ISimpleCheckboxStyles {
+	checkboxBackground?: Color;
+	checkboxBorder?: Color;
+	checkboxForeground?: Color;
 }
 
 const defaultOpts = {
-	inputActiveOptionBorder: Color.fromHex('#007ACC')
+	inputActiveOptionBorder: Color.fromHex('#007ACC00'),
+	inputActiveOptionBackground: Color.fromHex('#0E639C50')
 };
 
-export class CheckboxActionItem extends BaseActionItem {
+export class CheckboxActionViewItem extends BaseActionViewItem {
 
-	private checkbox: Checkbox;
-	private disposables: IDisposable[] = [];
+	private checkbox!: Checkbox;
+	private readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
 		this.element = container;
 
-		this.disposables = dispose(this.disposables);
+		this.disposables.clear();
 		this.checkbox = new Checkbox({
 			actionClassName: this._action.class,
 			isChecked: this._action.checked,
 			title: this._action.label
 		});
-		this.disposables.push(this.checkbox);
-		this.checkbox.onChange(() => this._action.checked = this.checkbox.checked, this, this.disposables);
+		this.disposables.add(this.checkbox);
+		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox!.checked, this));
 		this.element.appendChild(this.checkbox.domNode);
 	}
 
@@ -63,20 +71,19 @@ export class CheckboxActionItem extends BaseActionItem {
 		}
 	}
 
-	dipsose(): void {
-		this.disposables = dispose(this.disposables);
+	dispose(): void {
+		this.disposables.dispose();
 		super.dispose();
 	}
-
 }
 
 export class Checkbox extends Widget {
 
 	private readonly _onChange = this._register(new Emitter<boolean>());
-	get onChange(): Event<boolean /* via keyboard */> { return this._onChange.event; }
+	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
 
 	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
+	readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
 	private readonly _opts: ICheckboxOpts;
 	readonly domNode: HTMLElement;
@@ -150,12 +157,16 @@ export class Checkbox extends Widget {
 		if (styles.inputActiveOptionBorder) {
 			this._opts.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		}
+		if (styles.inputActiveOptionBackground) {
+			this._opts.inputActiveOptionBackground = styles.inputActiveOptionBackground;
+		}
 		this.applyStyles();
 	}
 
 	protected applyStyles(): void {
 		if (this.domNode) {
 			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
+			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : 'transparent';
 		}
 	}
 
@@ -167,5 +178,48 @@ export class Checkbox extends Widget {
 	disable(): void {
 		DOM.removeTabIndexAndUpdateFocus(this.domNode);
 		this.domNode.setAttribute('aria-disabled', String(true));
+	}
+}
+
+export class SimpleCheckbox extends Widget {
+	private checkbox: Checkbox;
+	private styles: ISimpleCheckboxStyles;
+
+	readonly domNode: HTMLElement;
+
+	constructor(private title: string, private isChecked: boolean) {
+		super();
+
+		this.checkbox = new Checkbox({ title: this.title, isChecked: this.isChecked, actionClassName: 'monaco-simple-checkbox' });
+
+		this.domNode = this.checkbox.domNode;
+
+		this.styles = {};
+
+		this.checkbox.onChange(() => {
+			this.applyStyles();
+		});
+	}
+
+	get checked(): boolean {
+		return this.checkbox.checked;
+	}
+
+	set checked(newIsChecked: boolean) {
+		this.checkbox.checked = newIsChecked;
+
+		this.applyStyles();
+	}
+
+	style(styles: ISimpleCheckboxStyles): void {
+		this.styles = styles;
+
+		this.applyStyles();
+	}
+
+	protected applyStyles(): void {
+		this.domNode.style.color = this.styles.checkboxForeground ? this.styles.checkboxForeground.toString() : null;
+		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : null;
+		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : null;
 	}
 }

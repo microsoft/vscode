@@ -35,6 +35,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	let compilerOptions: { [key: string]: any };
 	if (tsConfig.extends) {
 		compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
+		delete tsConfig.extends;
 	} else {
 		compilerOptions = tsConfig.compilerOptions;
 	}
@@ -48,6 +49,8 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 
 
 	options.compilerOptions = compilerOptions;
+
+	console.log(`Running with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
 
 	let result = tss.shake(options);
 	for (let fileName in result) {

@@ -44,4 +44,8 @@ export namespace Schemas {
 	export const data: string = 'data';
 
 	export const command: string = 'command';
+
+	export const vscodeRemote: string = 'vscode-remote';
+
+	export const userData: string = 'vscode-userdata';
 }

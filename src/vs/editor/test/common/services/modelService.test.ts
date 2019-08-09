@@ -35,7 +35,7 @@ suite('ModelService', () => {
 	});
 
 	test('EOL setting respected depending on root', () => {
-		const model1 = modelService.createModel('farboo', null, null);
+		const model1 = modelService.createModel('farboo', null);
 		const model2 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\myroot\\myfile.txt' : '/myroot/myfile.txt'));
 		const model3 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\other\\myfile.txt' : '/other/myfile.txt'));
 
