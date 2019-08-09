@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getTopLeftOffset } from 'vs/base/browser/dom';
-// TODO: Allow this
-// tslint:disable-next-line: import-patterns
 import { Terminal } from 'xterm';
 import { coalesce } from 'vs/base/common/arrays';
 import { IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
