@@ -726,7 +726,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		const resourceLabel = this.labels.create(container, { supportHighlights: true, donotSupportOcticons: true });
+		const resourceLabel = this.labels.create(container, { supportHighlights: true });
 		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider

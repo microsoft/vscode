@@ -114,7 +114,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		const row2 = dom.append(rows, $('.quick-input-list-row'));
 
 		// Label
-		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true });
+		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportOcticons: true });
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));

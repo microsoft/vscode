@@ -196,8 +196,11 @@ suite('EditorGroupsService', () => {
 		const gridOrder = part.getGroups(GroupsOrder.GRID_APPEARANCE);
 		assert.equal(gridOrder.length, 3);
 		assert.equal(gridOrder[0], rootGroup);
+		assert.equal(gridOrder[0].index, 0);
 		assert.equal(gridOrder[1], rightGroup);
+		assert.equal(gridOrder[1].index, 1);
 		assert.equal(gridOrder[2], downGroup);
+		assert.equal(gridOrder[2].index, 2);
 
 		part.moveGroup(downGroup, rightGroup, GroupDirection.DOWN);
 		assert.equal(groupMovedCounter, 1);
