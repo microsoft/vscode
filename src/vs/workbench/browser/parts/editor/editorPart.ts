@@ -821,6 +821,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Update container
 		this.updateContainer();
+
+		// Notify group index change we created the entire grid
+		this.notifyGroupIndexChange();
 	}
 
 	private doCreateGridControlWithPreviousState(): boolean {
