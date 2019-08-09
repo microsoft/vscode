@@ -49,6 +49,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { nextTick } from 'vs/base/common/process';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -324,7 +325,7 @@ export class MainPanel extends ViewletPanel {
 	}
 
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
-		if (e.elements.length > 0) {
+		if (e.browserEvent && e.elements.length > 0) {
 			const scrollTop = this.list.scrollTop;
 			this.viewModel.setVisibleRepositories(e.elements);
 			this.list.scrollTop = scrollTop;
@@ -332,7 +333,7 @@ export class MainPanel extends ViewletPanel {
 	}
 
 	private onListFocusChange(e: IListEvent<ISCMRepository>): void {
-		if (e.elements.length > 0) {
+		if (e.browserEvent && e.elements.length > 0) {
 			e.elements[0].focus();
 		}
 	}
@@ -1102,6 +1103,9 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 	}
 
+	private readonly _onDidChangeRepositories = new Emitter<void>();
+	private readonly onDidFinishStartup = Event.once(Event.debounce(this._onDidChangeRepositories.event, () => null, 1000));
+
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1130,6 +1134,9 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 				this.onDidChangeRepositories();
 			}
 		}));
+
+		this._register(this.onDidFinishStartup(this.onAfterStartup, this));
+		this._register(this.viewsModel.onDidRemove(this.onDidHideView, this));
 	}
 
 	create(parent: HTMLElement): void {
@@ -1190,20 +1197,28 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 		if (alwaysShowProviders && repositoryCount > 0) {
 			this.viewsModel.setVisible(MainPanel.ID, true);
-		} else if (!alwaysShowProviders && repositoryCount === 1) {
-			this.viewsModel.setVisible(MainPanel.ID, false);
-		} else if (this.repositoryCount < 2 && repositoryCount >= 2) {
-			this.viewsModel.setVisible(MainPanel.ID, true);
-		} else if (this.repositoryCount >= 2 && repositoryCount === 1) {
-			this.viewsModel.setVisible(MainPanel.ID, false);
-		}
-
-		if (repositoryCount === 1) {
-			this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
 		}
 
 		toggleClass(this.el, 'empty', repositoryCount === 0);
 		this.repositoryCount = repositoryCount;
+
+		this._onDidChangeRepositories.fire();
+	}
+
+	private onAfterStartup(): void {
+		if (this.repositoryCount > 0 && this.viewDescriptors.every(d => !this.viewsModel.isVisible(d.id))) {
+			this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
+		}
+	}
+
+	private onDidHideView(): void {
+		nextTick(() => {
+			if (this.repositoryCount > 0 && this.viewDescriptors.every(d => !this.viewsModel.isVisible(d.id))) {
+				const alwaysShowProviders = this.configurationService.getValue<boolean>('scm.alwaysShowProviders') || false;
+				this.viewsModel.setVisible(MainPanel.ID, alwaysShowProviders || this.repositoryCount > 1);
+				this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
+			}
+		});
 	}
 
 	focus(): void {
