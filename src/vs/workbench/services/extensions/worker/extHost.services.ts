@@ -19,8 +19,6 @@ import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensi
 import { IExtHostStorage, ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensionService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionStoragePaths } from 'vs/workbench/api/worker/extHostStoragePaths';
-
 
 // register singleton services
 registerSingleton(IExtHostOutputService, ExtHostOutputService);
@@ -30,7 +28,6 @@ registerSingleton(IExtHostConfiguration, ExtHostConfiguration);
 registerSingleton(IExtHostCommands, ExtHostCommands);
 registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors);
 registerSingleton(IExtHostStorage, ExtHostStorage);
-registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
 
 // register services that only throw errors
@@ -38,7 +35,10 @@ function NotImplementedProxy<T>(name: ServiceIdentifier<T>): { new(): T } {
 	return <any>class {
 		constructor() {
 			return new Proxy({}, {
-				get(_target: any, prop: any) {
+				get(target: any, prop: string | number) {
+					if (target[prop]) {
+						return target[prop];
+					}
 					throw new Error(`Not Implemented: ${name}->${String(prop)}`);
 				}
 			});
@@ -49,3 +49,8 @@ registerSingleton(IExtHostTerminalService, class extends NotImplementedProxy(IEx
 registerSingleton(IExtHostTask, class extends NotImplementedProxy(IExtHostTask) { });
 registerSingleton(IExtHostDebugService, class extends NotImplementedProxy(IExtHostDebugService) { });
 registerSingleton(IExtHostSearch, class extends NotImplementedProxy(IExtHostSearch) { });
+registerSingleton(IExtensionStoragePaths, class extends NotImplementedProxy(IExtensionStoragePaths) {
+	whenReady = Promise.resolve();
+	globalValue = () => '';
+	workspaceValue = () => '';
+});
