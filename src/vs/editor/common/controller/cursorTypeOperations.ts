@@ -947,6 +947,7 @@ export class TypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCursorSt
 		super(selection, openCharacter + closeCharacter, 0, -closeCharacter.length);
 		this._closeCharacter = closeCharacter;
 		this.closeCharacterRange = null;
+		this.enclosingRange = null;
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {

@@ -77,7 +77,7 @@ const eventPrefix = 'monacoworkbench';
 class MainProcessService implements IMainProcessService {
 	constructor(private server: Server, private mainRouter: StaticRouter) { }
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	getChannel(channelName: string): IChannel {
 		return this.server.getChannel(channelName, this.mainRouter);

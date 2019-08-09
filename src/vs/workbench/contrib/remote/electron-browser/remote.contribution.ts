@@ -73,6 +73,8 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && windowService.openNewWindow({ reuseWindow: true })));
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
+		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.remoteAuthority || '');
+
 		if (this.remoteAuthority) {
 			// Pending entry until extensions are ready
 			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
@@ -121,7 +123,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		if (this.connectionState !== newState) {
 			this.connectionState = newState;
 			RemoteConnectionState.bindTo(this.contextKeyService).set(this.connectionState);
-			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(isDisconnected ? 'disconnected/${this.remoteAuthority!}' : this.remoteAuthority!);
+			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(isDisconnected ? `disconnected/${this.remoteAuthority!}` : this.remoteAuthority!);
 			this.updateWindowIndicator();
 		}
 	}
@@ -282,6 +284,26 @@ class ProgressReporter {
 	}
 }
 
+class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteAuthorityResolverService remoteResolverService: IRemoteAuthorityResolverService,
+		@IExtensionService extensionService: IExtensionService
+	) {
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			connection.onDidStateChange(async e => {
+				if (e.type === PersistentConnectionEventType.ConnectionGain) {
+					const resolveResult = await remoteResolverService.resolveAuthority(connection.remoteAuthority);
+					if (resolveResult.options && resolveResult.options.extensionHostEnv) {
+						await extensionService.setRemoteEnvironment(resolveResult.options.extensionHostEnv);
+					}
+				}
+			});
+		}
+	}
+}
+
 class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -438,6 +460,7 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);

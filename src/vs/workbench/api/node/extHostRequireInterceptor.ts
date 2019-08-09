@@ -12,7 +12,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { endsWith } from 'vs/base/common/strings';
-import { IExtensionApiFactory } from 'vs/workbench/api/node/extHost.api.impl';
+import { IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
 
 
 interface LoadFunction {
@@ -75,7 +75,7 @@ export class VSCodeNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName = 'vscode';
 
 	private readonly _extApiImpl = new Map<string, typeof vscode>();
-	private _defaultApiImpl: typeof vscode;
+	private _defaultApiImpl?: typeof vscode;
 
 	constructor(
 		private readonly _apiFactory: IExtensionApiFactory,
@@ -191,7 +191,7 @@ export class OpenNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName: string[] = ['open', 'opn'];
 
 	private _extensionId: string | undefined;
-	private _original: IOriginalOpen;
+	private _original?: IOriginalOpen;
 	private _impl: IOpenModule;
 
 	constructor(mainThreadWindow: MainThreadWindowShape, private _mainThreadTelemerty: MainThreadTelemetryShape, private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>) {
@@ -224,7 +224,7 @@ export class OpenNodeModuleFactory implements INodeModuleFactory {
 
 	private callOriginal(target: string, options: OpenOptions | undefined): Thenable<any> {
 		this.sendNoForwardTelemetry();
-		return this._original(target, options);
+		return this._original!(target, options);
 	}
 
 	private sendShimmingTelemetry(): void {

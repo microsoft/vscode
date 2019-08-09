@@ -79,6 +79,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private cursorChangedScheduler: RunOnceScheduler | null;
 
 	private readonly localToDispose = this._register(new DisposableStore());
+	private mouseDownInfo: { lineNumber: number, iconClicked: boolean } | null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -90,6 +91,15 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this._autoHideFoldingControls = this.editor.getConfiguration().contribInfo.showFoldingControls === 'mouseover';
 		this._useFoldingProviders = this.editor.getConfiguration().contribInfo.foldingStrategy !== 'indentation';
 
+		this.foldingModel = null;
+		this.hiddenRangeModel = null;
+		this.rangeProvider = null;
+		this.foldingRegionPromise = null;
+		this.foldingStateMemento = null;
+		this.foldingModelPromise = null;
+		this.updateScheduler = null;
+		this.cursorChangedScheduler = null;
+		this.mouseDownInfo = null;
 
 		this.foldingDecorationProvider = new FoldingDecorationProvider(editor);
 		this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
@@ -330,8 +340,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 		}).then(undefined, onUnexpectedError);
 
 	}
-
-	private mouseDownInfo: { lineNumber: number, iconClicked: boolean } | null;
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
 		this.mouseDownInfo = null;

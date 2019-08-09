@@ -485,7 +485,7 @@ export class FindModelBoundToEditorModel {
 		let resultText: string;
 		const preserveCase = this._state.preserveCase;
 
-		if (replacePattern.hasReplacementPatterns) {
+		if (replacePattern.hasReplacementPatterns || preserveCase) {
 			resultText = modelText.replace(searchRegex, function () {
 				return replacePattern.buildReplaceString(<string[]><any>arguments, preserveCase);
 			});
@@ -500,7 +500,7 @@ export class FindModelBoundToEditorModel {
 	private _regularReplaceAll(findScope: Range | null): void {
 		const replacePattern = this._getReplacePattern();
 		// Get all the ranges (even more than the highlighted ones)
-		let matches = this._findMatches(findScope, replacePattern.hasReplacementPatterns, Constants.MAX_SAFE_SMALL_INTEGER);
+		let matches = this._findMatches(findScope, replacePattern.hasReplacementPatterns || this._state.preserveCase, Constants.MAX_SAFE_SMALL_INTEGER);
 
 		let replaceStrings: string[] = [];
 		for (let i = 0, len = matches.length; i < len; i++) {

@@ -2318,10 +2318,10 @@ vscode-ripgrep@^1.5.5:
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.5.tgz#24c0e9cb356cf889c98e15ecb58f9cf654a1d961"
   integrity sha512-OrPrAmcun4+uZAuNcQvE6CCPskh+5AsjANod/Q3zRcJcGNxgoOSGlQN9RPtatkUNmkN8Nn8mZBnS1jMylu/dKg==
 
-vscode-telemetry-extractor@^1.5.1:
-  version "1.5.1"
-  resolved "https://registry.yarnpkg.com/vscode-telemetry-extractor/-/vscode-telemetry-extractor-1.5.1.tgz#67249e4ca9c65a21800ca53880732f8cef98d0fa"
-  integrity sha512-B5SnEdRiDrI4o6NMG9iHmengoaW1rxUQmS/sCaripgnchm+P79JURmKxhfXr5eRo4Mr1QSenFT/SDNaEop7aoQ==
+vscode-telemetry-extractor@1.5.3:
+  version "1.5.3"
+  resolved "https://registry.yarnpkg.com/vscode-telemetry-extractor/-/vscode-telemetry-extractor-1.5.3.tgz#c17f9065a47425edafd23ea161e80c23274e009d"
+  integrity sha512-feioJ1e1KyMa9rzblnLbSOduo+Ny0l62H3/bSDgfgCSnU/km+tTSYxPBvZHVr7iQfQGC95J61yC/ObqS9EbaQg==
   dependencies:
     command-line-args "^5.1.1"
     ts-morph "^3.1.3"

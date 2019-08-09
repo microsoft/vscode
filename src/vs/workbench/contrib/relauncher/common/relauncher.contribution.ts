@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isNative } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -23,7 +23,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
 	telemetry: { enableCrashReporter: boolean };
-	keyboard: { touchbar: { enabled: boolean } };
 	workbench: { list: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
 	debug: { console: { wordWrap: boolean } };
 }
@@ -36,7 +35,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private clickThroughInactive: boolean;
 	private updateMode: string;
 	private enableCrashReporter: boolean;
-	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
 	private useGridLayout: boolean;
 	private debugConsoleWordWrap: boolean;
@@ -57,48 +55,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
 		let changed = false;
 
-		// Titlebar style
-		if (config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
-			this.titleBarStyle = config.window.titleBarStyle;
-			changed = true;
-		}
-
-		// macOS: Native tabs
-		if (isMacintosh && config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
-			this.nativeTabs = config.window.nativeTabs;
-			changed = true;
-		}
-
-		// macOS: Native fullscreen
-		if (isMacintosh && config.window && typeof config.window.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
-			this.nativeFullScreen = config.window.nativeFullScreen;
-			changed = true;
-		}
-
-		// macOS: Click through (accept first mouse)
-		if (isMacintosh && config.window && typeof config.window.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
-			this.clickThroughInactive = config.window.clickThroughInactive;
-			changed = true;
-		}
-
-		// Update channel
-		if (config.update && typeof config.update.mode === 'string' && config.update.mode !== this.updateMode) {
-			this.updateMode = config.update.mode;
-			changed = true;
-		}
-
-		// Crash reporter
-		if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
-			this.enableCrashReporter = config.telemetry.enableCrashReporter;
-			changed = true;
-		}
-
-		// macOS: Touchbar config
-		if (isMacintosh && config.keyboard && config.keyboard.touchbar && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
-			this.touchbarEnabled = config.keyboard.touchbar.enabled;
-			changed = true;
-		}
-
 		// Tree horizontal scrolling support
 		if (config.workbench && config.workbench.list && typeof config.workbench.list.horizontalScrolling === 'boolean' && config.workbench.list.horizontalScrolling !== this.treeHorizontalScrolling) {
 			this.treeHorizontalScrolling = config.workbench.list.horizontalScrolling;
@@ -117,12 +73,57 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			changed = true;
 		}
 
+		if (isNative) {
+
+			// Titlebar style
+			if (config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
+				this.titleBarStyle = config.window.titleBarStyle;
+				changed = true;
+			}
+
+			// macOS: Native tabs
+			if (isMacintosh && config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
+				this.nativeTabs = config.window.nativeTabs;
+				changed = true;
+			}
+
+			// macOS: Native fullscreen
+			if (isMacintosh && config.window && typeof config.window.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
+				this.nativeFullScreen = config.window.nativeFullScreen;
+				changed = true;
+			}
+
+			// macOS: Click through (accept first mouse)
+			if (isMacintosh && config.window && typeof config.window.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
+				this.clickThroughInactive = config.window.clickThroughInactive;
+				changed = true;
+			}
+
+			// Update channel
+			if (config.update && typeof config.update.mode === 'string' && config.update.mode !== this.updateMode) {
+				this.updateMode = config.update.mode;
+				changed = true;
+			}
+
+			// Crash reporter
+			if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
+				this.enableCrashReporter = config.telemetry.enableCrashReporter;
+				changed = true;
+			}
+		}
+
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
 		if (notify && changed) {
 			this.doConfirm(
-				localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect."),
-				localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.envService.appNameLong),
-				localize('restart', "&&Restart"),
+				isNative ?
+					localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect.") :
+					localize('relaunchSettingMessageWeb', "A setting has changed that requires a reload to take effect."),
+				isNative ?
+					localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.envService.appNameLong) :
+					localize('relaunchSettingDetailWeb', "Press the reload button to reload {0} and enable the setting.", this.envService.appNameLong),
+				isNative ?
+					localize('restart', "&&Restart") :
+					localize('restartWeb', "&&Reload"),
 				() => this.windowsService.relaunch(Object.create(null))
 			);
 		}
@@ -167,8 +168,9 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			if (!!environmentService.extensionTestsLocationURI) {
 				return; // no restart when in tests: see https://github.com/Microsoft/vscode/issues/66936
 			}
+
 			if (environmentService.configuration.remoteAuthority) {
-				windowSevice.reloadWindow(); // TODO aeschli, workaround
+				windowSevice.reloadWindow(); // TODO@aeschli, workaround
 			} else {
 				extensionService.restartExtensionHost();
 			}

@@ -48,7 +48,7 @@ interface ICachedViewlet {
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private static readonly ACTION_HEIGHT = 48;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';

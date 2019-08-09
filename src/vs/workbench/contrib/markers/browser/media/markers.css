@@ -97,6 +97,7 @@
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
 	display: flex;
 	line-height: 22px;
+	padding-right: 10px;
 }
 
 .hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
@@ -112,23 +113,22 @@
 	margin-left: 10px;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details,
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message:not(.multiline) {
-	display: flex;
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container {
+	flex: 1;
 	overflow: hidden;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message.multiline {
-	white-space: pre;
-	flex: 1;
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line {
+	overflow: hidden;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message:not(.multiline) .marker-message-line {
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line > .marker-message {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message .details-container {
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line.details-container {
 	display: flex;
 }
 

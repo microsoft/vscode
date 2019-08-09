@@ -29,6 +29,26 @@ export interface INotificationProperties {
 	 * catch some attention.
 	 */
 	silent?: boolean;
+
+	/**
+	 * Adds an action to never show the notification again. The choice will be persisted
+	 * such as future requests will not cause the notification to show again.
+	 */
+	neverShowAgain?: INeverShowAgainOptions;
+}
+
+export interface INeverShowAgainOptions {
+
+	/**
+	 * The id is used to persist the selection of not showing the notification again.
+	 */
+	id: string;
+
+	/**
+	 * By default the action will show up as primary action. Setting this to true will
+	 * make it a secondary action instead.
+	 */
+	isSecondary?: boolean;
 }
 
 export interface INotification extends INotificationProperties {

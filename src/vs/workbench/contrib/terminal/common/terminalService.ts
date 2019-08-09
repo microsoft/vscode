@@ -35,7 +35,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected _isShuttingDown: boolean;
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 	protected _findWidgetVisible: IContextKey<boolean>;
-	protected _terminalContainer: HTMLElement;
+	protected _terminalContainer: HTMLElement | undefined;
 	protected _terminalTabs: ITerminalTab[] = [];
 	protected _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	protected get _terminalInstances(): ITerminalInstance[] {
@@ -125,10 +125,6 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-
-	public createTerminalRenderer(name: string): ITerminalInstance {
-		return this.createTerminal({ name, isRendererOnly: true });
-	}
 
 	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {
 		const activeInstance = this.getActiveInstance();

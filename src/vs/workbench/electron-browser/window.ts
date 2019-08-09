@@ -213,6 +213,8 @@ export class ElectronWindow extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
 				this.updateWindowZoomLevel();
+			} else if (e.affectsConfiguration('keyboard.touchbar.enabled') || e.affectsConfiguration('keyboard.touchbar.ignored')) {
+				this.updateTouchbarMenu();
 			}
 		}));
 
@@ -340,11 +342,8 @@ export class ElectronWindow extends Disposable {
 	}
 
 	private updateTouchbarMenu(): void {
-		if (
-			!isMacintosh || // macOS only
-			!this.configurationService.getValue<boolean>('keyboard.touchbar.enabled') // disabled via setting
-		) {
-			return;
+		if (!isMacintosh) {
+			return; // macOS only
 		}
 
 		// Dispose old
@@ -366,31 +365,40 @@ export class ElectronWindow extends Disposable {
 
 		const actions: Array<MenuItemAction | Separator> = [];
 
+		const disabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled') === false;
+		const ignoredItems = this.configurationService.getValue<string[]>('keyboard.touchbar.ignored') || [];
+
 		// Fill actions into groups respecting order
 		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
 		let group: ICommandAction[] = [];
-		for (const action of actions) {
+		if (!disabled) {
+			for (const action of actions) {
 
-			// Command
-			if (action instanceof MenuItemAction) {
-				group.push(action.item);
-			}
+				// Command
+				if (action instanceof MenuItemAction) {
+					if (ignoredItems.indexOf(action.item.id) >= 0) {
+						continue; // ignored
+					}
 
-			// Separator
-			else if (action instanceof Separator) {
-				if (group.length) {
-					items.push(group);
+					group.push(action.item);
 				}
 
-				group = [];
-			}
-		}
+				// Separator
+				else if (action instanceof Separator) {
+					if (group.length) {
+						items.push(group);
+					}
 
-		if (group.length) {
-			items.push(group);
+					group = [];
+				}
+			}
+
+			if (group.length) {
+				items.push(group);
+			}
 		}
 
 		// Only update if the actions have changed

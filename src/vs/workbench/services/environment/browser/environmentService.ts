@@ -32,11 +32,13 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
+	backupWorkspaceResource?: URI;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 
-	remoteAuthority: string;
+	remoteAuthority?: string;
+	connectionToken?: string;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
@@ -61,10 +63,12 @@ export interface IBrowserWindowConfiguration {
 	workspaceId: string;
 	remoteAuthority?: string;
 	webviewEndpoint?: string;
+	connectionToken?: string;
 }
 
 export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
-	_serviceBrand: ServiceIdentifier<IEnvironmentService>;
+
+	_serviceBrand!: ServiceIdentifier<IEnvironmentService>;
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 
@@ -81,6 +85,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
 		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
 		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, configuration.workspaceId);
+		this.configuration.connectionToken = configuration.connectionToken || this.getConnectionTokenFromLocation();
 
 		this.logsPath = '/web/logs';
 
@@ -181,5 +186,22 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 
 	get webviewCspSource(): string {
 		return this.webviewEndpoint ? this.webviewEndpoint : 'vscode-resource:';
+	}
+
+	private getConnectionTokenFromLocation(): string | undefined {
+		// TODO: Check with @alexd where the token will be: search or hash?
+		let connectionToken: string | undefined = undefined;
+		if (document.location.search) {
+			connectionToken = this.getConnectionToken(document.location.search);
+		}
+		if (!connectionToken && document.location.hash) {
+			connectionToken = this.getConnectionToken(document.location.hash);
+		}
+		return connectionToken;
+	}
+
+	private getConnectionToken(str: string): string | undefined {
+		const m = str.match(/[#&]tkn=([^&]+)/);
+		return m ? m[1] : undefined;
 	}
 }

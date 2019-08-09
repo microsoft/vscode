@@ -7,9 +7,11 @@ import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyId
 import { CharCode } from 'vs/base/common/charCode';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { isThenable } from 'vs/base/common/async';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
-export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
+export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRpcService {
 	return {
+		_serviceBrand: undefined,
 		remoteAuthority: null!,
 		getProxy<T>(): T {
 			return thing;
@@ -21,13 +23,14 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
 	};
 }
 
-export class TestRPCProtocol implements IExtHostContext {
+export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 
+	public _serviceBrand = undefined;
 	public remoteAuthority = null!;
 
 	private _callCountValue: number = 0;
 	private _idle?: Promise<any>;
-	private _completeIdle: Function;
+	private _completeIdle?: Function;
 
 	private readonly _locals: { [id: string]: any; };
 	private readonly _proxies: { [id: string]: any; };

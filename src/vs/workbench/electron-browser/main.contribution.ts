@@ -506,7 +506,7 @@ import product from 'vs/platform/product/node/product';
 				'default': true,
 				'description': nls.localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
 				'scope': ConfigurationScope.APPLICATION,
-				'included': false /* isMacintosh */
+				'included': isMacintosh
 			},
 			'window.clickThroughInactive': {
 				'type': 'boolean',
@@ -514,6 +514,28 @@ import product from 'vs/platform/product/node/product';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
+			}
+		}
+	});
+
+	// Screencast Mode
+	registry.registerConfiguration({
+		id: 'screencastMode',
+		order: 9,
+		title: nls.localize('screencastModeConfigurationTitle', "Screencast Mode"),
+		type: 'object',
+		properties: {
+			'screencastMode.verticalOffset': {
+				type: 'number',
+				default: 20,
+				minimum: 0,
+				maximum: 90,
+				description: nls.localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
+			},
+			'screencastMode.onlyKeyboardShortcuts': {
+				type: 'boolean',
+				description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
+				default: false
 			}
 		}
 	});

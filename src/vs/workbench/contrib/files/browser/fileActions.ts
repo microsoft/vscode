@@ -15,7 +15,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, IExplorerService, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -328,7 +328,7 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }): URI {
+export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
@@ -337,37 +337,104 @@ export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste
 			break;
 		}
 
-		name = incrementFileName(name, !!fileToPaste.isDirectory);
+		name = incrementFileName(name, !!fileToPaste.isDirectory, incrementalNaming);
 		candidate = resources.joinPath(targetFolder.resource, name);
 	}
 
 	return candidate;
 }
 
-export function incrementFileName(name: string, isFolder: boolean): string {
-	let namePrefix = name;
-	let extSuffix = '';
-	if (!isFolder) {
-		extSuffix = extname(name);
-		namePrefix = basename(name, extSuffix);
+export function incrementFileName(name: string, isFolder: boolean, incrementalNaming: 'simple' | 'smart'): string {
+	if (incrementalNaming === 'simple') {
+		let namePrefix = name;
+		let extSuffix = '';
+		if (!isFolder) {
+			extSuffix = extname(name);
+			namePrefix = basename(name, extSuffix);
+		}
+
+		// name copy 5(.txt) => name copy 6(.txt)
+		// name copy(.txt) => name copy 2(.txt)
+		const suffixRegex = /^(.+ copy)( \d+)?$/;
+		if (suffixRegex.test(namePrefix)) {
+			return namePrefix.replace(suffixRegex, (match, g1?, g2?) => {
+				let number = (g2 ? parseInt(g2) : 1);
+				return number === 0
+					? `${g1}`
+					: (number < Constants.MAX_SAFE_SMALL_INTEGER
+						? `${g1} ${number + 1}`
+						: `${g1}${g2} copy`);
+			}) + extSuffix;
+		}
+
+		// name(.txt) => name copy(.txt)
+		return `${namePrefix} copy${extSuffix}`;
 	}
 
-	// name copy 5(.txt) => name copy 6(.txt)
-	// name copy(.txt) => name copy 2(.txt)
-	const suffixRegex = /^(.+ copy)( \d+)?$/;
-	if (suffixRegex.test(namePrefix)) {
-		return namePrefix.replace(suffixRegex, (match, g1?, g2?) => {
-			let number = (g2 ? parseInt(g2) : 1);
-			return number === 0
-				? `${g1}`
-				: (number < Constants.MAX_SAFE_SMALL_INTEGER
-					? `${g1} ${number + 1}`
-					: `${g1}${g2} copy`);
-		}) + extSuffix;
+	const separators = '[\\.\\-_]';
+	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
+
+	// file.1.txt=>file.2.txt
+	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
+	if (!isFolder && name.match(suffixFileRegex)) {
+		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
+			let number = parseInt(g2);
+			return number < maxNumber
+				? g1 + strings.pad(number + 1, g2.length) + g3
+				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+		});
 	}
 
-	// name(.txt) => name copy(.txt)
-	return `${namePrefix} copy${extSuffix}`;
+	// 1.file.txt=>2.file.txt
+	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
+	if (!isFolder && name.match(prefixFileRegex)) {
+		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
+			let number = parseInt(g1);
+			return number < maxNumber
+				? strings.pad(number + 1, g1.length) + g2 + g3
+				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+		});
+	}
+
+	// 1.txt=>2.txt
+	let prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
+	if (!isFolder && name.match(prefixFileNoNameRegex)) {
+		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
+			let number = parseInt(g1);
+			return number < maxNumber
+				? strings.pad(number + 1, g1.length) + g2
+				: strings.format('{0}.1{1}', g1, g2);
+		});
+	}
+
+	// file.txt=>file.1.txt
+	const lastIndexOfDot = name.lastIndexOf('.');
+	if (!isFolder && lastIndexOfDot >= 0) {
+		return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
+	}
+
+	// folder.1=>folder.2
+	if (isFolder && name.match(/(\d+)$/)) {
+		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => {
+			let number = parseInt(groups[0]);
+			return number < maxNumber
+				? strings.pad(number + 1, groups[0].length)
+				: strings.format('{0}.1', groups[0]);
+		});
+	}
+
+	// 1.folder=>2.folder
+	if (isFolder && name.match(/^(\d+)/)) {
+		return name.replace(/^(\d+)(.*)$/, (match: string, ...groups: any[]) => {
+			let number = parseInt(groups[0]);
+			return number < maxNumber
+				? strings.pad(number + 1, groups[0].length) + groups[1]
+				: strings.format('{0}{1}.1', groups[0], groups[1]);
+		});
+	}
+
+	// file/folder=>file.1/folder.1
+	return strings.format('{0}.1', name);
 }
 
 // Global Compare with
@@ -1006,6 +1073,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const textFileService = accessor.get(ITextFileService);
 	const notificationService = accessor.get(INotificationService);
 	const editorService = accessor.get(IEditorService);
+	const configurationService = accessor.get(IConfigurationService);
 
 	if (listService.lastFocusedList) {
 		const explorerContext = getContext(listService.lastFocusedList);
@@ -1030,7 +1098,8 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 					target = element.isDirectory ? element : element.parent!;
 				}
 
-				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove });
+				const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
+				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
 
 				// Move/Copy File
 				if (pasteShouldMove) {
@@ -1056,6 +1125,22 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			if (stat) {
 				await explorerService.select(stat.resource);
 			}
+		}
+	}
+};
+
+export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) => {
+	const listService = accessor.get(IListService);
+	const editorService = accessor.get(IEditorService);
+
+	if (listService.lastFocusedList) {
+		const explorerContext = getContext(listService.lastFocusedList);
+		if (explorerContext.stat) {
+			const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+			await editorService.openEditors(stats.filter(s => !s.isDirectory).map(s => ({
+				resource: s.resource,
+				options: { preserveFocus: true }
+			})));
 		}
 	}
 };

@@ -34,18 +34,16 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	private readonly editor: ICodeEditor;
 	private readonly toUnhook = new DisposableStore();
-	private decorations: string[];
-	private currentWordUnderMouse: IWordAtPosition | null;
-	private previousPromise: CancelablePromise<LocationLink[] | null> | null;
+	private decorations: string[] = [];
+	private currentWordUnderMouse: IWordAtPosition | null = null;
+	private previousPromise: CancelablePromise<LocationLink[] | null> | null = null;
 
 	constructor(
 		editor: ICodeEditor,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
-		this.decorations = [];
 		this.editor = editor;
-		this.previousPromise = null;
 
 		let linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.add(linkGesture);

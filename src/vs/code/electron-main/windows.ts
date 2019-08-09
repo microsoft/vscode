@@ -1149,9 +1149,10 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 				}
 			}
 
-			// Linux/Windows: by default we open files in the new window unless triggered via DIALOG or MENU context
+			// Linux/Windows: by default we open files in the new window unless triggered via DIALOG / MENU context
+			// or from the integrated terminal where we assume the user prefers to open in the current window
 			else {
-				if (openConfig.context !== OpenContext.DIALOG && openConfig.context !== OpenContext.MENU) {
+				if (openConfig.context !== OpenContext.DIALOG && openConfig.context !== OpenContext.MENU && !(openConfig.userEnv && openConfig.userEnv['TERM_PROGRAM'] === 'vscode')) {
 					openFilesInNewWindow = true;
 				}
 			}

@@ -112,11 +112,6 @@
   resolved "https://registry.yarnpkg.com/@types/keytar/-/keytar-4.4.0.tgz#ca24e6ee6d0df10c003aafe26e93113b8faf0d8e"
   integrity sha512-cq/NkUUy6rpWD8n7PweNQQBpw2o0cf5v6fbkUVEpOB9VzzIvyPvSEId1/goIj+MciW2v1Lw5mRimKO01XgE9EA==
 
-"@types/minimist@^1.2.0":
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/@types/minimist/-/minimist-1.2.0.tgz#69a23a3ad29caf0097f06eda59b361ee2f0639f6"
-  integrity sha1-aaI6OtKcrwCX8G7aWbNh7i8GOfY=
-
 "@types/mocha@2.2.39":
   version "2.2.39"
   resolved "https://registry.yarnpkg.com/@types/mocha/-/mocha-2.2.39.tgz#f68d63db8b69c38e9558b4073525cf96c4f7a829"
@@ -5965,11 +5960,6 @@ nan@2.14.0, nan@^2.0.0, nan@^2.13.2, nan@^2.14.0:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
 
-nan@^2.12.1:
-  version "2.12.1"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.12.1.tgz#7b1aa193e9aa86057e3c7bbd0ac448e770925552"
-  integrity sha512-JY7V6lRkStKcKTvHO5NVSQRv+RV+FIL5pvDoLiAtSL9pKlC5x9PKQcZDsq7m4FO4d57mkhC6Z+QhAh3Jdk5JFw==
-
 nan@^2.9.2:
   version "2.10.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.10.0.tgz#96d0cd610ebd58d4b4de9cc0c6828cda99c7548f"
@@ -5997,10 +5987,10 @@ napi-build-utils@^1.0.1:
   resolved "https://registry.yarnpkg.com/napi-build-utils/-/napi-build-utils-1.0.1.tgz#1381a0f92c39d66bf19852e7873432fc2123e508"
   integrity sha512-boQj1WFgQH3v4clhu3mTNfP+vOBxorDlE8EKiMjUlLG3C4qAESnn9AxIOkFgTR2c9LtzNjPrjS60cT27ZKBhaA==
 
-native-is-elevated@^0.2.1:
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.2.1.tgz#70a2123a8575b9f624a3ef465d98cb74ae017385"
-  integrity sha1-cKISOoV1ufYko+9GXZjLdK4Bc4U=
+native-is-elevated@0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.3.0.tgz#6c5d8f57daeec129abd03b5606a55e56e4337423"
+  integrity sha512-QJgU7vaCZ199PSEC4LAmwtGfqwGaz8a51YDeze3DPiRzcOq25LIQpxCbBWunIu+csMMHFsDuyO2OVfeSD4ioHQ==
 
 native-keymap@2.0.0:
   version "2.0.0"
@@ -9585,6 +9575,11 @@ vscode-fsevents@1.2.12:
   dependencies:
     nan "^2.14.0"
 
+vscode-minimist@^1.2.1:
+  version "1.2.1"
+  resolved "https://registry.yarnpkg.com/vscode-minimist/-/vscode-minimist-1.2.1.tgz#e63d3f4a9bf3680dcb8f9304eed612323fd6926a"
+  integrity sha512-cmB72+qDoiCFJ1UKnGUBdGYfXzdpJ3bQM/D/+XhkVk5v7uZgLbYiCz5JcwVyk7NC7hSi5VGtQ4wihzmi12NeXw==
+
 vscode-nls-dev@^3.3.1:
   version "3.3.1"
   resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.3.1.tgz#15fc03e0c9ca5a150abb838690d9554ac06f77e4"
@@ -9613,10 +9608,10 @@ vscode-proxy-agent@0.4.0:
     https-proxy-agent "2.2.1"
     socks-proxy-agent "4.0.1"
 
-vscode-ripgrep@^1.5.5:
-  version "1.5.5"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.5.tgz#24c0e9cb356cf889c98e15ecb58f9cf654a1d961"
-  integrity sha512-OrPrAmcun4+uZAuNcQvE6CCPskh+5AsjANod/Q3zRcJcGNxgoOSGlQN9RPtatkUNmkN8Nn8mZBnS1jMylu/dKg==
+vscode-ripgrep@^1.5.6:
+  version "1.5.6"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.6.tgz#93bf5c99ca5f8248950a305e224f6ca153c30af4"
+  integrity sha512-WRIM9XpUj6dsfdAmuI3ANbmT1ysPUVsYy/2uCLDHJa9kbiB4T7uGvFnnc0Rgx2qQnyRAwL7PeWaFgUljPPxf2g==
 
 vscode-sqlite3@4.0.8:
   version "4.0.8"
@@ -9639,12 +9634,10 @@ vscode-windows-ca-certs@0.1.0:
   dependencies:
     node-addon-api "1.6.2"
 
-vscode-windows-registry@1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.1.tgz#bc9f765563eb6dc1c9ad9a41f9eaacc84dfadc7c"
-  integrity sha512-q0aKXi9Py1OBdmXIJJFeJBzpPJMMUxMJNBU9FysWIXEwJyMQGEVevKzM2J3Qz/cHSc5LVqibmoUWzZ7g+97qRg==
-  dependencies:
-    nan "^2.12.1"
+vscode-windows-registry@1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.2.tgz#b863e704a6a69c50b3098a55fbddbe595b0c124a"
+  integrity sha512-/CLLvuOSM2Vme2z6aNyB+4Omd7hDxpf4Thrt8ImxnXeQtxzel2bClJpFQvQqK/s4oaXlkBKS7LqVLeZM+uSVIA==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
@@ -9936,10 +9929,10 @@ xterm-addon-web-links@0.1.0-beta10:
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.1.0-beta10.tgz#610fa9773a2a5ccd41c1c83ba0e2dd2c9eb66a23"
   integrity sha512-xfpjy0V6bB4BR44qIgZQPoCMVakxb65gMscPkHpO//QxvUxKzabV3dxOsIbeZRFkUGsWTFlvz2OoaBLoNtv5gg==
 
-xterm@3.15.0-beta89:
-  version "3.15.0-beta89"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta89.tgz#255962e2595deefb42b8c0043001256526163a3f"
-  integrity sha512-rNaoUamacPRg+ejbKDGRDNqR3SZ3Uf/pUW0mO+FF25/lIgdLq8x7RgZVBgFweCZ/dijPjxoyMcgfNDTH9h8LOg==
+xterm@3.15.0-beta93:
+  version "3.15.0-beta93"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta93.tgz#ba1d5e4588f07be9bb36c70082a0e034f9bad565"
+  integrity sha512-MgzlwBOOwa/xYmWnLiTmqVOk3v/YRxzlPej940zpcp/chXW+ErsSPW6sehy68wedO9TWbR3oBUe8agfLH0uOuA==
 
 y18n@^3.2.1:
   version "3.2.1"

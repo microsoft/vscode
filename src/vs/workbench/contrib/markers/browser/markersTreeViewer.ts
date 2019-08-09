@@ -258,7 +258,7 @@ class MarkerWidget extends Disposable {
 		}));
 		this.icon = dom.append(parent, dom.$(''));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
-		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details'));
+		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
@@ -312,33 +312,32 @@ class MarkerWidget extends Disposable {
 		const viewState = this.markersViewModel.getViewModel(element);
 		const multiline = !viewState || viewState.multiline;
 		const lineMatches = filterData && filterData.lineMatches || [];
-		const messageContainer = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message'));
-		dom.toggleClass(messageContainer, 'multiline', multiline);
 
-		let lastLineElement = messageContainer;
+		let lastLineElement: HTMLElement | undefined = undefined;
 		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
-			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
-			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
-			highlightedLabel.set(lines[index], lineMatches[index]);
+			lastLineElement = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line'));
+			const messageElement = dom.append(lastLineElement, dom.$('.marker-message'));
+			const highlightedLabel = new HighlightedLabel(messageElement, false);
+			highlightedLabel.set(lines[index].length > 1000 ? `${lines[index].substring(0, 1000)}...` : lines[index], lineMatches[index]);
 			if (lines[index] === '') {
 				lastLineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
 			}
 		}
-		this.renderDetails(marker, filterData, multiline ? lastLineElement : this.messageAndDetailsContainer);
+		this.renderDetails(marker, filterData, lastLineElement || dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line')));
 	}
 
 	private renderDetails(marker: IMarker, filterData: MarkerFilterData | undefined, parent: HTMLElement): void {
 		dom.addClass(parent, 'details-container');
-		const sourceMatches = filterData && filterData.sourceMatches || [];
-		const codeMatches = filterData && filterData.codeMatches || [];
 
-		const source = new HighlightedLabel(dom.append(parent, dom.$('')), false);
-		source.set(marker.source, sourceMatches);
-		dom.toggleClass(source.element, 'marker-source', !!marker.source);
+		if (marker.source || marker.code) {
+			const source = new HighlightedLabel(dom.append(parent, dom.$('.marker-source')), false);
+			const sourceMatches = filterData && filterData.sourceMatches || [];
+			source.set(marker.source, sourceMatches);
 
-		const code = new HighlightedLabel(dom.append(parent, dom.$('')), false);
-		code.set(marker.code, codeMatches);
-		dom.toggleClass(code.element, 'marker-code', !!marker.code);
+			const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')), false);
+			const codeMatches = filterData && filterData.codeMatches || [];
+			code.set(marker.code, codeMatches);
+		}
 
 		const lnCol = dom.append(parent, dom.$('span.marker-line'));
 		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);

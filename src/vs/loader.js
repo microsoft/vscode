@@ -235,6 +235,17 @@ var AMDLoader;
  *--------------------------------------------------------------------------------------------*/
 var AMDLoader;
 (function (AMDLoader) {
+    function ensureError(err) {
+        if (err instanceof Error) {
+            return err;
+        }
+        var result = new Error(err.message || String(err) || 'Unknown Error');
+        if (err.stack) {
+            result.stack = err.stack;
+        }
+        return result;
+    }
+    AMDLoader.ensureError = ensureError;
     ;
     var ConfigurationOptionsUtil = /** @class */ (function () {
         function ConfigurationOptionsUtil() {
@@ -244,22 +255,16 @@ var AMDLoader;
          */
         ConfigurationOptionsUtil.validateConfigurationOptions = function (options) {
             function defaultOnError(err) {
-                if (err.errorCode === 'load') {
+                if (err.phase === 'loading') {
                     console.error('Loading "' + err.moduleId + '" failed');
-                    console.error('Detail: ', err.detail);
-                    if (err.detail && err.detail.stack) {
-                        console.error(err.detail.stack);
-                    }
+                    console.error(err);
                     console.error('Here are the modules that depend on it:');
                     console.error(err.neededBy);
                     return;
                 }
-                if (err.errorCode === 'factory') {
+                if (err.phase === 'factory') {
                     console.error('The factory method of "' + err.moduleId + '" has thrown an exception');
-                    console.error(err.detail);
-                    if (err.detail && err.detail.stack) {
-                        console.error(err.detail.stack);
-                    }
+                    console.error(err);
                     return;
                 }
             }
@@ -302,7 +307,7 @@ var AMDLoader;
             if (!Array.isArray(options.nodeModules)) {
                 options.nodeModules = [];
             }
-            if (typeof options.nodeCachedData === 'object') {
+            if (options.nodeCachedData && typeof options.nodeCachedData === 'object') {
                 if (typeof options.nodeCachedData.seed !== 'string') {
                     options.nodeCachedData.seed = 'seed';
                 }
@@ -310,7 +315,9 @@ var AMDLoader;
                     options.nodeCachedData.writeDelay = 1000 * 7;
                 }
                 if (!options.nodeCachedData.path || typeof options.nodeCachedData.path !== 'string') {
-                    options.onError('INVALID cached data configuration, \'path\' MUST be set');
+                    var err = ensureError(new Error('INVALID cached data configuration, \'path\' MUST be set'));
+                    err.phase = 'configuration';
+                    options.onError(err);
                     options.nodeCachedData = undefined;
                 }
             }
@@ -702,8 +709,11 @@ var AMDLoader;
                 var recorder = moduleManager.getRecorder();
                 var cachedDataPath = that._getCachedDataPath(nodeCachedData, filename);
                 var options = { filename: filename };
+                var hashData;
                 try {
-                    options.cachedData = that._fs.readFileSync(cachedDataPath);
+                    var data = that._fs.readFileSync(cachedDataPath);
+                    hashData = data.slice(0, 16);
+                    options.cachedData = data.slice(16);
                     recorder.record(60 /* CachedDataFound */, cachedDataPath);
                 }
                 catch (_e) {
@@ -717,7 +727,8 @@ var AMDLoader;
                 var args = [this.exports, require, this, filename, dirname, process, _commonjsGlobal, Buffer];
                 var result = compileWrapper.apply(this.exports, args);
                 // cached data aftermath
-                setTimeout(function () { return that._handleCachedData(script, cachedDataPath, !options.cachedData, moduleManager); }, Math.ceil(moduleManager.getConfig().getOptionsLiteral().nodeCachedData.writeDelay * Math.random()));
+                that._handleCachedData(script, scriptSource, cachedDataPath, !options.cachedData, moduleManager);
+                that._verifyCachedData(script, scriptSource, cachedDataPath, hashData);
                 return result;
             };
         };
@@ -748,7 +759,7 @@ var AMDLoader;
                 var vmScriptPathOrUri_1 = this._getElectronRendererScriptPathOrUri(normalizedScriptSrc_1);
                 var wantsCachedData_1 = Boolean(opts.nodeCachedData);
                 var cachedDataPath_1 = wantsCachedData_1 ? this._getCachedDataPath(opts.nodeCachedData, scriptSrc) : undefined;
-                this._readSourceAndCachedData(normalizedScriptSrc_1, cachedDataPath_1, recorder, function (err, data, cachedData) {
+                this._readSourceAndCachedData(normalizedScriptSrc_1, cachedDataPath_1, recorder, function (err, data, cachedData, hashData) {
                     if (err) {
                         errorback(err);
                         return;
@@ -763,7 +774,8 @@ var AMDLoader;
                     scriptSource = nodeInstrumenter(scriptSource, normalizedScriptSrc_1);
                     var scriptOpts = { filename: vmScriptPathOrUri_1, cachedData: cachedData };
                     var script = _this._createAndEvalScript(moduleManager, scriptSource, scriptOpts, callback, errorback);
-                    _this._handleCachedData(script, cachedDataPath_1, wantsCachedData_1 && !cachedData, moduleManager);
+                    _this._handleCachedData(script, scriptSource, cachedDataPath_1, wantsCachedData_1 && !cachedData, moduleManager);
+                    _this._verifyCachedData(script, scriptSource, cachedDataPath_1, hashData);
                 });
             }
         };
@@ -808,13 +820,13 @@ var AMDLoader;
             var basename = this._path.basename(filename).replace(/\.js$/, '');
             return this._path.join(config.path, basename + "-" + hash + ".code");
         };
-        NodeScriptLoader.prototype._handleCachedData = function (script, cachedDataPath, createCachedData, moduleManager) {
+        NodeScriptLoader.prototype._handleCachedData = function (script, scriptSource, cachedDataPath, createCachedData, moduleManager) {
             var _this = this;
             if (script.cachedDataRejected) {
                 // cached data got rejected -> delete and re-create
                 this._fs.unlink(cachedDataPath, function (err) {
                     moduleManager.getRecorder().record(62 /* CachedDataRejected */, cachedDataPath);
-                    _this._createAndWriteCachedData(script, cachedDataPath, moduleManager);
+                    _this._createAndWriteCachedData(script, scriptSource, cachedDataPath, moduleManager);
                     if (err) {
                         moduleManager.getConfig().onError(err);
                     }
@@ -822,22 +834,29 @@ var AMDLoader;
             }
             else if (createCachedData) {
                 // no cached data, but wanted
-                this._createAndWriteCachedData(script, cachedDataPath, moduleManager);
+                this._createAndWriteCachedData(script, scriptSource, cachedDataPath, moduleManager);
             }
         };
-        NodeScriptLoader.prototype._createAndWriteCachedData = function (script, cachedDataPath, moduleManager) {
+        // Cached data format: | SOURCE_HASH | V8_CACHED_DATA |
+        // -SOURCE_HASH is the md5 hash of the JS source (always 16 bytes)
+        // -V8_CACHED_DATA is what v8 produces
+        NodeScriptLoader.prototype._createAndWriteCachedData = function (script, scriptSource, cachedDataPath, moduleManager) {
             var _this = this;
             var timeout = Math.ceil(moduleManager.getConfig().getOptionsLiteral().nodeCachedData.writeDelay * (1 + Math.random()));
             var lastSize = -1;
             var iteration = 0;
+            var hashData = undefined;
             var createLoop = function () {
                 setTimeout(function () {
+                    if (!hashData) {
+                        hashData = _this._crypto.createHash('md5').update(scriptSource, 'utf8').digest();
+                    }
                     var cachedData = script.createCachedData();
                     if (cachedData.length === 0 || cachedData.length === lastSize || iteration >= 5) {
                         return;
                     }
                     lastSize = cachedData.length;
-                    _this._fs.writeFile(cachedDataPath, cachedData, function (err) {
+                    _this._fs.writeFile(cachedDataPath, Buffer.concat([hashData, cachedData]), function (err) {
                         if (err) {
                             moduleManager.getConfig().onError(err);
                         }
@@ -858,15 +877,16 @@ var AMDLoader;
             }
             else {
                 // cached data case: read both files in parallel
-                var source_1;
-                var cachedData_1;
+                var source_1 = undefined;
+                var cachedData_1 = undefined;
+                var hashData_1 = undefined;
                 var steps_1 = 2;
                 var step_1 = function (err) {
                     if (err) {
                         callback(err);
                     }
                     else if (--steps_1 === 0) {
-                        callback(undefined, source_1, cachedData_1);
+                        callback(undefined, source_1, cachedData_1, hashData_1);
                     }
                 };
                 this._fs.readFile(sourcePath, { encoding: 'utf8' }, function (err, data) {
@@ -874,11 +894,38 @@ var AMDLoader;
                     step_1(err);
                 });
                 this._fs.readFile(cachedDataPath, function (err, data) {
-                    cachedData_1 = data && data.length > 0 ? data : undefined;
+                    if (!err && data && data.length > 0) {
+                        hashData_1 = data.slice(0, 16);
+                        cachedData_1 = data.slice(16);
+                        recorder.record(60 /* CachedDataFound */, cachedDataPath);
+                    }
+                    else {
+                        recorder.record(61 /* CachedDataMissed */, cachedDataPath);
+                    }
                     step_1(); // ignored: cached data is optional
-                    recorder.record(err ? 61 /* CachedDataMissed */ : 60 /* CachedDataFound */, cachedDataPath);
                 });
             }
+        };
+        NodeScriptLoader.prototype._verifyCachedData = function (script, scriptSource, cachedDataPath, hashData) {
+            var _this = this;
+            if (!hashData) {
+                // nothing to do
+                return;
+            }
+            if (script.cachedDataRejected) {
+                // invalid anyways
+                return;
+            }
+            setTimeout(function () {
+                // check source hash - the contract is that file paths change when file content
+                // change (e.g use the commit or version id as cache path). this check is
+                // for violations of this contract.
+                var hashDataNow = _this._crypto.createHash('md5').update(scriptSource, 'utf8').digest();
+                if (!hashData.equals(hashDataNow)) {
+                    console.warn("FAILED TO VERIFY CACHED DATA. Deleting '" + cachedDataPath + "' now, but a RESTART IS REQUIRED");
+                    _this._fs.unlink(cachedDataPath, function (err) { return console.error("FAILED to unlink: '" + cachedDataPath + "'", err); });
+                }
+            }, Math.ceil(5000 * (1 + Math.random())));
         };
         NodeScriptLoader._BOM = 0xFEFF;
         NodeScriptLoader._PREFIX = '(function (require, define, __filename, __dirname) { ';
@@ -956,6 +1003,7 @@ var AMDLoader;
             this._errorback = errorback;
             this.moduleIdResolver = moduleIdResolver;
             this.exports = {};
+            this.error = null;
             this.exportsPassedIn = false;
             this.unresolvedDependenciesCount = this.dependencies.length;
             this._isComplete = false;
@@ -1007,11 +1055,11 @@ var AMDLoader;
                 }
             }
             if (producedError) {
-                config.onError({
-                    errorCode: 'factory',
-                    moduleId: this.strId,
-                    detail: producedError
-                });
+                var err = AMDLoader.ensureError(producedError);
+                err.phase = 'factory';
+                err.moduleId = this.strId;
+                this.error = err;
+                config.onError(err);
             }
             this.dependencies = null;
             this._callback = null;
@@ -1022,6 +1070,8 @@ var AMDLoader;
          * One of the direct dependencies or a transitive dependency has failed to load.
          */
         Module.prototype.onDependencyError = function (err) {
+            this._isComplete = true;
+            this.error = err;
             if (this._errorback) {
                 this._errorback(err);
                 return true;
@@ -1272,6 +1322,9 @@ var AMDLoader;
             if (!m.isComplete()) {
                 throw new Error('Check dependency list! Synchronous require cannot resolve module \'' + _strModuleId + '\'. This module has not been resolved completely yet.');
             }
+            if (m.error) {
+                throw m.error;
+            }
             return m.exports;
         };
         ModuleManager.prototype.configure = function (params, shouldOverwrite) {
@@ -1301,16 +1354,15 @@ var AMDLoader;
                 this.defineModule(this._moduleIdProvider.getStrModuleId(moduleId), defineCall.dependencies, defineCall.callback, null, defineCall.stack);
             }
         };
-        ModuleManager.prototype._createLoadError = function (moduleId, err) {
+        ModuleManager.prototype._createLoadError = function (moduleId, _err) {
             var _this = this;
             var strModuleId = this._moduleIdProvider.getStrModuleId(moduleId);
             var neededBy = (this._inverseDependencies2[moduleId] || []).map(function (intModuleId) { return _this._moduleIdProvider.getStrModuleId(intModuleId); });
-            return {
-                errorCode: 'load',
-                moduleId: strModuleId,
-                neededBy: neededBy,
-                detail: err
-            };
+            var err = AMDLoader.ensureError(_err);
+            err.phase = 'loading';
+            err.moduleId = strModuleId;
+            err.neededBy = neededBy;
+            return err;
         };
         /**
          * Callback from the scriptLoader when a module hasn't been loaded.
@@ -1318,6 +1370,9 @@ var AMDLoader;
          */
         ModuleManager.prototype._onLoadError = function (moduleId, err) {
             var error = this._createLoadError(moduleId, err);
+            if (!this._modules2[moduleId]) {
+                this._modules2[moduleId] = new Module(moduleId, this._moduleIdProvider.getStrModuleId(moduleId), [], function () { }, function () { }, null);
+            }
             // Find any 'local' error handlers, walk the entire chain of inverse dependencies if necessary.
             var seenModuleId = [];
             for (var i = 0, len = this._moduleIdProvider.getMaxModuleId(); i < len; i++) {
@@ -1525,6 +1580,10 @@ var AMDLoader;
                     }
                     var dependencyModule = this._modules2[dependency.id];
                     if (dependencyModule && dependencyModule.isComplete()) {
+                        if (dependencyModule.error) {
+                            module.onDependencyError(dependencyModule.error);
+                            return;
+                        }
                         module.unresolvedDependenciesCount--;
                         continue;
                     }

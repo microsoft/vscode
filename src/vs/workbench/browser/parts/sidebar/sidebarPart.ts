@@ -31,10 +31,11 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
@@ -44,6 +45,8 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
+	readonly priority: LayoutPriority = LayoutPriority.Low;
 
 	readonly snap = true;
 
@@ -79,7 +82,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	private viewletRegistry: ViewletRegistry;
 	private sideBarFocusContextKey: IContextKey<boolean>;
 	private activeViewletContextKey: IContextKey<string>;
-	private blockOpeningViewlet: boolean;
+	private blockOpeningViewlet = false;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,

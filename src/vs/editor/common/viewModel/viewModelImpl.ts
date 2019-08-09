@@ -6,7 +6,7 @@
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -668,12 +668,13 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		const fontInfo = this.configuration.editor.fontInfo;
 		const colorMap = this._getColorMap();
+		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
 		return (
 			`<div style="`
 			+ `color: ${colorMap[ColorId.DefaultForeground]};`
 			+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
-			+ `font-family: ${fontInfo.fontFamily};`
+			+ `font-family: ${fontFamily};`
 			+ `font-weight: ${fontInfo.fontWeight};`
 			+ `font-size: ${fontInfo.fontSize}px;`
 			+ `line-height: ${fontInfo.lineHeight}px;`

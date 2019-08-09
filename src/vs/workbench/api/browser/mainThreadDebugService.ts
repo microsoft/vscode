@@ -153,13 +153,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			type: debugType
 		};
 		if (hasProvide) {
-			provider.provideDebugConfigurations = (folder) => {
-				return this._proxy.$provideDebugConfigurations(handle, folder);
+			provider.provideDebugConfigurations = (folder, token) => {
+				return this._proxy.$provideDebugConfigurations(handle, folder, token);
 			};
 		}
 		if (hasResolve) {
-			provider.resolveDebugConfiguration = (folder, config) => {
-				return this._proxy.$resolveDebugConfiguration(handle, folder, config);
+			provider.resolveDebugConfiguration = (folder, config, token) => {
+				return this._proxy.$resolveDebugConfiguration(handle, folder, config, token);
 			};
 		}
 		if (hasProvideDebugAdapter) {

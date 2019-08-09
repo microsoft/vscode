@@ -55,7 +55,11 @@ export class NewWindowAction extends Action {
 }
 
 export abstract class BaseZoomAction extends Action {
+
 	private static readonly SETTING_KEY = 'window.zoomLevel';
+
+	private static readonly MAX_ZOOM_LEVEL = 9;
+	private static readonly MIN_ZOOM_LEVEL = -8;
 
 	constructor(
 		id: string,
@@ -67,6 +71,10 @@ export abstract class BaseZoomAction extends Action {
 
 	protected async setConfiguredZoomLevel(level: number): Promise<void> {
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
+
+		if (level > BaseZoomAction.MAX_ZOOM_LEVEL || level < BaseZoomAction.MIN_ZOOM_LEVEL) {
+			return; // https://github.com/microsoft/vscode/issues/48357
+		}
 
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);

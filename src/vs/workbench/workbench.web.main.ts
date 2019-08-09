@@ -99,7 +99,6 @@ import 'vs/workbench/services/decorations/browser/decorationsService';
 import 'vs/workbench/services/search/common/searchService';
 import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
-// import 'vs/workbench/services/extensions/electron-browser/extensionHostDebugService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/output/common/outputChannelModelService';
 import 'vs/workbench/services/configuration/common/jsonEditingService';
@@ -240,7 +239,7 @@ import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 import 'vs/workbench/contrib/debug/browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
-import 'vs/workbench/contrib/debug/browser/debugHelperService';
+import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
@@ -283,7 +282,7 @@ registerSingleton(ITerminalNativeService, TerminalNativeService, true);
 registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
 
 // Relauncher
-// import 'vs/workbench/contrib/relauncher/electron-browser/relauncher.contribution';
+import 'vs/workbench/contrib/relauncher/common/relauncher.contribution';
 
 // Tasks
 import 'vs/workbench/contrib/tasks/browser/task.contribution';

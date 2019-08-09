@@ -123,8 +123,8 @@ class SaturationBox extends Disposable {
 	private readonly domNode: HTMLElement;
 	private readonly selection: HTMLElement;
 	private readonly canvas: HTMLCanvasElement;
-	private width: number;
-	private height: number;
+	private width!: number;
+	private height!: number;
 
 	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData> | null;
 	private _onDidChange = new Emitter<{ s: number, v: number }>();
@@ -235,7 +235,7 @@ abstract class Strip extends Disposable {
 	protected domNode: HTMLElement;
 	protected overlay: HTMLElement;
 	protected slider: HTMLElement;
-	private height: number;
+	private height!: number;
 
 	private _onDidChange = new Emitter<number>();
 	readonly onDidChange: Event<number> = this._onDidChange.event;

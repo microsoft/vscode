@@ -109,9 +109,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'<span style="color: #0000ff;text-decoration: underline;">world!</span>',
 				'</div>'
 			].join('')
@@ -122,9 +122,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'<span style="color: #0000ff;text-decoration: underline;">w</span>',
 				'</div>'
 			].join('')
@@ -135,9 +135,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'</div>'
 			].join('')
 		);
@@ -147,9 +147,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">iao</span>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'</div>'
 			].join('')
 		);
@@ -158,9 +158,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			tokenizeLineToHTML(text, lineTokens, colorMap, 4, 11, 4),
 			[
 				'<div>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'</div>'
 			].join('')
 		);
@@ -170,7 +170,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #00ff00;">hello</span>',
-				'<span style="color: #000000;"> </span>',
+				'<span style="color: #000000;">&nbsp</span>',
 				'</div>'
 			].join('')
 		);
@@ -189,6 +189,88 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			[
 				'<div>',
 				'<span style="color: #00ff00;">ell</span>',
+				'</div>'
+			].join('')
+		);
+	});
+	test('tokenizeLineToHTML handle spaces #35954', () => {
+		const text = '  Ciao   hello world!';
+		const lineTokens = new ViewLineTokens([
+			new ViewLineToken(
+				2,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				6,
+				(
+					(3 << MetadataConsts.FOREGROUND_OFFSET)
+					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				9,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				14,
+				(
+					(4 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				15,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				21,
+				(
+					(5 << MetadataConsts.FOREGROUND_OFFSET)
+					| ((FontStyle.Underline) << MetadataConsts.FONT_STYLE_OFFSET)
+				) >>> 0
+			)
+		]);
+		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 21, 4),
+			[
+				'<div>',
+				'<span style="color: #000000;">&nbsp&nbsp</span>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
+				'<span style="color: #000000;">&nbsp&nbsp&nbsp</span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;">&nbsp</span>',
+				'<span style="color: #0000ff;text-decoration: underline;">world!</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4),
+			[
+				'<div>',
+				'<span style="color: #000000;">&nbsp&nbsp</span>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
+				'<span style="color: #000000;">&nbsp&nbsp&nbsp</span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;">&nbsp</span>',
+				'<span style="color: #0000ff;text-decoration: underline;">wo</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 3, 4),
+			[
+				'<div>',
+				'<span style="color: #000000;">&nbsp&nbsp</span>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">C</span>',
 				'</div>'
 			].join('')
 		);

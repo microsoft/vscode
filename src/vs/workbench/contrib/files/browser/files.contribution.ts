@@ -426,6 +426,15 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('explorer.decorations.badges', "Controls whether file decorations should use badges."),
 			default: true
 		},
+		'explorer.incrementalNaming': {
+			enum: ['simple', 'smart'],
+			enumDescriptions: [
+				nls.localize('simple', "Appends the word \"copy\" at the end of the duplicated name potentially followed by a number"),
+				nls.localize('smart', "Adds a number at the end of the duplicated name. If some number is already part of the name, tries to increase that number")
+			],
+			description: nls.localize('explorer.incrementalNaming', "Controls what naming strategy to use when a giving a new name to a duplicated explorer item on paste."),
+			default: 'simple'
+		}
 	}
 });
 
