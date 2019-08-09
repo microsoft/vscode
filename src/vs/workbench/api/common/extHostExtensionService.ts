@@ -524,7 +524,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		});
 	}
 
-	private _doHandleExtensionTests(): Promise<void> {
+	private async _doHandleExtensionTests(): Promise<void> {
 		const { extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
 		if (!(extensionDevelopmentLocationURI && extensionTestsLocationURI && extensionTestsLocationURI.scheme === Schemas.file)) {
 			return Promise.resolve(undefined);
@@ -536,7 +536,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		let testRunner: ITestRunner | INewTestRunner | undefined;
 		let requireError: Error | undefined;
 		try {
-			testRunner = <any>require.__$__nodeRequire(extensionTestsPath);
+			testRunner = await this._loadCommonJSModule(extensionTestsPath, new ExtensionActivationTimesBuilder(false));
 		} catch (error) {
 			requireError = error;
 		}
