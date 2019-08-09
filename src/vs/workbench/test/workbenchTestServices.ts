@@ -665,6 +665,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
+	onDidGroupIndexChange: Event<IEditorGroup> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
 
 	orientation: any;

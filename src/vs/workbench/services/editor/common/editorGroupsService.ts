@@ -177,6 +177,11 @@ export interface IEditorGroupsService {
 	readonly onDidLayout: Event<IDimension>;
 
 	/**
+	 * An event for when the index of a group changes.
+	 */
+	readonly onDidGroupIndexChange: Event<IEditorGroup>;
+
+	/**
 	 * The size of the editor groups area.
 	 */
 	readonly contentDimension: IDimension;
