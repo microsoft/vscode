@@ -213,6 +213,8 @@ export class ElectronWindow extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
 				this.updateWindowZoomLevel();
+			} else if (e.affectsConfiguration('keyboard.touchbar.ignored')) {
+				this.updateTouchbarMenu();
 			}
 		}));
 
@@ -372,7 +374,7 @@ export class ElectronWindow extends Disposable {
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
 		let group: ICommandAction[] = [];
-		const ignoredItems = this.configurationService.getValue<string[]>('keyboard.touchbar.ignoreActions') || [];
+		const ignoredItems = this.configurationService.getValue<string[]>('keyboard.touchbar.ignored') || [];
 		for (const action of actions) {
 
 			// Command
