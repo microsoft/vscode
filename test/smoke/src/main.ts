@@ -278,35 +278,18 @@ describe('Running Code', () => {
 		});
 	}
 
-	if (opts.web) {
-		// setupDataLossTests();
-		setupDataExplorerTests();
-		// setupDataPreferencesTests();
-		setupDataSearchTests();
-		setupDataCSSTests();
-		// setupDataEditorTests();
-		// setupDataDebugTests();
-		// setupDataGitTests();
-		// setupDataStatusbarTests();
-		// setupDataExtensionTests();
-		setupTerminalTests();
-		// setupDataMultirootTests();
-		// setupDataLocalizationTests();
-		return;
-	}
-
-	setupDataLossTests();
+	if (!opts.web) { setupDataLossTests(); }
 	setupDataExplorerTests();
-	setupDataPreferencesTests();
+	if (!opts.web) { setupDataPreferencesTests(); }
 	setupDataSearchTests();
 	setupDataCSSTests();
 	setupDataEditorTests();
-	setupDataDebugTests();
+	if (!opts.web) { setupDataDebugTests(); }
 	setupDataGitTests();
 	setupDataStatusbarTests();
 	setupDataExtensionTests();
 	setupTerminalTests();
-	setupDataMultirootTests();
+	if (!opts.web) { setupDataMultirootTests(); }
 	setupDataLocalizationTests();
 });
 
