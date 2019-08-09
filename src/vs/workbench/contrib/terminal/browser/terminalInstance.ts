@@ -814,6 +814,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._processManager.dispose(immediate);
+		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
+		// hasn't happened yet
+		this._onProcessExit(undefined);
 
 		if (!this._isDisposed) {
 			this._isDisposed = true;
@@ -1012,12 +1015,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * through user action.
 	 */
 	private _onProcessExit(exitCode?: number): void {
-		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
-
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
 			return;
 		}
+
+		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 
 		this._isExiting = true;
 		let exitCodeMessage: string | undefined;
