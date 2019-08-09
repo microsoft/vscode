@@ -177,6 +177,11 @@ export interface IEditorGroupsService {
 	readonly onDidLayout: Event<IDimension>;
 
 	/**
+	 * An event for when the index of a group changes.
+	 */
+	readonly onDidGroupIndexChange: Event<IEditorGroup>;
+
+	/**
 	 * The size of the editor groups area.
 	 */
 	readonly contentDimension: IDimension;
@@ -343,7 +348,7 @@ export const enum GroupChangeKind {
 
 	/* Group Changes */
 	GROUP_ACTIVE,
-	GROUP_LABEL,
+	GROUP_INDEX,
 
 	/* Editor Changes */
 	EDITOR_OPEN,
@@ -373,6 +378,14 @@ export interface IEditorGroup {
 	 * group is moved to different locations.
 	 */
 	readonly id: GroupIdentifier;
+
+	/**
+	 * A number that indicates the position of this group in the visual
+	 * order of groups from left to right and top to bottom. The lowest
+	 * index will likely be top-left while the largest index in most
+	 * cases should be bottom-right, but that depends on the grid.
+	 */
+	readonly index: number;
 
 	/**
 	 * A human readable label for the group. This label can change depending

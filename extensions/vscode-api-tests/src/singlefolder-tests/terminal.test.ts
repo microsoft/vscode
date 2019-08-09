@@ -337,14 +337,15 @@ suite('window namespace tests', () => {
 						});
 						terminal.dispose();
 					});
-					overrideDimensionsEmitter.fire({ columns: 10, rows: 5 });
 				});
 				const writeEmitter = new EventEmitter<string>();
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidOverrideDimensions: overrideDimensionsEmitter.event,
-					open: () => {},
+					open: () => {
+						overrideDimensionsEmitter.fire({ columns: 10, rows: 5 });
+					},
 					close: () => {}
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });

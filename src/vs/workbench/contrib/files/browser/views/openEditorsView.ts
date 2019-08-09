@@ -129,7 +129,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
-					case GroupChangeKind.GROUP_LABEL: {
+					case GroupChangeKind.GROUP_INDEX: {
 						if (this.showGroups) {
 							this.list.splice(index, 1, [group]);
 						}
