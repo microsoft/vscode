@@ -482,6 +482,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
+		this._xterm.onSelectionChange(async () => this._onSelectionChange());
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
 		this._xterm.onData(data => this._processManager.write(data));
@@ -1188,6 +1189,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		if (event.equals(KeyCode.Enter)) {
 			this._updateProcessCwd();
+		}
+	}
+
+	private async _onSelectionChange(): void {
+		if (this._configurationService.getValue('terminal.integrated.copyOnSelection')) {
+			if (this.hasSelection()) {
+				await this.copySelection();
+			}
 		}
 	}
 
