@@ -1192,7 +1192,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private async _onSelectionChange(): void {
+	private async _onSelectionChange(): Promise<void> {
 		if (this._configurationService.getValue('terminal.integrated.copyOnSelection')) {
 			if (this.hasSelection()) {
 				await this.copySelection();
