@@ -9,7 +9,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { URI as Uri } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 
-suite.only('Workbench - TerminalEnvironment', () => {
+suite('Workbench - TerminalEnvironment', () => {
 	test('addTerminalEnvironmentKeys', () => {
 		const env: { [key: string]: any } = { FOO: 'bar' };
 		const locale = 'en-au';
