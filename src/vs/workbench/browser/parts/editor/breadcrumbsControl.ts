@@ -69,7 +69,9 @@ class Item extends BreadcrumbsItem {
 			return false;
 		}
 		if (this.element instanceof FileElement && other.element instanceof FileElement) {
-			return isEqual(this.element.uri, other.element.uri, false);
+			return (isEqual(this.element.uri, other.element.uri, false) &&
+				this.options.showFileIcons === other.options.showFileIcons &&
+				this.options.showSymbolIcons === other.options.showSymbolIcons);
 		}
 		if (this.element instanceof TreeElement && other.element instanceof TreeElement) {
 			return this.element.id === other.element.id;
