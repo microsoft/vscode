@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemoteAgentConnection } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { AbstractRemoteAgentService, RemoteAgentConnection } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
 import { IProductService } from 'vs/platform/product/common/product';
-import { browserWebSocketFactory } from 'vs/platform/remote/browser/browserWebSocketFactory';
+import { IWebSocketFactory, BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 
-export class RemoteAgentService extends AbstractRemoteAgentService {
+export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
+
+	public readonly socketFactory: ISocketFactory;
 
 	private readonly _connection: IRemoteAgentConnection | null = null;
 
 	constructor(
+		webSocketFactory: IWebSocketFactory | null | undefined,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -23,7 +27,8 @@ export class RemoteAgentService extends AbstractRemoteAgentService {
 	) {
 		super(environmentService);
 
-		this._connection = this._register(new RemoteAgentConnection(environmentService.configuration.remoteAuthority!, productService.commit, browserWebSocketFactory, environmentService, remoteAuthorityResolverService, signService));
+		this.socketFactory = new BrowserSocketFactory(webSocketFactory);
+		this._connection = this._register(new RemoteAgentConnection(environmentService.configuration.remoteAuthority!, productService.commit, this.socketFactory, remoteAuthorityResolverService, signService));
 	}
 
 	getConnection(): IRemoteAgentConnection | null {

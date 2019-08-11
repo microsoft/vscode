@@ -157,7 +157,7 @@ export class KeybindingWidgetRenderer extends Disposable {
 			snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
 			this._editor.setPosition(smartInsertInfo.position);
 
-			SnippetController2.get(this._editor).insert(snippetText, 0, 0);
+			SnippetController2.get(this._editor).insert(snippetText, { overwriteBefore: 0, overwriteAfter: 0 });
 		}
 	}
 }

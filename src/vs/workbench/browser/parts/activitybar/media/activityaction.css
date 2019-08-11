@@ -15,7 +15,7 @@
 	height: 40px;
 	line-height: 40px;
 	margin-right: 0;
-	padding: 0 0 0 50px;
+	padding: 0 0 0 48px;
 	box-sizing: border-box;
 	font-size: 15px;
 }
@@ -54,11 +54,12 @@
 	position: absolute;
 	top: 20px;
 	right: 8px;
-	font-size: 11px;
+	font-size: 9px;
+	font-weight: 600;
 	min-width: 8px;
-	height: 18px;
-	line-height: 18px;
-	padding: 0 5px;
+	height: 16px;
+	line-height: 16px;
+	padding: 0 4px;
 	border-radius: 20px;
 	text-align: center;
 }

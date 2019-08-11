@@ -5,14 +5,14 @@
 
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
+import { IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -51,16 +51,16 @@ export class OpenEditorsView extends ViewletPanel {
 	static readonly ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
-	private dirtyCountElement: HTMLElement;
+	private dirtyCountElement!: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler;
 	private structuralRefreshDelay: number;
-	private list: WorkbenchList<OpenEditor | IEditorGroup>;
-	private listLabels: ResourceLabels;
-	private contributedContextMenu: IMenu;
-	private needsRefresh: boolean;
-	private resourceContext: ResourceContextKey;
-	private groupFocusedContext: IContextKey<boolean>;
-	private dirtyEditorFocusedContext: IContextKey<boolean>;
+	private list!: WorkbenchList<OpenEditor | IEditorGroup>;
+	private listLabels: ResourceLabels | undefined;
+	private contributedContextMenu!: IMenu;
+	private needsRefresh = false;
+	private resourceContext!: ResourceContextKey;
+	private groupFocusedContext!: IContextKey<boolean>;
+	private dirtyEditorFocusedContext!: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -80,7 +80,7 @@ export class OpenEditorsView extends ViewletPanel {
 		super({
 			...(options as IViewletPanelOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
@@ -129,7 +129,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
-					case GroupChangeKind.GROUP_LABEL: {
+					case GroupChangeKind.GROUP_INDEX: {
 						if (this.showGroups) {
 							this.list.splice(index, 1, [group]);
 						}
@@ -219,7 +219,7 @@ export class OpenEditorsView extends ViewletPanel {
 		], {
 				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 				dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
-			}) as WorkbenchList<OpenEditor | IEditorGroup>;
+			});
 		this._register(this.list);
 		this._register(this.listLabels);
 
@@ -345,13 +345,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	private openEditor(element: OpenEditor, options: { preserveFocus: boolean; pinned: boolean; sideBySide: boolean; }): void {
 		if (element) {
-			/* __GDPR__
-				"workbenchActionExecuted" : {
-					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 
 			const preserveActivateGroup = options.sideBySide && options.preserveFocus; // needed for https://github.com/Microsoft/vscode/issues/42399
 			if (!preserveActivateGroup) {
@@ -472,9 +466,13 @@ interface IEditorGroupTemplateData {
 }
 
 class OpenEditorActionRunner extends ActionRunner {
-	public editor: OpenEditor;
+	public editor: OpenEditor | undefined;
 
 	run(action: IAction, context?: any): Promise<void> {
+		if (!this.editor) {
+			return Promise.resolve();
+		}
+
 		return super.run(action, { groupId: this.editor.groupId, editorIndex: this.editor.editorIndex });
 	}
 }
@@ -576,7 +574,8 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		templateData.root.setEditor(editor.editor, {
 			italic: editor.isPreview(),
 			extraClasses: ['open-editor'],
-			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations
+			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
+			descriptionVerbosity: Verbosity.MEDIUM
 		});
 	}
 

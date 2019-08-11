@@ -60,5 +60,5 @@
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
-	"typescript.experimental.useSeparateSyntaxServer": true
+	"files.insertFinalNewline": true
 }

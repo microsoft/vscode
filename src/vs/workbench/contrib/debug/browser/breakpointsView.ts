@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 
@@ -44,8 +45,8 @@ function createCheckbox(): HTMLInputElement {
 export class BreakpointsView extends ViewletPanel {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
-	private list: WorkbenchList<IEnablement>;
-	private needsRefresh: boolean;
+	private list!: WorkbenchList<IEnablement>;
+	private needsRefresh = false;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -56,9 +57,10 @@ export class BreakpointsView extends ViewletPanel {
 		@IThemeService private readonly themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
@@ -76,8 +78,14 @@ export class BreakpointsView extends ViewletPanel {
 		], {
 				identityProvider: { getId: (element: IEnablement) => element.getId() },
 				multipleSelectionSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e }
-			}) as WorkbenchList<IEnablement>;
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e },
+				ariaProvider: {
+					getSetSize: (_: IEnablement, index: number, listLength: number) => listLength,
+					getPosInSet: (_: IEnablement, index: number) => index,
+					getRole: (breakpoint: IEnablement) => 'checkbox',
+					isChecked: (breakpoint: IEnablement) => breakpoint.enabled
+				}
+			});
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 

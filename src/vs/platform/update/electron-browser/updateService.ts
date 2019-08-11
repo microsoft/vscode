@@ -11,10 +11,10 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class UpdateService implements IUpdateService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private _onStateChange = new Emitter<State>();
-	get onStateChange(): Event<State> { return this._onStateChange.event; }
+	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	private _state: State = State.Uninitialized;
 	get state(): State { return this._state; }

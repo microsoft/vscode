@@ -59,7 +59,7 @@ export abstract class MenubarControl extends Disposable {
 		[index: string]: IMenu | undefined;
 	};
 
-	protected topLevelTitles = {
+	protected topLevelTitles: { [menu: string]: string } = {
 		'File': nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File"),
 		'Edit': nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit"),
 		'Selection': nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection"),
@@ -407,9 +407,12 @@ export class NativeMenubarControl extends MenubarControl {
 	}
 
 	private getAdditionalKeybindings(): { [id: string]: IMenubarKeybinding } {
-		const keybindings = {};
+		const keybindings: { [id: string]: IMenubarKeybinding } = {};
 		if (isMacintosh) {
-			keybindings['workbench.action.quit'] = (this.getMenubarKeybinding('workbench.action.quit'));
+			const keybinding = this.getMenubarKeybinding('workbench.action.quit');
+			if (keybinding) {
+				keybindings['workbench.action.quit'] = keybinding;
+			}
 		}
 
 		return keybindings;
@@ -583,7 +586,7 @@ export class CustomMenubarControl extends MenubarControl {
 					this.updateService.checkForUpdates({ windowId }));
 
 			case StateType.CheckingForUpdates:
-				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
+				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking for Updates..."), undefined, false);
 
 			case StateType.AvailableForDownload:
 				return new Action('update.downloadNow', nls.localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "D&&ownload Now"), undefined, true, () =>

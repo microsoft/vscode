@@ -121,64 +121,61 @@ export interface IMenuService {
 	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
 }
 
+export type ICommandsMap = Map<string, ICommandAction>;
+
 export interface IMenuRegistry {
 	addCommand(userCommand: ICommandAction): IDisposable;
-	getCommand(id: string): ICommandAction;
+	getCommand(id: string): ICommandAction | undefined;
 	getCommands(): ICommandsMap;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
 	readonly onDidChangeMenu: Event<MenuId>;
 }
 
-export interface ICommandsMap {
-	[id: string]: ICommandAction;
-}
-
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
-	private readonly _commands: { [id: string]: ICommandAction } = Object.create(null);
-	private readonly _menuItems: { [loc: number]: Array<IMenuItem | ISubmenuItem> } = Object.create(null);
+	private readonly _commands = new Map<string, ICommandAction>();
+	private readonly _menuItems = new Map<number, Array<IMenuItem | ISubmenuItem>>();
 	private readonly _onDidChangeMenu = new Emitter<MenuId>();
 
 	readonly onDidChangeMenu: Event<MenuId> = this._onDidChangeMenu.event;
 
 	addCommand(command: ICommandAction): IDisposable {
-		this._commands[command.id] = command;
+		this._commands.set(command.id, command);
 		this._onDidChangeMenu.fire(MenuId.CommandPalette);
 		return {
 			dispose: () => {
-				if (delete this._commands[command.id]) {
+				if (this._commands.delete(command.id)) {
 					this._onDidChangeMenu.fire(MenuId.CommandPalette);
 				}
 			}
 		};
 	}
 
-	getCommand(id: string): ICommandAction {
-		return this._commands[id];
+	getCommand(id: string): ICommandAction | undefined {
+		return this._commands.get(id);
 	}
 
 	getCommands(): ICommandsMap {
-		const result: ICommandsMap = Object.create(null);
-		for (const key in this._commands) {
-			result[key] = this.getCommand(key);
-		}
-		return result;
+		const map = new Map<string, ICommandAction>();
+		this._commands.forEach((value, key) => map.set(key, value));
+		return map;
 	}
 
 	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
-		let array = this._menuItems[id];
+		let array = this._menuItems.get(id);
 		if (!array) {
-			this._menuItems[id] = array = [item];
+			array = [item];
+			this._menuItems.set(id, array);
 		} else {
 			array.push(item);
 		}
 		this._onDidChangeMenu.fire(id);
 		return {
 			dispose: () => {
-				const idx = array.indexOf(item);
+				const idx = array!.indexOf(item);
 				if (idx >= 0) {
-					array.splice(idx, 1);
+					array!.splice(idx, 1);
 					this._onDidChangeMenu.fire(id);
 				}
 			}
@@ -186,7 +183,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 
 	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
-		const result = (this._menuItems[id] || []).slice(0);
+		const result = (this._menuItems.get(id) || []).slice(0);
 
 		if (id === MenuId.CommandPalette) {
 			// CommandPalette is special because it shows
@@ -207,11 +204,11 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 				set.add(alt.id);
 			}
 		}
-		for (let id in this._commands) {
+		this._commands.forEach((command, id) => {
 			if (!set.has(id)) {
-				result.push({ command: this._commands[id] });
+				result.push({ command });
 			}
-		}
+		});
 	}
 };
 

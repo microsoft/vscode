@@ -15,6 +15,7 @@
 			'xterm': `${window.location.origin}/node_modules/xterm/lib/xterm.js`,
 			'xterm-addon-search': `${window.location.origin}/node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
 			'xterm-addon-web-links': `${window.location.origin}/node_modules/xterm-addon-web-links/lib/xterm-addon-web-links.js`,
+			'semver-umd': `${window.location.origin}/node_modules/semver-umd/lib/semver-umd.js`,
 		}
 	});
 

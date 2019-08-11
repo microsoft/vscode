@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { readFile } from 'vs/base/node/pfs';
-import { basename } from 'vs/base/common/path';
+import { readFile, exists } from 'vs/base/node/pfs';
+import * as path from 'vs/base/common/path';
+import { isString } from 'vs/base/common/types';
 
 let mainProcessParentEnv: IProcessEnvironment | undefined;
 
@@ -18,7 +19,7 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 	// env using /proc/<pid>/environ.
 	if (isLinux) {
 		const mainProcessId = process.ppid;
-		const codeProcessName = basename(process.argv[0]);
+		const codeProcessName = path.basename(process.argv[0]);
 		let pid: number = 0;
 		let ppid: number = mainProcessId;
 		let name: string = codeProcessName;
@@ -36,7 +37,7 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 			});
 		} while (name === codeProcessName);
 		const rawEnv = await readFile(`/proc/${pid}/environ`, 'utf8');
-		const env = {};
+		const env: IProcessEnvironment = {};
 		rawEnv.split('\0').forEach(e => {
 			const i = e.indexOf('=');
 			env[e.substr(0, i)] = e.substr(i + 1);
@@ -76,4 +77,56 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 	}
 
 	return mainProcessParentEnv!;
+}
+
+export async function findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined> {
+	// If we have an absolute path then we take it.
+	if (path.isAbsolute(command)) {
+		return await exists(command) ? command : undefined;
+	}
+	if (cwd === undefined) {
+		cwd = process.cwd();
+	}
+	const dir = path.dirname(command);
+	if (dir !== '.') {
+		// We have a directory and the directory is relative (see above). Make the path absolute
+		// to the current working directory.
+		const fullPath = path.join(cwd, command);
+		return await exists(fullPath) ? fullPath : undefined;
+	}
+	if (paths === undefined && isString(process.env.PATH)) {
+		paths = process.env.PATH.split(path.delimiter);
+	}
+	// No PATH environment. Make path absolute to the cwd.
+	if (paths === undefined || paths.length === 0) {
+		const fullPath = path.join(cwd, command);
+		return await exists(fullPath) ? fullPath : undefined;
+	}
+	// We have a simple file name. We get the path variable from the env
+	// and try to find the executable on the path.
+	for (let pathEntry of paths) {
+		// The path entry is absolute.
+		let fullPath: string;
+		if (path.isAbsolute(pathEntry)) {
+			fullPath = path.join(pathEntry, command);
+		} else {
+			fullPath = path.join(cwd, pathEntry, command);
+		}
+
+		if (await exists(fullPath)) {
+			return fullPath;
+		}
+		if (isWindows) {
+			let withExtension = fullPath + '.com';
+			if (await exists(withExtension)) {
+				return withExtension;
+			}
+			withExtension = fullPath + '.exe';
+			if (await exists(withExtension)) {
+				return withExtension;
+			}
+		}
+	}
+	const fullPath = path.join(cwd, command);
+	return await exists(fullPath) ? fullPath : undefined;
 }

@@ -156,7 +156,7 @@ export interface IActionBarRegistry {
 class ActionBarRegistry implements IActionBarRegistry {
 	private readonly actionBarContributorConstructors: { scope: string; ctor: IConstructorSignature0<ActionBarContributor>; }[] = [];
 	private readonly actionBarContributorInstances: Map<string, ActionBarContributor[]> = new Map();
-	private instantiationService: IInstantiationService;
+	private instantiationService!: IInstantiationService;
 
 	start(accessor: ServicesAccessor): void {
 		this.instantiationService = accessor.get(IInstantiationService);

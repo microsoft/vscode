@@ -592,10 +592,10 @@
           "description": "%configuration.surveys.enabled%",
           "scope": "window"
         },
-        "typescript.experimental.useSeparateSyntaxServer": {
+        "typescript.tsserver.useSeparateSyntaxServer": {
           "type": "boolean",
-          "default": false,
-          "description": "%configuration.experimental.useSeparateSyntaxServer%",
+          "default": true,
+          "description": "%configuration.tsserver.useSeparateSyntaxServer%",
           "scope": "window"
         }
       }

@@ -19,7 +19,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IWorkspaceEditDto, IResourceTextEditDto, IResourceFileEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -108,6 +108,8 @@ export namespace DiagnosticTag {
 		switch (value) {
 			case types.DiagnosticTag.Unnecessary:
 				return MarkerTag.Unnecessary;
+			case types.DiagnosticTag.Deprecated:
+				return MarkerTag.Deprecated;
 		}
 		return undefined;
 	}
@@ -237,8 +239,7 @@ export namespace MarkdownString {
 		const resUris: { [href: string]: UriComponents } = Object.create(null);
 		res.uris = resUris;
 
-		const renderer = new marked.Renderer();
-		renderer.image = renderer.link = (href: string): string => {
+		const collectUri = (href: string): string => {
 			try {
 				let uri = URI.parse(href, true);
 				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
@@ -248,6 +249,10 @@ export namespace MarkdownString {
 			}
 			return '';
 		};
+		const renderer = new marked.Renderer();
+		renderer.link = collectUri;
+		renderer.image = href => collectUri(htmlContent.parseHrefAndDimensions(href).href);
+
 		marked(res.value, { renderer });
 
 		return res;
@@ -450,8 +455,8 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): WorkspaceEditDto {
-		const result: WorkspaceEditDto = {
+	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): IWorkspaceEditDto {
+		const result: IWorkspaceEditDto = {
 			edits: []
 		};
 		for (const entry of (value as types.WorkspaceEdit)._allEntries()) {
@@ -459,28 +464,28 @@ export namespace WorkspaceEdit {
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
 				const doc = documents && uri ? documents.getDocument(uri) : undefined;
-				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
+				result.edits.push(<IResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
-				result.edits.push(<ResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
+				result.edits.push(<IResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
 			}
 		}
 		return result;
 	}
 
-	export function to(value: WorkspaceEditDto) {
+	export function to(value: IWorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
-			if (Array.isArray((<ResourceTextEditDto>edit).edits)) {
+			if (Array.isArray((<IResourceTextEditDto>edit).edits)) {
 				result.set(
-					URI.revive((<ResourceTextEditDto>edit).resource),
-					<types.TextEdit[]>(<ResourceTextEditDto>edit).edits.map(TextEdit.to)
+					URI.revive((<IResourceTextEditDto>edit).resource),
+					<types.TextEdit[]>(<IResourceTextEditDto>edit).edits.map(TextEdit.to)
 				);
 			} else {
 				result.renameFile(
-					URI.revive((<ResourceFileEditDto>edit).oldUri!),
-					URI.revive((<ResourceFileEditDto>edit).newUri!),
-					(<ResourceFileEditDto>edit).options
+					URI.revive((<IResourceFileEditDto>edit).oldUri!),
+					URI.revive((<IResourceFileEditDto>edit).newUri!),
+					(<IResourceFileEditDto>edit).options
 				);
 			}
 		}
@@ -985,8 +990,9 @@ export namespace GlobPattern {
 
 	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
 	export function from(pattern: undefined): undefined;
-	export function from(pattern: vscode.GlobPattern | undefined): string | types.RelativePattern | undefined;
-	export function from(pattern: vscode.GlobPattern | undefined): string | types.RelativePattern | undefined {
+	export function from(pattern: null): null;
+	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null;
+	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null {
 		if (pattern instanceof types.RelativePattern) {
 			return pattern;
 		}

@@ -79,6 +79,7 @@ export class SettingsEditor2 extends BaseEditor {
 			return false;
 		}
 		return type === SettingValueType.Enum ||
+			type === SettingValueType.ArrayOfString ||
 			type === SettingValueType.Complex ||
 			type === SettingValueType.Boolean ||
 			type === SettingValueType.Exclude;
@@ -131,6 +132,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private tocFocusedElement: SettingsTreeGroupElement | null;
 	private settingsTreeScrollTop = 0;
+	private dimension: DOM.Dimension;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -278,10 +280,16 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	layout(dimension: DOM.Dimension): void {
+		this.dimension = dimension;
+
+		if (!this.isVisible()) {
+			return;
+		}
+
 		this.layoutTrees(dimension);
 
-		const innerWidth = dimension.width - 24 * 2; // 24px padding on left and right
-		const monacoWidth = (innerWidth > 1000 ? 1000 : innerWidth) - 10;
+		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
+		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - 12; // minus padding inside inputbox, countElement width, extra padding before countElement
 		this.searchWidget.layout({ height: 20, width: monacoWidth });
 
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
@@ -968,7 +976,9 @@ export class SettingsEditor2 extends BaseEditor {
 			if (key) {
 				const focusedKey = focusedSetting.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
 				if (focusedKey === key &&
-					!DOM.hasClass(focusedSetting, 'setting-item-exclude')) { // update `exclude`s live, as they have a separate "submit edit" step built in before this
+					// update `list`s live, as they have a separate "submit edit" step built in before this
+					(focusedSetting.parentElement && !DOM.hasClass(focusedSetting.parentElement, 'setting-item-list'))
+				) {
 
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
@@ -1117,11 +1127,12 @@ export class SettingsEditor2 extends BaseEditor {
 		const nlpResult = results[SearchResultIdx.Remote];
 		const nlpMetadata = nlpResult && nlpResult.metadata;
 
-		const durations = {};
-		durations['nlpResult'] = nlpMetadata && nlpMetadata.duration;
+		const durations = {
+			nlpResult: nlpMetadata && nlpMetadata.duration
+		};
 
 		// Count unique results
-		const counts = {};
+		const counts: { nlpResult?: number, filterResult?: number } = {};
 		const filterResult = results[SearchResultIdx.Local];
 		if (filterResult) {
 			counts['filterResult'] = filterResult.filterMatches.length;
@@ -1229,7 +1240,11 @@ export class SettingsEditor2 extends BaseEditor {
 			: 'none';
 
 		if (!this.searchResultModel) {
-			this.countElement.style.display = 'none';
+			if (this.countElement.style.display !== 'none') {
+				this.countElement.style.display = 'none';
+				this.layout(this.dimension);
+			}
+
 			DOM.removeClass(this.rootElement, 'no-results');
 			return;
 		}
@@ -1242,7 +1257,10 @@ export class SettingsEditor2 extends BaseEditor {
 				default: this.countElement.innerText = localize('moreThanOneResult', "{0} Settings Found", count);
 			}
 
-			this.countElement.style.display = 'block';
+			if (this.countElement.style.display !== 'block') {
+				this.countElement.style.display = 'block';
+				this.layout(this.dimension);
+			}
 			DOM.toggleClass(this.rootElement, 'no-results', count === 0);
 		}
 	}

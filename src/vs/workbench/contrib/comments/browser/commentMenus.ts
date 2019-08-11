@@ -9,7 +9,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { IAction } from 'vs/base/common/actions';
 import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Comment, CommentThread2 } from 'vs/editor/common/modes';
+import { Comment, CommentThread } from 'vs/editor/common/modes';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class CommentMenus implements IDisposable {
@@ -24,11 +24,11 @@ export class CommentMenus implements IDisposable {
 		commentControllerKey.set(controller.contextValue);
 	}
 
-	getCommentThreadTitleActions(commentThread: CommentThread2, contextKeyService: IContextKeyService): IMenu {
+	getCommentThreadTitleActions(commentThread: CommentThread, contextKeyService: IContextKeyService): IMenu {
 		return this.getMenu(MenuId.CommentThreadTitle, contextKeyService);
 	}
 
-	getCommentThreadActions(commentThread: CommentThread2, contextKeyService: IContextKeyService): IMenu {
+	getCommentThreadActions(commentThread: CommentThread, contextKeyService: IContextKeyService): IMenu {
 		return this.getMenu(MenuId.CommentThreadActions, contextKeyService);
 	}
 

@@ -39,7 +39,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService)),
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.configuration.machineId, environmentService.installSourcePath, environmentService.configuration.remoteAuthority),
-				piiPaths: [environmentService.appRoot, environmentService.extensionsPath]
+				piiPaths: environmentService.extensionsPath ? [environmentService.appRoot, environmentService.extensionsPath] : [environmentService.appRoot]
 			};
 
 			this.impl = this._register(new BaseTelemetryService(config, configurationService));

@@ -8,6 +8,7 @@ import { ProcessItem } from 'vs/base/common/processes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessInfo } from 'vs/platform/launch/common/launchService';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export interface IMachineInfo {
 	os: string;
@@ -18,7 +19,7 @@ export interface IMachineInfo {
 
 export interface IDiagnosticInfo {
 	machineInfo: IMachineInfo;
-	workspaceMetadata?: { [key: string]: WorkspaceStats };
+	workspaceMetadata?: IStringDictionary<WorkspaceStats>;
 	processes?: ProcessItem;
 }
 export interface SystemInfo extends IMachineInfo {

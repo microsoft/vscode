@@ -1,4 +1,4 @@
-// Type definitions for Electron 4.2.5
+// Type definitions for Electron 4.2.7
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -3479,14 +3479,14 @@ declare namespace Electron {
 		 * Creates a new NativeImage instance from the NSImage that maps to the given image
 		 * name. See NSImageName for a list of possible values. The hslShift is applied to
 		 * the image with the following rules This means that [-1, 0, 1] will make the
-     * image completely white and [-1, 1, 0] will make the image completely black. In
-     * some cases, the NSImageName doesn't match its string representation; one example
-     * of this is NSFolderImageName, whose string representation would actually be
-     * NSFolder. Therefore, you'll need to determine the correct string representation
-     * for your image before passing it in. This can be done with the following: echo
-     * -e '#import <Cocoa/Cocoa.h>\nint main() { NSLog(@"%@", SYSTEM_IMAGE_NAME); }' |
-     * clang -otest -x objective-c -framework Cocoa - && ./test where SYSTEM_IMAGE_NAME
-     * should be replaced with any value from this list.
+		 * image completely white and [-1, 1, 0] will make the image completely black. In
+		 * some cases, the NSImageName doesn't match its string representation; one example
+		 * of this is NSFolderImageName, whose string representation would actually be
+		 * NSFolder. Therefore, you'll need to determine the correct string representation
+		 * for your image before passing it in. This can be done with the following: echo
+		 * -e '#import <Cocoa/Cocoa.h>\nint main() { NSLog(@"%@", SYSTEM_IMAGE_NAME); }' |
+		 * clang -otest -x objective-c -framework Cocoa - && ./test where SYSTEM_IMAGE_NAME
+		 * should be replaced with any value from this list.
 		 */
 		static createFromNamedImage(imageName: string, hslShift: number[]): NativeImage;
 		/**
@@ -3737,6 +3737,17 @@ declare namespace Electron {
 		once(event: 'unlock-screen', listener: Function): this;
 		addListener(event: 'unlock-screen', listener: Function): this;
 		removeListener(event: 'unlock-screen', listener: Function): this;
+		/**
+		 * Calculate the system idle state. idleThreshold is the amount of time (in
+		 * seconds) before considered idle. callback will be called synchronously on some
+		 * systems and with an idleState argument that describes the system's state. locked
+		 * is available on supported systems only.
+		 */
+		querySystemIdleState(idleThreshold: number, callback: (idleState: 'active' | 'idle' | 'locked' | 'unknown') => void): void;
+		/**
+		 * Calculate system idle time in seconds.
+		 */
+		querySystemIdleTime(callback: (idleTime: number) => void): void;
 	}
 
 	interface PowerSaveBlocker extends EventEmitter {
@@ -4418,30 +4429,6 @@ declare namespace Electron {
 			 * The new RGBA color the user assigned to be their system accent color.
 			 */
 			newColor: string) => void): this;
-		/**
-		 * NOTE: This event is only emitted after you have called
-		 * startAppLevelAppearanceTrackingOS
-		 */
-		on(event: 'appearance-changed', listener: (
-			/**
-			 * Can be `dark` or `light`
-			 */
-			newAppearance: ('dark' | 'light')) => void): this;
-		once(event: 'appearance-changed', listener: (
-			/**
-			 * Can be `dark` or `light`
-			 */
-			newAppearance: ('dark' | 'light')) => void): this;
-		addListener(event: 'appearance-changed', listener: (
-			/**
-			 * Can be `dark` or `light`
-			 */
-			newAppearance: ('dark' | 'light')) => void): this;
-		removeListener(event: 'appearance-changed', listener: (
-			/**
-			 * Can be `dark` or `light`
-			 */
-			newAppearance: ('dark' | 'light')) => void): this;
 		on(event: 'color-changed', listener: (event: Event) => void): this;
 		once(event: 'color-changed', listener: (event: Event) => void): this;
 		addListener(event: 'color-changed', listener: (event: Event) => void): this;
@@ -8789,17 +8776,33 @@ declare namespace Electron {
 		 * The type of media access being requested, can be video, audio or unknown
 		 */
 		mediaType: ('video' | 'audio' | 'unknown');
+		/**
+		 * The last URL the requesting frame loaded
+		 */
+		requestingUrl: string;
+		/**
+		 * Whether the frame making the request is the main frame
+		 */
+		isMainFrame: boolean;
 	}
 
 	interface PermissionRequestHandlerDetails {
 		/**
 		 * The url of the openExternal request.
 		 */
-		externalURL: string;
+		externalURL?: string;
 		/**
 		 * The types of media access being requested, elements can be video or audio
 		 */
-		mediaTypes: Array<'video' | 'audio'>;
+		mediaTypes?: Array<'video' | 'audio'>;
+		/**
+		 * The last URL the requesting frame loaded
+		 */
+		requestingUrl: string;
+		/**
+		 * Whether the frame making the request is the main frame
+		 */
+		isMainFrame: boolean;
 	}
 
 	interface PluginCrashedEvent extends Event {

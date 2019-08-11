@@ -29,7 +29,7 @@ export interface IBreadcrumbsService {
 
 export class BreadcrumbsService implements IBreadcrumbsService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
 
@@ -55,8 +55,8 @@ registerSingleton(IBreadcrumbsService, BreadcrumbsService, true);
 
 export abstract class BreadcrumbsConfig<T> {
 
-	name: string;
-	onDidChange: Event<void>;
+	abstract get name(): string;
+	abstract get onDidChange(): Event<void>;
 
 	abstract getValue(overrides?: IConfigurationOverrides): T;
 	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Promise<void>;

@@ -6,7 +6,7 @@
 import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -43,7 +43,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	private buffer: string[];
 	private bufferLength: number;
 	private openModels: IStringDictionary<boolean>;
-	private modelListeners: IDisposable[];
+	private readonly modelListeners = new DisposableStore();
 	private tail: Promise<void>;
 
 	// [owner] -> ApplyToKind
@@ -77,7 +77,6 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		this._numberOfMatches = 0;
 		this._maxMarkerSeverity = undefined;
 		this.openModels = Object.create(null);
-		this.modelListeners = [];
 		this.applyToByOwner = new Map<string, ApplyToKind>();
 		for (let problemMatcher of problemMatchers) {
 			let current = this.applyToByOwner.get(problemMatcher.owner);
@@ -119,7 +118,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	protected abstract async processLineInternal(line: string): Promise<void>;
 
 	public dispose() {
-		this.modelListeners.forEach(disposable => disposable.dispose());
+		this.modelListeners.dispose();
 	}
 
 	public get numberOfMatches(): number {

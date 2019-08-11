@@ -94,7 +94,7 @@ export class LaunchChannel implements IServerChannel {
 
 export class LaunchChannelClient implements ILaunchService {
 
-	_serviceBrand: ServiceIdentifier<ILaunchService>;
+	_serviceBrand!: ServiceIdentifier<ILaunchService>;
 
 	constructor(private channel: IChannel) { }
 
@@ -121,7 +121,7 @@ export class LaunchChannelClient implements ILaunchService {
 
 export class LaunchService implements ILaunchService {
 
-	_serviceBrand: ServiceIdentifier<ILaunchService>;
+	_serviceBrand!: ServiceIdentifier<ILaunchService>;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -228,7 +228,8 @@ export class LaunchService implements ILaunchService {
 				diffMode: args.diff,
 				addMode: args.add,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
-				waitMarkerFileURI
+				waitMarkerFileURI,
+				gotoLineMode: args.goto
 			});
 		}
 

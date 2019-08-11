@@ -523,6 +523,7 @@ class MockCommandService implements ICommandService {
 	public callCount = 0;
 
 	onWillExecuteCommand = () => Disposable.None;
+	onDidExecuteCommand = () => Disposable.None;
 	public executeCommand(commandId: string, ...args: any[]): Promise<any> {
 		this.callCount++;
 
@@ -554,7 +555,7 @@ class MockQuickInputService implements IQuickInputService {
 		return Promise.resolve(options ? 'resolved' + options.prompt : 'resolved');
 	}
 
-	backButton: IQuickInputButton;
+	backButton!: IQuickInputButton;
 
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
 		throw new Error('not implemented.');

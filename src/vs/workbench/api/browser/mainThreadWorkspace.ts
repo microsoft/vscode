@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -24,11 +24,12 @@ import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, Ma
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
-	private readonly _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 	private readonly _queryBuilder = this._instantiationService.createInstance(QueryBuilder);
@@ -52,7 +53,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	dispose(): void {
-		dispose(this._toDispose);
+		this._toDispose.dispose();
 
 		for (let requestId in this._activeCancelTokens) {
 			const tokenSource = this._activeCancelTokens[requestId];
@@ -122,21 +123,21 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, _includeFolder: UriComponents | undefined, excludePatternOrDisregardExcludes: string | false | undefined, maxResults: number, token: CancellationToken): Promise<URI[] | undefined> {
+	$startFileSearch(includePattern: string | null, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
-			return Promise.resolve(undefined);
+			return Promise.resolve(null);
 		}
 
 		const query = this._queryBuilder.file(
 			includeFolder ? [includeFolder] : workspace.folders.map(f => f.uri),
 			{
-				maxResults,
+				maxResults: withNullAsUndefined(maxResults),
 				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
 				disregardSearchExcludeSettings: true,
 				disregardIgnoreFiles: true,
-				includePattern,
+				includePattern: withNullAsUndefined(includePattern),
 				excludePattern: typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined,
 				_reason: 'startFileSearch'
 			});
@@ -179,10 +180,9 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return search;
 	}
 
-	$checkExists(includes: string[], token: CancellationToken): Promise<boolean> {
+	$checkExists(folders: UriComponents[], includes: string[], token: CancellationToken): Promise<boolean> {
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
-		const folders = this._contextService.getWorkspace().folders.map(folder => folder.uri);
-		const query = queryBuilder.file(folders, {
+		const query = queryBuilder.file(folders.map(folder => URI.revive(folder)), {
 			_reason: 'checkExists',
 			includePattern: includes.join(', '),
 			expandPatterns: true,

@@ -23,7 +23,7 @@ function markTracked<T extends IDisposable>(x: T): void {
 
 	if (x && x !== Disposable.None) {
 		try {
-			x[__is_disposable_tracked__] = true;
+			(x as any)[__is_disposable_tracked__] = true;
 		} catch {
 			// noop
 		}
@@ -35,9 +35,9 @@ function trackDisposable<T extends IDisposable>(x: T): T {
 		return x;
 	}
 
-	const stack = new Error().stack!;
+	const stack = new Error('Potentially leaked disposable').stack!;
 	setTimeout(() => {
-		if (!x[__is_disposable_tracked__]) {
+		if (!(x as any)[__is_disposable_tracked__]) {
 			console.log(stack);
 		}
 	}, 3000);
@@ -81,7 +81,13 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 }
 
 export function toDisposable(fn: () => void): IDisposable {
-	return trackDisposable({ dispose: fn });
+	const self = trackDisposable({
+		dispose: () => {
+			markTracked(self);
+			fn();
+		}
+	});
+	return self;
 }
 
 export class DisposableStore implements IDisposable {
@@ -201,15 +207,50 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 	}
 }
 
+/**
+ * Wrapper class that stores a disposable that is not currently "owned" by anyone.
+ *
+ * Example use cases:
+ *
+ * - Express that a function/method will take ownership of a disposable parameter.
+ * - Express that a function returns a disposable that the caller must explicitly take ownership of.
+ */
+export class UnownedDisposable<T extends IDisposable> extends Disposable {
+	private _hasBeenAcquired = false;
+	private _value?: T;
+
+	public constructor(value: T) {
+		super();
+		this._value = value;
+	}
+
+	public acquire(): T {
+		if (this._hasBeenAcquired) {
+			throw new Error('This disposable has already been acquired');
+		}
+		this._hasBeenAcquired = true;
+		const value = this._value!;
+		this._value = undefined;
+		return value;
+	}
+
+	public dispose() {
+		super.dispose();
+		if (!this._hasBeenAcquired) {
+			this._hasBeenAcquired = true;
+			this._value!.dispose();
+			this._value = undefined;
+		}
+	}
+}
+
 export interface IReference<T> extends IDisposable {
 	readonly object: T;
 }
 
 export abstract class ReferenceCollection<T> {
 
-	private references: Map<string, { readonly object: T; counter: number; }> = new Map();
-
-	constructor() { }
+	private readonly references: Map<string, { readonly object: T; counter: number; }> = new Map();
 
 	acquire(key: string): IReference<T> {
 		let reference = this.references.get(key);

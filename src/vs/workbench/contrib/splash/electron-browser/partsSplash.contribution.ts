@@ -9,7 +9,7 @@ import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
@@ -30,10 +30,10 @@ class PartsSplash {
 
 	private static readonly _splashElementId = 'monaco-parts-splash';
 
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
-	private _didChangeTitleBarStyle: boolean;
-	private _lastBaseTheme: string;
+	private _didChangeTitleBarStyle?: boolean;
+	private _lastBaseTheme?: string;
 	private _lastBackground?: string;
 
 	constructor(
@@ -64,7 +64,7 @@ class PartsSplash {
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	private _savePartsSplash() {
@@ -81,10 +81,10 @@ class PartsSplash {
 		const layoutInfo = !this._shouldSaveLayoutInfo() ? undefined : {
 			sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
 			editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-			titleBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.TITLEBAR_PART)),
-			activityBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART)),
-			sideBarWidth: getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)),
-			statusBarHeight: getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)),
+			titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? getTotalHeight(this._layoutService.getContainer(Parts.TITLEBAR_PART)) : 0,
+			activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? getTotalWidth(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART)) : 0,
+			sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? getTotalWidth(this._layoutService.getContainer(Parts.SIDEBAR_PART)) : 0,
+			statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? getTotalHeight(this._layoutService.getContainer(Parts.STATUSBAR_PART)) : 0,
 		};
 		this._textFileService.write(
 			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),

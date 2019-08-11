@@ -29,14 +29,10 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDocumentContentProviders);
 	}
 
-	dispose(): void {
-		// todo@joh
-	}
-
 	registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
 		// todo@remote
 		// check with scheme from fs-providers!
-		if (scheme === Schemas.file || scheme === Schemas.untitled) {
+		if (Object.keys(Schemas).indexOf(scheme) >= 0) {
 			throw new Error(`scheme '${scheme}' already registered`);
 		}
 

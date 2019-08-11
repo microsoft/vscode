@@ -193,6 +193,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.valueType = SettingValueType.Number;
 		} else if (this.setting.type === 'boolean') {
 			this.valueType = SettingValueType.Boolean;
+		} else if (this.setting.type === 'array' && this.setting.arrayItemType === 'string') {
+			this.valueType = SettingValueType.ArrayOfString;
 		} else if (isArray(this.setting.type) && this.setting.type.indexOf(SettingValueType.Null) > -1 && this.setting.type.length === 2) {
 			if (this.setting.type.indexOf(SettingValueType.Integer) > -1) {
 				this.valueType = SettingValueType.NullableInteger;

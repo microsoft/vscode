@@ -6,7 +6,9 @@
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+import { IFileSystemProvider } from 'vs/platform/files/common/files';
+import { IRequestOptions, IRequestContext } from 'vs/platform/request/common/request';
+import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 
 export interface IWorkbenchConstructionOptions {
 
@@ -15,6 +17,11 @@ export interface IWorkbenchConstructionOptions {
 	 * from. It is for example being used for the websocket connections as address.
 	 */
 	remoteAuthority: string;
+
+	/**
+	 * The connection token to send to the server.
+	 */
+	connectionToken?: string;
 
 	/**
 	 * Experimental: An endpoint to serve iframe content ("webview") from. This is required
@@ -33,18 +40,21 @@ export interface IWorkbenchConstructionOptions {
 	workspaceUri?: UriComponents;
 
 	/**
-	 * Experimental: The userData namespace is used to handle user specific application
-	 * data like settings, keybindings, UI state and snippets.
+	 * Experimental: The userDataProvider is used to handle user specific application
+	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
 	 */
-	userDataProvider?: {
-		readonly onDidChangeFile: Event<string[]>;
+	userDataProvider?: IFileSystemProvider;
 
-		readFile(path: string): Promise<Uint8Array>;
-		writeFile(path: string, content: Uint8Array): Promise<void>;
-		deleteFile(path: string): Promise<void>;
+	/**
+	 * Experimental: Optional request handler to handle http requests.
+	 * In case not provided, workbench uses <code>XMLHttpRequest</code>.
+	 */
+	requestHandler?: (requestOptions: IRequestOptions) => Promise<IRequestContext>;
 
-		listFiles(path: string): Promise<string[]>;
-	};
+	/**
+	 * A factory for web sockets.
+	 */
+	webSocketFactory?: IWebSocketFactory;
 }
 
 /**

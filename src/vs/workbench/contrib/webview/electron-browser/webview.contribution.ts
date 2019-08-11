@@ -15,9 +15,9 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import { IWebviewService, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/common/webview';
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
-import { WebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
+import { ElectronWebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
 
-registerSingleton(IWebviewService, WebviewService, true);
+registerSingleton(IWebviewService, ElectronWebviewService, true);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 

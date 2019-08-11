@@ -206,7 +206,7 @@ export const schema = {
 			type: 'object',
 			properties: {
 				// extensions will fill in
-			},
+			} as { [key: string]: any },
 			default: {}
 		},
 		preview: {

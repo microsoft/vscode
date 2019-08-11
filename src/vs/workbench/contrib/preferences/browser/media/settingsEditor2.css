@@ -172,11 +172,11 @@
 }
 
 .vs .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .toolbar-toggle-more {
-	background-image: url('configure.svg');
+	background-image: url('configure-light.svg');
 }
 
 .vs-dark .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .toolbar-toggle-more {
-	background-image: url('configure-inverse.svg');
+	background-image: url('configure-dark.svg');
 }
 
 .settings-editor > .settings-body .settings-toc-container {
@@ -432,12 +432,12 @@
 }
 
 .vs .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
-	background: url('check.svg') center center no-repeat;
+	background: url('check-light.svg') center center no-repeat;
 }
 
 .vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked,
 .hc-black .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
-	background: url('check-inverse.svg') center center no-repeat;
+	background: url('check-dark.svg') center center no-repeat;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-value {

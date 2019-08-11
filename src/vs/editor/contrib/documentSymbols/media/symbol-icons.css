@@ -15,268 +15,269 @@
 	width: 16px;
 	min-height: 14px;
 	min-width: 16px;
+	background-position: center;
 }
 
 /* default icons */
 .monaco-workbench .symbol-icon {
-	background-image: url('Field_16x.svg');
+	background-image: url('field-light.svg');
 	background-repeat: no-repeat;
 }
 .vs-dark .monaco-workbench .symbol-icon,
 .hc-black .monaco-workbench .symbol-icon {
-	background-image: url('Field_16x_darkp.svg');
+	background-image: url('field-dark.svg');
 }
 
 /* constant */
 .monaco-workbench .symbol-icon.constant {
-	background-image: url('Constant_16x.svg');
+	background-image: url('constant-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.constant,
 .hc-black .monaco-workbench .symbol-icon.constant {
-	background-image: url('Constant_16x_inverse.svg');
+	background-image: url('constant-dark.svg');
 }
 
 /* enum */
 .monaco-workbench .symbol-icon.enum {
-	background-image: url('Enumerator_16x.svg');
+	background-image: url('enumerator-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.enum,
 .hc-black .monaco-workbench .symbol-icon.enum {
-	background-image: url('Enumerator_inverse_16x.svg');
+	background-image: url('enumerator-dark.svg');
 }
 
 /* enum-member */
 .monaco-workbench .symbol-icon.enum-member {
-	background-image: url('EnumItem_16x.svg');
+	background-image: url('enumerator-item-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.enum-member,
 .hc-black .monaco-workbench .symbol-icon.enum-member {
-	background-image: url('EnumItem_inverse_16x.svg');
+	background-image: url('enumerator-item-dark.svg');
 }
 
 /* struct */
 .monaco-workbench .symbol-icon.struct {
-	background-image: url('Structure_16x_vscode.svg');
+	background-image: url('structure-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.struct,
 .hc-black .monaco-workbench .symbol-icon.struct {
-	background-image: url('Structure_16x_vscode_inverse.svg');
+	background-image: url('structure-dark.svg');
 }
 
 /* event */
 .monaco-workbench .symbol-icon.event {
-	background-image: url('Event_16x_vscode.svg');
+	background-image: url('event-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.event,
 .hc-black .monaco-workbench .symbol-icon.event {
-	background-image: url('Event_16x_vscode_inverse.svg');
+	background-image: url('event-dark.svg');
 }
 
 /* operator */
 .monaco-workbench .symbol-icon.operator {
-	background-image: url('Operator_16x_vscode.svg');
+	background-image: url('operator-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.operator,
 .hc-black .monaco-workbench .symbol-icon.operator {
-	background-image: url('Operator_16x_vscode_inverse.svg');
+	background-image: url('operator-dark.svg');
 }
 
 /* type paramter */
 .monaco-workbench .symbol-icon.type-parameter {
-	background-image: url('Template_16x_vscode.svg');
+	background-image: url('template-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.type-parameter,
 .hc-black .monaco-workbench .symbol-icon.type-parameter {
-	background-image: url('Template_16x_vscode_inverse.svg');
+	background-image: url('template-dark.svg');
 }
 
 /* boolean, null */
 .monaco-workbench .symbol-icon.boolean {
-	background-image: url('BooleanData_16x.svg');
+	background-image: url('boolean-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.boolean,
 .hc-black .monaco-workbench .symbol-icon.boolean {
-	background-image: url('BooleanData_16x_darkp.svg');
+	background-image: url('boolean-dark.svg');
 }
 
 /* null */
 .monaco-workbench .symbol-icon.null {
-	background-image: url('BooleanData_16x.svg');
+	background-image: url('boolean-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.null,
 .hc-black .monaco-workbench .symbol-icon.null {
-	background-image: url('BooleanData_16x_darkp.svg');
+	background-image: url('boolean-dark.svg');
 }
 
 /* class */
 .monaco-workbench .symbol-icon.class {
-	background-image: url('Class_16x.svg');
+	background-image: url('class-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.class,
 .hc-black .monaco-workbench .symbol-icon.class {
-	background-image: url('Class_16x_darkp.svg');
+	background-image: url('class-dark.svg');
 }
 
 /* constructor */
 .monaco-workbench .symbol-icon.constructor {
-	background-image: url('Method_16x.svg');
+	background-image: url('method-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.constructor,
 .hc-black .monaco-workbench .symbol-icon.constructor {
-	background-image: url('Method_16x_darkp.svg');
+	background-image: url('method-dark.svg');
 }
 
 /* file */
 .monaco-workbench .symbol-icon.file {
-	background-image: url('Document_16x.svg');
+	background-image: url('file-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.file,
 .hc-black .monaco-workbench .symbol-icon.file {
-	background-image: url('Document_16x_darkp.svg');
+	background-image: url('file-dark.svg');
 }
 
 /* field */
 .monaco-workbench .symbol-icon.field {
-	background-image: url('Field_16x.svg');
+	background-image: url('field-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.field,
 .hc-black .monaco-workbench .symbol-icon.field {
-	background-image: url('Field_16x_darkp.svg');
+	background-image: url('field-dark.svg');
 }
 
 /* variable */
 .monaco-workbench .symbol-icon.variable {
-	background-image: url('LocalVariable_16x_vscode.svg');
+	background-image: url('variable-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.variable,
 .hc-black .monaco-workbench .symbol-icon.variable {
-	background-image: url('LocalVariable_16x_vscode_inverse.svg');
+	background-image: url('variable-dark.svg');
 }
 
 /* array */
 .monaco-workbench .symbol-icon.array {
-	background-image: url('Indexer_16x.svg');
+	background-image: url('indexer-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.array,
 .hc-black .monaco-workbench .symbol-icon.array {
-	background-image: url('Indexer_16x_darkp.svg');
+	background-image: url('indexer-dark.svg');
 }
 
 /* keyword */
 /* todo@joh not used? */
 .monaco-workbench .symbol-icon.keyword {
-	background-image: url('IntelliSenseKeyword_16x.svg');
+	background-image: url('keyword-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.keyword,
 .hc-black .monaco-workbench .symbol-icon.keyword {
-	background-image: url('IntelliSenseKeyword_16x_darkp.svg');
+	background-image: url('keyword-dark.svg');
 }
 
 /* interface */
 .monaco-workbench .symbol-icon.interface {
-	background-image: url('Interface_16x.svg');
+	background-image: url('interface-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.interface,
 .hc-black .monaco-workbench .symbol-icon.interface {
-	background-image: url('Interface_16x_darkp.svg');
+	background-image: url('interface-dark.svg');
 }
 
 /* method */
 .monaco-workbench .symbol-icon.method {
-	background-image: url('Method_16x.svg');
+	background-image: url('method-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.method,
 .hc-black .monaco-workbench .symbol-icon.method {
-	background-image: url('Method_16x_darkp.svg');
+	background-image: url('method-dark.svg');
 }
 
 /* function */
 .monaco-workbench .symbol-icon.function {
-	background-image: url('Method_16x.svg');
+	background-image: url('method-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.function,
 .hc-black .monaco-workbench .symbol-icon.function {
-	background-image: url('Method_16x_darkp.svg');
+	background-image: url('method-dark.svg');
 }
 
 /* object */
 .monaco-workbench .symbol-icon.object {
-	background-image: url('Namespace_16x.svg');
+	background-image: url('namespace-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.object,
 .hc-black .monaco-workbench .symbol-icon.object {
-	background-image: url('Namespace_16x_darkp.svg');
+	background-image: url('namespace-dark.svg');
 }
 
 /* namespace */
 .monaco-workbench .symbol-icon.namespace {
-	background-image: url('Namespace_16x.svg');
+	background-image: url('namespace-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.namespace,
 .hc-black .monaco-workbench .symbol-icon.namespace {
-	background-image: url('Namespace_16x_darkp.svg');
+	background-image: url('namespace-dark.svg');
 }
 
 /* package */
 .monaco-workbench .symbol-icon.package {
-	background-image: url('Namespace_16x.svg');
+	background-image: url('namespace-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.package,
 .hc-black .monaco-workbench .symbol-icon.package {
-	background-image: url('Namespace_16x_darkp.svg');
+	background-image: url('namespace-dark.svg');
 }
 
 /* module */
 .monaco-workbench .symbol-icon.module {
-	background-image: url('Namespace_16x.svg');
+	background-image: url('namespace-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.module,
 .hc-black .monaco-workbench .symbol-icon.module {
-	background-image: url('Namespace_16x_darkp.svg');
+	background-image: url('namespace-dark.svg');
 }
 
 /* number */
 .monaco-workbench .symbol-icon.number {
-	background-image: url('Numeric_16x.svg');
+	background-image: url('numeric-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.number,
 .hc-black .monaco-workbench .symbol-icon.number {
-	background-image: url('Numeric_16x_darkp.svg');
+	background-image: url('numeric-dark.svg');
 }
 
 /* property */
 .monaco-workbench .symbol-icon.property {
-	background-image: url('Property_16x.svg');
+	background-image: url('property-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.property,
 .hc-black .monaco-workbench .symbol-icon.property {
-	background-image: url('Property_16x_darkp.svg');
+	background-image: url('property-dark.svg');
 }
 
 /* snippet */
 /* todo@joh unused? */
 .monaco-workbench .symbol-icon.snippet {
-	background-image: url('Snippet_16x.svg');
+	background-image: url('snippet-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.snippet,
 .hc-black .monaco-workbench .symbol-icon.snippet {
-	background-image: url('Snippet_16x_darkp.svg');
+	background-image: url('snippet-dark.svg');
 }
 
 /* string */
 .monaco-workbench .symbol-icon.string {
-	background-image: url('String_16x.svg');
+	background-image: url('string-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.string,
 .hc-black .monaco-workbench .symbol-icon.string {
-	background-image: url('String_16x_darkp.svg');
+	background-image: url('string-dark.svg');
 }
 
 /* key */
 .monaco-workbench .symbol-icon.key {
-	background-image: url('String_16x.svg');
+	background-image: url('string-light.svg');
 }
 .vs-dark .monaco-workbench .symbol-icon.key,
 .hc-black .monaco-workbench .symbol-icon.key {
-	background-image: url('String_16x_darkp.svg');
+	background-image: url('string-dark.svg');
 }

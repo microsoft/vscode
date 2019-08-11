@@ -13,10 +13,11 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IProductService } from 'vs/platform/product/common/product';
 
@@ -45,13 +46,13 @@ export class FeedbackDropdown extends Dropdown {
 
 	private readonly feedbackDelegate: IFeedbackDelegate;
 
-	private feedbackForm: HTMLFormElement | null;
-	private feedbackDescriptionInput: HTMLTextAreaElement | null;
-	private smileyInput: HTMLElement | null;
-	private frownyInput: HTMLElement | null;
-	private sendButton: Button;
-	private hideButton: HTMLInputElement;
-	private remainingCharacterCount: HTMLElement;
+	private feedbackForm: HTMLFormElement | null = null;
+	private feedbackDescriptionInput: HTMLTextAreaElement | null = null;
+	private smileyInput: HTMLElement | null = null;
+	private frownyInput: HTMLElement | null = null;
+	private sendButton: Button | null = null;
+	private hideButton: HTMLInputElement | null = null;
+	private remainingCharacterCount: HTMLElement | null = null;
 
 	private requestFeatureLink: string | undefined;
 
@@ -212,14 +213,7 @@ export class FeedbackDropdown extends Dropdown {
 			const actionId = 'workbench.action.openIssueReporter';
 			this.commandService.executeCommand(actionId);
 			this.hide();
-
-			/* __GDPR__
-				"workbenchActionExecuted" : {
-					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('workbenchActionExecuted', { id: actionId, from: 'feedback' });
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionId, from: 'feedback' });
 		}));
 
 		// Contact: Request a Feature
@@ -259,7 +253,7 @@ export class FeedbackDropdown extends Dropdown {
 		// Checkbox: Hide Feedback Smiley
 		const hideButtonContainer = dom.append(buttonsContainer, dom.$('div.hide-button-container'));
 
-		this.hideButton = dom.append(hideButtonContainer, dom.$('input.hide-button'));
+		this.hideButton = dom.append(hideButtonContainer, dom.$('input.hide-button')) as HTMLInputElement;
 		this.hideButton.type = 'checkbox';
 		this.hideButton.checked = true;
 		this.hideButton.id = 'hide-button';
@@ -278,9 +272,10 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.sendButton.onDidClick(() => this.onSubmit());
 
-		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
+		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, editorWidgetForeground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
 			if (this.feedbackForm) {
 				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : null;
+				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : null;
 				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null;
 			}
 			if (this.feedbackDescriptionInput) {
@@ -321,7 +316,7 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	private updateCharCountText(): void {
-		if (this.feedbackDescriptionInput) {
+		if (this.feedbackDescriptionInput && this.remainingCharacterCount && this.sendButton) {
 			this.remainingCharacterCount.innerText = this.getCharCountText(this.feedbackDescriptionInput.value.length);
 			this.sendButton.enabled = this.feedbackDescriptionInput.value.length > 0;
 		}

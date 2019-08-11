@@ -20,12 +20,12 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;
 
-	private _lineHeight: number;
-	private _renderLineNumbers: RenderLineNumbersType;
-	private _renderCustomLineNumbers: ((lineNumber: number) => string) | null;
-	private _renderFinalNewline: boolean;
-	private _lineNumbersLeft: number;
-	private _lineNumbersWidth: number;
+	private _lineHeight!: number;
+	private _renderLineNumbers!: RenderLineNumbersType;
+	private _renderCustomLineNumbers!: ((lineNumber: number) => string) | null;
+	private _renderFinalNewline!: boolean;
+	private _lineNumbersLeft!: number;
+	private _lineNumbersWidth!: number;
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[] | null;
 

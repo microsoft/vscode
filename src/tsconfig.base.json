@@ -3,7 +3,6 @@
 		"module": "amd",
 		"moduleResolution": "node",
 		"noImplicitAny": true,
-		"suppressImplicitAnyIndexErrors": true,
 		"target": "es5",
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,
@@ -21,7 +20,6 @@
 		},
 		"types": [
 			"keytar",
-			"minimist",
 			"mocha",
 			"semver",
 			"sinon",

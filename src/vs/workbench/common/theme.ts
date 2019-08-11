@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -200,7 +200,13 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
 
+// < --- Resource Viewer --- >
 
+export const IMAGE_PREVIEW_BORDER = registerColor('imagePreview.border', {
+	dark: Color.fromHex('#808080').transparent(0.35),
+	light: Color.fromHex('#808080').transparent(0.35),
+	hc: contrastBorder
+}, nls.localize('imagePreviewBorder', "Border color for image in image preview."));
 
 // < --- Panels --- >
 
@@ -518,9 +524,9 @@ export const NOTIFICATIONS_TOAST_BORDER = registerColor('notificationToast.borde
 }, nls.localize('notificationToastBorder', "Notification toast border color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_FOREGROUND = registerColor('notifications.foreground', {
-	dark: null,
-	light: null,
-	hc: null
+	dark: editorWidgetForeground,
+	light: editorWidgetForeground,
+	hc: editorWidgetForeground
 }, nls.localize('notificationsForeground', "Notifications foreground color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_BACKGROUND = registerColor('notifications.background', {

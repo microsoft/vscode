@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -32,7 +32,7 @@ class MarkerModel {
 	private readonly _editor: ICodeEditor;
 	private _markers: IMarker[];
 	private _nextIdx: number;
-	private _toUnbind: IDisposable[];
+	private readonly _toUnbind = new DisposableStore();
 	private _ignoreSelectionChange: boolean;
 	private readonly _onCurrentMarkerChanged: Emitter<IMarker | undefined>;
 	private readonly _onMarkerSetChanged: Emitter<MarkerModel>;
@@ -41,15 +41,14 @@ class MarkerModel {
 		this._editor = editor;
 		this._markers = [];
 		this._nextIdx = -1;
-		this._toUnbind = [];
 		this._ignoreSelectionChange = false;
 		this._onCurrentMarkerChanged = new Emitter<IMarker>();
 		this._onMarkerSetChanged = new Emitter<MarkerModel>();
 		this.setMarkers(markers);
 
 		// listen on editor
-		this._toUnbind.push(this._editor.onDidDispose(() => this.dispose()));
-		this._toUnbind.push(this._editor.onDidChangeCursorPosition(() => {
+		this._toUnbind.add(this._editor.onDidDispose(() => this.dispose()));
+		this._toUnbind.add(this._editor.onDidChangeCursorPosition(() => {
 			if (this._ignoreSelectionChange) {
 				return;
 			}
@@ -190,7 +189,7 @@ class MarkerModel {
 	}
 
 	public dispose(): void {
-		this._toUnbind = dispose(this._toUnbind);
+		this._toUnbind.dispose();
 	}
 }
 
@@ -206,7 +205,7 @@ export class MarkerController implements editorCommon.IEditorContribution {
 	private _model: MarkerModel | null = null;
 	private _widget: MarkerNavigationWidget | null = null;
 	private readonly _widgetVisible: IContextKey<boolean>;
-	private _disposeOnClose: IDisposable[] = [];
+	private readonly _disposeOnClose = new DisposableStore();
 
 	constructor(
 		editor: ICodeEditor,
@@ -226,11 +225,12 @@ export class MarkerController implements editorCommon.IEditorContribution {
 
 	public dispose(): void {
 		this._cleanUp();
+		this._disposeOnClose.dispose();
 	}
 
 	private _cleanUp(): void {
 		this._widgetVisible.reset();
-		this._disposeOnClose = dispose(this._disposeOnClose);
+		this._disposeOnClose.clear();
 		this._widget = null;
 		this._model = null;
 	}
@@ -255,19 +255,21 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		this._widgetVisible.set(true);
 		this._widget.onDidClose(() => this._cleanUp(), this, this._disposeOnClose);
 
-		this._disposeOnClose.push(this._model);
-		this._disposeOnClose.push(this._widget);
-		this._disposeOnClose.push(...actions);
-		this._disposeOnClose.push(this._widget.onDidSelectRelatedInformation(related => {
+		this._disposeOnClose.add(this._model);
+		this._disposeOnClose.add(this._widget);
+		for (const action of actions) {
+			this._disposeOnClose.add(action);
+		}
+		this._disposeOnClose.add(this._widget.onDidSelectRelatedInformation(related => {
 			this._editorService.openCodeEditor({
 				resource: related.resource,
 				options: { pinned: true, revealIfOpened: true, selection: Range.lift(related).collapseToStart() }
 			}, this._editor).then(undefined, onUnexpectedError);
 			this.closeMarkersNavigation(false);
 		}));
-		this._disposeOnClose.push(this._editor.onDidChangeModel(() => this._cleanUp()));
+		this._disposeOnClose.add(this._editor.onDidChangeModel(() => this._cleanUp()));
 
-		this._disposeOnClose.push(this._model.onCurrentMarkerChanged(marker => {
+		this._disposeOnClose.add(this._model.onCurrentMarkerChanged(marker => {
 			if (!marker || !this._model) {
 				this._cleanUp();
 			} else {
@@ -279,7 +281,7 @@ export class MarkerController implements editorCommon.IEditorContribution {
 				});
 			}
 		}));
-		this._disposeOnClose.push(this._model.onMarkerSetChanged(() => {
+		this._disposeOnClose.add(this._model.onMarkerSetChanged(() => {
 			if (!this._widget || !this._widget.position || !this._model) {
 				return;
 			}

@@ -366,7 +366,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	static readonly ID = 'workbench.picker.filesymbols';
 
 	private rangeHighlightDecorationId?: IEditorLineDecoration;
-	private lastKnownEditorViewState: IEditorViewState | null;
+	private lastKnownEditorViewState: IEditorViewState | null = null;
 
 	private cachedOutlineRequest?: Promise<OutlineModel | null>;
 	private pendingOutlineRequest?: CancellationTokenSource;

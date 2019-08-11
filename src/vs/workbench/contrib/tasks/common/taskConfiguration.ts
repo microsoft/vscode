@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 
 import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Platform } from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
@@ -21,6 +22,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Tasks from './tasks';
 import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+
 
 export const enum ShellQuoting {
 	/**
@@ -287,7 +289,7 @@ export interface ConfigurationProperties {
 	label?: string;
 
 	/**
-	 * An optional indentifier which can be used to reference a task
+	 * An optional identifier which can be used to reference a task
 	 * in a dependsOn or other attributes.
 	 */
 	identifier?: string;
@@ -430,7 +432,7 @@ export interface BaseTaskRunnerConfiguration {
 	taskSelector?: string;
 
 	/**
-	 * The problem matcher(s) to used if a global command is exucuted (e.g. no tasks
+	 * The problem matcher(s) to used if a global command is executed (e.g. no tasks
 	 * are defined). A tasks.json file can either contain a global problemMatcher
 	 * property or a tasks property but not both.
 	 */
@@ -501,7 +503,7 @@ export interface ExternalTaskRunnerConfiguration extends BaseTaskRunnerConfigura
 	osx?: BaseTaskRunnerConfiguration;
 
 	/**
-	 * Linux speciif task configuration
+	 * Linux specific task configuration
 	 */
 	linux?: BaseTaskRunnerConfiguration;
 }
@@ -911,13 +913,13 @@ namespace CommandConfiguration {
 		}
 	}
 
-	interface BaseCommandConfiguationShape extends BaseCommandProperties, LegacyCommandProperties {
+	interface BaseCommandConfigurationShape extends BaseCommandProperties, LegacyCommandProperties {
 	}
 
-	interface CommandConfiguationShape extends BaseCommandConfiguationShape {
-		windows?: BaseCommandConfiguationShape;
-		osx?: BaseCommandConfiguationShape;
-		linux?: BaseCommandConfiguationShape;
+	interface CommandConfigurationShape extends BaseCommandConfigurationShape {
+		windows?: BaseCommandConfigurationShape;
+		osx?: BaseCommandConfigurationShape;
+		linux?: BaseCommandConfigurationShape;
 	}
 
 	const properties: MetaData<Tasks.CommandConfiguration, any>[] = [
@@ -926,7 +928,7 @@ namespace CommandConfiguration {
 		{ property: 'presentation', type: PresentationOptions }
 	];
 
-	export function from(this: void, config: CommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration | undefined {
+	export function from(this: void, config: CommandConfigurationShape, context: ParseContext): Tasks.CommandConfiguration | undefined {
 		let result: Tasks.CommandConfiguration = fromBase(config, context)!;
 
 		let osConfig: Tasks.CommandConfiguration | undefined = undefined;
@@ -943,7 +945,7 @@ namespace CommandConfiguration {
 		return isEmpty(result) ? undefined : result;
 	}
 
-	function fromBase(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration | undefined {
+	function fromBase(this: void, config: BaseCommandConfigurationShape, context: ParseContext): Tasks.CommandConfiguration | undefined {
 		let name: Tasks.CommandString | undefined = ShellString.from(config.command);
 		let runtime: Tasks.RuntimeType;
 		if (Types.isString(config.type)) {
@@ -1170,7 +1172,7 @@ namespace ProblemMatcherConverter {
 					return localProblemMatcher;
 				}
 			}
-			context.taskLoadIssues.push(nls.localize('ConfigurationParser.invalidVaraibleReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
+			context.taskLoadIssues.push(nls.localize('ConfigurationParser.invalidVariableReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
 			return undefined;
 		} else {
 			let json = <ProblemMatcherConfig.ProblemMatcher>value;
@@ -1240,11 +1242,20 @@ namespace ConfigurationProperties {
 		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' }
 	];
 
-	export function from(this: void, external: ConfigurationProperties, context: ParseContext, includeCommandOptions: boolean): Tasks.ConfigurationProperties | undefined {
+	export function from(this: void, external: ConfigurationProperties & { [key: string]: any; }, context: ParseContext, includeCommandOptions: boolean, properties?: IJSONSchemaMap): Tasks.ConfigurationProperties | undefined {
 		if (!external) {
 			return undefined;
 		}
-		let result: Tasks.ConfigurationProperties = {};
+		let result: Tasks.ConfigurationProperties & { [key: string]: any; } = {};
+
+		if (properties) {
+			for (const propertyName of Object.keys(properties)) {
+				if (external[propertyName] !== undefined) {
+					result[propertyName] = Objects.deepClone(external[propertyName]);
+				}
+			}
+		}
+
 		if (Types.isString(external.taskName)) {
 			result.name = external.taskName;
 		}
@@ -1380,7 +1391,7 @@ namespace ConfiguringTask {
 			RunOptions.fromConfiguration(external.runOptions),
 			{}
 		);
-		let configuration = ConfigurationProperties.from(external, context, true);
+		let configuration = ConfigurationProperties.from(external, context, true, typeDeclaration.properties);
 		if (configuration) {
 			result.configurationProperties = Objects.assign(result.configurationProperties, configuration);
 			if (result.configurationProperties.name) {

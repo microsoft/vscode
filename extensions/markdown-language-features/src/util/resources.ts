@@ -5,12 +5,29 @@
 
 import * as vscode from 'vscode';
 
+export interface WebviewResourceProvider {
+	toWebviewResource(resource: vscode.Uri): vscode.Uri;
 
-export function toResoruceUri(webviewResourceRoot: string, uri: vscode.Uri): vscode.Uri {
-	const rootUri = vscode.Uri.parse(webviewResourceRoot);
-	return rootUri.with({
-		path: rootUri.path + uri.path,
-		query: uri.query,
-		fragment: uri.fragment,
-	});
+	readonly cspSource: string;
+}
+
+export function normalizeResource(
+	base: vscode.Uri,
+	resource: vscode.Uri
+): vscode.Uri {
+	// If we  have a windows path and are loading a workspace with an authority,
+	// make sure we use a unc path with an explicit localhost authority.
+	//
+	// Otherwise, the `<base>` rule will insert the authority into the resolved resource
+	// URI incorrectly.
+	if (base.authority && !resource.authority) {
+		const driveMatch = resource.path.match(/^\/(\w):\//);
+		if (driveMatch) {
+			return vscode.Uri.file(`\\\\localhost\\${driveMatch[1]}$\\${resource.fsPath.replace(/^\w:\\/, '')}`).with({
+				fragment: resource.fragment,
+				query: resource.query
+			});
+		}
+	}
+	return resource;
 }

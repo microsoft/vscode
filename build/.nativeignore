@@ -83,21 +83,21 @@ node-pty/deps/**
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
 
-vscode-nsfw/binding.gyp
-vscode-nsfw/build/**
-vscode-nsfw/src/**
-vscode-nsfw/openpa/**
-vscode-nsfw/includes/**
-!vscode-nsfw/build/Release/*.node
-!vscode-nsfw/**/*.a
+nsfw/binding.gyp
+nsfw/build/**
+nsfw/src/**
+nsfw/openpa/**
+nsfw/includes/**
+!nsfw/build/Release/*.node
+!nsfw/**/*.a
 
+vsda/build/**
+vsda/ci/**
+vsda/src/**
+vsda/.gitignore
 vsda/binding.gyp
 vsda/README.md
-vsda/build/**
-vsda/*.bat
-vsda/*.sh
-vsda/*.cpp
-vsda/*.h
+vsda/targets
 !vsda/build/Release/vsda.node
 
 vscode-windows-ca-certs/**/*

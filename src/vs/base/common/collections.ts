@@ -46,9 +46,9 @@ export function size<T>(from: IStringDictionary<T> | INumberDictionary<T>): numb
 }
 
 export function first<T>(from: IStringDictionary<T> | INumberDictionary<T>): T | undefined {
-	for (let key in from) {
+	for (const key in from) {
 		if (hasOwnProperty.call(from, key)) {
-			return from[key];
+			return (from as any)[key];
 		}
 	}
 	return undefined;

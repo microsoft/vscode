@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClasses, createCSSRule, removeClasses } from 'vs/base/browser/dom';
+import { addClasses, createCSSRule, removeClasses, asDomUri } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { dispose, IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
@@ -20,18 +20,18 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 // The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
 class AlternativeKeyEmitter extends Emitter<boolean> {
 
-	private _subscriptions: IDisposable[] = [];
-	private _isPressed: boolean;
+	private readonly _subscriptions = new DisposableStore();
+	private _isPressed: boolean = false;
 	private static instance: AlternativeKeyEmitter;
 	private _suppressAltKeyUp: boolean = false;
 
 	private constructor(contextMenuService: IContextMenuService) {
 		super();
 
-		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
+		this._subscriptions.add(domEvent(document.body, 'keydown')(e => {
 			this.isPressed = e.altKey || ((isWindows || isLinux) && e.shiftKey);
 		}));
-		this._subscriptions.push(domEvent(document.body, 'keyup')(e => {
+		this._subscriptions.add(domEvent(document.body, 'keyup')(e => {
 			if (this.isPressed) {
 				if (this._suppressAltKeyUp) {
 					e.preventDefault();
@@ -41,10 +41,10 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 			this._suppressAltKeyUp = false;
 			this.isPressed = false;
 		}));
-		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
-		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.isPressed = false));
+		this._subscriptions.add(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
+		this._subscriptions.add(domEvent(document.body, 'blur')(e => this.isPressed = false));
 		// Workaround since we do not get any events while a context menu is shown
-		this._subscriptions.push(contextMenuService.onDidContextMenu(() => this.isPressed = false));
+		this._subscriptions.add(contextMenuService.onDidContextMenu(() => this.isPressed = false));
 	}
 
 	get isPressed(): boolean {
@@ -72,7 +72,7 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 
 	dispose() {
 		super.dispose();
-		this._subscriptions = dispose(this._subscriptions);
+		this._subscriptions.dispose();
 	}
 }
 
@@ -90,7 +90,7 @@ export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActio
 	return asDisposable(groups);
 }
 
-function asDisposable(groups: [string, Array<MenuItemAction | SubmenuItemAction>][]): IDisposable {
+function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>): IDisposable {
 	const disposables = new DisposableStore();
 	for (const [, actions] of groups) {
 		for (const action of actions) {
@@ -100,7 +100,7 @@ function asDisposable(groups: [string, Array<MenuItemAction | SubmenuItemAction>
 	return disposables;
 }
 
-function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
 		if (useAlternativeActions) {
@@ -137,7 +137,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
 
-	private _wantsAltCommand: boolean;
+	private _wantsAltCommand: boolean = false;
 	private readonly _itemClassDispose = this._register(new MutableDisposable());
 	private readonly _altKey: AlternativeKeyEmitter;
 
@@ -244,8 +244,8 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				iconClass = MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
 			} else {
 				iconClass = ids.nextId();
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${(item.iconLocation.light || item.iconLocation.dark).toString()}")`);
-				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${item.iconLocation.dark.toString()}")`);
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${asDomUri(item.iconLocation.light || item.iconLocation.dark).toString()}")`);
+				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${asDomUri(item.iconLocation.dark).toString()}")`);
 				MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 			}
 
