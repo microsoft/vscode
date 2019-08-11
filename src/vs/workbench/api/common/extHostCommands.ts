@@ -8,7 +8,7 @@ import { ICommandHandlerDescription, ICommandEvent } from 'vs/platform/commands/
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, CommandDto } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, ICommandDto } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
@@ -50,7 +50,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			onFirstListenerDidAdd: () => this._proxy.$registerCommandListener(),
 			onLastListenerRemove: () => this._proxy.$unregisterCommandListener(),
 		});
-		this.onDidExecuteCommand = this._onDidExecuteCommand.event;
+		this.onDidExecuteCommand = Event.filter(this._onDidExecuteCommand.event, e => e.command[0] !== '_'); // filter 'private' commands
 		this._logService = logService;
 		this._converter = new CommandsConverter(this);
 		this._argumentProcessors = [
@@ -128,7 +128,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
 			// to pass any kind of parameters around
-			return this._executeContributedCommand<T>(id, args);
+			const res = this._executeContributedCommand<T>(id, args);
+			this._onDidExecuteCommand.fire({ command: id, arguments: args });
+			return res;
 
 		} else {
 			// automagically convert some argument types
@@ -170,7 +172,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 		try {
 			const result = callback.apply(thisArg, args);
-			this._onDidExecuteCommand.fire({ command: id, arguments: args });
 			return Promise.resolve(result);
 		} catch (err) {
 			this._logService.error(err, id);
@@ -222,18 +223,18 @@ export class CommandsConverter {
 
 	// --- conversion between internal and api commands
 	constructor(commands: ExtHostCommands) {
-		this._delegatingCommandId = `_internal_command_delegation_${Date.now()}`;
+		this._delegatingCommandId = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
 		this._commands = commands;
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
-	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): CommandDto | undefined {
+	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined {
 
 		if (!command) {
 			return undefined;
 		}
 
-		const result: CommandDto = {
+		const result: ICommandDto = {
 			$ident: undefined,
 			id: command.command,
 			title: command.title,

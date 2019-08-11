@@ -188,14 +188,9 @@ export interface IShellLaunchConfig {
 	initialText?: string;
 
 	/**
-	 * @deprecated use `isVirtualProcess`
+	 * Whether an extension is controlling the terminal via a `vscode.Pseudoterminal`.
 	 */
-	isRendererOnly?: boolean;
-
-	/**
-	 * When true an extension is acting as the terminal's process.
-	 */
-	isVirtualProcess?: boolean;
+	isExtensionTerminal?: boolean;
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -231,8 +226,8 @@ export interface ITerminalService {
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
-	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
-	onInstanceRequestVirtualProcess: Event<ITerminalVirtualProcessRequest>;
+	onInstanceRequestSpawnExtHostProcess: Event<ISpawnExtHostProcessRequest>;
+	onInstanceRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
@@ -243,12 +238,6 @@ export interface ITerminalService {
 	 * @param shell The shell launch configuration to use.
 	 */
 	createTerminal(shell?: IShellLaunchConfig): ITerminalInstance;
-
-	/**
-	 * Creates a terminal renderer.
-	 * @param name The name of the terminal.
-	 */
-	createTerminalRenderer(name: string): ITerminalInstance;
 
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
@@ -299,8 +288,8 @@ export interface ITerminalService {
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
 
 	extHostReady(remoteAuthority: string): void;
-	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
-	requestVirtualProcess(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void;
+	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void;
 }
 
 /**
@@ -423,13 +412,6 @@ export interface ITerminalInstance {
 	onData: Event<string>;
 
 	/**
-	 * Attach a listener to the "renderer" input event, this event fires for terminal renderers on
-	 * keystrokes and when the Terminal.sendText extension API is used.
-	 * @param listener The listener function.
-	 */
-	onRendererInput: Event<string>;
-
-	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.
 	 *
 	 * @param listener The listener function which takes new line strings added to the terminal,
@@ -483,7 +465,7 @@ export interface ITerminalInstance {
 	 * An object that tracks when commands are run and enables navigating and selecting between
 	 * them.
 	 */
-	readonly commandTracker: ITerminalCommandTracker;
+	readonly commandTracker: ICommandTracker | undefined;
 
 	readonly navigationMode: INavigationMode | undefined;
 
@@ -496,14 +478,6 @@ export interface ITerminalInstance {
 	 * get cut off. If immediate kill any terminal processes immediately.
 	 */
 	dispose(immediate?: boolean): void;
-
-	/**
-	 * Indicates that a consumer of a renderer only terminal is finished with it.
-	 *
-	 * @param exitCode The exit code of the terminal. Zero indicates success, non-zero indicates
-	 * failure.
-	 */
-	rendererExit(exitCode: number): void;
 
 	/**
 	 * Forces the terminal to redraw its viewport.
@@ -671,7 +645,7 @@ export interface ITerminalInstance {
 	getCwd(): Promise<string>;
 }
 
-export interface ITerminalCommandTracker {
+export interface ICommandTracker {
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;
 	selectToPreviousCommand(): void;
@@ -697,7 +671,7 @@ export interface IBeforeProcessDataEvent {
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
-	readonly shellProcessId: number;
+	readonly shellProcessId: number | undefined;
 	readonly remoteAuthority: string | undefined;
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
@@ -760,7 +734,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	onRequestLatency: Event<void>;
 }
 
-export interface ITerminalProcessExtHostRequest {
+export interface ISpawnExtHostProcessRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	shellLaunchConfig: IShellLaunchConfig;
 	activeWorkspaceRootUri: URI;
@@ -769,7 +743,7 @@ export interface ITerminalProcessExtHostRequest {
 	isWorkspaceShellAllowed: boolean;
 }
 
-export interface ITerminalVirtualProcessRequest {
+export interface IStartExtensionTerminalRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	cols: number;
 	rows: number;

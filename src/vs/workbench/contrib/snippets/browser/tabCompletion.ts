@@ -31,8 +31,8 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 
 	private _hasSnippets: IContextKey<boolean>;
 	private _activeSnippets: Snippet[] = [];
-	private _enabled: boolean;
-	private _selectionListener: IDisposable;
+	private _enabled?: boolean;
+	private _selectionListener?: IDisposable;
 	private readonly _configListener: IDisposable;
 
 	constructor(

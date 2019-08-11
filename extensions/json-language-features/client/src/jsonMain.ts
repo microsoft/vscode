@@ -223,7 +223,7 @@ export function activate(context: ExtensionContext) {
 	let languageConfiguration: LanguageConfiguration = {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
 		indentationRules: {
-			increaseIndentPattern: /^.*(\{[^}]*|\[[^\]]*)$/,
+			increaseIndentPattern: /({+(?=([^"]*"[^"]*")*[^"}]*$))|(\[+(?=([^"]*"[^"]*")*[^"\]]*$))/,
 			decreaseIndentPattern: /^\s*[}\]],?\s*$/
 		}
 	};

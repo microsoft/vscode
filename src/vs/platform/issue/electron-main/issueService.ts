@@ -21,10 +21,10 @@ const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
-	_issueWindow: BrowserWindow | null;
-	_issueParentWindow: BrowserWindow | null;
-	_processExplorerWindow: BrowserWindow | null;
-	_processExplorerParentWindow: BrowserWindow | null;
+	_issueWindow: BrowserWindow | null = null;
+	_issueParentWindow: BrowserWindow | null = null;
+	_processExplorerWindow: BrowserWindow | null = null;
+	_processExplorerParentWindow: BrowserWindow | null = null;
 
 	constructor(
 		private machineId: string,

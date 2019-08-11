@@ -522,7 +522,7 @@ export function stringToSnapshot(value: string): ITextSnapshot {
 }
 
 export class TextSnapshotReadable implements VSBufferReadable {
-	private preambleHandled: boolean;
+	private preambleHandled = false;
 
 	constructor(private snapshot: ITextSnapshot, private preamble?: string) { }
 

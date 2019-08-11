@@ -11,6 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { $ } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
+import { clamp } from 'vs/base/common/numbers';
 
 export { Sizing, LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -47,6 +48,7 @@ export interface Box {
 export interface GridLeafNode {
 	readonly view: IView;
 	readonly box: Box;
+	readonly cachedVisibleSize: number | undefined;
 }
 
 export interface GridBranchNode {
@@ -66,9 +68,18 @@ const defaultStyles: IGridViewStyles = {
 	separatorBorder: Color.transparent
 };
 
+export interface ILayoutController {
+	readonly isLayoutEnabled: boolean;
+}
+
+export class LayoutController implements ILayoutController {
+	constructor(public isLayoutEnabled: boolean) { }
+}
+
 export interface IGridViewOptions {
-	styles?: IGridViewStyles;
-	proportionalLayout?: boolean; // default true
+	readonly styles?: IGridViewStyles;
+	readonly proportionalLayout?: boolean; // default true
+	readonly layoutController?: ILayoutController;
 }
 
 class BranchNode implements ISplitView, IDisposable {
@@ -267,9 +278,7 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid from index');
 		}
 
-		if (to < 0 || to > this.children.length) {
-			throw new Error('Invalid to index');
-		}
+		to = clamp(to, 0, this.children.length);
 
 		if (from < to) {
 			to--;
@@ -290,9 +299,7 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid from index');
 		}
 
-		if (to < 0 || to >= this.children.length) {
-			throw new Error('Invalid to index');
-		}
+		to = clamp(to, 0, this.children.length);
 
 		this.splitview.swapViews(from, to);
 		[this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash, this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash] = [this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash, this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash];
@@ -341,6 +348,14 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 
 		this.splitview.setViewVisible(index, visible);
+	}
+
+	getChildCachedVisibleSize(index: number): number | undefined {
+		if (index < 0 || index >= this.children.length) {
+			throw new Error('Invalid index');
+		}
+
+		return this.splitview.getViewCachedVisibleSize(index);
 	}
 
 	private onDidChildrenChange(): void {
@@ -424,6 +439,9 @@ class LeafNode implements ISplitView, IDisposable {
 	private _size: number = 0;
 	get size(): number { return this._size; }
 
+	private _cachedVisibleSize: number | undefined;
+	get cachedVisibleSize(): number | undefined { return this._cachedVisibleSize; }
+
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
 
@@ -454,7 +472,8 @@ class LeafNode implements ISplitView, IDisposable {
 	constructor(
 		readonly view: IView,
 		readonly orientation: Orientation,
-		orthogonalSize: number = 0
+		readonly layoutController: ILayoutController,
+		orthogonalSize: number
 	) {
 		this._orthogonalSize = orthogonalSize;
 
@@ -524,10 +543,19 @@ class LeafNode implements ISplitView, IDisposable {
 
 	layout(size: number): void {
 		this._size = size;
-		return this.view.layout(this.width, this.height, orthogonal(this.orientation));
+
+		if (this.layoutController.isLayoutEnabled) {
+			this.view.layout(this.width, this.height, orthogonal(this.orientation));
+		}
 	}
 
 	setVisible(visible: boolean): void {
+		if (visible) {
+			this._cachedVisibleSize = undefined;
+		} else {
+			this._cachedVisibleSize = this._size;
+		}
+
 		if (this.view.setVisible) {
 			this.view.setVisible(visible);
 		}
@@ -535,7 +563,10 @@ class LeafNode implements ISplitView, IDisposable {
 
 	orthogonalLayout(size: number): void {
 		this._orthogonalSize = size;
-		return this.view.layout(this.width, this.height, orthogonal(this.orientation));
+
+		if (this.layoutController.isLayoutEnabled) {
+			this.view.layout(this.width, this.height, orthogonal(this.orientation));
+		}
 	}
 
 	dispose(): void { }
@@ -566,7 +597,7 @@ function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number)
 
 		return result as T;
 	} else {
-		return new LeafNode((node as LeafNode).view, orthogonal(node.orientation), orthogonalSize) as T;
+		return new LeafNode((node as LeafNode).view, orthogonal(node.orientation), (node as LeafNode).layoutController, orthogonalSize) as T;
 	}
 }
 
@@ -576,7 +607,7 @@ export class GridView implements IDisposable {
 	private styles: IGridViewStyles;
 	private proportionalLayout: boolean;
 
-	private _root: BranchNode;
+	private _root!: BranchNode;
 	private onDidSashResetRelay = new Relay<number[]>();
 	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
 
@@ -626,11 +657,14 @@ export class GridView implements IDisposable {
 	private _onDidChange = new Relay<IViewSize | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
+	private layoutController: LayoutController;
+
 	constructor(options: IGridViewOptions = {}) {
 		this.element = $('.monaco-grid-view');
 		this.styles = options.styles || defaultStyles;
 		this.proportionalLayout = typeof options.proportionalLayout !== 'undefined' ? !!options.proportionalLayout : true;
 		this.root = new BranchNode(Orientation.VERTICAL, this.styles, this.proportionalLayout);
+		this.layoutController = options.layoutController || new LayoutController(true);
 	}
 
 	style(styles: IGridViewStyles): void {
@@ -652,26 +686,34 @@ export class GridView implements IDisposable {
 		const [pathToParent, parent] = this.getNode(rest);
 
 		if (parent instanceof BranchNode) {
-			const node = new LeafNode(view, orthogonal(parent.orientation), parent.orthogonalSize);
+			const node = new LeafNode(view, orthogonal(parent.orientation), this.layoutController, parent.orthogonalSize);
 			parent.addChild(node, size, index);
 
 		} else {
 			const [, grandParent] = tail(pathToParent);
 			const [, parentIndex] = tail(rest);
+
+			let newSiblingSize: number | Sizing = 0;
+
+			const newSiblingCachedVisibleSize = grandParent.getChildCachedVisibleSize(parentIndex);
+			if (typeof newSiblingCachedVisibleSize === 'number') {
+				newSiblingSize = Sizing.Invisible(newSiblingCachedVisibleSize);
+			}
+
 			grandParent.removeChild(parentIndex);
 
 			const newParent = new BranchNode(parent.orientation, this.styles, this.proportionalLayout, parent.size, parent.orthogonalSize);
 			grandParent.addChild(newParent, parent.size, parentIndex);
 			newParent.orthogonalLayout(parent.orthogonalSize);
 
-			const newSibling = new LeafNode(parent.view, grandParent.orientation, parent.size);
-			newParent.addChild(newSibling, 0, 0);
+			const newSibling = new LeafNode(parent.view, grandParent.orientation, this.layoutController, parent.size);
+			newParent.addChild(newSibling, newSiblingSize, 0);
 
 			if (typeof size !== 'number' && size.type === 'split') {
 				size = Sizing.Split(0);
 			}
 
-			const node = new LeafNode(view, grandParent.orientation, parent.size);
+			const node = new LeafNode(view, grandParent.orientation, this.layoutController, parent.size);
 			newParent.addChild(node, size, index);
 		}
 	}
@@ -720,6 +762,7 @@ export class GridView implements IDisposable {
 		const [, parentIndex] = tail(rest);
 
 		const sibling = parent.children[0];
+		const isSiblingVisible = parent.isChildVisible(0);
 		parent.removeChild(0);
 
 		const sizes = grandParent.children.map((_, i) => grandParent.getChildSize(i));
@@ -733,8 +776,9 @@ export class GridView implements IDisposable {
 				grandParent.addChild(child, child.size, parentIndex + i);
 			}
 		} else {
-			const newSibling = new LeafNode(sibling.view, orthogonal(sibling.orientation), sibling.size);
-			grandParent.addChild(newSibling, sibling.orthogonalSize, parentIndex);
+			const newSibling = new LeafNode(sibling.view, orthogonal(sibling.orientation), this.layoutController, sibling.size);
+			const sizing = isSiblingVisible ? sibling.orthogonalSize : Sizing.Invisible(sibling.orthogonalSize);
+			grandParent.addChild(newSibling, sizing, parentIndex);
 		}
 
 		for (let i = 0; i < sizes.length; i++) {
@@ -823,9 +867,23 @@ export class GridView implements IDisposable {
 		}
 	}
 
-	getViewSize(location: number[]): IViewSize {
+	getViewSize(location?: number[]): IViewSize {
+		if (!location) {
+			return { width: this.root.width, height: this.root.height };
+		}
+
 		const [, node] = this.getNode(location);
 		return { width: node.width, height: node.height };
+	}
+
+	getViewCachedVisibleSize(location: number[]): number | undefined {
+		const [, node] = this.getNode(location);
+
+		if (!(node instanceof LeafNode)) {
+			throw new Error('Invalid node');
+		}
+
+		return node.cachedVisibleSize;
 	}
 
 	maximizeViewSize(location: number[]): void {
@@ -877,13 +935,16 @@ export class GridView implements IDisposable {
 		parent.setChildVisible(index, visible);
 	}
 
-	getViews(): GridBranchNode {
-		return this._getViews(this.root, this.orientation, { top: 0, left: 0, width: this.width, height: this.height }) as GridBranchNode;
+	getView(): GridBranchNode;
+	getView(location?: number[]): GridNode;
+	getView(location?: number[]): GridNode {
+		const node = location ? this.getNode(location)[1] : this._root;
+		return this._getViews(node, this.orientation, { top: 0, left: 0, width: this.width, height: this.height });
 	}
 
 	private _getViews(node: Node, orientation: Orientation, box: Box): GridNode {
 		if (node instanceof LeafNode) {
-			return { view: node.view, box };
+			return { view: node.view, box, cachedVisibleSize: node.cachedVisibleSize };
 		}
 
 		const children: GridNode[] = [];

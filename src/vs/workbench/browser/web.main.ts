@@ -46,8 +46,6 @@ import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/
 
 class CodeRendererMain extends Disposable {
 
-	private workbench: Workbench;
-
 	constructor(
 		private readonly domElement: HTMLElement,
 		private readonly configuration: IWorkbenchConstructionOptions
@@ -65,24 +63,30 @@ class CodeRendererMain extends Disposable {
 		this.restoreBaseTheme();
 
 		// Create Workbench
-		this.workbench = new Workbench(
+		const workbench = new Workbench(
 			this.domElement,
 			services.serviceCollection,
 			services.logService
 		);
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, () => this.workbench.layout()));
+		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
 
 		// Workbench Lifecycle
-		this._register(this.workbench.onShutdown(() => this.dispose()));
-		this._register(this.workbench.onWillShutdown(() => {
+		this._register(workbench.onBeforeShutdown(event => {
+			if (services.storageService.hasPendingUpdate) {
+				console.warn('Unload prevented: pending storage update');
+				event.veto(true); // prevent data loss from pending storage update
+			}
+		}));
+		this._register(workbench.onWillShutdown(() => {
 			services.storageService.close();
 			this.saveBaseTheme();
 		}));
+		this._register(workbench.onShutdown(() => this.dispose()));
 
 		// Startup
-		this.workbench.startup();
+		workbench.startup();
 	}
 
 	private restoreBaseTheme(): void {
@@ -118,7 +122,8 @@ class CodeRendererMain extends Disposable {
 		const environmentService = new BrowserWorkbenchEnvironmentService({
 			workspaceId: payload.id,
 			remoteAuthority: this.configuration.remoteAuthority,
-			webviewEndpoint: this.configuration.webviewEndpoint
+			webviewEndpoint: this.configuration.webviewEndpoint,
+			connectionToken: this.configuration.connectionToken
 		});
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
@@ -131,7 +136,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService();
+		const signService = new SignService(environmentService.configuration.connectionToken);
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent

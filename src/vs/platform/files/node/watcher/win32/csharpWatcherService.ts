@@ -18,7 +18,7 @@ export class OutOfProcessWin32FolderWatcher {
 
 	private ignored: glob.ParsedPattern[];
 
-	private handle: cp.ChildProcess;
+	private handle: cp.ChildProcess | undefined;
 	private restartCounter: number;
 
 	constructor(

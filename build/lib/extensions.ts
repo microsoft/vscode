@@ -13,7 +13,7 @@ import * as File from 'vinyl';
 import * as vsce from 'vsce';
 import { createStatsStream } from './stats';
 import * as util2 from './util';
-import remote = require('gulp-remote-src');
+import remote = require('gulp-remote-retry-src');
 const vzip = require('gulp-vinyl-zip');
 import filter = require('gulp-filter');
 import rename = require('gulp-rename');

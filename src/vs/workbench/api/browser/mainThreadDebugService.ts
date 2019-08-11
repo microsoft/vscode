@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
@@ -71,8 +71,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
-		return Promise.resolve(this._proxy.$runInTerminal(args, config));
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
+		return Promise.resolve(this._proxy.$runInTerminal(args));
 	}
 
 	// RPC methods (MainThreadDebugServiceShape)
@@ -153,13 +153,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			type: debugType
 		};
 		if (hasProvide) {
-			provider.provideDebugConfigurations = (folder) => {
-				return this._proxy.$provideDebugConfigurations(handle, folder);
+			provider.provideDebugConfigurations = (folder, token) => {
+				return this._proxy.$provideDebugConfigurations(handle, folder, token);
 			};
 		}
 		if (hasResolve) {
-			provider.resolveDebugConfiguration = (folder, config) => {
-				return this._proxy.$resolveDebugConfiguration(handle, folder, config);
+			provider.resolveDebugConfiguration = (folder, config, token) => {
+				return this._proxy.$resolveDebugConfiguration(handle, folder, config, token);
 			};
 		}
 		if (hasProvideDebugAdapter) {

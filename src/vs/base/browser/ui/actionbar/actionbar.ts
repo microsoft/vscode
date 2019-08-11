@@ -37,7 +37,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	_context: any;
 	_action: IAction;
 
-	private _actionRunner: IActionRunner;
+	private _actionRunner!: IActionRunner;
 
 	constructor(context: any, action: IAction, protected options?: IBaseActionViewItemOptions) {
 		super();
@@ -232,7 +232,7 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 
 export class ActionViewItem extends BaseActionViewItem {
 
-	protected label: HTMLElement;
+	protected label!: HTMLElement;
 	protected options: IActionViewItemOptions;
 
 	private cssClass?: string;

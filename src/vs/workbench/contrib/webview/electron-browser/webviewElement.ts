@@ -327,7 +327,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		this._register(new WebviewPortMappingProvider(
 			session,
 			_options.extension ? _options.extension.location : undefined,
-			() => (this.content.options.portMappings || []),
+			() => (this.content.options.portMapping || []),
 			tunnelService,
 		));
 

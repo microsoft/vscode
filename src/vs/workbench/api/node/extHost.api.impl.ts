@@ -457,7 +457,12 @@ export function createApiFactory(
 				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
 			},
 			onDidChangeTerminalDimensions(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension);
 				return extHostTerminalService.onDidChangeTerminalDimensions(listener, thisArg, disposables);
+			},
+			onDidWriteTerminalData(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
 			},
 			get state() {
 				return extHostWindow.state;
@@ -528,19 +533,14 @@ export function createApiFactory(
 				checkProposedApiEnabled(extension);
 				return extHostEditorInsets.createWebviewEditorInset(editor, line, height, options, extension);
 			},
-			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.TerminalVirtualProcessOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
+			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.ExtensionTerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
-					if ('virtualProcess' in nameOrOptions) {
-						return extHostTerminalService.createVirtualProcessTerminal(nameOrOptions);
-					} else {
-						nameOrOptions.hideFromUser = nameOrOptions.hideFromUser || (nameOrOptions.runInBackground && extension.enableProposedApi);
-						return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
+					if ('pty' in nameOrOptions) {
+						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
 					}
+					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
-			},
-			createTerminalRenderer(name: string): vscode.TerminalRenderer {
-				return extHostTerminalService.createTerminalRenderer(name);
 			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
@@ -847,7 +847,6 @@ export function createApiFactory(
 			EventEmitter: Emitter,
 			ExtensionExecutionContext: extHostTypes.ExtensionExecutionContext,
 			ExtensionKind: extHostTypes.ExtensionKind,
-			CustomExecution: extHostTypes.CustomExecution,
 			CustomExecution2: extHostTypes.CustomExecution2,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,

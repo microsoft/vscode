@@ -9,5 +9,5 @@ import { ProgressBarIndicator } from 'vs/workbench/services/progress/browser/pro
 
 export class EditorProgressService extends ProgressBarIndicator {
 
-	_serviceBrand: ServiceIdentifier<IEditorProgressService>;
+	_serviceBrand!: ServiceIdentifier<IEditorProgressService>;
 }

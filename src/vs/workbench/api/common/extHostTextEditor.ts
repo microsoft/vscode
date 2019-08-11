@@ -51,21 +51,21 @@ export class TextEditorEdit {
 
 	private readonly _document: vscode.TextDocument;
 	private readonly _documentVersionId: number;
-	private _collectedEdits: ITextEditOperation[];
-	private _setEndOfLine: EndOfLine | undefined;
 	private readonly _undoStopBefore: boolean;
 	private readonly _undoStopAfter: boolean;
+	private _collectedEdits: ITextEditOperation[] = [];
+	private _setEndOfLine: EndOfLine | undefined = undefined;
+	private _finalized: boolean = false;
 
 	constructor(document: vscode.TextDocument, options: { undoStopBefore: boolean; undoStopAfter: boolean; }) {
 		this._document = document;
 		this._documentVersionId = document.version;
-		this._collectedEdits = [];
-		this._setEndOfLine = undefined;
 		this._undoStopBefore = options.undoStopBefore;
 		this._undoStopAfter = options.undoStopAfter;
 	}
 
 	finalize(): IEditData {
+		this._finalized = true;
 		return {
 			documentVersionId: this._documentVersionId,
 			edits: this._collectedEdits,
@@ -75,7 +75,14 @@ export class TextEditorEdit {
 		};
 	}
 
+	private _throwIfFinalized() {
+		if (this._finalized) {
+			throw new Error('Edit is only valid while callback runs');
+		}
+	}
+
 	replace(location: Position | Range | Selection, value: string): void {
+		this._throwIfFinalized();
 		let range: Range | null = null;
 
 		if (location instanceof Position) {
@@ -90,10 +97,12 @@ export class TextEditorEdit {
 	}
 
 	insert(location: Position, value: string): void {
+		this._throwIfFinalized();
 		this._pushEdit(new Range(location, location), value, true);
 	}
 
 	delete(location: Range | Selection): void {
+		this._throwIfFinalized();
 		let range: Range | null = null;
 
 		if (location instanceof Range) {
@@ -115,6 +124,7 @@ export class TextEditorEdit {
 	}
 
 	setEndOfLine(endOfLine: EndOfLine): void {
+		this._throwIfFinalized();
 		if (endOfLine !== EndOfLine.LF && endOfLine !== EndOfLine.CRLF) {
 			throw illegalArgument('endOfLine');
 		}

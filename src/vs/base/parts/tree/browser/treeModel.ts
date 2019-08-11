@@ -862,10 +862,10 @@ export interface IRefreshEvent extends IBaseEvent {
 export class TreeModel {
 
 	private context: _.ITreeContext;
-	private lock: Lock;
+	private lock!: Lock;
 	private input: Item | null;
-	private registry: ItemRegistry;
-	private registryDisposable: IDisposable;
+	private registry!: ItemRegistry;
+	private registryDisposable!: IDisposable;
 	private traitsToItems: ITraitMap;
 
 	private _onSetInput = new Emitter<IInputEvent>();

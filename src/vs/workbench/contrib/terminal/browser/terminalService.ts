@@ -137,7 +137,7 @@ export class TerminalService extends CommonTerminalService implements ITerminalS
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
-		this._terminalTabs.forEach(tab => tab.attachToElement(this._terminalContainer));
+		this._terminalTabs.forEach(tab => tab.attachToElement(terminalContainer));
 	}
 
 	public hidePanel(): void {

@@ -14,9 +14,9 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 
 	private sequence: number;
 	private pendingRequests = new Map<number, (e: DebugProtocol.Response) => void>();
-	private requestCallback: (request: DebugProtocol.Request) => void;
-	private eventCallback: (request: DebugProtocol.Event) => void;
-	private messageCallback: (message: DebugProtocol.ProtocolMessage) => void;
+	private requestCallback: ((request: DebugProtocol.Request) => void) | undefined;
+	private eventCallback: ((request: DebugProtocol.Event) => void) | undefined;
+	private messageCallback: ((message: DebugProtocol.ProtocolMessage) => void) | undefined;
 	protected readonly _onError: Emitter<Error>;
 	protected readonly _onExit: Emitter<number | null>;
 

@@ -34,27 +34,27 @@ export class ModesHoverController implements IEditorContribution {
 	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
-	private _contentWidget: ModesContentHoverWidget;
-	private _glyphWidget: ModesGlyphHoverWidget;
+	private _contentWidget: ModesContentHoverWidget | null;
+	private _glyphWidget: ModesGlyphHoverWidget | null;
 
 	get contentWidget(): ModesContentHoverWidget {
 		if (!this._contentWidget) {
-			this._createHoverWidget();
+			this._createHoverWidgets();
 		}
-		return this._contentWidget;
+		return this._contentWidget!;
 	}
 
 	get glyphWidget(): ModesGlyphHoverWidget {
 		if (!this._glyphWidget) {
-			this._createHoverWidget();
+			this._createHoverWidgets();
 		}
-		return this._glyphWidget;
+		return this._glyphWidget!;
 	}
 
 	private _isMouseDown: boolean;
 	private _hoverClicked: boolean;
-	private _isHoverEnabled: boolean;
-	private _isHoverSticky: boolean;
+	private _isHoverEnabled!: boolean;
+	private _isHoverSticky!: boolean;
 
 	static get(editor: ICodeEditor): ModesHoverController {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -69,6 +69,8 @@ export class ModesHoverController implements IEditorContribution {
 	) {
 		this._isMouseDown = false;
 		this._hoverClicked = false;
+		this._contentWidget = null;
+		this._glyphWidget = null;
 
 		this._hookEvents();
 
@@ -196,15 +198,15 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		if (!this._contentWidget || (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible())) {
+		if (!this._glyphWidget || !this._contentWidget || (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible())) {
 			return;
 		}
 
-		this._glyphWidget.hide();
+		this._glyphWidget!.hide();
 		this._contentWidget.hide();
 	}
 
-	private _createHoverWidget() {
+	private _createHoverWidgets() {
 		this._contentWidget = new ModesContentHoverWidget(this._editor, this._markerDecorationsService, this._themeService, this._keybindingService, this._modeService, this._openerService);
 		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
 	}

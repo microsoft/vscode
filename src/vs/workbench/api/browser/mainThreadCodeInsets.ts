@@ -21,7 +21,7 @@ class EditorWebviewZone implements IViewZone {
 	readonly afterColumn: number;
 	readonly heightInLines: number;
 
-	private _id: number;
+	private _id?: number;
 	// suppressMouseDown?: boolean | undefined;
 	// heightInPx?: number | undefined;
 	// minWidthInPx?: number | undefined;
@@ -46,7 +46,7 @@ class EditorWebviewZone implements IViewZone {
 	}
 
 	dispose(): void {
-		this.editor.changeViewZones(accessor => accessor.removeZone(this._id));
+		this.editor.changeViewZones(accessor => this._id && accessor.removeZone(this._id));
 	}
 }
 

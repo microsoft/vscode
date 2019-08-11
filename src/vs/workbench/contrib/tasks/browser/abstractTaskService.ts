@@ -73,6 +73,11 @@ import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomat
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { format } from 'vs/base/common/jsonFormatter';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { applyEdits } from 'vs/base/common/jsonEdit';
+import { ITextEditor } from 'vs/workbench/common/editor';
+import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 
 export namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
@@ -220,7 +225,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
 
@@ -300,7 +306,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.reRunTask', (accessor, arg) => {
-			this.reRunTaskCommand(arg);
+			this.reRunTaskCommand();
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.restartTask', (accessor, arg) => {
@@ -470,17 +476,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._taskSystem.customExecutionComplete(task, result);
 	}
 
-	private isBadTsConfig(taskId: string | TaskIdentifier | undefined): taskId is string {
-		const badTsconfig = '\\tsconfig.json';
-		const tsc = 'tsc';
-		return typeof taskId === 'string' && (taskId.length > badTsconfig.length) && strings.equalsIgnoreCase(taskId.substring(taskId.length - badTsconfig.length, taskId.length), badTsconfig) && (taskId.substring(0, tsc.length) === tsc);
-	}
-
 	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): Promise<Task | undefined> {
-		if (this.isBadTsConfig(identifier)) {
-			return Promise.reject(new Error(nls.localize('badTsConfig', "Task '{0}' contains \"\\\\\". Typescript tasks must use \"/\"", identifier)));
-		}
-
 		const name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return Promise.reject(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
@@ -512,7 +508,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this.versionAndEngineCompatible(filter)) {
 			return Promise.resolve<Task[]>([]);
 		}
-		return this.getGroupedTasks().then((map) => {
+		return this.getGroupedTasks(filter ? filter.type : undefined).then((map) => {
 			if (!filter || !filter.type) {
 				return map.all();
 			}
@@ -779,6 +775,60 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return false;
 	}
 
+	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined): Promise<ITextEditor | null | undefined> {
+		if (resource === undefined) {
+			return Promise.resolve(undefined);
+		}
+		let selection: ITextEditorSelection | undefined;
+		return this.fileService.readFile(resource).then(content => content.value).then(async content => {
+			if (!content) {
+				return undefined;
+			}
+			if (task) {
+				const contentValue = content.toString();
+				let stringValue: string;
+				if (typeof task === 'string') {
+					stringValue = task;
+				} else {
+					const model = (await this.textModelResolverService.createModelReference(resource)).object.textEditorModel;
+					const { tabSize, insertSpaces } = model.getOptions();
+					const eol = model.getEOL();
+					const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
+					let stringified = applyEdits(JSON.stringify(task), edits);
+					const regex = new RegExp(eol + '\\t', 'g');
+					stringified = stringified.replace(regex, eol + '\t\t\t');
+					const twoTabs = '\t\t';
+					stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
+				}
+
+				const index = contentValue.indexOf(stringValue);
+				let startLineNumber = 1;
+				for (let i = 0; i < index; i++) {
+					if (contentValue.charAt(i) === '\n') {
+						startLineNumber++;
+					}
+				}
+				let endLineNumber = startLineNumber;
+				for (let i = 0; i < stringValue.length; i++) {
+					if (stringValue.charAt(i) === '\n') {
+						endLineNumber++;
+					}
+				}
+				selection = startLineNumber > 1 ? { startLineNumber, startColumn: startLineNumber === endLineNumber ? 4 : 3, endLineNumber, endColumn: startLineNumber === endLineNumber ? undefined : 4 } : undefined;
+			}
+
+			return this.editorService.openEditor({
+				resource,
+				options: {
+					pinned: false,
+					forceReload: true, // because content might have changed
+					selection,
+					revealInCenterIfOutsideViewport: !!selection
+				}
+			});
+		});
+	}
+
 	public customize(task: ContributedTask | CustomTask, properties?: CustomizationProperties, openConfig?: boolean): Promise<void> {
 		const workspaceFolder = task.getWorkspaceFolder();
 		if (!workspaceFolder) {
@@ -805,6 +855,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			Object.keys(identifier).forEach(key => (<any>toCustomize)![key] = identifier[key]);
 			if (task.configurationProperties.problemMatchers && task.configurationProperties.problemMatchers.length > 0 && Types.isStringArray(task.configurationProperties.problemMatchers)) {
 				toCustomize.problemMatcher = task.configurationProperties.problemMatchers;
+			}
+			if (task.configurationProperties.group) {
+				toCustomize.group = task.configurationProperties.group;
 			}
 		}
 		if (!toCustomize) {
@@ -874,14 +927,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			*/
 			this.telemetryService.publicLog(AbstractTaskService.CustomizationTelemetryEventName, event);
 			if (openConfig) {
-				let resource = workspaceFolder.toResource('.vscode/tasks.json');
-				this.editorService.openEditor({
-					resource,
-					options: {
-						pinned: false,
-						forceReload: true // because content might have changed
-					}
-				});
+				this.openEditorAtTask(workspaceFolder.toResource('.vscode/tasks.json'), toCustomize);
 			}
 		});
 	}
@@ -903,12 +949,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		} else {
 			resource = (this._workspaceFolders && (this._workspaceFolders.length > 0)) ? this._workspaceFolders[0].toResource('.vscode/tasks.json') : undefined;
 		}
-		return this.editorService.openEditor({
-			resource,
-			options: {
-				pinned: false
-			}
-		}).then(() => undefined);
+		return this.openEditorAtTask(resource, task ? task._label : undefined).then(() => undefined);
 	}
 
 	private createRunnableTask(tasks: TaskMap, group: TaskGroup): { task: Task; resolver: ITaskResolver } | undefined {
@@ -1124,7 +1165,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract getTaskSystem(): ITaskSystem;
 
-	private getGroupedTasks(): Promise<TaskMap> {
+	private getGroupedTasks(type?: string): Promise<TaskMap> {
 		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
 			let validTypes: IStringDictionary<boolean> = Object.create(null);
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
@@ -1159,10 +1200,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 				};
 				if (this.schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
-					this._providers.forEach((provider) => {
-						counter++;
-						provider.provideTasks(validTypes).then(done, error);
-					});
+					for (const [handle, provider] of this._providers) {
+						if ((type === undefined) || (type === this._providerTypes.get(handle))) {
+							counter++;
+							provider.provideTasks(validTypes).then(done, error);
+						}
+					}
 				} else {
 					resolve(result);
 				}
@@ -1767,7 +1810,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private reRunTaskCommand(arg?: any): void {
+	private reRunTaskCommand(): void {
 		if (!this.canRunCommand()) {
 			return;
 		}

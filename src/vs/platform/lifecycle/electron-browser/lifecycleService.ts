@@ -18,7 +18,7 @@ export class LifecycleService extends AbstractLifecycleService {
 
 	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
 
-	_serviceBrand: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
 
 	private shutdownReason: ShutdownReason;
 

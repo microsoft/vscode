@@ -22,7 +22,6 @@ import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platf
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 // tslint:disable-next-line: import-patterns
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -30,13 +29,12 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 // tslint:disable-next-line: import-patterns
 import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 //#region Extension Tips
 
@@ -163,63 +161,6 @@ export class SimpleLogService extends ConsoleLogService { }
 
 //#endregion
 
-//#region Multi Extension Management
-
-export class SimpleMultiExtensionsManagementService implements IExtensionManagementService {
-
-	_serviceBrand: any;
-
-	onInstallExtension = Event.None;
-	onDidInstallExtension = Event.None;
-	onUninstallExtension = Event.None;
-	onDidUninstallExtension = Event.None;
-
-	zip(extension: ILocalExtension): Promise<URI> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	install(vsix: URI): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	uninstall(extension: ILocalExtension, force?: boolean): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	getExtensionsReport(): Promise<IReportedExtension[]> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-}
-
-//#endregion
-
 //#region Update
 
 export class SimpleUpdateService implements IUpdateService {
@@ -293,7 +234,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -489,7 +431,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		for (let i = 0; i < _uris.length; i++) {
 			const uri = _uris[i];
 			if ('folderUri' in uri) {
-				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
+				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}${this.workbenchEnvironmentService.configuration.connectionToken ? `&tkn=${this.workbenchEnvironmentService.configuration.connectionToken}` : ''}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {
@@ -559,41 +501,6 @@ registerSingleton(IWindowService, SimpleWindowService);
 
 //#endregion
 
-//#region ExtensionHostDebugService
-
-export class SimpleExtensionHostDebugService extends ExtensionHostDebugChannelClient {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		//@IWindowService windowService: IWindowService,
-		@IEnvironmentService environmentService: IEnvironmentService
-	) {
-		const connection = remoteAgentService.getConnection();
-
-		if (!connection) {
-			throw new Error('Missing agent connection');
-		}
-
-		super(connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
-
-		this._register(this.onReload(event => {
-			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
-				//windowService.reloadWindow();
-				window.location.reload();
-			}
-		}));
-		this._register(this.onClose(event => {
-			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
-				//this._windowService.closeWindow();
-				window.close();
-			}
-		}));
-	}
-}
-registerSingleton(IExtensionHostDebugService, SimpleExtensionHostDebugService);
-
-//#endregion
-
 //#region Window
 
 export class SimpleWindowsService implements IWindowsService {
@@ -608,6 +515,10 @@ export class SimpleWindowsService implements IWindowsService {
 	readonly onWindowUnmaximize: Event<number> = Event.None;
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
 
+	constructor(
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+	) {
+	}
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(true);
 	}
@@ -712,6 +623,8 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	relaunch(_options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
+		window.location.reload();
+
 		return Promise.resolve();
 	}
 
@@ -778,6 +691,11 @@ export class SimpleWindowsService implements IWindowsService {
 			newAddress += `&ibe=${encodeURIComponent(ibe)}`;
 		}
 
+		// add connection token
+		if (this.workbenchEnvironmentService.configuration.connectionToken) {
+			newAddress += `&tkn=${this.workbenchEnvironmentService.configuration.connectionToken}`;
+		}
+
 		window.open(newAddress);
 
 		return Promise.resolve();
@@ -791,7 +709,7 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve(this.windowCount);
 	}
 
-	log(_severity: string, ..._messages: string[]): Promise<void> {
+	log(_severity: string, _args: string[]): Promise<void> {
 		return Promise.resolve();
 	}
 

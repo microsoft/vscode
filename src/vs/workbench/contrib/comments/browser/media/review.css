@@ -400,7 +400,7 @@
 
 .monaco-editor .review-widget .action-item {
 	min-width: 18px;
-	min-height: 18px;
+	min-height: 20px;
 	margin-left: 4px;
 }
 
@@ -431,6 +431,10 @@
 	width: 4px !important;
 	cursor: pointer;
 	z-index: 10;
+}
+
+div.preview.inline .monaco-editor .comment-range-glyph {
+	display: none !important;
 }
 
 .monaco-editor .comment-range-glyph:before {

@@ -11,7 +11,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	_serviceBrand: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
 
 	constructor(
 		@ILogService readonly logService: ILogService

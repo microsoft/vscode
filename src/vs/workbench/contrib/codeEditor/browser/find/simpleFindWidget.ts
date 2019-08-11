@@ -41,7 +41,8 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean
+		showOptionButtons?: boolean,
+		private readonly _invertDefaultDirection: boolean = false
 	) {
 		super();
 
@@ -89,17 +90,18 @@ export abstract class SimpleFindWidget extends Widget {
 			this._findInput.setRegex(this._state.isRegex);
 			this._findInput.setWholeWords(this._state.wholeWord);
 			this._findInput.setCaseSensitive(this._state.matchCase);
+			this.findFirst();
 		}));
 
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter)) {
-				this.find(false);
+				this.find(this._invertDefaultDirection);
 				e.preventDefault();
 				return;
 			}
 
 			if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-				this.find(true);
+				this.find(!this._invertDefaultDirection);
 				e.preventDefault();
 				return;
 			}
@@ -164,6 +166,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 	protected abstract onInputChanged(): boolean;
 	protected abstract find(previous: boolean): void;
+	protected abstract findFirst(): void;
 	protected abstract onFocusTrackerFocus(): void;
 	protected abstract onFocusTrackerBlur(): void;
 	protected abstract onFindInputFocusTrackerFocus(): void;

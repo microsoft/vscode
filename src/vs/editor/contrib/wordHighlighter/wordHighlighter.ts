@@ -469,6 +469,7 @@ class WordHighlighterContribution extends Disposable implements editorCommon.IEd
 
 	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		super();
+		this.wordHighligher = null;
 		const createWordHighlighterIfPossible = () => {
 			if (editor.hasModel()) {
 				this.wordHighligher = new WordHighlighter(editor, contextKeyService);

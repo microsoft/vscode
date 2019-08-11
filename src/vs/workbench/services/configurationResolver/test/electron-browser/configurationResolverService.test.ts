@@ -555,7 +555,7 @@ class MockQuickInputService implements IQuickInputService {
 		return Promise.resolve(options ? 'resolved' + options.prompt : 'resolved');
 	}
 
-	backButton: IQuickInputButton;
+	backButton!: IQuickInputButton;
 
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
 		throw new Error('not implemented.');
