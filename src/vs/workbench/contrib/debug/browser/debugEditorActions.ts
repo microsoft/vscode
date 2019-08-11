@@ -52,9 +52,7 @@ class ToggleBreakpointAction extends EditorAction {
 					promises.push(debugService.addBreakpoints(modelUri, [{ lineNumber: lineNumber }], 'debugEditorActions.toggleBreakpointAction'));
 				}
 			});
-			if (promises.length > 0) {
-				return Promise.all(promises);
-			}
+			return Promise.all(promises);
 		}
 		return Promise.resolve();
 	}
