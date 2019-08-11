@@ -35,21 +35,27 @@ class ToggleBreakpointAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
-		const debugService = accessor.get(IDebugService);
-
-		const position = editor.getPosition();
-		if (editor.hasModel() && position) {
+		if (editor.hasModel()) {
+			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
-			const bps = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri });
+			const lineNumbers = new Set(editor._getCursors().getAll()
+				.filter(cs => cs.modelState.position)
+				.map(cs => cs.modelState.position.lineNumber));
 
-			if (bps.length) {
-				return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
-			}
-			if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }], 'debugEditorActions.toggleBreakpointAction');
+			const promises = Array<Promise<any>>();
+			lineNumbers.forEach(lineNumber => {
+				const bps = debugService.getModel().getBreakpoints({ lineNumber: lineNumber, uri: modelUri });
+
+				if (bps.length) {
+					bps.map(bp => debugService.removeBreakpoints(bp.getId())).forEach(p => promises.push(p));
+				} else if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+					promises.push(debugService.addBreakpoints(modelUri, [{ lineNumber: lineNumber }], 'debugEditorActions.toggleBreakpointAction'));
+				}
+			});
+			if (promises.length > 0) {
+				return Promise.all(promises);
 			}
 		}
-
 		return Promise.resolve();
 	}
 }
