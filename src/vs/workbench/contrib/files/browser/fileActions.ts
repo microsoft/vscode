@@ -858,7 +858,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 
 		folder.addChild(newStat);
 
-		const onSuccess = async (value: string) => {
+		const onSuccess = (value: string): Promise<void> => {
 			const createPromise = isFolder ? fileService.createFolder(resources.joinPath(folder.resource, value)) : textFileService.create(resources.joinPath(folder.resource, value));
 			return createPromise.then(created => {
 				refreshIfSeparator(value, explorerService);
@@ -877,7 +877,10 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 				if (success) {
 					onSuccess(value);
 				} else {
-					explorerService.select(folder.resource).then(undefined, onUnexpectedError);
+					// Fixes #78153
+					setTimeout(() => {
+						explorerService.select(folder.resource).then(undefined, onUnexpectedError);
+					}, 0);
 				}
 			}
 		});

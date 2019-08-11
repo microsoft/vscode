@@ -140,6 +140,10 @@ export class ExplorerService implements IExplorerService {
 		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
 	}
 
+	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined {
+		return this.editable;
+	}
+
 	getEditableData(stat: ExplorerItem): IEditableData | undefined {
 		return this.editable && this.editable.stat === stat ? this.editable.data : undefined;
 	}
