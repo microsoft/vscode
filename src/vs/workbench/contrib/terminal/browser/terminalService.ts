@@ -5,7 +5,7 @@
 
 import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, ITerminalNativeService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalService as CommonTerminalService } from 'vs/workbench/contrib/terminal/common/terminalService';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -49,18 +49,15 @@ export class TerminalService extends CommonTerminalService implements ITerminalS
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, this.terminalNativeService.linuxDistro);
 	}
 
-	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
-		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig);
+	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
+		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalFocusContextKey, this._configHelper, container, shellLaunchConfig);
 		this._onInstanceCreated.fire(instance);
 		return instance;
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
 		if (shell.hideFromUser) {
-			const instance = this.createInstance(this._terminalFocusContextKey,
-				this.configHelper,
-				undefined,
-				shell);
+			const instance = this.createInstance(undefined, shell);
 			this._backgroundedTerminalInstances.push(instance);
 			this._initInstanceListeners(instance);
 			return instance;
