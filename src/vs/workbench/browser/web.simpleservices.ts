@@ -658,6 +658,15 @@ export class SimpleWindowsService implements IWindowsService {
 		// we pass the "ParsedArgs" as query parameters of the URL
 
 		let newAddress = `${document.location.origin}/?`;
+		let gotFolder = false;
+
+		const addQueryParameter = (key: string, value: string) => {
+			const lastChar = newAddress.charAt(newAddress.length - 1);
+			if (lastChar !== '?' && lastChar !== '&') {
+				newAddress += '&';
+			}
+			newAddress += `${key}=${encodeURIComponent(value)}`;
+		};
 
 		const f = args['folder-uri'];
 		if (f) {
@@ -670,8 +679,13 @@ export class SimpleWindowsService implements IWindowsService {
 				u = URI.parse(f);
 			}
 			if (u) {
-				newAddress += `folder=${encodeURIComponent(u.path)}`;
+				gotFolder = true;
+				addQueryParameter('folder', u.path);
 			}
+		}
+		if (!gotFolder) {
+			// request empty window
+			addQueryParameter('ew', 'true');
 		}
 
 		const ep = args['extensionDevelopmentPath'];
@@ -685,23 +699,23 @@ export class SimpleWindowsService implements IWindowsService {
 				u = ep;
 			}
 			if (u) {
-				newAddress += `&edp=${encodeURIComponent(u)}`;
+				addQueryParameter('edp', u);
 			}
 		}
 
 		const di = args['debugId'];
 		if (di) {
-			newAddress += `&di=${encodeURIComponent(di)}`;
+			addQueryParameter('di', di);
 		}
 
 		const ibe = args['inspect-brk-extensions'];
 		if (ibe) {
-			newAddress += `&ibe=${encodeURIComponent(ibe)}`;
+			addQueryParameter('ibe', ibe);
 		}
 
 		// add connection token
 		if (this.workbenchEnvironmentService.configuration.connectionToken) {
-			newAddress += `&tkn=${this.workbenchEnvironmentService.configuration.connectionToken}`;
+			addQueryParameter('tkn', this.workbenchEnvironmentService.configuration.connectionToken);
 		}
 
 		window.open(newAddress);

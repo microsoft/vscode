@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -32,5 +33,6 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		}
 		return Promise.reject('No Servers to Install');
 	}
-
 }
+
+registerSingleton(IExtensionManagementService, ExtensionManagementService);
