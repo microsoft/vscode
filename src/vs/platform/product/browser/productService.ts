@@ -17,7 +17,7 @@ export class ProductService implements IProductService {
 		this.productConfiguration = element ? JSON.parse(element.getAttribute('data-settings')!) : null;
 	}
 
-	get version(): string { return this.productConfiguration ? this.productConfiguration.version : 'Unknown'; }
+	get version(): string { return this.productConfiguration && this.productConfiguration.version ? this.productConfiguration.version : '1.38.0-unknown'; }
 
 	get commit(): string | undefined { return this.productConfiguration ? this.productConfiguration.commit : undefined; }
 

@@ -442,7 +442,7 @@ export namespace TextEdit {
 	export function from(edit: vscode.TextEdit): modes.TextEdit {
 		return <modes.TextEdit>{
 			text: edit.newText,
-			eol: EndOfLine.from(edit.newEol),
+			eol: edit.newEol && EndOfLine.from(edit.newEol),
 			range: Range.from(edit.range)
 		};
 	}

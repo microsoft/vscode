@@ -1064,6 +1064,16 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 
 		super.onPointer(e);
 	}
+
+	protected onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+
+		if (onTwistie) {
+			return;
+		}
+
+		super.onDoubleClick(e);
+	}
 }
 
 interface ITreeNodeListOptions<T, TFilterData, TRef> extends IListOptions<ITreeNode<T, TFilterData>> {

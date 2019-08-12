@@ -234,7 +234,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const changeTypeColor = getChangeTypeColor(this.themeService.getTheme(), changeType);
 		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
 
-		this._actionbarWidget.context = [this.model.modified!.uri, this.model.changes, index];
+		this._actionbarWidget!.context = [this.model.modified!.uri, this.model.changes, index];
 		this.show(position, height);
 		this.editor.focus();
 	}
@@ -255,11 +255,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		this._disposables.add(previous);
 		this._disposables.add(next);
-		this._actionbarWidget.push([previous, next], { label: false, icon: true });
+		this._actionbarWidget!.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
 		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
-		this._actionbarWidget.push(actions, { label: false, icon: true });
+		this._actionbarWidget!.push(actions, { label: false, icon: true });
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
