@@ -31,7 +31,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ISignService } from 'vs/platform/sign/common/sign';
 
 export class DebugSession implements IDebugSession {
 
@@ -43,7 +42,7 @@ export class DebugSession implements IDebugSession {
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
 	private rawListeners: IDisposable[] = [];
-	private fetchThreadsScheduler: RunOnceScheduler;
+	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private repl: ReplModel;
 
 	private readonly _onDidChangeState = new Emitter<void>();
@@ -66,7 +65,6 @@ export class DebugSession implements IDebugSession {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ISignService private readonly signService: ISignService,
 		@IProductService private readonly productService: IProductService,
 		@IWindowsService private readonly windowsService: IWindowsService
 	) {
@@ -169,9 +167,9 @@ export class DebugSession implements IDebugSession {
 
 			return dbgr.createDebugAdapter(this).then(debugAdapter => {
 
-				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.signService, this.windowsService);
+				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.windowsService);
 
-				return this.raw!.start().then(() => {
+				return this.raw.start().then(() => {
 
 					this.registerListeners();
 
@@ -676,7 +674,10 @@ export class DebugSession implements IDebugSession {
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
 									this.viewletService.openViewlet(VIEWLET_ID);
 								}
-								this.windowService.focusWindow();
+
+								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak) {
+									this.windowService.focusWindow();
+								}
 							}
 						}
 					};

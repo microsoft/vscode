@@ -52,8 +52,11 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		throw new Error('Not implemented');
 	}
 
-	public getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
-		return new Promise(r => this._onRequestDefaultShellAndArgs.fire((shell, args) => r({ shell, args })));
+	public getDefaultShellAndArgs(useAutomationShell: boolean, ): Promise<{ shell: string, args: string[] | string | undefined }> {
+		return new Promise(r => this._onRequestDefaultShellAndArgs.fire({
+			useAutomationShell,
+			callback: (shell, args) => r({ shell, args })
+		}));
 	}
 
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {

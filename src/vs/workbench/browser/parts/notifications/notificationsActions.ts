@@ -145,9 +145,7 @@ export class CopyNotificationMessageAction extends Action {
 	}
 
 	run(notification: INotificationViewItem): Promise<any> {
-		this.clipboardService.writeText(notification.message.raw);
-
-		return Promise.resolve();
+		return this.clipboardService.writeText(notification.message.raw);
 	}
 }
 

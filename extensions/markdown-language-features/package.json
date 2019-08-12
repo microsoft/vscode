@@ -4,8 +4,8 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"icon": "icon.png",
-  "publisher": "vscode",
-  "enableProposedApi": true,
+	"publisher": "vscode",
+	"enableProposedApi": true,
 	"license": "MIT",
 	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
@@ -187,6 +187,9 @@
 			"properties": {
 				"markdown.styles": {
 					"type": "array",
+					"items": {
+						"type": "string"
+					},
 					"default": [],
 					"description": "%markdown.styles.dec%",
 					"scope": "resource"

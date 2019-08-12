@@ -127,13 +127,13 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public refCount: number;
 
 	public className: string | undefined;
-	public inlineClassName: string;
-	public inlineClassNameAffectsLetterSpacing: boolean;
+	public inlineClassName: string | undefined;
+	public inlineClassNameAffectsLetterSpacing: boolean | undefined;
 	public beforeContentClassName: string | undefined;
 	public afterContentClassName: string | undefined;
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
-	public overviewRuler: IModelDecorationOverviewRulerOptions;
+	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 
 	constructor(themeService: IThemeService, providerArgs: ProviderArguments) {
@@ -399,7 +399,7 @@ class DecorationCSSRules {
 		if (typeof opts !== 'undefined') {
 			this.collectBorderSettingsCSSText(opts, cssTextArr);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.revive(opts.contentIconPath).toString(true).replace(/'/g, '%27')));
+				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, dom.asDomUri(URI.revive(opts.contentIconPath)).toString(true).replace(/'/g, '%27')));
 			}
 			if (typeof opts.contentText === 'string') {
 				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
@@ -426,7 +426,7 @@ class DecorationCSSRules {
 		const cssTextArr: string[] = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.revive(opts.gutterIconPath).toString(true).replace(/'/g, '%27')));
+			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, dom.asDomUri(URI.revive(opts.gutterIconPath)).toString(true).replace(/'/g, '%27')));
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(_CSS_MAP.gutterIconSize, opts.gutterIconSize));
 			}

@@ -64,6 +64,12 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 
 const $ = dom.$;
 
+enum SearchUIState {
+	Idle,
+	Searching,
+	SlowSearch
+}
+
 export class SearchView extends ViewletPanel {
 
 	private static readonly MAX_TEXT_RESULTS = 10000;
@@ -92,8 +98,7 @@ export class SearchView extends ViewletPanel {
 	private matchFocused: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
 
-	private searchSubmitted: boolean;
-	private searching: boolean;
+	private state: SearchUIState;
 
 	private actions: Array<CollapseDeepestExpandedLevelAction | ClearSearchResultsAction> = [];
 	private cancelAction: CancelSearchAction;
@@ -149,7 +154,7 @@ export class SearchView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
 	) {
-		super({ ...(options as IViewletPanelOptions), id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
@@ -164,6 +169,7 @@ export class SearchView extends ViewletPanel {
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
 
+		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.memento = new Memento(this.id, storageService);
 		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE);
@@ -199,7 +205,6 @@ export class SearchView extends ViewletPanel {
 	}
 
 	renderBody(parent: HTMLElement): void {
-		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
 		this.container = dom.append(parent, dom.$('.search-view'));
 
 		this.searchWidgetsContainerElement = dom.append(this.container, $('.search-widgets-container'));
@@ -335,9 +340,11 @@ export class SearchView extends ViewletPanel {
 	protected updateActions(): void {
 		for (const action of this.actions) {
 			action.update();
-			this.refreshAction.update();
-			this.cancelAction.update();
 		}
+
+		this.refreshAction.update();
+		this.cancelAction.update();
+
 		super.updateActions();
 	}
 
@@ -626,7 +633,7 @@ export class SearchView extends ViewletPanel {
 		};
 
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
-		this.tree = this._register(<WorkbenchObjectTree<RenderableMatch, any>>this.instantiationService.createInstance(WorkbenchObjectTree,
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.resultsElement,
 			delegate,
 			[
@@ -889,13 +896,13 @@ export class SearchView extends ViewletPanel {
 			0 :
 			dom.getTotalHeight(this.messagesElement);
 
-		const searchResultContainerSize = this.size.height -
+		const searchResultContainerHeight = this.size.height -
 			messagesSize -
 			dom.getTotalHeight(this.searchWidgetsContainerElement);
 
-		this.resultsElement.style.height = searchResultContainerSize + 'px';
+		this.resultsElement.style.height = searchResultContainerHeight + 'px';
 
-		this.tree.layout(searchResultContainerSize, this.size.width);
+		this.tree.layout(searchResultContainerHeight, this.size.width);
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -907,12 +914,8 @@ export class SearchView extends ViewletPanel {
 		return this.tree;
 	}
 
-	isSearchSubmitted(): boolean {
-		return this.searchSubmitted;
-	}
-
-	isSearching(): boolean {
-		return this.searching;
+	isSlowSearch(): boolean {
+		return this.state === SearchUIState.SlowSearch;
 	}
 
 	allSearchFieldsClear(): boolean {
@@ -1148,6 +1151,10 @@ export class SearchView extends ViewletPanel {
 	}
 
 	onQueryChanged(preserveFocus?: boolean): void {
+		if (!this.searchWidget.searchInput.inputBox.isInputValid()) {
+			return;
+		}
+
 		const isRegex = this.searchWidget.searchInput.getRegex();
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
@@ -1256,16 +1263,17 @@ export class SearchView extends ViewletPanel {
 		});
 
 		this.searchWidget.searchInput.clearMessage();
-		this.searching = true;
-		setTimeout(() => {
-			if (this.searching) {
-				this.updateActions();
-			}
-		}, 2000);
+		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
 
+		const slowTimer = setTimeout(() => {
+			this.state = SearchUIState.SlowSearch;
+			this.updateActions();
+		}, 2000);
+
 		const onComplete = (completed?: ISearchComplete) => {
-			this.searching = false;
+			clearTimeout(slowTimer);
+			this.state = SearchUIState.Idle;
 
 			// Complete up to 100% as needed
 			progressComplete();
@@ -1283,7 +1291,6 @@ export class SearchView extends ViewletPanel {
 
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 
-			this.searchSubmitted = true;
 			this.updateActions();
 			const hasResults = !this.viewModel.searchResult.isEmpty();
 
@@ -1358,10 +1365,11 @@ export class SearchView extends ViewletPanel {
 		};
 
 		const onError = (e: any) => {
+			clearTimeout(slowTimer);
+			this.state = SearchUIState.Idle;
 			if (errors.isPromiseCanceledError(e)) {
 				return onComplete(undefined);
 			} else {
-				this.searching = false;
 				this.updateActions();
 				progressComplete();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
@@ -1381,7 +1389,7 @@ export class SearchView extends ViewletPanel {
 
 		// Handle UI updates in an interval to show frequent progress and results
 		const uiRefreshHandle: any = setInterval(() => {
-			if (!this.searching) {
+			if (this.state === SearchUIState.Idle) {
 				window.clearInterval(uiRefreshHandle);
 				return;
 			}
@@ -1515,9 +1523,7 @@ export class SearchView extends ViewletPanel {
 	}
 
 	private showEmptyStage(): void {
-
 		// disable 'result'-actions
-		this.searchSubmitted = false;
 		this.updateActions();
 
 		// clean up ui
@@ -1536,7 +1542,7 @@ export class SearchView extends ViewletPanel {
 
 	open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<void> {
 		const selection = this.getSelectionFrom(element);
-		const resource = element instanceof Match ? element.parent().resource() : (<FileMatch>element).resource();
+		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
@@ -1594,7 +1600,7 @@ export class SearchView extends ViewletPanel {
 		if (!this.untitledEditorService.isDirty(resource)) {
 			const matches = this.viewModel.searchResult.matches();
 			for (let i = 0, len = matches.length; i < len; i++) {
-				if (resource.toString() === matches[i].resource().toString()) {
+				if (resource.toString() === matches[i].resource.toString()) {
 					this.viewModel.searchResult.remove(matches[i]);
 				}
 			}
@@ -1608,16 +1614,13 @@ export class SearchView extends ViewletPanel {
 
 		const matches = this.viewModel.searchResult.matches();
 
-		for (let i = 0, len = matches.length; i < len; i++) {
-			if (e.contains(matches[i].resource(), FileChangeType.DELETED)) {
-				this.viewModel.searchResult.remove(matches[i]);
-			}
-		}
+		const changedMatches = matches.filter(m => e.contains(m.resource, FileChangeType.DELETED));
+		this.viewModel.searchResult.remove(changedMatches);
 	}
 
 	getActions(): IAction[] {
 		return [
-			this.searching ?
+			this.state === SearchUIState.SlowSearch ?
 				this.cancelAction :
 				this.refreshAction,
 			...this.actions

@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickopen/browser/commandsHandler';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
@@ -168,10 +168,8 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private create(): void {
-		const container = this.layoutService.getContainer(Parts.EDITOR_PART)!;
-
 		const offset = this.layoutService.getTitleBarOffset();
-		this._overlay = dom.append(container.parentElement!, $('.welcomeOverlay'));
+		this._overlay = dom.append(this.layoutService.getWorkbenchElement(), $('.welcomeOverlay'));
 		this._overlay.style.top = `${offset}px`;
 		this._overlay.style.height = `calc(100% - ${offset}px)`;
 		this._overlay.style.display = 'none';

@@ -15,6 +15,7 @@
 	width: 16px;
 	min-height: 14px;
 	min-width: 16px;
+	background-position: center;
 }
 
 /* default icons */
@@ -169,7 +170,7 @@
 }
 .vs-dark .monaco-workbench .symbol-icon.keyword,
 .hc-black .monaco-workbench .symbol-icon.keyword {
-	background-image: url('keyword-light.svg');
+	background-image: url('keyword-dark.svg');
 }
 
 /* interface */

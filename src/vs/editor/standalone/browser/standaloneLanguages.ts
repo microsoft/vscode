@@ -290,14 +290,11 @@ export interface EncodedTokensProvider {
 }
 
 function isEncodedTokensProvider(provider: TokensProvider | EncodedTokensProvider): provider is EncodedTokensProvider {
-	return provider['tokenizeEncoded'];
+	return 'tokenizeEncoded' in provider;
 }
 
 function isThenable<T>(obj: any): obj is Thenable<T> {
-	if (typeof obj.then === 'function') {
-		return true;
-	}
-	return false;
+	return obj && typeof obj.then === 'function';
 }
 
 /**

@@ -27,7 +27,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 class SymbolEntry extends EditorQuickOpenEntry {
-	private bearingResolve: Promise<this | undefined>;
+	private bearingResolve: Promise<this | undefined> | undefined;
 
 	constructor(
 		private bearing: IWorkspaceSymbol,

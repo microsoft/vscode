@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, ITerminalSettings, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -34,6 +34,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -44,7 +45,7 @@ const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
 export class ConfigurationManager implements IConfigurationManager {
 	private debuggers: Debugger[];
 	private breakpointModeIdsSet = new Set<string>();
-	private launches: ILaunch[];
+	private launches!: ILaunch[];
 	private selectedName: string | undefined;
 	private selectedLaunch: ILaunch | undefined;
 	private toDispose: IDisposable[];
@@ -108,10 +109,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		return Promise.resolve(config);
 	}
 
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Promise<number | undefined> {
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
 		let tl = this.debugAdapterFactories.get(debugType);
 		if (tl) {
-			return tl.runInTerminal(args, config);
+			return tl.runInTerminal(args);
 		}
 		return Promise.resolve(void 0);
 	}
@@ -180,7 +181,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return providers.length > 0;
 	}
 
-	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): Promise<IConfig | null | undefined> {
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
 		return this.activateDebuggers('onDebugResolve', type).then(() => {
 			// pipe the config through the promises sequentially. Append at the end the '*' types
 			const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
@@ -189,7 +190,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			return providers.reduce((promise, provider) => {
 				return promise.then(config => {
 					if (config) {
-						return provider.resolveDebugConfiguration!(folderUri, config);
+						return provider.resolveDebugConfiguration!(folderUri, config, token);
 					} else {
 						return Promise.resolve(config);
 					}
@@ -198,9 +199,9 @@ export class ConfigurationManager implements IConfigurationManager {
 		});
 	}
 
-	provideDebugConfigurations(folderUri: uri | undefined, type: string): Promise<any[]> {
+	provideDebugConfigurations(folderUri: uri | undefined, type: string, token: CancellationToken): Promise<any[]> {
 		return this.activateDebuggers('onDebugInitialConfigurations')
-			.then(() => Promise.all(this.configProviders.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri)))
+			.then(() => Promise.all(this.configProviders.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)))
 				.then(results => results.reduce((first, second) => first.concat(second), [])));
 	}
 
@@ -284,8 +285,6 @@ export class ConfigurationManager implements IConfigurationManager {
 				this.setCompoundSchemaValues();
 			}
 		}));
-
-		this.toDispose.push(this.storageService.onWillSaveState(this.saveState, this));
 	}
 
 	private initLaunches(): void {
@@ -296,7 +295,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.launches.push(this.instantiationService.createInstance(UserLaunch));
 
 		if (this.selectedLaunch && this.launches.indexOf(this.selectedLaunch) === -1) {
-			this.selectedLaunch = undefined;
+			this.setSelectedLaunch(undefined);
 		}
 	}
 
@@ -348,13 +347,13 @@ export class ConfigurationManager implements IConfigurationManager {
 		const previousLaunch = this.selectedLaunch;
 		const previousName = this.selectedName;
 
-		this.selectedLaunch = launch;
+		this.setSelectedLaunch(launch);
 		const names = launch ? launch.getConfigurationNames() : [];
 		if (name && names.indexOf(name) >= 0) {
-			this.selectedName = name;
+			this.setSelectedLaunchName(name);
 		}
 		if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
-			this.selectedName = names.length ? names[0] : undefined;
+			this.setSelectedLaunchName(names.length ? names[0] : undefined);
 		}
 
 		const configuration = this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined;
@@ -439,12 +438,23 @@ export class ConfigurationManager implements IConfigurationManager {
 		});
 	}
 
-	private saveState(): void {
+	private setSelectedLaunchName(selectedName: string | undefined): void {
+		this.selectedName = selectedName;
+
 		if (this.selectedName) {
 			this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE);
 		}
+	}
+
+	private setSelectedLaunch(selectedLaunch: ILaunch | undefined): void {
+		this.selectedLaunch = selectedLaunch;
+
 		if (this.selectedLaunch) {
 			this.storageService.store(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -522,7 +532,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch', { resource: this.workspace.uri }).workspaceFolder;
 	}
 
-	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Promise<{ editor: IEditor | null, created: boolean }> {
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditor | null, created: boolean }> {
 		const resource = this.uri;
 		let created = false;
 
@@ -530,7 +540,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 			// launch.json not found: create one by collecting launch configs from debugConfigProviders
 			return this.configurationManager.guessDebugger(type).then(adapter => {
 				if (adapter) {
-					return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type).then(initialConfigs => {
+					return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type, token || CancellationToken.None).then(initialConfigs => {
 						return adapter.getInitialConfigurationContent(initialConfigs);
 					});
 				} else {

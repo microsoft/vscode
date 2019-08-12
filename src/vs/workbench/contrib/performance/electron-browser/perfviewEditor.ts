@@ -49,7 +49,7 @@ export class PerfviewInput extends ResourceEditorInput {
 	) {
 		super(
 			localize('name', "Startup Performance"),
-			null,
+			undefined,
 			PerfviewInput.Uri,
 			undefined,
 			textModelResolverService
@@ -262,11 +262,11 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 }
 
 abstract class LoaderStats {
-	readonly amdLoad: (string | number)[][];
-	readonly amdInvoke: (string | number)[][];
-	readonly nodeRequire: (string | number)[][];
-	readonly nodeEval: (string | number)[][];
-	readonly nodeRequireTotal: number;
+	abstract get amdLoad(): (string | number)[][];
+	abstract get amdInvoke(): (string | number)[][];
+	abstract get nodeRequire(): (string | number)[][];
+	abstract get nodeEval(): (string | number)[][];
+	abstract get nodeRequireTotal(): number;
 
 
 	static get(): LoaderStats {

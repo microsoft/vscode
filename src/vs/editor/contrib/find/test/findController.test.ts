@@ -24,7 +24,6 @@ export class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
-	public delayedUpdateHistoryPromise: Promise<void>;
 
 	private _findInputFocused: IContextKey<boolean>;
 
@@ -37,6 +36,7 @@ export class TestFindController extends CommonFindController {
 		super(editor, contextKeyService, storageService, clipboardService);
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
+		this.hasFocus = false;
 	}
 
 	protected _start(opts: IFindStartOptions): void {

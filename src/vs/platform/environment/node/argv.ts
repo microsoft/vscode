@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as minimist from 'minimist';
+import * as minimist from 'vscode-minimist';
 import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -48,6 +48,7 @@ export const options: Option[] = [
 	{ id: 'extensions-dir', type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	{ id: 'list-extensions', type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	{ id: 'show-versions', type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
+	{ id: 'category', type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extension.") },
 	{ id: 'install-extension', type: 'string', cat: 'e', args: 'extension-id | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
 	{ id: 'uninstall-extension', type: 'string', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
 	{ id: 'enable-proposed-api', type: 'string', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
@@ -68,6 +69,7 @@ export const options: Option[] = [
 	{ id: 'locate-extension', type: 'string' },
 	{ id: 'extensionDevelopmentPath', type: 'string' },
 	{ id: 'extensionTestsPath', type: 'string' },
+	{ id: 'extension-development-confirm-save', type: 'boolean' },
 	{ id: 'debugId', type: 'string' },
 	{ id: 'inspect-search', type: 'string', deprecates: 'debugSearch' },
 	{ id: 'inspect-brk-search', type: 'string', deprecates: 'debugBrkSearch' },
@@ -131,6 +133,10 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 			delete parsedArgs[o.deprecates];
 		}
 	}
+
+	// https://github.com/microsoft/vscode/issues/58177
+	parsedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
+
 	return parsedArgs;
 }
 

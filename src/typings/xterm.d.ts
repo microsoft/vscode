@@ -16,6 +16,11 @@ declare module 'xterm' {
 	export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
 	/**
+	 * A string representing log level.
+	 */
+	export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'off';
+
+	/**
 	 * A string representing a renderer type.
 	 */
 	export type RendererType = 'dom' | 'canvas';
@@ -108,6 +113,18 @@ declare module 'xterm' {
 		lineHeight?: number;
 
 		/**
+		 * What log level to use, this will log for all levels below and including
+		 * what is set:
+		 *
+		 * 1. debug
+		 * 2. info (default)
+		 * 3. warn
+		 * 4. error
+		 * 5. off
+		 */
+		logLevel?: LogLevel;
+
+		/**
 		 * Whether to treat option as the meta key.
 		 */
 		macOptionIsMeta?: boolean;
@@ -177,6 +194,12 @@ declare module 'xterm' {
 		 *   not whitespace.
 		 */
 		windowsMode?: boolean;
+
+		/**
+		 * A string containing all characters that are considered word separated by the
+		 * double click to select work logic.
+		*/
+		wordSeparator?: string;
 	}
 
 	/**
@@ -191,7 +214,7 @@ declare module 'xterm' {
 		cursor?: string,
 		/** The accent color of the cursor (fg color for a block cursor) */
 		cursorAccent?: string,
-		/** The selection color (can be transparent) */
+		/** The selection background color (can be transparent) */
 		selection?: string,
 		/** ANSI black (eg. `\x1b[30m`) */
 		black?: string,
@@ -483,12 +506,14 @@ declare module 'xterm' {
 		 * final character (e.g "m" for SGR) of the CSI sequence.
 		 * @param callback The function to handle the escape sequence. The callback
 		 * is called with the numerical params, as well as the special characters
-		 * (e.g. "$" for DECSCPP). Return true if the sequence was handled; false if
+		 * (e.g. "$" for DECSCPP). If the sequence has subparams the array will
+		 * contain subarrays with their numercial values.
+		 * Return true if the sequence was handled; false if
 		 * we should try a previous handler (set by addCsiHandler or setCsiHandler).
 		 * The most recently-added handler is tried first.
 		 * @return An IDisposable you can call to remove this handler.
 		 */
-		addCsiHandler(flag: string, callback: (params: number[], collect: string) => boolean): IDisposable;
+		addCsiHandler(flag: string, callback: (params: (number | number[])[], collect: string) => boolean): IDisposable;
 
 		/**
 		 * (EXPERIMENTAL) Adds a handler for OSC escape sequences.
@@ -668,12 +693,12 @@ declare module 'xterm' {
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
 		 */
-		getOption(key: 'bellSound' | 'bellStyle' | 'cursorStyle' | 'fontFamily' | 'fontWeight' | 'fontWeightBold' | 'rendererType' | 'termName'): string;
+		getOption(key: 'bellSound' | 'bellStyle' | 'cursorStyle' | 'fontFamily' | 'fontWeight' | 'fontWeightBold' | 'logLevel' | 'rendererType' | 'termName' | 'wordSeparator'): string;
 		/**
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
 		 */
-		getOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'macOptionIsMeta' | 'rightClickSelectsWord' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell' | 'windowsMode'): boolean;
+		getOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'disableStdin' | 'macOptionIsMeta' | 'rightClickSelectsWord' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell' | 'windowsMode'): boolean;
 		/**
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
@@ -700,13 +725,19 @@ declare module 'xterm' {
 		 * @param key The option key.
 		 * @param value The option value.
 		 */
-		setOption(key: 'fontFamily' | 'termName' | 'bellSound', value: string): void;
+		setOption(key: 'fontFamily' | 'termName' | 'bellSound' | 'wordSeparator', value: string): void;
 		/**
 		* Sets an option on the terminal.
 		* @param key The option key.
 		* @param value The option value.
 		*/
 		setOption(key: 'fontWeight' | 'fontWeightBold', value: null | 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900'): void;
+		/**
+		* Sets an option on the terminal.
+		* @param key The option key.
+		* @param value The option value.
+		*/
+		setOption(key: 'logLevel', value: LogLevel): void;
 		/**
 		 * Sets an option on the terminal.
 		 * @param key The option key.
@@ -724,7 +755,7 @@ declare module 'xterm' {
 		 * @param key The option key.
 		 * @param value The option value.
 		 */
-		setOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'macOptionIsMeta' | 'popOnBell' | 'rightClickSelectsWord' | 'screenKeys' | 'useFlowControl' | 'visualBell' | 'windowsMode', value: boolean): void;
+		setOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'disableStdin' | 'macOptionIsMeta' | 'popOnBell' | 'rightClickSelectsWord' | 'screenKeys' | 'useFlowControl' | 'visualBell' | 'windowsMode', value: boolean): void;
 		/**
 		 * Sets an option on the terminal.
 		 * @param key The option key.
@@ -929,16 +960,16 @@ declare module 'xterm' {
 // Modifications to official .d.ts below
 declare module 'xterm' {
 	interface TerminalCore {
-		debug: boolean;
-
-		handler(text: string): void;
-
 		_onScroll: IEventEmitter<number>;
 		_onKey: IEventEmitter<{ key: string }>;
 
 		_charSizeService: {
 			width: number;
 			height: number;
+		};
+
+		_coreService: {
+			triggerDataEvent(data: string, wasUserInput?: boolean): void;
 		}
 
 		_renderService: {

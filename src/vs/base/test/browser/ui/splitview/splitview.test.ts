@@ -196,8 +196,8 @@ suite('Splitview', () => {
 		splitview.resizeView(0, 70);
 
 		assert.equal(view1.size, 70, 'view1 is collapsed');
-		assert.equal(view2.size, 110, 'view2 is expanded');
-		assert.equal(view3.size, 20, 'view3 stays the same');
+		assert.equal(view2.size, 40, 'view2 stays the same');
+		assert.equal(view3.size, 90, 'view3 is stretched');
 
 		splitview.resizeView(2, 40);
 
@@ -474,10 +474,10 @@ suite('Splitview', () => {
 		splitview.addView(view1, Sizing.Distribute);
 		splitview.addView(view2, Sizing.Distribute);
 		splitview.addView(view3, Sizing.Distribute);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 66, 68]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [66, 68, 66]);
 
 		splitview.layout(180);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 46, 68]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [66, 48, 66]);
 
 		splitview.layout(124);
 		assert.deepEqual([view1.size, view2.size, view3.size], [66, 20, 38]);
@@ -504,13 +504,13 @@ suite('Splitview', () => {
 		splitview.addView(view1, Sizing.Distribute);
 		splitview.addView(view2, Sizing.Distribute);
 		splitview.addView(view3, Sizing.Distribute);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 66, 68]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [66, 68, 66]);
 
 		splitview.layout(180);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 46, 68]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [66, 48, 66]);
 
 		splitview.layout(132);
-		assert.deepEqual([view1.size, view2.size, view3.size], [44, 20, 68]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [46, 20, 66]);
 
 		splitview.layout(60);
 		assert.deepEqual([view1.size, view2.size, view3.size], [20, 20, 20]);

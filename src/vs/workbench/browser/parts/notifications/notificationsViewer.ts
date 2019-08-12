@@ -62,7 +62,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		}
 
 		// Last row: source and buttons if we have any
-		if (notification.source || isNonEmptyArray(notification.actions.primary)) {
+		if (notification.source || isNonEmptyArray(notification.actions && notification.actions.primary)) {
 			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
 
@@ -82,7 +82,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		if (notification.canCollapse) {
 			actions++; // expand/collapse
 		}
-		if (isNonEmptyArray(notification.actions.secondary)) {
+		if (isNonEmptyArray(notification.actions && notification.actions.secondary)) {
 			actions++; // secondary actions
 		}
 		this.offsetHelper.style.width = `calc(100% - ${10 /* padding */ + 24 /* severity icon */ + (actions * 24) /* 24px per action */}px)`;
@@ -288,7 +288,7 @@ export class NotificationTemplateRenderer extends Disposable {
 
 	private static readonly SEVERITIES: Array<'info' | 'warning' | 'error'> = ['info', 'warning', 'error'];
 
-	private readonly inputDisposeables = this._register(new DisposableStore());
+	private readonly inputDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private template: INotificationTemplateData,
@@ -308,7 +308,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	}
 
 	setInput(notification: INotificationViewItem): void {
-		this.inputDisposeables.clear();
+		this.inputDisposables.clear();
 
 		this.render(notification);
 	}
@@ -317,7 +317,7 @@ export class NotificationTemplateRenderer extends Disposable {
 
 		// Container
 		toggleClass(this.template.container, 'expanded', notification.expanded);
-		this.inputDisposeables.add(addDisposableListener(this.template.container, EventType.MOUSE_UP, e => {
+		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.MOUSE_UP, e => {
 			if (e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e);
 
@@ -344,7 +344,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		this.renderProgress(notification);
 
 		// Label Change Events
-		this.inputDisposeables.add(notification.onDidLabelChange(event => {
+		this.inputDisposables.add(notification.onDidLabelChange(event => {
 			switch (event.kind) {
 				case NotificationViewItemLabelKind.SEVERITY:
 					this.renderSeverity(notification);
@@ -370,7 +370,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		clearNode(this.template.message);
 		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
 			callback: link => this.openerService.open(URI.parse(link)),
-			toDispose: this.inputDisposeables
+			toDispose: this.inputDisposables
 		}));
 
 		const messageOverflows = notification.canCollapse && !notification.expanded && this.template.message.scrollWidth > this.template.message.clientWidth;
@@ -392,10 +392,11 @@ export class NotificationTemplateRenderer extends Disposable {
 		const actions: IAction[] = [];
 
 		// Secondary Actions
-		if (isNonEmptyArray(notification.actions.secondary)) {
-			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification.actions.secondary);
+		const secondaryActions = notification.actions ? notification.actions.secondary : undefined;
+		if (isNonEmptyArray(secondaryActions)) {
+			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, secondaryActions);
 			actions.push(configureNotificationAction);
-			this.inputDisposeables.add(configureNotificationAction);
+			this.inputDisposables.add(configureNotificationAction);
 		}
 
 		// Expand / Collapse
@@ -435,13 +436,14 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderButtons(notification: INotificationViewItem): void {
 		clearNode(this.template.buttonsContainer);
 
-		if (notification.expanded && notification.actions.primary) {
-			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, notification.actions.primary.length, { title: true /* assign titles to buttons in case they overflow */ });
+		const primaryActions = notification.actions ? notification.actions.primary : undefined;
+		if (notification.expanded && isNonEmptyArray(primaryActions)) {
+			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, primaryActions.length, { title: true /* assign titles to buttons in case they overflow */ });
 			buttonGroup.buttons.forEach((button, index) => {
-				const action = notification.actions.primary![index];
+				const action = primaryActions[index];
 				button.label = action.label;
 
-				this.inputDisposeables.add(button.onDidClick(e => {
+				this.inputDisposables.add(button.onDidClick(e => {
 					EventHelper.stop(e, true);
 
 					// Run action
@@ -453,10 +455,10 @@ export class NotificationTemplateRenderer extends Disposable {
 					}
 				}));
 
-				this.inputDisposeables.add(attachButtonStyler(button, this.themeService));
+				this.inputDisposables.add(attachButtonStyler(button, this.themeService));
 			});
 
-			this.inputDisposeables.add(buttonGroup);
+			this.inputDisposables.add(buttonGroup);
 		}
 	}
 

@@ -24,7 +24,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
 
 	private _onDidChange = new Emitter<void>();
-	get onDidChange(): Event<void> { return this._onDidChange.event; }
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
 		private readonly sourceControlHandle: number,
@@ -105,7 +105,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	// }
 
 	private _onDidChangeResources = new Emitter<void>();
-	get onDidChangeResources(): Event<void> { return this._onDidChangeResources.event; }
+	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
 
 	private features: SCMProviderFeatures = {};
 
@@ -120,13 +120,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get count(): number | undefined { return this.features.count; }
 
 	private _onDidChangeCommitTemplate = new Emitter<string>();
-	get onDidChangeCommitTemplate(): Event<string> { return this._onDidChangeCommitTemplate.event; }
+	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
 
 	private _onDidChangeStatusBarCommands = new Emitter<Command[]>();
 	get onDidChangeStatusBarCommands(): Event<Command[]> { return this._onDidChangeStatusBarCommands.event; }
 
 	private _onDidChange = new Emitter<void>();
-	get onDidChange(): Event<void> { return this._onDidChange.event; }
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
 		private readonly proxy: ExtHostSCMShape,

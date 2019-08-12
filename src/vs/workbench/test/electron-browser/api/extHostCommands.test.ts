@@ -26,7 +26,10 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), new NullLogService());
+		const commands = new ExtHostCommands(
+			SingleProxyRPCProtocol(shape),
+			new NullLogService()
+		);
 		commands.registerCommand(true, 'foo', (): any => { }).dispose();
 		assert.equal(lastUnregister!, 'foo');
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
@@ -46,7 +49,10 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), new NullLogService());
+		const commands = new ExtHostCommands(
+			SingleProxyRPCProtocol(shape),
+			new NullLogService()
+		);
 		const reg = commands.registerCommand(true, 'foo', (): any => { });
 		reg.dispose();
 		reg.dispose();

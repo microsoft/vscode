@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping, IWindowsKeyboardMapping, KeymapInfo, IRawMixedKeyboardMapping, getKeyboardLayoutId, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
@@ -17,9 +17,8 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { dirname, isEqual } from 'vs/base/common/resources';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -27,9 +26,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/common/navigatorKeyboard';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class BrowserKeyboardMapperFactoryBase {
 	// keyboard mapper
@@ -72,9 +71,9 @@ export class BrowserKeyboardMapperFactoryBase {
 	}
 
 	protected constructor(
-		private _notificationService: INotificationService,
-		private _storageService: IStorageService,
-		private _commandService: ICommandService
+		// private _notificationService: INotificationService,
+		// private _storageService: IStorageService,
+		// private _commandService: ICommandService
 	) {
 		this._keyboardMapper = null;
 		this._initialized = false;
@@ -179,30 +178,34 @@ export class BrowserKeyboardMapperFactoryBase {
 	setActiveKeyMapping(keymap: IKeyboardMapping | null) {
 		let matchedKeyboardLayout = this.getMatchedKeymapInfo(keymap);
 		if (matchedKeyboardLayout) {
-			let score = matchedKeyboardLayout.score;
+			// let score = matchedKeyboardLayout.score;
 
-			if (keymap && score < 0) {
-				const donotAskUpdateKey = 'missing.keyboardlayout.donotask';
-				if (this._storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL)) {
-					return;
-				}
+			// Due to https://bugs.chromium.org/p/chromium/issues/detail?id=977609, any key after a dead key will generate a wrong mapping,
+			// we shoud avoid yielding the false error.
+			// if (keymap && score < 0) {
+			// const donotAskUpdateKey = 'missing.keyboardlayout.donotask';
+			// if (this._storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL)) {
+			// 	return;
+			// }
 
-				// the keyboard layout doesn't actually match the key event or the keymap from chromium
-				this._notificationService.prompt(
-					Severity.Info,
-					nls.localize('missing.keyboardlayout', 'Fail to find matching keyboard layout'),
-					[{
-						label: nls.localize('keyboardLayoutMissing.configure', "Configure"),
-						run: () => this._commandService.executeCommand('workbench.action.openKeyboardLayoutPicker')
-					}, {
-						label: nls.localize('neverAgain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
-					}]
-				);
+			// // the keyboard layout doesn't actually match the key event or the keymap from chromium
+			// this._notificationService.prompt(
+			// 	Severity.Info,
+			// 	nls.localize('missing.keyboardlayout', 'Fail to find matching keyboard layout'),
+			// 	[{
+			// 		label: nls.localize('keyboardLayoutMissing.configure', "Configure"),
+			// 		run: () => this._commandService.executeCommand('workbench.action.openKeyboardLayoutPicker')
+			// 	}, {
+			// 		label: nls.localize('neverAgain', "Don't Show Again"),
+			// 		isSecondary: true,
+			// 		run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
+			// 	}]
+			// );
 
-				return;
-			}
+			// console.warn('Active keymap/keyevent does not match current keyboard layout', JSON.stringify(keymap), this._activeKeymapInfo ? JSON.stringify(this._activeKeymapInfo.layout) : '');
+
+			// return;
+			// }
 
 			if (!this._activeKeymapInfo) {
 				this._activeKeymapInfo = matchedKeyboardLayout.result;
@@ -335,7 +338,7 @@ export class BrowserKeyboardMapperFactoryBase {
 		}
 
 		if (mapping.value === '') {
-			// we don't undetstand
+			// The value is empty when the key is not a printable character, we skip validation.
 			if (keyboardEvent.ctrlKey || keyboardEvent.metaKey) {
 				setTimeout(() => {
 					this._getBrowserKeyMapping().then((keymap: IKeyboardMapping) => {
@@ -425,7 +428,8 @@ export class BrowserKeyboardMapperFactoryBase {
 
 export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
-		super(notificationService, storageService, commandService);
+		// super(notificationService, storageService, commandService);
+		super();
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
 
@@ -440,12 +444,10 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 }
 
 class UserKeyboardLayout extends Disposable {
+
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
-
-	private fileWatcherDisposable: IDisposable = Disposable.None;
-	private directoryWatcherDisposable: IDisposable = Disposable.None;
 
 	private _keyboardLayout: KeymapInfo | null;
 	get keyboardLayout(): KeymapInfo | null { return this._keyboardLayout; }
@@ -458,22 +460,16 @@ class UserKeyboardLayout extends Disposable {
 
 		this._keyboardLayout = null;
 
-		this._register(fileService.onFileChanges(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
 			if (changed) {
 				this._onDidChange.fire();
 			}
 		}), 50));
 
-		this._register(toDisposable(() => {
-			this.stopWatchingResource();
-			this.stopWatchingDirectory();
-		}));
+		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keyboardLayoutResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<void> {
-		const exists = await this.fileService.exists(this.keyboardLayoutResource);
-		this.onResourceExists(exists);
 		await this.reload();
 	}
 
@@ -492,57 +488,6 @@ class UserKeyboardLayout extends Disposable {
 		return existing ? !objects.equals(existing, this._keyboardLayout) : true;
 	}
 
-	private watchResource(): void {
-		this.fileWatcherDisposable = this.fileService.watch(this.keyboardLayoutResource);
-	}
-
-	private watchDirectory(): void {
-		const directory = dirname(this.keyboardLayoutResource);
-		this.directoryWatcherDisposable = this.fileService.watch(directory);
-	}
-
-	private stopWatchingResource(): void {
-		this.fileWatcherDisposable.dispose();
-		this.fileWatcherDisposable = Disposable.None;
-	}
-
-	private stopWatchingDirectory(): void {
-		this.directoryWatcherDisposable.dispose();
-		this.directoryWatcherDisposable = Disposable.None;
-	}
-
-	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
-		const events = event.changes;
-
-		let affectedByChanges = false;
-
-		// Find changes that affect the resource
-		for (const event of events) {
-			affectedByChanges = isEqual(this.keyboardLayoutResource, event.resource);
-			if (affectedByChanges) {
-				if (event.type === FileChangeType.ADDED) {
-					this.onResourceExists(true);
-				} else if (event.type === FileChangeType.DELETED) {
-					this.onResourceExists(false);
-				}
-				break;
-			}
-		}
-
-		if (affectedByChanges) {
-			this.reloadConfigurationScheduler.schedule();
-		}
-	}
-
-	private onResourceExists(exists: boolean): void {
-		if (exists) {
-			this.stopWatchingDirectory();
-			this.watchResource();
-		} else {
-			this.stopWatchingResource();
-			this.watchDirectory();
-		}
-	}
 }
 
 class BrowserKeymapService extends Disposable implements IKeymapService {

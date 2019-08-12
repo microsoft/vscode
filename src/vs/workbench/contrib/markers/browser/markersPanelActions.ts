@@ -159,6 +159,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	toggleLayout(small: boolean) {
 		if (this.container) {
 			DOM.toggleClass(this.container, 'small', small);
+			this.adjustInputBox();
 		}
 	}
 
@@ -247,7 +248,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private adjustInputBox(): void {
-		this.filterInputBox.inputElement.style.paddingRight = (DOM.getTotalWidth(this.controlsContainer) || 20) + 'px';
+		this.filterInputBox.inputElement.style.paddingRight = DOM.hasClass(this.container, 'small') || DOM.hasClass(this.filterBadge, 'hidden') ? '25px' : '150px';
 	}
 
 	// Action toolbar is swallowing some keys for action items which should not be for an input box
@@ -275,10 +276,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private reportFilteringUsed(): void {
 		const filterOptions = this.filterController.getFilterOptions();
-		const data = {};
-		data['errors'] = filterOptions.filterErrors;
-		data['warnings'] = filterOptions.filterWarnings;
-		data['infos'] = filterOptions.filterInfos;
+		const data = {
+			errors: filterOptions.filterErrors,
+			warnings: filterOptions.filterWarnings,
+			infos: filterOptions.filterInfos,
+		};
 		/* __GDPR__
 			"problems.filter" : {
 				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

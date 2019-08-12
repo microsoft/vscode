@@ -81,6 +81,7 @@
 			"type": "gulp",
 			"task": "hygiene",
 			"problemMatcher": []
-		}
+		},
+
 	]
 }

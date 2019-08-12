@@ -7,13 +7,15 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, EnablementState, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { URI } from 'vs/base/common/uri';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -32,7 +34,7 @@ export const enum ExtensionState {
 }
 
 export interface IExtension {
-	readonly type?: ExtensionType;
+	readonly type: ExtensionType;
 	readonly state: ExtensionState;
 	readonly name: string;
 	readonly displayName: string;
@@ -81,7 +83,7 @@ export interface IExtensionsWorkbenchService {
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
-	install(vsix: string): Promise<IExtension>;
+	install(vsix: URI): Promise<IExtension>;
 	install(extension: IExtension, promptToInstallDependencies?: boolean): Promise<IExtension>;
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string): Promise<IExtension>;

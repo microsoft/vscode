@@ -192,7 +192,7 @@ export function getKeyboardLayoutId(layout: IKeyboardLayoutInfo): string {
 function deserializeMapping(serializedMapping: ISerializedMapping) {
 	let mapping = serializedMapping;
 
-	let ret = {};
+	let ret: { [key: string]: any } = {};
 	for (let key in mapping) {
 		let result: (string | number)[] = mapping[key];
 		if (result.length) {

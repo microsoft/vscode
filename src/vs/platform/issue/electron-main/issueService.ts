@@ -21,10 +21,10 @@ const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
-	_issueWindow: BrowserWindow | null;
-	_issueParentWindow: BrowserWindow | null;
-	_processExplorerWindow: BrowserWindow | null;
-	_processExplorerParentWindow: BrowserWindow | null;
+	_issueWindow: BrowserWindow | null = null;
+	_issueParentWindow: BrowserWindow | null = null;
+	_processExplorerWindow: BrowserWindow | null = null;
+	_processExplorerParentWindow: BrowserWindow | null = null;
 
 	constructor(
 		private machineId: string,
@@ -237,15 +237,8 @@ export class IssueService implements IIssueService {
 						data
 					};
 
-					const environment = parseArgs(process.argv);
-					const config = objects.assign(environment, windowConfiguration);
-					for (let key in config) {
-						if (config[key] === undefined || config[key] === null || config[key] === '') {
-							delete config[key]; // only send over properties that have a true value
-						}
-					}
-
-					this._processExplorerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/processExplorer/processExplorer.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
+					this._processExplorerWindow.loadURL(
+						toLauchUrl('vs/code/electron-browser/processExplorer/processExplorer.html', windowConfiguration));
 
 					this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
 
@@ -373,14 +366,19 @@ export class IssueService implements IIssueService {
 			features
 		};
 
-		const environment = parseArgs(process.argv);
-		const config = objects.assign(environment, windowConfiguration);
-		for (let key in config) {
-			if (config[key] === undefined || config[key] === null || config[key] === '') {
-				delete config[key]; // only send over properties that have a true value
-			}
-		}
-
-		return `${require.toUrl('vs/code/electron-browser/issue/issueReporter.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		return toLauchUrl('vs/code/electron-browser/issue/issueReporter.html', windowConfiguration);
 	}
+}
+
+function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
+	const environment = parseArgs(process.argv);
+	const config = objects.assign(environment, windowConfiguration);
+	for (const keyValue of Object.keys(config)) {
+		const key = keyValue as keyof typeof config;
+		if (config[key] === undefined || config[key] === null || config[key] === '') {
+			delete config[key]; // only send over properties that have a true value
+		}
+	}
+
+	return `${require.toUrl(pathToHtml)}?config=${encodeURIComponent(JSON.stringify(config))}`;
 }

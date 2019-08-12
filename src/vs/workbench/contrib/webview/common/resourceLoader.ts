@@ -45,11 +45,14 @@ export async function loadLocalResource(
 	extensionLocation: URI | undefined,
 	getRoots: () => ReadonlyArray<URI>
 ): Promise<LocalResourceResponse> {
-	const requestPath = requestUri.authority ? `//${requestUri.authority}${requestUri.path}` : requestUri.path;
-	const normalizedPath = URI.file(requestPath);
+	const normalizedPath = requestUri.with({
+		scheme: 'file',
+		fragment: '',
+		query: '',
+	});
+
 	for (const root of getRoots()) {
-		const rootPath = root.fsPath + (endsWith(root.fsPath, sep) ? '' : sep);
-		if (!startsWith(normalizedPath.fsPath, rootPath)) {
+		if (!containsResource(root, normalizedPath)) {
 			continue;
 		}
 
@@ -69,4 +72,9 @@ export async function loadLocalResource(
 	}
 
 	return AccessDenied;
+}
+
+function containsResource(root: URI, resource: URI): boolean {
+	const rootPath = root.fsPath + (endsWith(root.fsPath, sep) ? '' : sep);
+	return startsWith(resource.fsPath, rootPath);
 }

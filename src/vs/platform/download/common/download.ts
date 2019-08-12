@@ -13,6 +13,6 @@ export interface IDownloadService {
 
 	_serviceBrand: any;
 
-	download(uri: URI, to?: string, cancellationToken?: CancellationToken): Promise<string>;
+	download(uri: URI, to: URI, cancellationToken?: CancellationToken): Promise<void>;
 
 }

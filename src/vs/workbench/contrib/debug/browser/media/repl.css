@@ -13,6 +13,9 @@
 
 .repl .repl-tree .monaco-tl-contents {
 	user-select: text;
+}
+
+.repl .repl-tree.word-wrap .monaco-tl-contents {
 	/* Wrap words but also do not trim whitespace #6275 */
 	word-wrap: break-word;
 	white-space: pre-wrap;

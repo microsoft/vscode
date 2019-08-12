@@ -15,33 +15,64 @@ import { ResourceMap } from 'vs/base/common/map';
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
 	private readonly _onModelDisposed: Emitter<URI> = this._register(new Emitter<URI>());
-	get onModelDisposed(): Event<URI> { return this._onModelDisposed.event; }
+	readonly onModelDisposed: Event<URI> = this._onModelDisposed.event;
 
 	private readonly _onModelContentChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelContentChanged(): Event<TextFileModelChangeEvent> { return this._onModelContentChanged.event; }
+	readonly onModelContentChanged: Event<TextFileModelChangeEvent> = this._onModelContentChanged.event;
 
 	private readonly _onModelDirty: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelDirty(): Event<TextFileModelChangeEvent> { return this._onModelDirty.event; }
+	readonly onModelDirty: Event<TextFileModelChangeEvent> = this._onModelDirty.event;
 
 	private readonly _onModelSaveError: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelSaveError(): Event<TextFileModelChangeEvent> { return this._onModelSaveError.event; }
+	readonly onModelSaveError: Event<TextFileModelChangeEvent> = this._onModelSaveError.event;
 
 	private readonly _onModelSaved: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelSaved(): Event<TextFileModelChangeEvent> { return this._onModelSaved.event; }
+	readonly onModelSaved: Event<TextFileModelChangeEvent> = this._onModelSaved.event;
 
 	private readonly _onModelReverted: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelReverted(): Event<TextFileModelChangeEvent> { return this._onModelReverted.event; }
+	readonly onModelReverted: Event<TextFileModelChangeEvent> = this._onModelReverted.event;
 
 	private readonly _onModelEncodingChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelEncodingChanged(): Event<TextFileModelChangeEvent> { return this._onModelEncodingChanged.event; }
+	readonly onModelEncodingChanged: Event<TextFileModelChangeEvent> = this._onModelEncodingChanged.event;
 
 	private readonly _onModelOrphanedChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	get onModelOrphanedChanged(): Event<TextFileModelChangeEvent> { return this._onModelOrphanedChanged.event; }
+	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent> = this._onModelOrphanedChanged.event;
 
-	private _onModelsDirtyEvent: Event<TextFileModelChangeEvent[]>;
-	private _onModelsSaveError: Event<TextFileModelChangeEvent[]>;
-	private _onModelsSaved: Event<TextFileModelChangeEvent[]>;
-	private _onModelsReverted: Event<TextFileModelChangeEvent[]>;
+	private _onModelsDirty!: Event<TextFileModelChangeEvent[]>;
+	get onModelsDirty(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsDirty) {
+			this._onModelsDirty = this.debounce(this.onModelDirty);
+		}
+
+		return this._onModelsDirty;
+	}
+
+	private _onModelsSaveError!: Event<TextFileModelChangeEvent[]>;
+	get onModelsSaveError(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsSaveError) {
+			this._onModelsSaveError = this.debounce(this.onModelSaveError);
+		}
+
+		return this._onModelsSaveError;
+	}
+
+	private _onModelsSaved!: Event<TextFileModelChangeEvent[]>;
+	get onModelsSaved(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsSaved) {
+			this._onModelsSaved = this.debounce(this.onModelSaved);
+		}
+
+		return this._onModelsSaved;
+	}
+
+	private _onModelsReverted!: Event<TextFileModelChangeEvent[]>;
+	get onModelsReverted(): Event<TextFileModelChangeEvent[]> {
+		if (!this._onModelsReverted) {
+			this._onModelsReverted = this.debounce(this.onModelReverted);
+		}
+
+		return this._onModelsReverted;
+	}
 
 	private mapResourceToDisposeListener: ResourceMap<IDisposable>;
 	private mapResourceToStateChangeListener: ResourceMap<IDisposable>;
@@ -68,38 +99,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
-	}
-
-	get onModelsDirty(): Event<TextFileModelChangeEvent[]> {
-		if (!this._onModelsDirtyEvent) {
-			this._onModelsDirtyEvent = this.debounce(this.onModelDirty);
-		}
-
-		return this._onModelsDirtyEvent;
-	}
-
-	get onModelsSaveError(): Event<TextFileModelChangeEvent[]> {
-		if (!this._onModelsSaveError) {
-			this._onModelsSaveError = this.debounce(this.onModelSaveError);
-		}
-
-		return this._onModelsSaveError;
-	}
-
-	get onModelsSaved(): Event<TextFileModelChangeEvent[]> {
-		if (!this._onModelsSaved) {
-			this._onModelsSaved = this.debounce(this.onModelSaved);
-		}
-
-		return this._onModelsSaved;
-	}
-
-	get onModelsReverted(): Event<TextFileModelChangeEvent[]> {
-		if (!this._onModelsReverted) {
-			this._onModelsReverted = this.debounce(this.onModelReverted);
-		}
-
-		return this._onModelsReverted;
 	}
 
 	private debounce(event: Event<TextFileModelChangeEvent>): Event<TextFileModelChangeEvent[]> {

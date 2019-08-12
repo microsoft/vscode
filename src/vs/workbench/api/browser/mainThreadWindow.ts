@@ -58,7 +58,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			}
 		}
 
-		return this.windowsService.openExternal(uri.toString());
+		return this.windowsService.openExternal(encodeURI(uri.toString(true)));
 	}
 
 	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {

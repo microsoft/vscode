@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepEqual, equal } from 'assert';
-import { WindowsExternalTerminalService, LinuxExternalTerminalService, MacExternalTerminalService, DEFAULT_TERMINAL_OSX, getDefaultTerminalWindows, getDefaultTerminalLinuxReady } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
+import { WindowsExternalTerminalService, LinuxExternalTerminalService, MacExternalTerminalService, DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 
 suite('ExternalTerminalService', () => {
 	let mockOnExit: Function;
@@ -58,7 +58,7 @@ suite('ExternalTerminalService', () => {
 		let mockSpawner = {
 			spawn: (command: any, args: any, opts: any) => {
 				// assert
-				equal(args[args.length - 1], getDefaultTerminalWindows(), 'terminal should equal expected');
+				equal(args[args.length - 1], WindowsExternalTerminalService.getDefaultTerminalWindows(), 'terminal should equal expected');
 				done();
 				return {
 					on: (evt: any) => evt
@@ -194,7 +194,7 @@ suite('ExternalTerminalService', () => {
 	});
 
 	test(`LinuxTerminalService - uses default terminal when configuration.terminal.external.linuxExec is undefined`, done => {
-		getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
+		LinuxExternalTerminalService.getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 			let testCwd = 'path/to/workspace';
 			let mockSpawner = {
 				spawn: (command: any, args: any, opts: any) => {

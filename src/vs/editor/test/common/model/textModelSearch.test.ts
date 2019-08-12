@@ -733,4 +733,23 @@ suite('TextModelSearch', () => {
 		assert(isMultilineRegexSource('\\n'));
 		assert(isMultilineRegexSource('foo\\W'));
 	});
+
+	test('issue #74715. \\d* finds empty string and stops searching.', () => {
+		let model = TextModel.createFromString('10.243.30.10');
+
+		let searchParams = new SearchParams('\\d*', true, false, null);
+
+		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
+		assert.deepEqual(actual, [
+			new FindMatch(new Range(1, 1, 1, 3), ['10']),
+			new FindMatch(new Range(1, 3, 1, 3), ['']),
+			new FindMatch(new Range(1, 4, 1, 7), ['243']),
+			new FindMatch(new Range(1, 7, 1, 7), ['']),
+			new FindMatch(new Range(1, 8, 1, 10), ['30']),
+			new FindMatch(new Range(1, 10, 1, 10), ['']),
+			new FindMatch(new Range(1, 11, 1, 13), ['10'])
+		]);
+
+		model.dispose();
+	});
 });

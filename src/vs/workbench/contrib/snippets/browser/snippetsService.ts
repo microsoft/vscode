@@ -287,7 +287,7 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = resources.joinPath(this._environmentService.appSettingsHome, 'snippets');
+		const userSnippetsFolder = resources.joinPath(this._environmentService.userRoamingDataHome, 'snippets');
 		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables));
 	}
 

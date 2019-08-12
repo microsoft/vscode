@@ -326,6 +326,20 @@ export namespace Event {
 		return result.event;
 	}
 
+	export interface DOMEventEmitter {
+		addEventListener(event: string | symbol, listener: Function): void;
+		removeEventListener(event: string | symbol, listener: Function): void;
+	}
+
+	export function fromDOMEventEmitter<T>(emitter: DOMEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
+		const fn = (...args: any[]) => result.fire(map(...args));
+		const onFirstListenerAdd = () => emitter.addEventListener(eventName, fn);
+		const onLastListenerRemove = () => emitter.removeEventListener(eventName, fn);
+		const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
+
+		return result.event;
+	}
+
 	export function fromPromise<T = any>(promise: Promise<T>): Event<undefined> {
 		const emitter = new Emitter<undefined>();
 		let shouldEmit = false;
@@ -631,7 +645,7 @@ export interface IWaitUntil {
 
 export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
-	private _asyncDeliveryQueue: [Listener<T>, T, Promise<any>[]][];
+	private _asyncDeliveryQueue?: [Listener<T>, T, Promise<any>[]][];
 
 	async fireAsync(eventFn: (thenables: Promise<any>[], listener: Function) => T): Promise<void> {
 		if (!this._listeners) {

@@ -247,7 +247,7 @@ export class WorkbenchList<T> extends List<T> {
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<any /* TODO@joao */, any>[],
+		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -787,7 +787,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IObjectTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
@@ -813,7 +813,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		dataSource: IDataSource<TInput, T>,
 		options: IDataTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -840,7 +840,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		dataSource: IAsyncDataSource<TInput, T>,
 		options: IAsyncDataTreeOptions<T, TFilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -858,15 +858,15 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	}
 }
 
-function workbenchTreeDataPreamble<T, TFilterData>(
+function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTreeOptions<T, TFilterData> | IAsyncDataTreeOptions<T, TFilterData>>(
 	container: HTMLElement,
-	options: IAbstractTreeOptions<T, TFilterData>,
+	options: TOptions,
 	contextKeyService: IContextKeyService,
 	themeService: IThemeService,
 	configurationService: IConfigurationService,
 	keybindingService: IKeybindingService,
 	accessibilityService: IAccessibilityService,
-): { options: IAbstractTreeOptions<T, TFilterData>, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable } {
+): { options: TOptions, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable } {
 	WorkbenchListSupportsKeyboardNavigation.bindTo(contextKeyService);
 
 	if (!didBindWorkbenchListAutomaticKeyboardNavigation) {
@@ -890,6 +890,7 @@ function workbenchTreeDataPreamble<T, TFilterData>(
 	const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 	const openOnSingleClick = useSingleClickToOpen(configurationService);
 	const [workbenchListOptions, disposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
+	const additionalScrollHeight = options.additionalScrollHeight;
 
 	return {
 		getAutomaticKeyboardNavigation,
@@ -906,8 +907,9 @@ function workbenchTreeDataPreamble<T, TFilterData>(
 			filterOnType: keyboardNavigation === 'filter',
 			horizontalScrolling,
 			openOnSingleClick,
-			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService)
-		}
+			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService),
+			additionalScrollHeight
+		} as TOptions
 	};
 }
 
@@ -922,7 +924,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 
 	constructor(
 		tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchDataTree<TInput, T, TFilterData> | WorkbenchAsyncDataTree<TInput, T, TFilterData>,
-		options: IAbstractTreeOptions<T, TFilterData>,
+		options: IAbstractTreeOptions<T, TFilterData> | IAsyncDataTreeOptions<T, TFilterData>,
 		getAutomaticKeyboardNavigation: () => boolean | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,

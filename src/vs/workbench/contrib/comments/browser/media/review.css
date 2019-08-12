@@ -29,10 +29,6 @@
 	height: 21px;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-actions .action-item {
-	width: 22px;
-}
-
 .monaco-editor .review-widget .body .review-comment .comment-title {
 	display: flex;
 	width: 100%;
@@ -148,10 +144,6 @@
 	margin-right: 4px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label {
-	display: inline-block;
-}
-
 .monaco-editor .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
 	background-image: url("./close-light.svg");
 	background-size: 16px;
@@ -163,32 +155,6 @@
 
 .monaco-editor.hc-black .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
 	background-image: url("./close-hc.svg");
-}
-
-.monaco-editor .review-widget .body .review-comment .comment-title .icon.edit {
-	background-image: url("./edit-light.svg");
-	background-size: 16px;
-}
-
-.monaco-editor.vs-dark .review-widget .body .review-comment .comment-title .icon.edit {
-	background-image: url("./edit-dark.svg");
-}
-
-.monaco-editor.hc-black .review-widget .body .review-comment .comment-title .icon.edit {
-	background-image: url("./edit-hc.svg");
-}
-
-.monaco-editor .review-widget .body .review-comment .comment-title .icon.delete {
-	background-image: url("./delete-light.svg");
-	background-size: 16px;
-}
-
-.monaco-editor.vs-dark .review-widget .body .review-comment .comment-title .icon.delete {
-	background-image: url("./delete-dark.svg");
-}
-
-.monaco-editor.hc-black .review-widget .body .review-comment .comment-title .icon.delete {
-	background-image: url("./delete-hc.svg");
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
@@ -220,7 +186,6 @@
 	display: block;
 	height: 16px;
 	line-height: 16px;
-	min-width: 28px;
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
@@ -433,7 +398,9 @@
 	height: 100%;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-item {
+.monaco-editor .review-widget .action-item {
+	min-width: 18px;
+	min-height: 20px;
 	margin-left: 4px;
 }
 
@@ -464,6 +431,10 @@
 	width: 4px !important;
 	cursor: pointer;
 	z-index: 10;
+}
+
+div.preview.inline .monaco-editor .comment-range-glyph {
+	display: none !important;
 }
 
 .monaco-editor .comment-range-glyph:before {

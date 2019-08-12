@@ -20,7 +20,7 @@
     "@types/minimatch": "^3.0.3",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "2.2.39",
-    "@types/node": "8.0.33",
+    "@types/node": "^10.14.8",
     "@types/pump": "^1.0.1",
     "@types/request": "^2.47.0",
     "@types/rimraf": "^2.0.2",
@@ -29,7 +29,7 @@
     "@types/uglify-es": "^3.0.0",
     "@types/underscore": "^1.8.9",
     "@types/xml2js": "0.0.33",
-    "applicationinsights": "1.0.6",
+    "applicationinsights": "1.0.8",
     "azure-storage": "^2.1.0",
     "documentdb": "1.13.0",
     "github-releases": "^0.4.1",
@@ -42,6 +42,7 @@
     "tslint": "^5.9.1",
     "typescript": "3.5.2",
     "vsce": "1.48.0",
+    "vscode-telemetry-extractor": "1.5.3",
     "xml2js": "^0.4.17"
   },
   "scripts": {

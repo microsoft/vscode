@@ -23,7 +23,6 @@ import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspa
 import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { LogStorageAction } from 'vs/platform/storage/node/storageService';
 import product from 'vs/platform/product/node/product';
 
 // Actions
@@ -125,7 +124,6 @@ import product from 'vs/platform/product/node/product';
 		const developerCategory = nls.localize('developer', "Developer");
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Developer: Reload Window With Extensions Disabled', developerCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage Database Contents', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
 
 		KeybindingsRegistry.registerKeybindingRule({
@@ -508,7 +506,7 @@ import product from 'vs/platform/product/node/product';
 				'default': true,
 				'description': nls.localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
 				'scope': ConfigurationScope.APPLICATION,
-				'included': false /* isMacintosh */
+				'included': isMacintosh
 			},
 			'window.clickThroughInactive': {
 				'type': 'boolean',
@@ -516,6 +514,28 @@ import product from 'vs/platform/product/node/product';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
+			}
+		}
+	});
+
+	// Screencast Mode
+	registry.registerConfiguration({
+		id: 'screencastMode',
+		order: 9,
+		title: nls.localize('screencastModeConfigurationTitle', "Screencast Mode"),
+		type: 'object',
+		properties: {
+			'screencastMode.verticalOffset': {
+				type: 'number',
+				default: 20,
+				minimum: 0,
+				maximum: 90,
+				description: nls.localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
+			},
+			'screencastMode.onlyKeyboardShortcuts': {
+				type: 'boolean',
+				description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
+				default: false
 			}
 		}
 	});

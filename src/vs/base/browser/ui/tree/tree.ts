@@ -124,6 +124,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
 	expandTo(location: TRef): void;
 
+	rerender(location: TRef): void;
 	refilter(): void;
 }
 

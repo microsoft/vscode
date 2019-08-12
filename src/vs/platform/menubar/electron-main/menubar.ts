@@ -478,7 +478,8 @@ export class Menubar {
 					context: OpenContext.MENU,
 					cli: this.environmentService.args,
 					urisToOpen: [uriToOpen],
-					forceNewWindow: openInNewWindow
+					forceNewWindow: openInNewWindow,
+					gotoLineMode: false
 				}).length > 0;
 
 				if (!success) {
@@ -549,7 +550,7 @@ export class Menubar {
 				})];
 
 			case StateType.CheckingForUpdates:
-				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking For Updates..."), enabled: false })];
+				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking for Updates..."), enabled: false })];
 
 			case StateType.AvailableForDownload:
 				return [new MenuItem({

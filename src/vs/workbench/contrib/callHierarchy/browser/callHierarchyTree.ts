@@ -58,7 +58,9 @@ export class IdentityProvider implements IIdentityProvider<Call> {
 }
 
 class CallRenderingTemplate {
-	readonly iconLabel: IconLabel;
+	constructor(
+		readonly iconLabel: IconLabel
+	) { }
 }
 
 export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderingTemplate> {
@@ -69,7 +71,7 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 
 	renderTemplate(container: HTMLElement): CallRenderingTemplate {
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
-		return { iconLabel };
+		return new CallRenderingTemplate(iconLabel);
 	}
 
 	renderElement(node: ITreeNode<Call, FuzzyScore>, _index: number, template: CallRenderingTemplate): void {

@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IRawColorInfo, WorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IRawColorInfo, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -362,7 +362,7 @@ export class ExtHostApiCommands {
 			position: position && typeConverters.Position.from(position),
 			newName
 		};
-		return this._commands.executeCommand<WorkspaceEditDto>('_executeDocumentRenameProvider', args).then(value => {
+		return this._commands.executeCommand<IWorkspaceEditDto>('_executeDocumentRenameProvider', args).then(value => {
 			if (!value) {
 				return undefined;
 			}
@@ -470,11 +470,11 @@ export class ExtHostApiCommands {
 					return res;
 				}
 
-				detail: string;
-				range: vscode.Range;
-				selectionRange: vscode.Range;
-				children: vscode.DocumentSymbol[];
-				containerName: string;
+				detail!: string;
+				range!: vscode.Range;
+				selectionRange!: vscode.Range;
+				children!: vscode.DocumentSymbol[];
+				containerName!: string;
 			}
 			return value.map(MergedInfo.to);
 		});

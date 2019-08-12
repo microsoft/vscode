@@ -18,7 +18,7 @@ export class SharedProcess implements ISharedProcess {
 
 	private barrier = new Barrier();
 
-	private window: Electron.BrowserWindow | null;
+	private window: Electron.BrowserWindow | null = null;
 
 	constructor(
 		private readonly machineId: string,
@@ -38,6 +38,7 @@ export class SharedProcess implements ISharedProcess {
 				images: false,
 				webaudio: false,
 				webgl: false,
+				nodeIntegration: true,
 				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
 		});

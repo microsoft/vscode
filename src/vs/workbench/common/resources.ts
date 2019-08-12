@@ -107,7 +107,7 @@ export class ResourceGlobMatcher extends Disposable {
 	private static readonly NO_ROOT: string | null = null;
 
 	private readonly _onExpressionChange: Emitter<void> = this._register(new Emitter<void>());
-	get onExpressionChange(): Event<void> { return this._onExpressionChange.event; }
+	readonly onExpressionChange: Event<void> = this._onExpressionChange.event;
 
 	private readonly mapRootToParsedExpression: Map<string | null, ParsedExpression> = new Map<string, ParsedExpression>();
 	private readonly mapRootToExpressionConfig: Map<string | null, IExpression> = new Map<string, IExpression>();

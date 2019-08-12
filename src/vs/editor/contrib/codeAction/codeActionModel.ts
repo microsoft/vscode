@@ -107,7 +107,7 @@ class CodeActionOracle extends Disposable {
 				}
 			}
 		}
-		return selection ? selection : undefined;
+		return selection;
 	}
 
 	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): TriggeredCodeAction {

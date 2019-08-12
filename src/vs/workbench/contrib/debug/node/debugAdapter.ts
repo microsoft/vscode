@@ -27,9 +27,9 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 	private static readonly HEADER_LINESEPARATOR = /\r?\n/;	// allow for non-RFC 2822 conforming line separators
 	private static readonly HEADER_FIELDSEPARATOR = /: */;
 
-	private outputStream: stream.Writable;
-	private rawData: Buffer;
-	private contentLength: number;
+	private outputStream!: stream.Writable;
+	private rawData = Buffer.allocUnsafe(0);
+	private contentLength = -1;
 
 	constructor() {
 		super();
@@ -145,7 +145,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 */
 export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
-	private serverProcess: cp.ChildProcess;
+	private serverProcess: cp.ChildProcess | undefined;
 
 	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string, private readonly outputService?: IOutputService) {
 		super();
@@ -266,7 +266,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		// processes. Therefore we use TASKKILL.EXE
 		if (platform.isWindows) {
 			return new Promise<void>((c, e) => {
-				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess.pid}`, function (err, stdout, stderr) {
+				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess!.pid}`, function (err, stdout, stderr) {
 					if (err) {
 						return e(err);
 					}

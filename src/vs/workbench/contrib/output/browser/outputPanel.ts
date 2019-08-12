@@ -29,9 +29,9 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export class OutputPanel extends AbstractTextResourceEditor {
-	private actions: IAction[];
+	private actions: IAction[] | undefined;
 	private scopedInstantiationService: IInstantiationService;
-	private _focus: boolean;
+	private _focus = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -95,7 +95,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
 
-		const outputConfig = this.baseConfigurationService.getValue<{}>('[Log]');
+		const outputConfig = this.baseConfigurationService.getValue<any>('[Log]');
 		if (outputConfig) {
 			if (outputConfig['editor.minimap.enabled']) {
 				options.minimap = { enabled: true };
@@ -155,7 +155,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			}
 
 			const model = codeEditor.getModel();
-			if (model) {
+			if (model && this.actions) {
 				const newPositionLine = e.position.lineNumber;
 				const lastLine = model.getLineCount();
 				const newLockState = lastLine !== newPositionLine;
