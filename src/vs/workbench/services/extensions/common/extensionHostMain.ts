@@ -34,10 +34,6 @@ export interface IConsolePatchFn {
 	(mainThreadConsole: MainThreadConsoleShape): any;
 }
 
-export interface ILogServiceFn {
-	(initData: IInitData): ILogService;
-}
-
 export class ExtensionHostMain {
 
 	private _isTerminating: boolean;
@@ -50,7 +46,6 @@ export class ExtensionHostMain {
 		initData: IInitData,
 		hostUtils: IHostUtils,
 		consolePatchFn: IConsolePatchFn,
-		logServiceFn: ILogServiceFn,
 		uriTransformer: IURITransformer | null
 	) {
 		this._isTerminating = false;

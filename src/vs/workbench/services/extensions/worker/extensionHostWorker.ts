@@ -10,7 +10,6 @@ import { Emitter } from 'vs/base/common/event';
 import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
-import { ConsoleLogService } from 'vs/platform/log/common/log';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import 'vs/workbench/services/extensions/worker/extHost.services';
 
@@ -114,7 +113,6 @@ export function create(postMessage: (message: any, transfer?: Transferable[]) =>
 			data.initData,
 			hostUtil,
 			() => { },
-			() => new ConsoleLogService(),
 			null,
 		);
 

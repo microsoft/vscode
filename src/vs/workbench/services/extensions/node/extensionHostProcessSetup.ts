@@ -14,14 +14,12 @@ import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net'
 import product from 'vs/platform/product/node/product';
 import { IInitData, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
+import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import 'vs/workbench/api/node/extHost.services';
 
 interface ParsedExtHostArgs {
@@ -82,8 +80,6 @@ function patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
 		mainThreadConsole.$logExtensionHostMessage(args[0]);
 	};
 }
-
-const createLogService: ILogServiceFn = initData => new SpdLogService(ExtensionHostLogFileName, initData.logsLocation.fsPath, initData.logLevel);
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
@@ -206,7 +202,7 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 }
 
 function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRendererConnection> {
-	return new Promise<IRendererConnection>((c, e) => {
+	return new Promise<IRendererConnection>((c) => {
 
 		// Listen init data message
 		const first = protocol.onMessage(raw => {
@@ -336,7 +332,6 @@ export async function startExtensionHostProcess(): Promise<void> {
 		initData,
 		hostUtils,
 		patchPatchedConsole,
-		createLogService,
 		uriTransformer
 	);
 
