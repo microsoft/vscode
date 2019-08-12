@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -26,9 +23,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 
 export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 
+	private _toDispose = new DisposableStore();
+	private _isTerminating: boolean = false;
 	private _protocol?: IMessagePassingProtocol;
-	private _isTerminating?: boolean;
-	private _toDispose: IDisposable[] = [];
 
 	private readonly _onDidExit = new Emitter<[number, string | null]>();
 	readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
@@ -67,7 +64,8 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			);
 
 			// keep for cleanup
-			this._toDispose.push(worker, emitter);
+			this._toDispose.add(emitter);
+			this._toDispose.add(worker);
 
 			const protocol: IMessagePassingProtocol = {
 				onMessage: emitter.event,
@@ -94,16 +92,15 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 
 	dispose(): void {
 		if (!this._protocol) {
-			// nothing else to do
-			dispose(this._toDispose);
+			this._toDispose.dispose();
 			return;
 		}
-		if (!this._isTerminating) {
-			this._isTerminating = true;
-
-			this._protocol.send(createMessageOfType(MessageType.Terminate));
-			setTimeout(() => dispose(this._toDispose), 10 * 1000);
+		if (this._isTerminating) {
+			return;
 		}
+		this._isTerminating = true;
+		this._protocol.send(createMessageOfType(MessageType.Terminate));
+		setTimeout(() => this._toDispose.dispose(), 10 * 1000);
 	}
 
 	getInspectPort(): number | undefined {
@@ -153,19 +150,3 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			});
 	}
 }
-
-class WorkerExtensionHost extends Disposable implements IWorkbenchContribution {
-
-	constructor() {
-		super();
-		// new ExtensionHostWebWorker().start().then(protocol => {
-
-		// });
-	}
-}
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	WorkerExtensionHost,
-	LifecyclePhase.Ready
-);
-
