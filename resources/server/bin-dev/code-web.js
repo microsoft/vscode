@@ -69,6 +69,7 @@ process.argv.forEach((arg, idx) => {
 	}
 });
 
+const env = { ...process.env };
 let node;
 let entryPoint;
 let waitForUpdate = Promise.resolve();
@@ -111,6 +112,7 @@ if (SELFHOST) {
 		});
 	}
 } else {
+	env['VSCODE_AGENT_FOLDER'] = path.join(os.homedir(), '.vscode-oss-web');
 	node = process.execPath;
 	entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'vs', 'server', 'main.js');
 }
@@ -244,7 +246,7 @@ function getInsidersUserDataPath() {
 
 function startServer() {
 	const serverArgs = process.argv.slice(2);
-	const proc = cp.spawn(node, [entryPoint, ...serverArgs]);
+	const proc = cp.spawn(node, [entryPoint, ...serverArgs], { env });
 
 	let launched = false;
 	proc.stdout.on("data", data => {
