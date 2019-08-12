@@ -8,6 +8,8 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class ProductService implements IProductService {
 
+	_serviceBrand!: ServiceIdentifier<IProductService>;
+
 	private readonly productConfiguration: IProductConfiguration | null;
 
 	constructor() {
@@ -15,13 +17,11 @@ export class ProductService implements IProductService {
 		this.productConfiguration = element ? JSON.parse(element.getAttribute('data-settings')!) : null;
 	}
 
-	_serviceBrand!: ServiceIdentifier<IProductService>;
-
-	get version(): string { return '1.35.0'; }
+	get version(): string { return this.productConfiguration ? this.productConfiguration.version : 'Unknown'; }
 
 	get commit(): string | undefined { return this.productConfiguration ? this.productConfiguration.commit : undefined; }
 
-	get nameLong(): string { return ''; }
+	get nameLong(): string { return this.productConfiguration ? this.productConfiguration.nameLong : 'Unknown'; }
 
 	get urlProtocol(): string { return ''; }
 

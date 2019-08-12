@@ -371,7 +371,7 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/workbench.main.ts",
+				"target": "**/vs/workbench/workbench.desktop.main.ts",
 				"restrictions": [
 					"**"
 				]

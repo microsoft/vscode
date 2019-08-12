@@ -938,14 +938,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private updateContainer(): void {
-		toggleClass(this.container, 'empty', this.isEmpty());
+		toggleClass(this.container, 'empty', this.isEmpty);
 	}
 
 	private notifyGroupIndexChange(): void {
 		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach((group, index) => group.notifyIndexChanged(index));
 	}
 
-	private isEmpty(): boolean {
+	private get isEmpty(): boolean {
 		return this.groupViews.size === 1 && this._activeGroup.isEmpty;
 	}
 

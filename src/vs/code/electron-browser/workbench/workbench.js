@@ -16,9 +16,9 @@ process['lazyEnv'] = getLazyEnv();
 
 // Load workbench main
 bootstrapWindow.load([
-	'vs/workbench/workbench.main',
-	'vs/nls!vs/workbench/workbench.main',
-	'vs/css!vs/workbench/workbench.main'
+	'vs/workbench/workbench.desktop.main',
+	'vs/nls!vs/workbench/workbench.desktop.main',
+	'vs/css!vs/workbench/workbench.desktop.main'
 ],
 	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
