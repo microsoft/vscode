@@ -63,6 +63,10 @@ export interface PerformanceInfo {
 	workspaceInfo?: string;
 }
 
+export interface IWorkspaceInformation extends IWorkspace {
+	telemetryId: string | undefined;
+}
+
 export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
 
@@ -72,7 +76,7 @@ export interface IDiagnosticsService {
 	getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
 	getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
 	getDiagnostics(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string>;
-	reportWorkspaceStats(workspace: IWorkspace): Promise<void>;
+	reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void>;
 }
 
 export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {
