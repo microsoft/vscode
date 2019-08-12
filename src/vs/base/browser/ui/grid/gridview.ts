@@ -549,11 +549,11 @@ class LeafNode implements ISplitView, IDisposable {
 		}
 	}
 
-	setVisible(visible: boolean): void {
+	setVisible(visible: boolean, cachedVisibleSize?: number): void {
 		if (visible) {
 			this._cachedVisibleSize = undefined;
 		} else {
-			this._cachedVisibleSize = this._size;
+			this._cachedVisibleSize = typeof cachedVisibleSize === 'number' ? cachedVisibleSize : this._size;
 		}
 
 		if (this.view.setVisible) {
