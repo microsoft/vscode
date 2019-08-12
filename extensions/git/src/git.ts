@@ -1128,15 +1128,17 @@ export class Repository {
 		}
 
 		let mode: string;
+		let add: string = '';
 
 		try {
 			const details = await this.getObjectDetails('HEAD', path);
 			mode = details.mode;
 		} catch (err) {
 			mode = '100644';
+			add = '--add';
 		}
 
-		await this.run(['update-index', '--cacheinfo', mode, hash, path]);
+		await this.run(['update-index', add, '--cacheinfo', mode, hash, path]);
 	}
 
 	async checkout(treeish: string, paths: string[], opts: { track?: boolean } = Object.create(null)): Promise<void> {
