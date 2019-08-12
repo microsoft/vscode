@@ -566,7 +566,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 	}
 
 	public layout(): void {
-		if (!this._webview) {
+		if (!this._webview || this._webview.style.width === '0px') {
 			return;
 		}
 		const contents = this._webview.getWebContents();
