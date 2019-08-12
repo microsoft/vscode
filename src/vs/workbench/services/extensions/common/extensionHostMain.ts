@@ -54,8 +54,6 @@ export class ExtensionHostMain {
 		// ensure URIs are transformed and revived
 		initData = ExtensionHostMain._transform(initData, rpcProtocol);
 
-		// services
-
 		// bootstrap services
 		const services = new ServiceCollection(...getSingletonServiceDescriptors());
 		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
@@ -65,13 +63,18 @@ export class ExtensionHostMain {
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 
+		// todo@joh
+		// ugly self - inject
 		const logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 		this._disposables.add(logService);
 
 		logService.info('extension host started');
 		logService.trace('initData', initData);
 
-		// todo@joh -> not soo nice...
+		// todo@joh
+		// ugly self - inject
+		// must call initialize *after* creating the extension service
+		// because `initialize` itself creates instances that depend on it
 		this._extensionService = instaService.invokeFunction(accessor => accessor.get(IExtHostExtensionService));
 		this._extensionService.initialize();
 
