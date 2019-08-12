@@ -19,7 +19,7 @@ exports.serviceWorker = [{
 	dest: 'vs/workbench/contrib/resources/browser/resourceServiceWorkerMain.js'
 }];
 
-exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
+exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.desktop.main']);
 exports.workbenchWeb = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.web.api']);
 
 exports.code = require('./vs/code/buildfile').collectModules();
