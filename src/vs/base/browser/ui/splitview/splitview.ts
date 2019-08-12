@@ -49,7 +49,7 @@ export interface IView {
 	readonly priority?: LayoutPriority;
 	readonly snap?: boolean;
 	layout(size: number, orientation: Orientation): void;
-	setVisible?(visible: boolean, cachedVisibleSize?: number): void;
+	setVisible?(visible: boolean): void;
 }
 
 interface ISashEvent {
@@ -95,7 +95,7 @@ abstract class ViewItem {
 		dom.toggleClass(this.container, 'visible', visible);
 
 		if (this.view.setVisible) {
-			this.view.setVisible(visible, this._cachedVisibleSize);
+			this.view.setVisible(visible);
 		}
 	}
 

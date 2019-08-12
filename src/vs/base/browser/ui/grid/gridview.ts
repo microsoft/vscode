@@ -439,9 +439,6 @@ class LeafNode implements ISplitView, IDisposable {
 	private _size: number = 0;
 	get size(): number { return this._size; }
 
-	private _cachedVisibleSize: number | undefined;
-	get cachedVisibleSize(): number | undefined { return this._cachedVisibleSize; }
-
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
 
@@ -549,13 +546,7 @@ class LeafNode implements ISplitView, IDisposable {
 		}
 	}
 
-	setVisible(visible: boolean, cachedVisibleSize?: number): void {
-		if (visible) {
-			this._cachedVisibleSize = undefined;
-		} else {
-			this._cachedVisibleSize = typeof cachedVisibleSize === 'number' ? cachedVisibleSize : this._size;
-		}
-
+	setVisible(visible: boolean): void {
 		if (this.view.setVisible) {
 			this.view.setVisible(visible);
 		}
@@ -877,13 +868,14 @@ export class GridView implements IDisposable {
 	}
 
 	getViewCachedVisibleSize(location: number[]): number | undefined {
-		const [, node] = this.getNode(location);
+		const [rest, index] = tail(location);
+		const [, parent] = this.getNode(rest);
 
-		if (!(node instanceof LeafNode)) {
-			throw new Error('Invalid node');
+		if (!(parent instanceof BranchNode)) {
+			throw new Error('Invalid location');
 		}
 
-		return node.cachedVisibleSize;
+		return parent.getChildCachedVisibleSize(index);
 	}
 
 	maximizeViewSize(location: number[]): void {
@@ -942,12 +934,13 @@ export class GridView implements IDisposable {
 		return this._getViews(node, this.orientation, { top: 0, left: 0, width: this.width, height: this.height });
 	}
 
-	private _getViews(node: Node, orientation: Orientation, box: Box): GridNode {
+	private _getViews(node: Node, orientation: Orientation, box: Box, cachedVisibleSize?: number): GridNode {
 		if (node instanceof LeafNode) {
-			return { view: node.view, box, cachedVisibleSize: node.cachedVisibleSize };
+			return { view: node.view, box, cachedVisibleSize };
 		}
 
 		const children: GridNode[] = [];
+		let i = 0;
 		let offset = 0;
 
 		for (const child of node.children) {
@@ -955,8 +948,9 @@ export class GridView implements IDisposable {
 			const childBox: Box = orientation === Orientation.HORIZONTAL
 				? { top: box.top, left: box.left + offset, width: child.width, height: box.height }
 				: { top: box.top + offset, left: box.left, width: box.width, height: child.height };
+			const cachedVisibleSize = node.getChildCachedVisibleSize(i++);
 
-			children.push(this._getViews(child, childOrientation, childBox));
+			children.push(this._getViews(child, childOrientation, childBox, cachedVisibleSize));
 			offset += orientation === Orientation.HORIZONTAL ? child.width : child.height;
 		}
 
