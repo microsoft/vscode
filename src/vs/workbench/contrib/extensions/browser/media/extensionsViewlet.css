@@ -61,6 +61,10 @@
 	padding-left: 5px;
 }
 
+.extensions-viewlet > .extensions .message-container .severity-icon {
+	flex-shrink: 0;
+}
+
 .extensions-viewlet > .extensions .monaco-list-row > .bookmark {
 	display: inline-block;
 	height: 20px;
