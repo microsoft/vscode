@@ -41,14 +41,14 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		}
 
 		// Do this when extension service exists, but extensions are not being activated yet.
-		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._extHostLogService, this._mainThreadTelemetryProxy);
+		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy);
 
 	}
 
 	protected _loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 		let r: T | null = null;
 		activationTimesBuilder.codeLoadingStart();
-		this._extHostLogService.info(`ExtensionService#loadCommonJSModule ${modulePath}`);
+		this._logService.info(`ExtensionService#loadCommonJSModule ${modulePath}`);
 		try {
 			r = require.__$__nodeRequire<T>(modulePath);
 		} catch (e) {

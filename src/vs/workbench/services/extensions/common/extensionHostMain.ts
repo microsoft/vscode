@@ -10,7 +10,6 @@ import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -65,21 +64,21 @@ export class ExtensionHostMain {
 		consolePatchFn(rpcProtocol.getProxy(MainContext.MainThreadConsole));
 
 		// services
-		const extHostLogService = new ExtHostLogService(logServiceFn(initData), initData.logsLocation.fsPath);
-		this._disposables.add(extHostLogService);
 
 		// bootstrap services
 		const services = new ServiceCollection(...getSingletonServiceDescriptors());
 		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
 		services.set(IExtHostRpcService, new ExtHostRpcService(rpcProtocol));
-		services.set(ILogService, extHostLogService);
 		services.set(IURITransformerService, new URITransformerService(uriTransformer));
 		services.set(IHostUtils, hostUtils);
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 
-		extHostLogService.info('extension host started');
-		extHostLogService.trace('initData', initData);
+		const logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
+		this._disposables.add(logService);
+
+		logService.info('extension host started');
+		logService.trace('initData', initData);
 
 		// todo@joh -> not soo nice...
 		this._extensionService = instaService.invokeFunction(accessor => accessor.get(IExtHostExtensionService));

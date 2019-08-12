@@ -392,6 +392,14 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/api/worker/**",
+				"restrictions": [
+					"vscode",
+					"vs/nls",
+					"**/vs/**/{common,worker}/**"
+				]
+			},
+			{
 				"target": "**/vs/workbench/electron-browser/**",
 				"restrictions": [
 					"vs/nls",

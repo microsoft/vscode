@@ -19,8 +19,11 @@ import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensi
 import { IExtHostStorage, ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensionService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ExtHostLogService } from 'vs/workbench/api/worker/extHostLogService';
 
 // register singleton services
+registerSingleton(ILogService, ExtHostLogService);
 registerSingleton(IExtHostOutputService, ExtHostOutputService);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace);
 registerSingleton(IExtHostDecorations, ExtHostDecorations);
@@ -51,6 +54,4 @@ registerSingleton(IExtHostDebugService, class extends NotImplementedProxy(IExtHo
 registerSingleton(IExtHostSearch, class extends NotImplementedProxy(IExtHostSearch) { });
 registerSingleton(IExtensionStoragePaths, class extends NotImplementedProxy(IExtensionStoragePaths) {
 	whenReady = Promise.resolve();
-	globalValue = () => '';
-	workspaceValue = () => '';
 });
