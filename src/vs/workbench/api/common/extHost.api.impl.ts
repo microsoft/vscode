@@ -15,63 +15,60 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, IInitData, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostComments } from 'vs/workbench/api/common/extHostComments';
-import { ExtHostConfiguration, ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
-import { ExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations';
+import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import { ExtHostDialogs } from 'vs/workbench/api/common/extHostDialogs';
 import { ExtHostDocumentContentProvider } from 'vs/workbench/api/common/extHostDocumentContentProviders';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { ExtensionActivatedByAPI } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
 import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostMessageService } from 'vs/workbench/api/common/extHostMessageService';
-import { ExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
-import { LogOutputChannelFactory } from 'vs/workbench/api/node/extHostOutputService';
+import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 import { ExtHostProgress } from 'vs/workbench/api/common/extHostProgress';
 import { ExtHostQuickOpen } from 'vs/workbench/api/common/extHostQuickOpen';
 import { ExtHostSCM } from 'vs/workbench/api/common/extHostSCM';
-import { ExtHostSearch, registerEHSearchProviders } from 'vs/workbench/api/node/extHostSearch';
 import { ExtHostStatusBar } from 'vs/workbench/api/common/extHostStatusBar';
-import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
-import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
-import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
+import { IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
-import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { throwProposedApiError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { originalFSPath } from 'vs/base/common/resources';
-import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { values } from 'vs/base/common/collections';
-import { Schemas } from 'vs/base/common/network';
-import { IURITransformer } from 'vs/base/common/uriIpc';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations';
+import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
+import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
+import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -88,67 +85,54 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 /**
  * This method instantiates and returns the extension API surface
  */
-export function createApiFactory(
-	initData: IInitData,
-	rpcProtocol: IMainContext,
-	extHostWorkspace: ExtHostWorkspace,
-	extHostConfiguration: ExtHostConfiguration,
-	extensionService: ExtHostExtensionService,
-	extHostLogService: ExtHostLogService,
-	extHostStorage: ExtHostStorage,
-	uriTransformer: IURITransformer | null
-): IExtensionApiFactory {
+export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): IExtensionApiFactory {
 
-	// bootstrap services
-	const services = new ServiceCollection(...getSingletonServiceDescriptors());
-	const instaService = new InstantiationService(services);
+	// services
+	const initData = accessor.get(IExtHostInitDataService);
+	const extensionService = accessor.get(IExtHostExtensionService);
+	const extHostWorkspace = accessor.get(IExtHostWorkspace);
+	const extHostConfiguration = accessor.get(IExtHostConfiguration);
+	const uriTransformer = accessor.get(IURITransformerService);
+	const rpcProtocol = accessor.get(IExtHostRpcService);
+	const extHostStorage = accessor.get(IExtHostStorage);
+	const extHostLogService = <ExtHostLogService>accessor.get(ILogService);
 
-	// Addressable instances
+	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
-	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, new ExtHostDecorations(rpcProtocol));
+	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
+	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
+	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
+	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
+
+	// automatically create and register addressable instances
+	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
+	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, accessor.get(IExtHostDocumentsAndEditors));
+	const extHostCommands = rpcProtocol.set(ExtHostContext.ExtHostCommands, accessor.get(IExtHostCommands));
+	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, accessor.get(IExtHostTerminalService));
+	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, accessor.get(IExtHostDebugService));
+	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, accessor.get(IExtHostSearch));
+	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, accessor.get(IExtHostTask));
+	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, accessor.get(IExtHostOutputService));
+
+	// manually create and register addressable instances
 	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.environment));
 	const extHostUrls = rpcProtocol.set(ExtHostContext.ExtHostUrls, new ExtHostUrls(rpcProtocol));
-	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadTextEditors)));
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
-	const extHostCommands = rpcProtocol.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(rpcProtocol, extHostLogService));
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
-	rpcProtocol.set(ExtHostContext.ExtHostDownloadService, new ExtHostDownloadService(rpcProtocol.getProxy(MainContext.MainThreadDownloadService), extHostCommands));
-	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
-	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData.environment));
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol));
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
-	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol, extHostConfiguration, extHostWorkspace, extHostDocumentsAndEditors, extHostLogService));
-	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, instaService.createInstance(ExtHostDebugService, rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService, extHostCommands));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
-	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol, uriTransformer, extHostLogService));
-	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService));
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
-	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
-	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, new ExtHostOutputService(LogOutputChannelFactory, initData.logsLocation, rpcProtocol));
-	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHosLabelService, new ExtHostLabelService(rpcProtocol));
-
-	if (initData.remote.isRemote && initData.remote.authority) {
-		extHostTask.registerTaskSystem(Schemas.vscodeRemote, {
-			scheme: Schemas.vscodeRemote,
-			authority: initData.remote.authority,
-			platform: process.platform
-		});
-
-		registerEHSearchProviders(extHostSearch, extHostLogService);
-
-		const cliServer = new CLIServer(extHostCommands);
-		process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
-	}
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
@@ -271,7 +255,7 @@ export function createApiFactory(
 				return extHostClipboard;
 			},
 			get shell() {
-				return extHostTerminalService.getDefaultShell(configProvider);
+				return extHostTerminalService.getDefaultShell(false, configProvider);
 			},
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
@@ -911,7 +895,7 @@ export function createApiFactory(
 
 class Extension<T> implements vscode.Extension<T> {
 
-	private _extensionService: ExtHostExtensionService;
+	private _extensionService: IExtHostExtensionService;
 	private _identifier: ExtensionIdentifier;
 
 	readonly id: string;
@@ -919,7 +903,7 @@ class Extension<T> implements vscode.Extension<T> {
 	readonly packageJSON: IExtensionDescription;
 	readonly extensionKind: vscode.ExtensionKind;
 
-	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription, kind: extHostTypes.ExtensionKind) {
+	constructor(extensionService: IExtHostExtensionService, description: IExtensionDescription, kind: extHostTypes.ExtensionKind) {
 		this._extensionService = extensionService;
 		this._identifier = description.identifier;
 		this.id = description.identifier.value;

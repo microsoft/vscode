@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as osLib from 'os';
 import { virtualMachineHint } from 'vs/base/node/id';
-import { IMachineInfo, WorkspaceStats, WorkspaceStatItem, IDiagnosticsService, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IMachineInfo, WorkspaceStats, WorkspaceStatItem, IDiagnosticsService, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { readdir, stat, exists, readFile } from 'fs';
 import { join, basename } from 'vs/base/common/path';
 import { parse, ParseError } from 'vs/base/common/json';
@@ -16,7 +16,6 @@ import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
 import { IMainProcessInfo } from 'vs/platform/launch/common/launchService';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface VersionInfo {
@@ -514,7 +513,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		}
 	}
 
-	public async reportWorkspaceStats(workspace: IWorkspace): Promise<void> {
+	public async reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void> {
 		workspace.folders.forEach(folder => {
 			const folderUri = URI.revive(folder.uri);
 			if (folderUri.scheme === 'file') {
@@ -525,16 +524,19 @@ export class DiagnosticsService implements IDiagnosticsService {
 						count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 					};
 					type WorkspaceStatsClassification = {
+						'workspace.id': { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 						fileTypes: WorkspaceStatItemClassification;
 						configTypes: WorkspaceStatItemClassification;
 						launchConfigs: WorkspaceStatItemClassification;
 					};
 					type WorkspaceStatsEvent = {
+						'workspace.id': string | undefined;
 						fileTypes: WorkspaceStatItem[];
 						configTypes: WorkspaceStatItem[];
 						launchConfigs: WorkspaceStatItem[];
 					};
 					this.telemetryService.publicLog2<WorkspaceStatsEvent, WorkspaceStatsClassification>('workspace.stats', {
+						'workspace.id': workspace.telemetryId,
 						fileTypes: stats.fileTypes,
 						configTypes: stats.configFiles,
 						launchConfigs: stats.launchConfigFiles

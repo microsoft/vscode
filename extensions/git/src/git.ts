@@ -601,13 +601,13 @@ export function parseGitmodules(raw: string): Submodule[] {
 }
 
 export function parseGitCommit(raw: string): Commit | null {
-	const match = /^([0-9a-f]{40})\n(.*)\n(.*)\n([^]*)$/m.exec(raw.trim());
+	const match = /^([0-9a-f]{40})\n(.*)\n(.*)(\n([^]*))?$/m.exec(raw.trim());
 	if (!match) {
 		return null;
 	}
 
 	const parents = match[3] ? match[3].split(' ') : [];
-	return { hash: match[1], message: match[4], parents, authorEmail: match[2] };
+	return { hash: match[1], message: match[5], parents, authorEmail: match[2] };
 }
 
 interface LsTreeElement {
@@ -642,7 +642,7 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 }
 
 export interface CommitOptions {
-	all?: boolean;
+	all?: boolean | 'tracked';
 	amend?: boolean;
 	signoff?: boolean;
 	signCommit?: boolean;
@@ -801,7 +801,7 @@ export class Repository {
 			const elements = await this.lsfiles(path);
 
 			if (elements.length === 0) {
-				throw new GitError({ message: 'Error running ls-files' });
+				throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 			}
 
 			const { mode, object } = elements[0];
@@ -814,7 +814,7 @@ export class Repository {
 		const elements = await this.lstree(treeish, path);
 
 		if (elements.length === 0) {
-			throw new GitError({ message: 'Error running ls-files' });
+			throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 		}
 
 		const { mode, object, size } = elements[0];
@@ -1081,8 +1081,16 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async add(paths: string[]): Promise<void> {
-		const args = ['add', '-A', '--'];
+	async add(paths: string[], opts?: { update?: boolean }): Promise<void> {
+		const args = ['add'];
+
+		if (opts && opts.update) {
+			args.push('-u');
+		} else {
+			args.push('-A');
+		}
+
+		args.push('--');
 
 		if (paths && paths.length) {
 			args.push.apply(args, paths);
@@ -1120,15 +1128,21 @@ export class Repository {
 		}
 
 		let mode: string;
+		let add: string = '';
 
 		try {
 			const details = await this.getObjectDetails('HEAD', path);
 			mode = details.mode;
 		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.UnknownPath) {
+				throw err;
+			}
+
 			mode = '100644';
+			add = '--add';
 		}
 
-		await this.run(['update-index', '--cacheinfo', mode, hash, path]);
+		await this.run(['update-index', add, '--cacheinfo', mode, hash, path]);
 	}
 
 	async checkout(treeish: string, paths: string[], opts: { track?: boolean } = Object.create(null)): Promise<void> {
@@ -1746,7 +1760,7 @@ export class Repository {
 			}
 
 			const raw = await readfile(templatePath, 'utf8');
-			return raw.replace(/^\s*#.*$\n?/gm, '').trim();
+			return raw.replace(/\n?#.*/g, '');
 
 		} catch (err) {
 			return '';

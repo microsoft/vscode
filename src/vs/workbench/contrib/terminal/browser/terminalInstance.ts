@@ -482,6 +482,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
+		this._xterm.onSelectionChange(async () => this._onSelectionChange());
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
 		this._xterm.onData(data => this._processManager.write(data));
@@ -814,6 +815,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._processManager.dispose(immediate);
+		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
+		// hasn't happened yet
+		this._onProcessExit(undefined);
 
 		if (!this._isDisposed) {
 			this._isDisposed = true;
@@ -1012,12 +1016,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * through user action.
 	 */
 	private _onProcessExit(exitCode?: number): void {
-		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
-
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
 			return;
 		}
+
+		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 
 		this._isExiting = true;
 		let exitCodeMessage: string | undefined;
@@ -1130,6 +1134,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
+		// HACK: Force initialText to be non-falsy for reused terminals such that the
+		// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to hang
+		// in Windows 10 1903 so we only want to use it when something is definitely written to the
+		// terminal.
+		shell.initialText = ' ';
+
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
@@ -1179,6 +1189,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		if (event.equals(KeyCode.Enter)) {
 			this._updateProcessCwd();
+		}
+	}
+
+	private async _onSelectionChange(): Promise<void> {
+		if (this._configurationService.getValue('terminal.integrated.copyOnSelection')) {
+			if (this.hasSelection()) {
+				await this.copySelection();
+			}
 		}
 	}
 

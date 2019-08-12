@@ -22,7 +22,6 @@ import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platf
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 // tslint:disable-next-line: import-patterns
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -30,14 +29,17 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 // tslint:disable-next-line: import-patterns
 import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IProductService } from 'vs/platform/product/common/product';
+import Severity from 'vs/base/common/severity';
+import { localize } from 'vs/nls';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 //#region Extension Tips
 
@@ -504,41 +506,6 @@ registerSingleton(IWindowService, SimpleWindowService);
 
 //#endregion
 
-//#region ExtensionHostDebugService
-
-export class SimpleExtensionHostDebugService extends ExtensionHostDebugChannelClient {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		//@IWindowService windowService: IWindowService,
-		@IEnvironmentService environmentService: IEnvironmentService
-	) {
-		const connection = remoteAgentService.getConnection();
-
-		if (!connection) {
-			throw new Error('Missing agent connection');
-		}
-
-		super(connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
-
-		this._register(this.onReload(event => {
-			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
-				//windowService.reloadWindow();
-				window.location.reload();
-			}
-		}));
-		this._register(this.onClose(event => {
-			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
-				//this._windowService.closeWindow();
-				window.close();
-			}
-		}));
-	}
-}
-registerSingleton(IExtensionHostDebugService, SimpleExtensionHostDebugService);
-
-//#endregion
-
 //#region Window
 
 export class SimpleWindowsService implements IWindowsService {
@@ -554,7 +521,10 @@ export class SimpleWindowsService implements IWindowsService {
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
 
 	constructor(
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IProductService private readonly productService: IProductService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 	}
 	isFocused(_windowId: number): Promise<boolean> {
@@ -661,6 +631,8 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	relaunch(_options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
+		window.location.reload();
+
 		return Promise.resolve();
 	}
 
@@ -686,6 +658,15 @@ export class SimpleWindowsService implements IWindowsService {
 		// we pass the "ParsedArgs" as query parameters of the URL
 
 		let newAddress = `${document.location.origin}/?`;
+		let gotFolder = false;
+
+		const addQueryParameter = (key: string, value: string) => {
+			const lastChar = newAddress.charAt(newAddress.length - 1);
+			if (lastChar !== '?' && lastChar !== '&') {
+				newAddress += '&';
+			}
+			newAddress += `${key}=${encodeURIComponent(value)}`;
+		};
 
 		const f = args['folder-uri'];
 		if (f) {
@@ -698,8 +679,13 @@ export class SimpleWindowsService implements IWindowsService {
 				u = URI.parse(f);
 			}
 			if (u) {
-				newAddress += `folder=${encodeURIComponent(u.path)}`;
+				gotFolder = true;
+				addQueryParameter('folder', u.path);
 			}
+		}
+		if (!gotFolder) {
+			// request empty window
+			addQueryParameter('ew', 'true');
 		}
 
 		const ep = args['extensionDevelopmentPath'];
@@ -713,23 +699,23 @@ export class SimpleWindowsService implements IWindowsService {
 				u = ep;
 			}
 			if (u) {
-				newAddress += `&edp=${encodeURIComponent(u)}`;
+				addQueryParameter('edp', u);
 			}
 		}
 
 		const di = args['debugId'];
 		if (di) {
-			newAddress += `&di=${encodeURIComponent(di)}`;
+			addQueryParameter('di', di);
 		}
 
 		const ibe = args['inspect-brk-extensions'];
 		if (ibe) {
-			newAddress += `&ibe=${encodeURIComponent(ibe)}`;
+			addQueryParameter('ibe', ibe);
 		}
 
 		// add connection token
 		if (this.workbenchEnvironmentService.configuration.connectionToken) {
-			newAddress += `&tkn=${this.workbenchEnvironmentService.configuration.connectionToken}`;
+			addQueryParameter('tkn', this.workbenchEnvironmentService.configuration.connectionToken);
 		}
 
 		window.open(newAddress);
@@ -808,8 +794,20 @@ export class SimpleWindowsService implements IWindowsService {
 		throw new Error('not implemented');
 	}
 
-	openAboutDialog(): Promise<void> {
-		return Promise.resolve();
+	async openAboutDialog(): Promise<void> {
+		const detail = localize('aboutDetail',
+			"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
+			this.productService.version || 'Unknown',
+			this.productService.commit || 'Unknown',
+			this.productService.date || 'Unknown',
+			navigator.userAgent
+		);
+
+		const result = await this.dialogService.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail });
+
+		if (result === 0) {
+			this.clipboardService.writeText(detail);
+		}
 	}
 
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {

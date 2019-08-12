@@ -7,6 +7,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { DynamicWebviewEditorOverlay } from './dynamicWebviewEditorOverlay';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class WebviewService implements IWebviewService {
 	_serviceBrand: any;
@@ -31,3 +32,5 @@ export class WebviewService implements IWebviewService {
 		return this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions);
 	}
 }
+
+registerSingleton(IWebviewService, WebviewService, true);

@@ -228,7 +228,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
-		this._actionbarWidget.push(this.actions, { label: false, icon: true });
+		this._actionbarWidget!.push(this.actions, { label: false, icon: true });
 	}
 
 	protected _fillTitleIcon(container: HTMLElement): void {

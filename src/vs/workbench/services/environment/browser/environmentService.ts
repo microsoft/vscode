@@ -32,11 +32,13 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
+	backupWorkspaceResource?: URI;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 
-	remoteAuthority: string;
+	remoteAuthority?: string;
+	connectionToken?: string;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
@@ -103,7 +105,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 			for (let p of vars) {
 				const pair = p.split('=');
 				if (pair.length >= 2) {
-					map.set(decodeURIComponent(pair[0]), decodeURIComponent(pair[1]));
+					map.set(pair[0], decodeURIComponent(pair[1]));
 				}
 			}
 

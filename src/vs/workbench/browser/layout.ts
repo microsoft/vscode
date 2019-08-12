@@ -35,6 +35,7 @@ import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { coalesce } from 'vs/base/common/arrays';
 
 enum Settings {
 	MENUBAR_VISIBLE = 'window.menuBarVisibility',
@@ -45,7 +46,6 @@ enum Settings {
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
-
 }
 
 enum Storage {
@@ -63,6 +63,14 @@ enum Storage {
 	GRID_LAYOUT = 'workbench.grid.layout',
 	GRID_WIDTH = 'workbench.grid.width',
 	GRID_HEIGHT = 'workbench.grid.height'
+}
+
+enum Classes {
+	SIDEBAR_HIDDEN = 'nosidebar',
+	EDITOR_HIDDEN = 'noeditorarea',
+	PANEL_HIDDEN = 'nopanel',
+	STATUSBAR_HIDDEN = 'nostatusbar',
+	FULLSCREEN = 'fullscreen'
 }
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
@@ -252,9 +260,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Apply as CSS class
 		if (this.state.fullscreen) {
-			addClass(this.container, 'fullscreen');
+			addClass(this.container, Classes.FULLSCREEN);
 		} else {
-			removeClass(this.container, 'fullscreen');
+			removeClass(this.container, Classes.FULLSCREEN);
 
 			if (this.state.zenMode.transitionedToFullScreen && this.state.zenMode.active) {
 				this.toggleZenMode();
@@ -703,9 +711,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, 'nostatusbar');
+			addClass(this.container, Classes.STATUSBAR_HIDDEN);
 		} else {
-			removeClass(this.container, 'nostatusbar');
+			removeClass(this.container, Classes.STATUSBAR_HIDDEN);
 		}
 
 		// Propagate to grid
@@ -935,6 +943,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.state.editor.hidden = hidden;
 
+		// Adjust CSS
+		if (hidden) {
+			addClass(this.container, Classes.EDITOR_HIDDEN);
+		} else {
+			removeClass(this.container, Classes.EDITOR_HIDDEN);
+		}
+
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
@@ -944,14 +959,24 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
+	getLayoutClasses(): string[] {
+		return coalesce([
+			this.state.sideBar.hidden ? Classes.SIDEBAR_HIDDEN : undefined,
+			this.state.editor.hidden ? Classes.EDITOR_HIDDEN : undefined,
+			this.state.panel.hidden ? Classes.PANEL_HIDDEN : undefined,
+			this.state.statusBar.hidden ? Classes.STATUSBAR_HIDDEN : undefined,
+			this.state.fullscreen ? Classes.FULLSCREEN : undefined
+		]);
+	}
+
 	setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.state.sideBar.hidden = hidden;
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, 'nosidebar');
+			addClass(this.container, Classes.SIDEBAR_HIDDEN);
 		} else {
-			removeClass(this.container, 'nosidebar');
+			removeClass(this.container, Classes.SIDEBAR_HIDDEN);
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
@@ -1004,9 +1029,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, 'nopanel');
+			addClass(this.container, Classes.PANEL_HIDDEN);
 		} else {
-			removeClass(this.container, 'nopanel');
+			removeClass(this.container, Classes.PANEL_HIDDEN);
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
@@ -1051,33 +1076,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	toggleMaximizedPanel(): void {
 		if (this.workbenchGrid instanceof Grid) {
-			const curSize = this.workbenchGrid.getViewSize(this.panelPartView);
-			const size = { ...curSize };
-
+			const size = this.workbenchGrid.getViewSize(this.panelPartView);
 			if (!this.isPanelMaximized()) {
-				if (this.state.panel.position === Position.BOTTOM) {
-					size.height = this.panelPartView.maximumHeight;
-					this.state.panel.sizeBeforeMaximize = curSize.height;
-				} else {
-					size.width = this.panelPartView.maximumWidth;
-					this.state.panel.sizeBeforeMaximize = curSize.width;
-				}
-
+				this.state.panel.sizeBeforeMaximize = this.state.panel.position === Position.BOTTOM ? size.height : size.width;
 				this.storageService.store(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, this.state.panel.sizeBeforeMaximize, StorageScope.GLOBAL);
+				this.setEditorHidden(true);
 			} else {
-				if (this.state.panel.position === Position.BOTTOM) {
-					size.height = this.state.panel.sizeBeforeMaximize;
-				} else {
-					size.width = this.state.panel.sizeBeforeMaximize;
-				}
-
-				// Unhide the editor if needed
-				if (this.state.editor.hidden) {
-					this.setEditorHidden(false);
-				}
+				this.setEditorHidden(false);
+				this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.sizeBeforeMaximize, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.sizeBeforeMaximize : size.height });
 			}
-
-			this.workbenchGrid.resizeView(this.panelPartView, size);
 		} else {
 			this.workbenchGrid.layout({ toggleMaximizedPanel: true, source: Parts.PANEL_PART });
 		}
@@ -1089,16 +1096,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (this.workbenchGrid instanceof Grid) {
-			try {
-				// The panel is maximum when the editor is minimum
-				if (this.state.panel.position === Position.BOTTOM) {
-					return this.workbenchGrid.getViewSize(this.editorPartView).height <= this.editorPartView.minimumHeight;
-				} else {
-					return this.workbenchGrid.getViewSize(this.editorPartView).width <= this.editorPartView.minimumWidth;
-				}
-			} catch (e) {
-				return false;
-			}
+			return this.state.editor.hidden;
 		} else {
 			return this.workbenchGrid.isPanelMaximized();
 		}
@@ -1233,7 +1231,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					{
 						type: 'leaf',
 						data: { type: Parts.TITLEBAR_PART },
-						size: titleBarHeight
+						size: titleBarHeight,
+						visible: this.isVisible(Parts.TITLEBAR_PART)
 					},
 					{
 						type: 'branch',

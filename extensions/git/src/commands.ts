@@ -353,9 +353,11 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
+			case Status.INDEX_ADDED:
 				return this.getURI(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
+			case Status.UNTRACKED:
 				return this.getURI(resource.resourceUri, '~');
 
 			case Status.DELETED_BY_THEM:
@@ -414,6 +416,7 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
+			case Status.INDEX_ADDED:
 				return `${basename} (Index)`;
 
 			case Status.MODIFIED:
@@ -426,6 +429,10 @@ export class CommandCenter {
 
 			case Status.DELETED_BY_THEM:
 				return `${basename} (Ours)`;
+
+			case Status.UNTRACKED:
+
+				return `${basename} (Untracked)`;
 		}
 
 		return '';
@@ -1233,24 +1240,35 @@ export class CommandCenter {
 		opts?: CommitOptions
 	): Promise<boolean> {
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		const promptToSaveFilesBeforeCommit = config.get<boolean>('promptToSaveFilesBeforeCommit') === true;
+		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
 
-		if (promptToSaveFilesBeforeCommit) {
-			const unsavedTextDocuments = workspace.textDocuments
+		// migration
+		if (promptToSaveFilesBeforeCommit as any === true) {
+			promptToSaveFilesBeforeCommit = 'always';
+		} else if (promptToSaveFilesBeforeCommit as any === false) {
+			promptToSaveFilesBeforeCommit = 'never';
+		}
+
+		if (promptToSaveFilesBeforeCommit !== 'never') {
+			let documents = workspace.textDocuments
 				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (unsavedTextDocuments.length > 0) {
-				const message = unsavedTextDocuments.length === 1
-					? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before committing?", path.basename(unsavedTextDocuments[0].uri.fsPath))
-					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", unsavedTextDocuments.length);
+			if (promptToSaveFilesBeforeCommit === 'staged') {
+				documents = documents
+					.filter(d => repository.indexGroup.resourceStates.some(s => s.resourceUri.path === d.uri.fsPath));
+			}
+
+			if (documents.length > 0) {
+				const message = documents.length === 1
+					? localize('unsaved files single', "The following file is unsaved and will not be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?", path.basename(documents[0].uri.fsPath))
+					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", documents.length);
 				const saveAndCommit = localize('save and commit', "Save All & Commit");
 				const commit = localize('commit', "Commit Anyway");
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
-					await Promise.all(unsavedTextDocuments.map(d => d.save()));
-					await repository.add(unsavedTextDocuments.map(d => d.uri));
-					await repository.status();
+					await Promise.all(documents.map(d => d.save()));
+					await repository.add(documents.map(d => d.uri));
 				} else if (pick !== commit) {
 					return false; // do not commit on cancel
 				}
@@ -1264,8 +1282,8 @@ export class CommandCenter {
 
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
-
 			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+
 			if (!suggestSmartCommit) {
 				return false;
 			}
@@ -1317,6 +1335,10 @@ export class CommandCenter {
 
 		if (!message) {
 			return false;
+		}
+
+		if (opts.all && config.get<'all' | 'tracked'>('smartCommitChanges') === 'tracked') {
+			opts.all = 'tracked';
 		}
 
 		await repository.commit(message, opts);

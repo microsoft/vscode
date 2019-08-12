@@ -79,7 +79,7 @@ abstract class ViewItem {
 		return typeof this._cachedVisibleSize === 'undefined';
 	}
 
-	set visible(visible: boolean) {
+	setVisible(visible: boolean, size?: number): void {
 		if (visible === this.visible) {
 			return;
 		}
@@ -88,7 +88,7 @@ abstract class ViewItem {
 			this.size = clamp(this._cachedVisibleSize!, this.viewMinimumSize, this.viewMaximumSize);
 			this._cachedVisibleSize = undefined;
 		} else {
-			this._cachedVisibleSize = this.size;
+			this._cachedVisibleSize = typeof size === 'number' ? size : this.size;
 			this.size = 0;
 		}
 
@@ -125,7 +125,10 @@ abstract class ViewItem {
 		dom.addClass(container, 'visible');
 	}
 
-	abstract layout(): void;
+	layout(): void {
+		this.container.scrollTop = 0;
+		this.container.scrollLeft = 0;
+	}
 
 	layoutView(orientation: Orientation): void {
 		this.view.layout(this.size, orientation);
@@ -140,6 +143,7 @@ abstract class ViewItem {
 class VerticalViewItem extends ViewItem {
 
 	layout(): void {
+		super.layout();
 		this.container.style.height = `${this.size}px`;
 		this.layoutView(Orientation.VERTICAL);
 	}
@@ -148,6 +152,7 @@ class VerticalViewItem extends ViewItem {
 class HorizontalViewItem extends ViewItem {
 
 	layout(): void {
+		super.layout();
 		this.container.style.width = `${this.size}px`;
 		this.layoutView(Orientation.HORIZONTAL);
 	}
@@ -161,6 +166,7 @@ interface ISashItem {
 interface ISashDragSnapState {
 	readonly index: number;
 	readonly limitDelta: number;
+	readonly size: number;
 }
 
 interface ISashDragState {
@@ -453,10 +459,11 @@ export class SplitView extends Disposable {
 		}
 
 		const viewItem = this.viewItems[index];
-		viewItem.visible = visible;
+		viewItem.setVisible(visible);
 
 		this.distributeEmptySpace(index);
 		this.layoutViews();
+		this.saveProportions();
 	}
 
 	getViewCachedVisibleSize(index: number): number | undefined {
@@ -551,7 +558,8 @@ export class SplitView extends Disposable {
 
 					snapBefore = {
 						index: snapBeforeIndex,
-						limitDelta: viewItem.visible ? minDelta - halfSize : minDelta + halfSize
+						limitDelta: viewItem.visible ? minDelta - halfSize : minDelta + halfSize,
+						size: viewItem.size
 					};
 				}
 
@@ -561,7 +569,8 @@ export class SplitView extends Disposable {
 
 					snapAfter = {
 						index: snapAfterIndex,
-						limitDelta: viewItem.visible ? maxDelta + halfSize : maxDelta - halfSize
+						limitDelta: viewItem.visible ? maxDelta + halfSize : maxDelta - halfSize,
+						size: viewItem.size
 					};
 				}
 			}
@@ -739,14 +748,14 @@ export class SplitView extends Disposable {
 			const snapView = this.viewItems[snapBefore.index];
 			const visible = delta >= snapBefore.limitDelta;
 			snapped = visible !== snapView.visible;
-			snapView.visible = visible;
+			snapView.setVisible(visible, snapBefore.size);
 		}
 
 		if (!snapped && snapAfter) {
 			const snapView = this.viewItems[snapAfter.index];
 			const visible = delta < snapAfter.limitDelta;
 			snapped = visible !== snapView.visible;
-			snapView.visible = visible;
+			snapView.setVisible(visible, snapAfter.size);
 		}
 
 		if (snapped) {

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/5209e7f9df7661db6f163753141eeb3de6fb02b3",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/218448eb46260864352d569db13be6cb20767e92",
 	"name": "C",
 	"scopeName": "source.c",
 	"patterns": [
@@ -1892,7 +1892,7 @@
 					"name": "entity.name.other.preprocessor.macro.predefined._Float16.c"
 				},
 				{
-					"match": "(\\b__([A-Z_])__\\b)",
+					"match": "(\\b__([A-Z_]+)__\\b)",
 					"captures": {
 						"1": {
 							"name": "entity.name.other.preprocessor.macro.predefined.probably.$2.c"

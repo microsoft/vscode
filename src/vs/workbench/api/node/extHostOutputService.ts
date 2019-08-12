@@ -10,7 +10,9 @@ import { join } from 'vs/base/common/path';
 import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
 import { toLocalISOString } from 'vs/base/common/date';
 import { dirExists, mkdirp } from 'vs/base/node/pfs';
-import { AbstractExtHostOutputChannel, IOutputChannelFactory, ExtHostPushOutputChannel } from 'vs/workbench/api/common/extHostOutput';
+import { AbstractExtHostOutputChannel, ExtHostPushOutputChannel, ExtHostOutputService, LazyOutputChannel } from 'vs/workbench/api/common/extHostOutput';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
@@ -43,23 +45,39 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 	}
 }
 
-export const LogOutputChannelFactory = new class implements IOutputChannelFactory {
+export class ExtHostOutputService2 extends ExtHostOutputService {
 
-	_namePool = 1;
+	private _logsLocation: URI;
+	private _namePool: number = 1;
 
-	async createOutputChannel(name: string, logsLocation: URI, proxy: MainThreadOutputServiceShape): Promise<AbstractExtHostOutputChannel> {
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+	) {
+		super(extHostRpc);
+		this._logsLocation = initData.logsLocation;
+	}
+
+	createOutputChannel(name: string): vscode.OutputChannel {
+		name = name.trim();
+		if (!name) {
+			throw new Error('illegal argument `name`. must not be falsy');
+		}
+		return new LazyOutputChannel(name, this._doCreateOutChannel(name));
+	}
+
+	private async _doCreateOutChannel(name: string): Promise<AbstractExtHostOutputChannel> {
 		try {
-			const outputDirPath = join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
-			const outputDir = await dirExists(outputDirPath).then(exists => exists ? exists : mkdirp(outputDirPath).then(() => true)).then(() => outputDirPath);
+			const outputDirPath = join(this._logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+			const outputDir = await dirExists(outputDirPath).then(exists => exists || mkdirp(outputDirPath).then(() => true)).then(() => outputDirPath);
 			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
 			const file = URI.file(join(outputDir, `${fileName}.log`));
 			const appender = new OutputAppender(fileName, file.fsPath);
-			return new ExtHostOutputChannelBackedByFile(name, appender, proxy);
+			return new ExtHostOutputChannelBackedByFile(name, appender, this._proxy);
 		} catch (error) {
 			// Do not crash if logger cannot be created
 			console.log(error);
-			return new ExtHostPushOutputChannel(name, proxy);
+			return new ExtHostPushOutputChannel(name, this._proxy);
 		}
 	}
-};
-
+}

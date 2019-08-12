@@ -195,7 +195,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
 		if (!shellLaunchConfig.executable) {
-			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs();
+			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs(false);
 			shellLaunchConfig.executable = defaultConfig.shell;
 			shellLaunchConfig.args = defaultConfig.args;
 		} else {
