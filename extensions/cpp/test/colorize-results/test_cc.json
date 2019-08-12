@@ -37,7 +37,7 @@
 		"t": "source.cpp meta.conditional.preprocessor.cpp entity.name.function.preprocessor.cpp",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795codeE26",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA"

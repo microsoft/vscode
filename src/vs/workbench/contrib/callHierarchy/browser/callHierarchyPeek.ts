@@ -386,7 +386,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			};
 			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
 			this._disposables.add(this._changeDirectionAction);
-			this._actionbarWidget.push(this._changeDirectionAction, { icon: true, label: false });
+			this._actionbarWidget!.push(this._changeDirectionAction, { icon: true, label: false });
 		}
 	}
 
