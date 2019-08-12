@@ -354,6 +354,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	}
 
 	private async _getWorkspace(url: string | undefined): Promise<{ workspacePath?: string, isFolder?: boolean }> {
+
+		// empty window requested?
+		if (this._getQueryValue(url, 'ew') === 'true') {
+			// empty window
+			return {};
+		}
+
 		const cwd = process.env['VSCODE_CWD'] || process.cwd();
 
 		const queryWorkspace = this._getQueryValue(url, 'workspace');
