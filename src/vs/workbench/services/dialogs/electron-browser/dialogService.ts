@@ -78,17 +78,16 @@ class NativeDialogService implements IDialogService {
 		sharedProcessService.registerChannel('dialog', new DialogChannel(this));
 	}
 
-	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
-		return this.windowService.showMessageBox(options).then(result => {
-			return {
-				confirmed: buttonIndexMap[result.button] === 0 ? true : false,
-				checkboxChecked: result.checkboxChecked
-			};
-		});
+		const result = await this.windowService.showMessageBox(options);
+		return {
+			confirmed: buttonIndexMap[result.button] === 0 ? true : false,
+			checkboxChecked: result.checkboxChecked
+		};
 	}
 
 	private getConfirmOptions(confirmation: IConfirmation): Electron.MessageBoxOptions {
@@ -128,7 +127,7 @@ class NativeDialogService implements IDialogService {
 		return opts;
 	}
 
-	show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Promise<number> {
+	async show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Promise<number> {
 		this.logService.trace('DialogService#show', message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
@@ -139,7 +138,8 @@ class NativeDialogService implements IDialogService {
 			detail: dialogOptions ? dialogOptions.detail : undefined
 		});
 
-		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button]);
+		const result = await this.windowService.showMessageBox(options);
+		return buttonIndexMap[result.button];
 	}
 
 	private massageMessageBoxOptions(options: Electron.MessageBoxOptions): IMassagedMessageBoxOptions {

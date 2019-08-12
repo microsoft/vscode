@@ -6,7 +6,6 @@
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
-import { isLinux } from 'vs/base/common/platform';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
@@ -105,7 +104,7 @@ export interface IFileService {
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
+	writeFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Moves the file/folder to a new path identified by the resource.
@@ -127,7 +126,7 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, bufferOrReadable?: VSBuffer | VSBufferReadable, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
+	createFile(resource: URI, bufferOrReadableOrStream?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
@@ -208,7 +207,7 @@ export interface IFileSystemProvider {
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void>;
 
-	readonly onDidErrorOccur?: Event<Error>; // TODO@ben remove once file watchers are solid
+	readonly onDidErrorOccur?: Event<string>; // TODO@ben remove once file watchers are solid
 
 	readonly onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
@@ -288,7 +287,12 @@ export function markAsFileSystemProviderError(error: Error, code: FileSystemProv
 	return error;
 }
 
-export function toFileSystemProviderErrorCode(error: Error): FileSystemProviderErrorCode {
+export function toFileSystemProviderErrorCode(error: Error | undefined | null): FileSystemProviderErrorCode {
+
+	// Guard against abuse
+	if (!error) {
+		return FileSystemProviderErrorCode.Unknown;
+	}
 
 	// FileSystemProviderError comes with the code
 	if (error instanceof FileSystemProviderError) {
@@ -424,10 +428,10 @@ export class FileChangesEvent {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (change.type === FileChangeType.DELETED) {
-				return isEqualOrParent(resource, change.resource, !isLinux /* ignorecase */);
+				return isEqualOrParent(resource, change.resource);
 			}
 
-			return isEqual(resource, change.resource, !isLinux /* ignorecase */);
+			return isEqual(resource, change.resource);
 		});
 	}
 
@@ -512,7 +516,7 @@ interface IBaseStat {
 	resource: URI;
 
 	/**
-	 * The name which is the last segement
+	 * The name which is the last segment
 	 * of the {{path}}.
 	 */
 	name: string;
@@ -526,7 +530,7 @@ interface IBaseStat {
 	size?: number;
 
 	/**
-	 * The last modifictaion date represented
+	 * The last modification date represented
 	 * as millis from unix epoch.
 	 *
 	 * The value may or may not be resolved as
@@ -758,12 +762,12 @@ export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
  */
 export const ETAG_DISABLED = '';
 
-export function etag(mtime: number, size: number): string;
-export function etag(mtime: number | undefined, size: number | undefined): string | undefined;
-export function etag(mtime: number | undefined, size: number | undefined): string | undefined {
-	if (typeof size !== 'number' || typeof mtime !== 'number') {
+export function etag(stat: { mtime: number, size: number }): string;
+export function etag(stat: { mtime: number | undefined, size: number | undefined }): string | undefined;
+export function etag(stat: { mtime: number | undefined, size: number | undefined }): string | undefined {
+	if (typeof stat.size !== 'number' || typeof stat.mtime !== 'number') {
 		return undefined;
 	}
 
-	return mtime.toString(29) + size.toString(31);
+	return stat.mtime.toString(29) + stat.size.toString(31);
 }

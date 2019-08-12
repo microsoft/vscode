@@ -5,14 +5,14 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -291,7 +291,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 }
 
-export class FolderSettingsActionItem extends BaseActionItem {
+export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private _folder: IWorkspaceFolder | null;
 	private _folderSettingCounts = new Map<string, number>();
@@ -302,8 +302,6 @@ export class FolderSettingsActionItem extends BaseActionItem {
 	private detailsElement: HTMLElement;
 	private dropDownElement: HTMLElement;
 
-	private disposables: IDisposable[] = [];
-
 	constructor(
 		action: IAction,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -312,7 +310,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
 		this._folder = workspace.folders.length === 1 ? workspace.folders[0] : null;
-		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
 	}
 
 	get folder(): IWorkspaceFolder | null {
@@ -347,8 +345,8 @@ export class FolderSettingsActionItem extends BaseActionItem {
 			'tabindex': '0'
 		}, this.labelElement, this.detailsElement, this.dropDownElement);
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.MOUSE_DOWN, e => DOM.EventHelper.stop(e)));
-		this.disposables.push(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
-		this.disposables.push(DOM.addDisposableListener(this.anchorElement, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
+		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
+		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
 
 		DOM.append(this.container, this.anchorElement);
 
@@ -427,7 +425,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => this.getDropdownMenuActions(),
-			getActionItem: () => undefined,
+			getActionViewItem: () => undefined,
 			onHide: () => {
 				this.anchorElement.blur();
 			}
@@ -460,11 +458,6 @@ export class FolderSettingsActionItem extends BaseActionItem {
 
 		return label;
 	}
-
-	dispose(): void {
-		dispose(this.disposables);
-		super.dispose();
-	}
 }
 
 export type SettingsTarget = ConfigurationTarget.USER_LOCAL | ConfigurationTarget.USER_REMOTE | ConfigurationTarget.WORKSPACE | URI;
@@ -479,12 +472,12 @@ export class SettingsTargetsWidget extends Widget {
 	private userLocalSettings: Action;
 	private userRemoteSettings: Action;
 	private workspaceSettings: Action;
-	private folderSettings: FolderSettingsActionItem;
+	private folderSettings: FolderSettingsActionViewItem;
 	private options: ISettingsTargetsWidgetOptions;
 
 	private _settingsTarget: SettingsTarget;
 
-	private readonly _onDidTargetChange = new Emitter<SettingsTarget>();
+	private readonly _onDidTargetChange = this._register(new Emitter<SettingsTarget>());
 	readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
 
 	constructor(
@@ -508,7 +501,7 @@ export class SettingsTargetsWidget extends Widget {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
 			animated: false,
-			actionItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : undefined
+			actionViewItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : undefined
 		}));
 
 		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
@@ -517,7 +510,7 @@ export class SettingsTargetsWidget extends Widget {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const hostLabel = remoteAuthority && this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority);
 		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
-			(hostLabel ? ` (${hostLabel})` : '');
+			(hostLabel ? ` [${hostLabel}]` : '');
 		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
 		this.userRemoteSettings.tooltip = this.userRemoteSettings.label;
 
@@ -525,7 +518,7 @@ export class SettingsTargetsWidget extends Widget {
 		this.workspaceSettings.tooltip = this.workspaceSettings.label;
 
 		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false, (folder: IWorkspaceFolder) => this.updateTarget(folder.uri));
-		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionItem, folderSettingsAction);
+		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, folderSettingsAction);
 
 		this.update();
 
@@ -751,8 +744,8 @@ export class EditPreferenceWidget<T> extends Disposable {
 
 	private _editPreferenceDecoration: string[];
 
-	private readonly _onClick = new Emitter<IEditorMouseEvent>();
-	get onClick(): Event<IEditorMouseEvent> { return this._onClick.event; }
+	private readonly _onClick = this._register(new Emitter<IEditorMouseEvent>());
+	readonly onClick: Event<IEditorMouseEvent> = this._onClick.event;
 
 	constructor(private editor: ICodeEditor
 	) {

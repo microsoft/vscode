@@ -36,7 +36,7 @@ export class Position {
 	}
 
 	/**
-	 * Create a new postion from this position.
+	 * Create a new position from this position.
 	 *
 	 * @param newLineNumber new line number
 	 * @param newColumn new column

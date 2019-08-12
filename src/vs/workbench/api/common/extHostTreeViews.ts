@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
@@ -139,7 +139,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 type Root = null | undefined;
 type TreeData<T> = { message: boolean, element: T | Root | false };
 
-interface TreeNode {
+interface TreeNode extends IDisposable {
 	item: ITreeItem;
 	parent: TreeNode | Root;
 	children?: TreeNode[];
@@ -177,6 +177,7 @@ class ExtHostTreeView<T> extends Disposable {
 	private _onDidChangeData: Emitter<TreeData<T>> = this._register(new Emitter<TreeData<T>>());
 
 	private refreshPromise: Promise<void> = Promise.resolve();
+	private refreshQueue: Promise<void> = Promise.resolve();
 
 	constructor(private viewId: string, options: vscode.TreeViewOptions<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService, private extension: IExtensionDescription) {
 		super();
@@ -206,9 +207,11 @@ class ExtHostTreeView<T> extends Disposable {
 			return result;
 		}, 200)(({ message, elements }) => {
 			if (elements.length) {
-				const _promiseCallback = promiseCallback;
-				refreshingPromise = null;
-				this.refresh(elements).then(() => _promiseCallback());
+				this.refreshQueue = this.refreshQueue.then(() => {
+					const _promiseCallback = promiseCallback;
+					refreshingPromise = null;
+					return this.refresh(elements).then(() => _promiseCallback());
+				});
 			}
 			if (message) {
 				this.proxy.$setMessage(this.viewId, this._message);
@@ -247,7 +250,7 @@ class ExtHostTreeView<T> extends Disposable {
 				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), { select, focus, expand })), error => this.logService.error(error));
 	}
 
-	private _message: string | MarkdownString;
+	private _message: string | MarkdownString = '';
 	get message(): string | MarkdownString {
 		return this._message;
 	}
@@ -421,6 +424,7 @@ class ExtHostTreeView<T> extends Disposable {
 						if (extTreeItem) {
 							const newNode = this.createTreeNode(extElement, extTreeItem, existing.parent);
 							this.updateNodeCache(extElement, newNode, existing, existing.parent);
+							existing.dispose();
 							return newNode;
 						}
 						return null;
@@ -441,15 +445,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
-		return {
-			item: this.createTreeItem(element, extensionTreeItem, parent),
-			parent,
-			children: undefined
-		};
-	}
-
-	private createTreeItem(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): ITreeItem {
-
+		const disposable = new DisposableStore();
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);
 		const item = {
@@ -459,7 +455,7 @@ class ExtHostTreeView<T> extends Disposable {
 			description: extensionTreeItem.description,
 			resourceUri: extensionTreeItem.resourceUri,
 			tooltip: typeof extensionTreeItem.tooltip === 'string' ? extensionTreeItem.tooltip : undefined,
-			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : undefined,
+			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command, disposable) : undefined,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
@@ -467,7 +463,12 @@ class ExtHostTreeView<T> extends Disposable {
 			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState
 		};
 
-		return item;
+		return {
+			item,
+			parent,
+			children: undefined,
+			dispose(): void { disposable.dispose(); }
+		};
 	}
 
 	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parent: TreeNode | Root, returnFirst?: boolean): TreeItemHandle {
@@ -504,14 +505,14 @@ class ExtHostTreeView<T> extends Disposable {
 				|| extensionTreeItem.iconPath instanceof URI) {
 				return this.getIconPath(extensionTreeItem.iconPath);
 			}
-			return this.getIconPath(extensionTreeItem.iconPath['light']);
+			return this.getIconPath((<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).light);
 		}
 		return undefined;
 	}
 
 	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): URI | undefined {
-		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && extensionTreeItem.iconPath['dark']) {
-			return this.getIconPath(extensionTreeItem.iconPath['dark']);
+		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && (<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark) {
+			return this.getIconPath((<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark);
 		}
 		return undefined;
 	}
@@ -567,9 +568,9 @@ class ExtHostTreeView<T> extends Disposable {
 			if (node) {
 				if (node.children) {
 					for (const child of node.children) {
-						const childEleement = this.elements.get(child.item.handle);
-						if (childEleement) {
-							this.clear(childEleement);
+						const childElement = this.elements.get(child.item.handle);
+						if (childElement) {
+							this.clear(childElement);
 						}
 					}
 				}
@@ -585,20 +586,22 @@ class ExtHostTreeView<T> extends Disposable {
 		if (node) {
 			if (node.children) {
 				for (const child of node.children) {
-					const childEleement = this.elements.get(child.item.handle);
-					if (childEleement) {
-						this.clear(childEleement);
+					const childElement = this.elements.get(child.item.handle);
+					if (childElement) {
+						this.clear(childElement);
 					}
 				}
 			}
 			this.nodes.delete(element);
 			this.elements.delete(node.item.handle);
+			node.dispose();
 		}
 	}
 
 	private clearAll(): void {
 		this.roots = null;
 		this.elements.clear();
+		this.nodes.forEach(node => node.dispose());
 		this.nodes.clear();
 	}
 

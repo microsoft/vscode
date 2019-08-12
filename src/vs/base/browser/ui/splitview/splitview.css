@@ -41,6 +41,10 @@
 	position: relative;
 }
 
+.monaco-split-view2 > .split-view-container > .split-view-view:not(.visible) {
+	display: none;
+}
+
 .monaco-split-view2.vertical > .split-view-container > .split-view-view {
 	width: 100%;
 }

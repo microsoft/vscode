@@ -3,25 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .editor-statusbar-item > a:not(:first-child) {
-	margin-left: 5px;
-}
-
-.monaco-workbench .editor-statusbar-item > .editor-status-mode,
-.monaco-workbench .editor-statusbar-item > .editor-status-encoding,
-.monaco-workbench .editor-statusbar-item > .editor-status-eol,
-.monaco-workbench .editor-statusbar-item > .editor-status-selection,
-.monaco-workbench .editor-statusbar-item > .editor-status-indentation,
-.monaco-workbench .editor-statusbar-item > .editor-status-metadata,
-.monaco-workbench .editor-statusbar-item > .editor-status-tabfocusmode,
-.monaco-workbench .editor-statusbar-item > .editor-status-screenreadermode {
-	padding: 0 5px 0 5px;
-}
-
-.monaco-workbench .editor-statusbar-item > .editor-status-metadata {
-	cursor: default !important;
-}
-
 .monaco-workbench .screen-reader-detected-explanation {
 	width: 420px;
 	top: 30px;
@@ -70,10 +51,13 @@
 }
 
 .vs .monaco-workbench .screen-reader-detected-explanation .cancel {
-	background: url('close-statusview.svg') center center no-repeat;
+	background: url('close-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .screen-reader-detected-explanation .cancel,
+.vs-dark .monaco-workbench .screen-reader-detected-explanation .cancel {
+	background: url('close-dark.svg') center center no-repeat;
+}
+
 .hc-black .monaco-workbench .screen-reader-detected-explanation .cancel {
-	background: url('close-statusview-inverse.svg') center center no-repeat;
+	background: url('close-hc.svg') center center no-repeat;
 }

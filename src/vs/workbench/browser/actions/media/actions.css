@@ -4,10 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 .vs .monaco-workbench .flip-editor-layout {
-	background-image: url('editor-layout.svg');
+	background-image: url('layout-light.svg');
 }
 
-.vs-dark .monaco-workbench .flip-editor-layout,
+.vs-dark .monaco-workbench .flip-editor-layout {
+	background-image: url('layout-dark.svg');
+}
+
 .hc-black .monaco-workbench .flip-editor-layout {
-	background-image: url('editor-layout-inverse.svg') !important;
+	background-image: url('layout-hc.svg');
+}
+
+.vs .action-remove-from-recently-opened {
+	background: url("remove-light.svg") center center no-repeat;
+}
+
+.vs-dark .action-remove-from-recently-opened,
+.hc-black .action-remove-from-recently-opened {
+	background: url("remove-dark.svg") center center no-repeat;
 }

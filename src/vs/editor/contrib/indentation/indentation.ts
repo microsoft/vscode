@@ -253,7 +253,7 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 			id: IndentUsingTabs.ID,
 			label: nls.localize('indentUsingTabs', "Indent Using Tabs"),
 			alias: 'Indent Using Tabs',
-			precondition: null
+			precondition: undefined
 		});
 	}
 }
@@ -267,7 +267,7 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 			id: IndentUsingSpaces.ID,
 			label: nls.localize('indentUsingSpaces', "Indent Using Spaces"),
 			alias: 'Indent Using Spaces',
-			precondition: null
+			precondition: undefined
 		});
 	}
 }
@@ -281,7 +281,7 @@ export class DetectIndentation extends EditorAction {
 			id: DetectIndentation.ID,
 			label: nls.localize('detectIndentation', "Detect Indentation from Content"),
 			alias: 'Detect Indentation from Content',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -378,11 +378,12 @@ export class AutoIndentOnPasteCommand implements ICommand {
 	private readonly _edits: { range: IRange; text: string; eol?: EndOfLineSequence; }[];
 
 	private readonly _initialSelection: Selection;
-	private _selectionId: string;
+	private _selectionId: string | null;
 
 	constructor(edits: TextEdit[], initialSelection: Selection) {
 		this._initialSelection = initialSelection;
 		this._edits = [];
+		this._selectionId = null;
 
 		for (let edit of edits) {
 			if (edit.range && typeof edit.text === 'string') {
@@ -415,7 +416,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this._selectionId);
+		return helper.getTrackedSelection(this._selectionId!);
 	}
 }
 
@@ -589,13 +590,13 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {
 		model.forceTokenization(lineNumber);
-		let nonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
-		if (nonWhiteSpaceColumn === 0) {
+		let nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
+		if (nonWhitespaceColumn === 0) {
 			return true;
 		}
 		let tokens = model.getLineTokens(lineNumber);
 		if (tokens.getCount() > 0) {
-			let firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhiteSpaceColumn);
+			let firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceColumn);
 			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {
 				return true;
 			}
@@ -651,7 +652,7 @@ function getIndentationEditOperations(model: ITextModel, builder: IEditOperation
 
 export class IndentationToSpacesCommand implements ICommand {
 
-	private selectionId: string;
+	private selectionId: string | null = null;
 
 	constructor(private readonly selection: Selection, private tabSize: number) { }
 
@@ -661,13 +662,13 @@ export class IndentationToSpacesCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId);
+		return helper.getTrackedSelection(this.selectionId!);
 	}
 }
 
 export class IndentationToTabsCommand implements ICommand {
 
-	private selectionId: string;
+	private selectionId: string | null = null;
 
 	constructor(private readonly selection: Selection, private tabSize: number) { }
 
@@ -677,7 +678,7 @@ export class IndentationToTabsCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId);
+		return helper.getTrackedSelection(this.selectionId!);
 	}
 }
 

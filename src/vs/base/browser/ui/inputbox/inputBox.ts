@@ -19,6 +19,9 @@ import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { domEvent } from 'vs/base/browser/event';
 
 const $ = dom.$;
 
@@ -28,7 +31,8 @@ export interface IInputOptions extends IInputBoxStyles {
 	readonly type?: string;
 	readonly validationOptions?: IInputValidationOptions;
 	readonly flexibleHeight?: boolean;
-	readonly actions?: IAction[];
+	readonly flexibleMaxHeight?: number;
+	readonly actions?: ReadonlyArray<IAction>;
 }
 
 export interface IInputBoxStyles {
@@ -86,15 +90,19 @@ export class InputBox extends Widget {
 	private contextViewProvider?: IContextViewProvider;
 	element: HTMLElement;
 	private input: HTMLInputElement;
-	private mirror: HTMLElement;
 	private actionbar?: ActionBar;
 	private options: IInputOptions;
 	private message: IMessage | null;
 	private placeholder: string;
 	private ariaLabel: string;
 	private validation?: IInputValidator;
-	private state: string | null = 'idle';
-	private cachedHeight: number | null;
+	private state: 'idle' | 'open' | 'closed' = 'idle';
+
+	private mirror: HTMLElement | undefined;
+	private cachedHeight: number | undefined;
+	private cachedContentHeight: number | undefined;
+	private maxHeight: number = Number.POSITIVE_INFINITY;
+	private scrollableElement: ScrollableElement | undefined;
 
 	private inputBackground?: Color;
 	private inputForeground?: Color;
@@ -123,7 +131,6 @@ export class InputBox extends Widget {
 		this.options = options || Object.create(null);
 		mixin(this.options, defaultOpts, false);
 		this.message = null;
-		this.cachedHeight = null;
 		this.placeholder = this.options.placeholder || '';
 		this.ariaLabel = this.options.ariaLabel || '';
 
@@ -150,7 +157,7 @@ export class InputBox extends Widget {
 		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
 		let wrapper = dom.append(this.element, $('.wrapper'));
-		this.input = <HTMLInputElement>dom.append(wrapper, $(tagName + '.input'));
+		this.input = dom.append(wrapper, $(tagName + '.input'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
 		this.input.setAttribute('spellcheck', 'false');
@@ -159,8 +166,26 @@ export class InputBox extends Widget {
 		this.onblur(this.input, () => dom.removeClass(this.element, 'synthetic-focus'));
 
 		if (this.options.flexibleHeight) {
+			this.maxHeight = typeof this.options.flexibleMaxHeight === 'number' ? this.options.flexibleMaxHeight : Number.POSITIVE_INFINITY;
+
 			this.mirror = dom.append(wrapper, $('div.mirror'));
 			this.mirror.innerHTML = '&nbsp;';
+
+			this.scrollableElement = new ScrollableElement(this.element, { vertical: ScrollbarVisibility.Auto });
+			dom.append(container, this.scrollableElement.getDomNode());
+			this._register(this.scrollableElement);
+
+			// from ScrollableElement to DOM
+			this._register(this.scrollableElement.onScroll(e => this.input.scrollTop = e.scrollTop));
+
+			const onSelectionChange = Event.filter(domEvent(document, 'selectionchange'), () => {
+				const selection = document.getSelection();
+				return !!selection && selection.anchorNode === wrapper;
+			});
+
+			// from DOM to ScrollableElement
+			this._register(onSelectionChange(this.updateScrollDimensions, this));
+			this._register(this.onDidHeightChange(this.updateScrollDimensions, this));
 		} else {
 			this.input.type = this.options.type || 'text';
 			this.input.setAttribute('wrap', 'off');
@@ -230,7 +255,7 @@ export class InputBox extends Widget {
 		}
 	}
 
-	public get mirrorElement(): HTMLElement {
+	public get mirrorElement(): HTMLElement | undefined {
 		return this.mirror;
 	}
 
@@ -250,7 +275,7 @@ export class InputBox extends Widget {
 	}
 
 	public get height(): number {
-		return this.cachedHeight === null ? dom.getTotalHeight(this.element) : this.cachedHeight;
+		return typeof this.cachedHeight === 'number' ? this.cachedHeight : dom.getTotalHeight(this.element);
 	}
 
 	public focus(): void {
@@ -299,6 +324,19 @@ export class InputBox extends Widget {
 		if (this.mirror) {
 			this.mirror.style.width = width + 'px';
 		}
+	}
+
+	private updateScrollDimensions(): void {
+		if (typeof this.cachedContentHeight !== 'number' || typeof this.cachedHeight !== 'number') {
+			return;
+		}
+
+		const scrollHeight = this.cachedContentHeight;
+		const height = this.cachedHeight;
+		const scrollTop = this.input.scrollTop;
+
+		this.scrollableElement!.setScrollDimensions({ scrollHeight, height });
+		this.scrollableElement!.setScrollPosition({ scrollTop });
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {
@@ -389,8 +427,6 @@ export class InputBox extends Widget {
 		let div: HTMLElement;
 		let layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
 
-		this.state = 'open';
-
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.element,
 			anchorAlignment: AnchorAlignment.RIGHT,
@@ -421,18 +457,25 @@ export class InputBox extends Widget {
 
 				return null;
 			},
+			onHide: () => {
+				this.state = 'closed';
+			},
 			layout: layout
 		});
+
+		this.state = 'open';
 	}
 
 	private _hideMessage(): void {
-		if (!this.contextViewProvider || this.state !== 'open') {
+		if (!this.contextViewProvider) {
 			return;
 		}
 
-		this.state = 'idle';
+		if (this.state === 'open') {
+			this.contextViewProvider.hideContextView();
+		}
 
-		this.contextViewProvider.hideContextView();
+		this.state = 'idle';
 	}
 
 	private onValueChange(): void {
@@ -505,12 +548,13 @@ export class InputBox extends Widget {
 			return;
 		}
 
-		const previousHeight = this.cachedHeight;
-		this.cachedHeight = dom.getTotalHeight(this.mirror);
+		const previousHeight = this.cachedContentHeight;
+		this.cachedContentHeight = dom.getTotalHeight(this.mirror);
 
-		if (previousHeight !== this.cachedHeight) {
+		if (previousHeight !== this.cachedContentHeight) {
+			this.cachedHeight = Math.min(this.cachedContentHeight, this.maxHeight);
 			this.input.style.height = this.cachedHeight + 'px';
-			this._onDidHeightChange.fire(this.cachedHeight);
+			this._onDidHeightChange.fire(this.cachedContentHeight);
 		}
 	}
 
@@ -522,7 +566,7 @@ export class InputBox extends Widget {
 		this.contextViewProvider = undefined;
 		this.message = null;
 		this.validation = undefined;
-		this.state = null;
+		this.state = null!; // StrictNullOverride: nulling out ok in dispose
 		this.actionbar = undefined;
 
 		super.dispose();

@@ -72,7 +72,9 @@
 			"name": "Class name",
 			"scope": [
 				"entity.name.class",
-				"entity.name.type"
+				"entity.name.type",
+				"entity.name.namespace",
+				"entity.name.scope-resolution"
 			],
 			"settings": {
 				"fontStyle": "",
@@ -448,6 +450,7 @@
 		"statusBar.background": "#00212B",
 		"statusBar.debuggingBackground": "#00212B",
 		"statusBar.noFolderBackground": "#00212B",
+		"statusBarItem.remoteBackground": "#2AA19899",
 		"statusBarItem.prominentBackground": "#003847",
 		"statusBarItem.prominentHoverBackground": "#003847",
 		// "statusBarItem.activeBackground": "",

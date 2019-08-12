@@ -29,6 +29,7 @@
 
 .monaco-editor-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
 	max-width: 500px;
+	word-wrap: break-word;
 }
 
 .monaco-editor-hover p,
@@ -83,10 +84,11 @@
 
 .monaco-editor-hover .hover-row.status-bar .actions {
 	display: flex;
+	padding: 0px 8px;
 }
 
 .monaco-editor-hover .hover-row.status-bar .actions .action-container {
-	margin: 0px 8px;
+	margin-right: 16px;
 	cursor: pointer;
 }
 

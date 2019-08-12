@@ -111,12 +111,17 @@ function toBundleStream(src, bundledFileHeader, bundles) {
         return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest);
     }));
 }
+const DEFAULT_FILE_HEADER = [
+    '/*!--------------------------------------------------------',
+    ' * Copyright (C) Microsoft Corporation. All rights reserved.',
+    ' *--------------------------------------------------------*/'
+].join('\n');
 function optimizeTask(opts) {
     const src = opts.src;
     const entryPoints = opts.entryPoints;
     const resources = opts.resources;
     const loaderConfig = opts.loaderConfig;
-    const bundledFileHeader = opts.header;
+    const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
     const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
     const out = opts.out;
     return function () {

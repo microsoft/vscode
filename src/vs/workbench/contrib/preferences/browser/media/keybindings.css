@@ -47,7 +47,6 @@
 	display:inline-block;
 	height:0.8em;
 	width:1em;
-	background: url(info.svg) 0px -0.1em no-repeat;
 	background-size: 0.9em;
 }
 
@@ -57,7 +56,6 @@
 	display:inline-block;
 	height:0.8em;
 	width:1em;
-	background: url(status-error.svg) 0px -0.1em no-repeat;
 	background-size: 1em;
 }
 

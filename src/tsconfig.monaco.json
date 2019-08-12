@@ -10,7 +10,7 @@
 		"preserveConstEnums": true,
 		"target": "es5",
 		"sourceMap": false,
-		"declaration": true,
+		"declaration": true
 	},
 	"include": [
 		"typings/require.d.ts",

@@ -5,28 +5,28 @@ Do Not Translate or Localize
 
 This project incorporates components from the projects listed below. The original copyright notices and the licenses under which Microsoft received such components are set forth below. Microsoft reserves all rights not expressly granted herein, whether by implication, estoppel or otherwise.
 
-1.	atom/language-clojure version 0.22.6 (https://github.com/atom/language-clojure)
+1.	atom/language-clojure version 0.22.7 (https://github.com/atom/language-clojure)
 2.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
-3.	atom/language-java version 0.31.1 (https://github.com/atom/language-java)
-4.	atom/language-objective-c version 0.15.0 (https://github.com/atom/language-objective-c)
-5.	atom/language-sass version 0.61.4 (https://github.com/atom/language-sass)
-6.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
-7.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
-8.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
-9.	daaain/Handlebars version 1.7.1 (https://github.com/daaain/Handlebars)
-10.	davidrios/pug-tmbundle (https://github.com/davidrios/pug-tmbundle)
-11.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
-12.	demyte/language-cshtml version 0.3.0 (https://github.com/demyte/language-cshtml)
-13.	Document Object Model version 4.0.0 (https://www.w3.org/DOM/)
-14.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
-15.	expand-abbreviation version 0.5.8 (https://github.com/emmetio/expand-abbreviation)
-16.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
-17.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
-18.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-19.	Ikuyadeu/vscode-R version 0.5.5 (https://github.com/Ikuyadeu/vscode-R)
-20.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
-21.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
-22.	jeff-hykin/cpp-textmate-grammar version 1.4.5 (https://github.com/jeff-hykin/cpp-textmate-grammar)
+3.	atom/language-java version 0.31.3 (https://github.com/atom/language-java)
+4.	atom/language-sass version 0.61.4 (https://github.com/atom/language-sass)
+5.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
+6.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
+7.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
+8.	daaain/Handlebars version 1.8.0 (https://github.com/daaain/Handlebars)
+9.	davidrios/pug-tmbundle (https://github.com/davidrios/pug-tmbundle)
+10.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
+11.	demyte/language-cshtml version 0.3.0 (https://github.com/demyte/language-cshtml)
+12.	Document Object Model version 4.0.0 (https://www.w3.org/DOM/)
+13.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
+14.	expand-abbreviation version 0.5.8 (https://github.com/emmetio/expand-abbreviation)
+15.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
+16.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
+17.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
+18.	Ikuyadeu/vscode-R version 0.5.5 (https://github.com/Ikuyadeu/vscode-R)
+19.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
+20.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
+21.	jeff-hykin/cpp-textmate-grammar version 1.12.11 (https://github.com/jeff-hykin/cpp-textmate-grammar)
+22.	jeff-hykin/cpp-textmate-grammar version 1.12.18 (https://github.com/jeff-hykin/cpp-textmate-grammar)
 23.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
 24.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 25.	language-docker (https://github.com/moby/moby)
@@ -35,14 +35,14 @@ This project incorporates components from the projects listed below. The origina
 28.	language-php version 0.44.1 (https://github.com/atom/language-php)
 29.	language-rust version 0.4.12 (https://github.com/zargony/atom-language-rust)
 30.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
-31.	marked version 0.5.0 (https://github.com/markedjs/marked)
+31.	marked version 0.6.2 (https://github.com/markedjs/marked)
 32.	mdn-data version 1.1.12 (https://github.com/mdn/data)
 33.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
 34.	Microsoft/vscode-JSON.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
-35.	Microsoft/vscode-mssql version 1.4.0 (https://github.com/Microsoft/vscode-mssql)
+35.	Microsoft/vscode-mssql version 1.6.0 (https://github.com/Microsoft/vscode-mssql)
 36.	mmims/language-batchfile version 0.7.5 (https://github.com/mmims/language-batchfile)
 37.	octicons version 8.3.0 (https://github.com/primer/octicons)
-38.	octref/language-css (https://github.com/octref/language-css)
+38.	octref/language-css version 0.42.11 (https://github.com/octref/language-css)
 39.	PowerShell/EditorSyntax (https://github.com/powershell/editorsyntax)
 40.	promise-polyfill version 8.0.0 (https://github.com/taylorhakes/promise-polyfill)
 41.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
@@ -64,7 +64,7 @@ This project incorporates components from the projects listed below. The origina
 57.	TypeScript-TmLanguage version 1.0.0 (https://github.com/Microsoft/TypeScript-TmLanguage)
 58.	Unicode version 12.0.0 (http://www.unicode.org/)
 59.	vscode-logfile-highlighter version 2.4.1 (https://github.com/emilast/vscode-logfile-highlighter)
-60.	vscode-octicons-font version 1.0.0 (https://github.com/Microsoft/vscode-octicons-font)
+60.	vscode-octicons-font version 1.3.1 (https://github.com/Microsoft/vscode-octicons-font)
 61.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 62.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
 
@@ -212,43 +212,6 @@ express or implied warranty, and with no claim as to its
 suitability for any purpose.
 =========================================
 END OF atom/language-java NOTICES AND INFORMATION
-
-%% atom/language-objective-c NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (c) 2014 GitHub Inc.
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
-This package was derived from a TextMate bundle located at
-https://github.com/textmate/objective-c.tmbundle and distributed under the following
-license, located in `README.mdown`:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-=========================================
-END OF atom/language-objective-c NOTICES AND INFORMATION
 
 %% atom/language-sass NOTICES AND INFORMATION BEGIN HERE
 =========================================

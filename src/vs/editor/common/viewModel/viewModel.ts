@@ -141,6 +141,7 @@ export interface IViewModel {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations;
 	invalidateOverviewRulerColorCache(): void;
+	invalidateMinimapColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
 	getModelLineMaxColumn(modelLineNumber: number): number;

@@ -288,8 +288,8 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.range;
 	}
 
-	getInput(): IEditorInput | null {
-		return types.withUndefinedAsNull(this.editorService.activeEditor);
+	getInput(): IEditorInput | undefined {
+		return this.editorService.activeEditor;
 	}
 
 	getOptions(pinned?: boolean): ITextEditorOptions {
@@ -366,7 +366,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	static readonly ID = 'workbench.picker.filesymbols';
 
 	private rangeHighlightDecorationId?: IEditorLineDecoration;
-	private lastKnownEditorViewState: IEditorViewState | null;
+	private lastKnownEditorViewState: IEditorViewState | null = null;
 
 	private cachedOutlineRequest?: Promise<OutlineModel | null>;
 	private pendingOutlineRequest?: CancellationTokenSource;
@@ -390,7 +390,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		this.rangeHighlightDecorationId = undefined;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel | null> {
+	async getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel | null> {
 		searchValue = searchValue.trim();
 
 		// Support to cancel pending outline requests
@@ -407,20 +407,19 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 
 		// Resolve Outline Model
-		return this.getOutline().then(outline => {
-			if (!outline) {
-				return outline;
-			}
-
-			if (token.isCancellationRequested) {
-				return outline;
-			}
-
-			// Filter by search
-			outline.applyFilter(searchValue);
-
+		const outline = await this.getOutline();
+		if (!outline) {
 			return outline;
-		});
+		}
+
+		if (token.isCancellationRequested) {
+			return outline;
+		}
+
+		// Filter by search
+		outline.applyFilter(searchValue);
+
+		return outline;
 	}
 
 	getEmptyLabel(searchString: string): string {
@@ -496,7 +495,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return this.cachedOutlineRequest;
 	}
 
-	private doGetActiveOutline(): Promise<OutlineModel | null> {
+	private async doGetActiveOutline(): Promise<OutlineModel | null> {
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (activeTextEditorWidget) {
 			let model = activeTextEditorWidget.getModel();
@@ -505,13 +504,13 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 
 			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
-				return Promise.resolve(asPromise(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest!.token)).then(entries => {
-					return new OutlineModel(this.toQuickOpenEntries(entries));
-				}));
+				const entries = await asPromise(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest!.token));
+
+				return new OutlineModel(this.toQuickOpenEntries(entries));
 			}
 		}
 
-		return Promise.resolve(null);
+		return null;
 	}
 
 	decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: IEditorGroup): void {

@@ -36,7 +36,7 @@ export class BackupMainService implements IBackupMainService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.backupHome = environmentService.backupHome;
+		this.backupHome = environmentService.backupHome.fsPath;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 	}
 
@@ -244,7 +244,7 @@ export class BackupMainService implements IBackupMainService {
 			return [];
 		}
 
-		const seenIds: { [id: string]: boolean } = Object.create(null);
+		const seenIds: Set<string> = new Set();
 		const result: IWorkspaceBackupInfo[] = [];
 
 		// Validate Workspaces
@@ -254,8 +254,8 @@ export class BackupMainService implements IBackupMainService {
 				return []; // wrong format, skip all entries
 			}
 
-			if (!seenIds[workspace.id]) {
-				seenIds[workspace.id] = true;
+			if (!seenIds.has(workspace.id)) {
+				seenIds.add(workspace.id);
 
 				const backupPath = this.getBackupPath(workspace.id);
 				const hasBackups = await this.hasBackups(backupPath);
@@ -283,11 +283,11 @@ export class BackupMainService implements IBackupMainService {
 		}
 
 		const result: URI[] = [];
-		const seen: { [id: string]: boolean } = Object.create(null);
+		const seenIds: Set<string> = new Set();
 		for (let folderURI of folderWorkspaces) {
 			const key = getComparisonKey(folderURI);
-			if (!seen[key]) {
-				seen[key] = true;
+			if (!seenIds.has(key)) {
+				seenIds.add(key);
 
 				const backupPath = this.getBackupPath(this.getFolderHash(folderURI));
 				const hasBackups = await this.hasBackups(backupPath);
@@ -315,7 +315,7 @@ export class BackupMainService implements IBackupMainService {
 		}
 
 		const result: IEmptyWindowBackupInfo[] = [];
-		const seen: { [id: string]: boolean } = Object.create(null);
+		const seenIds: Set<string> = new Set();
 
 		// Validate Empty Windows
 		for (let backupInfo of emptyWorkspaces) {
@@ -324,8 +324,8 @@ export class BackupMainService implements IBackupMainService {
 				return [];
 			}
 
-			if (!seen[backupFolder]) {
-				seen[backupFolder] = true;
+			if (!seenIds.has(backupFolder)) {
+				seenIds.add(backupFolder);
 
 				const backupPath = this.getBackupPath(backupFolder);
 				if (await this.hasBackups(backupPath)) {

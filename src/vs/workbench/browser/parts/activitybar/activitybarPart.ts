@@ -7,15 +7,15 @@ import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { illegalArgument } from 'vs/base/common/errors';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
@@ -25,7 +25,7 @@ import { Dimension, addClass } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -34,9 +34,11 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface ICachedViewlet {
 	id: string;
+	name?: string;
 	iconUrl?: UriComponents;
 	pinned: boolean;
 	order?: number;
@@ -46,26 +48,28 @@ interface ICachedViewlet {
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
-	private static readonly ACTION_HEIGHT = 50;
+	private static readonly ACTION_HEIGHT = 48;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
 
 	//#region IView
 
-	readonly minimumWidth: number = 50;
-	readonly maximumWidth: number = 50;
+	readonly minimumWidth: number = 48;
+	readonly maximumWidth: number = 48;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	//#endregion
 
-	private globalActionBar: ActionBar;
-	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; } = Object.create(null);
+	private globalActivityAction: ActivityAction;
+	private globalActivityActionBar: ActionBar;
 
 	private cachedViewlets: ICachedViewlet[] = [];
+
 	private compositeBar: CompositeBar;
-	private compositeActions: { [compositeId: string]: { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
+	private compositeActions: Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
+
 	private readonly viewletDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
 	constructor(
@@ -77,17 +81,22 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.cachedViewlets = this.getCachedViewlets();
 		for (const cachedViewlet of this.cachedViewlets) {
-			if (this.shouldBeHidden(cachedViewlet.id, cachedViewlet)) {
+			if (workbenchEnvironmentService.configuration.remoteAuthority // In remote window, hide activity bar entries until registered.
+				|| this.shouldBeHidden(cachedViewlet.id, cachedViewlet)
+			) {
 				cachedViewlet.visible = false;
 			}
 		}
 
-		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.cachedViewlets.map(v => (<ICompositeBarItem>{ id: v.id, name: undefined, visible: v.visible, order: v.order, pinned: v.pinned })), {
+		const cachedItems = this.cachedViewlets
+			.map(v => ({ id: v.id, name: v.name, visible: v.visible, order: v.order, pinned: v.pinned }));
+		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, cachedItems, {
 			icon: true,
 			orientation: ActionsOrientation.VERTICAL,
 			openComposite: (compositeId: string) => this.viewletService.openViewlet(compositeId, true),
@@ -119,15 +128,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this._register(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
 
 		// Extension registration
-		let disposables: IDisposable[] = [];
+		let disposables = this._register(new DisposableStore());
 		this._register(this.extensionService.onDidRegisterExtensions(() => {
-			disposables = dispose(disposables);
+			disposables.clear();
 			this.onDidRegisterExtensions();
 			this.compositeBar.onDidChange(() => this.saveCachedViewlets(), this, disposables);
 			this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e), this, disposables);
 		}));
-
-		this._register(toDisposable(() => dispose(disposables)));
 	}
 
 	private onDidRegisterExtensions(): void {
@@ -150,7 +157,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			if (viewContainer && viewContainer.hideIfEmpty) {
 				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
 				if (viewDescriptors && viewDescriptors.activeViewDescriptors.length === 0) {
-					this.removeComposite(viewletDescriptor.id, true); // Update the composite bar by hiding
+					this.hideComposite(viewletDescriptor.id); // Update the composite bar by hiding
 				}
 			}
 		}
@@ -161,34 +168,30 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz, priority);
 		}
 
-		return this.showGlobalActivity(viewletOrActionId, badge, clazz);
+		if (viewletOrActionId === GLOBAL_ACTIVITY_ID) {
+			return this.showGlobalActivity(badge, clazz);
+		}
+
+		throw illegalArgument('globalActivityId');
 	}
 
-	private showGlobalActivity(globalActivityId: string, badge: IBadge, clazz?: string): IDisposable {
-		if (!badge) {
-			throw illegalArgument('badge');
-		}
+	private showGlobalActivity(badge: IBadge, clazz?: string): IDisposable {
+		this.globalActivityAction.setBadge(badge, clazz);
 
-		const action = this.globalActivityIdToActions[globalActivityId];
-		if (!action) {
-			throw illegalArgument('globalActivityId');
-		}
-
-		action.setBadge(badge, clazz);
-
-		return toDisposable(() => action.setBadge(undefined));
+		return toDisposable(() => this.globalActivityAction.setBadge(undefined));
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+
 		const content = document.createElement('div');
 		addClass(content, 'content');
 		parent.appendChild(content);
 
-		// Top Actionbar with action items for each viewlet action
+		// Viewlets action bar
 		this.compositeBar.create(content);
 
-		// Top Actionbar with action items for each viewlet action
+		// Global action bar
 		const globalActivities = document.createElement('div');
 		addClass(globalActivities, 'global-activity');
 		content.appendChild(globalActivities);
@@ -208,7 +211,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : null;
+		container.style.boxSizing = borderColor && isPositionLeft ? 'border-box' : '';
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
 		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
 		container.style.borderRightColor = isPositionLeft ? borderColor : null;
@@ -218,7 +221,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getActivitybarItemColors(theme: ITheme): ICompositeBarColors {
-		return <ICompositeBarColors>{
+		return {
 			activeForegroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
 			inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND),
 			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
@@ -229,27 +232,23 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private createGlobalActivityActionBar(container: HTMLElement): void {
-		const activityRegistry = Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions);
-		const descriptors = activityRegistry.getActivities();
-		const actions = descriptors
-			.map(d => this.instantiationService.createInstance(d))
-			.map(a => new GlobalActivityAction(a));
-
-		this.globalActionBar = this._register(new ActionBar(container, {
-			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a, (theme: ITheme) => this.getActivitybarItemColors(theme)),
+		this.globalActivityActionBar = this._register(new ActionBar(container, {
+			actionViewItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionViewItem, a, (theme: ITheme) => this.getActivitybarItemColors(theme)),
 			orientation: ActionsOrientation.VERTICAL,
-			ariaLabel: nls.localize('globalActions', "Global Actions"),
+			ariaLabel: nls.localize('manage', "Manage"),
 			animated: false
 		}));
 
-		actions.forEach(a => {
-			this.globalActivityIdToActions[a.id] = a;
-			this.globalActionBar.push(a);
+		this.globalActivityAction = new ActivityAction({
+			id: 'workbench.actions.manage',
+			name: nls.localize('manage', "Manage"),
+			cssClass: 'update-activity'
 		});
+		this.globalActivityActionBar.push(this.globalActivityAction);
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } {
-		let compositeActions = this.compositeActions[compositeId];
+		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewlet = this.viewletService.getViewlet(compositeId);
 			if (viewlet) {
@@ -260,12 +259,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			} else {
 				const cachedComposite = this.cachedViewlets.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite && cachedComposite.iconUrl ? URI.revive(cachedComposite.iconUrl) : undefined),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite && cachedComposite.name ? cachedComposite.name : compositeId, cachedComposite && cachedComposite.iconUrl ? URI.revive(cachedComposite.iconUrl) : undefined),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
 
-			this.compositeActions[compositeId] = compositeActions;
+			this.compositeActions.set(compositeId, compositeActions);
 		}
 
 		return compositeActions;
@@ -309,18 +308,18 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			disposable.dispose();
 		}
 		this.viewletDisposables.delete(viewletId);
-		this.removeComposite(viewletId, true);
+		this.hideComposite(viewletId);
 	}
 
 	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
 		if (viewDescriptors.activeViewDescriptors.length) {
 			this.compositeBar.addComposite(viewlet);
 		} else {
-			this.removeComposite(viewlet.id, true);
+			this.hideComposite(viewlet.id);
 		}
 	}
 
-	private shouldBeHidden(viewletId: string, cachedViewlet: ICachedViewlet): boolean {
+	private shouldBeHidden(viewletId: string, cachedViewlet?: ICachedViewlet): boolean {
 		const viewContainer = this.getViewContainer(viewletId);
 		if (!viewContainer || !viewContainer.hideIfEmpty) {
 			return false;
@@ -334,23 +333,18 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const viewlets = this.viewletService.getViewlets();
 		for (const { id } of this.cachedViewlets) {
 			if (viewlets.every(viewlet => viewlet.id !== id)) {
-				this.removeComposite(id, false);
+				this.hideComposite(id);
 			}
 		}
 	}
 
-	private removeComposite(compositeId: string, hide: boolean): void {
-		if (hide) {
-			this.compositeBar.hideComposite(compositeId);
-		} else {
-			this.compositeBar.removeComposite(compositeId);
-		}
-
-		const compositeActions = this.compositeActions[compositeId];
+	private hideComposite(compositeId: string): void {
+		this.compositeBar.hideComposite(compositeId);
+		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();
 			compositeActions.pinnedAction.dispose();
-			delete this.compositeActions[compositeId];
+			this.compositeActions.delete(compositeId);
 		}
 	}
 
@@ -384,8 +378,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Layout composite bar
 		let availableHeight = contentAreaSize.height;
-		if (this.globalActionBar) {
-			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
+		if (this.globalActivityActionBar) {
+			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}
@@ -441,7 +435,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 						}
 					}
 				}
-				state.push({ id: compositeItem.id, iconUrl: viewlet.iconUrl && viewlet.iconUrl.scheme === Schemas.file ? viewlet.iconUrl : undefined, views, pinned: compositeItem && compositeItem.pinned, order: compositeItem ? compositeItem.order : undefined, visible: compositeItem && compositeItem.visible });
+				state.push({ id: compositeItem.id, name: viewlet.name, iconUrl: viewlet.iconUrl && viewlet.iconUrl.scheme === Schemas.file ? viewlet.iconUrl : undefined, views, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+			} else {
+				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: false });
 			}
 		}
 
@@ -449,9 +445,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getCachedViewlets(): ICachedViewlet[] {
-		const storedStates = <Array<string | ICachedViewlet>>JSON.parse(this.cachedViewletsValue);
-		const cachedViewlets = <ICachedViewlet[]>storedStates.map(c => {
-			const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? <ICachedViewlet>{ id: c, pinned: true, order: undefined, visible: true, iconUrl: undefined, views: undefined } : c;
+		const storedStates: Array<string | ICachedViewlet> = JSON.parse(this.cachedViewletsValue);
+		const cachedViewlets = storedStates.map(c => {
+			const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, name: undefined, iconUrl: undefined, views: undefined } : c;
 			serialized.visible = isUndefinedOrNull(serialized.visible) ? true : serialized.visible;
 			return serialized;
 		});
@@ -459,6 +455,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		for (const old of this.loadOldCachedViewlets()) {
 			const cachedViewlet = cachedViewlets.filter(cached => cached.id === old.id)[0];
 			if (cachedViewlet) {
+				cachedViewlet.name = old.name;
 				cachedViewlet.iconUrl = old.iconUrl;
 				cachedViewlet.views = old.views;
 			}
@@ -469,7 +466,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private loadOldCachedViewlets(): ICachedViewlet[] {
 		const previousState = this.storageService.get('workbench.activity.placeholderViewlets', StorageScope.GLOBAL, '[]');
-		const result = (<ICachedViewlet[]>JSON.parse(previousState));
+		const result: ICachedViewlet[] = JSON.parse(previousState);
 		this.storageService.remove('workbench.activity.placeholderViewlets', StorageScope.GLOBAL);
 
 		return result;

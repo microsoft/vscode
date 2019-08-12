@@ -4,6 +4,7 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.29.0"
   },
@@ -729,14 +730,20 @@
           }
         }
       }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "*.css-data.json",
+        "url": "https://raw.githubusercontent.com/Microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
+      }
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^5.2.1",
-    "vscode-nls": "^4.0.0"
+    "vscode-languageclient": "^5.3.0-next.6",
+    "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
-    "@types/node": "^10.12.21",
+    "@types/node": "^10.14.8",
     "mocha": "^5.2.0"
   }
 }

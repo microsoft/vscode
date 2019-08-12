@@ -84,7 +84,7 @@ suite('AIAdapter', () => {
 	});
 
 	teardown(() => {
-		adapter.dispose();
+		adapter.flush();
 	});
 
 	test('Simple event', () => {

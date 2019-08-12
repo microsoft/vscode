@@ -45,16 +45,15 @@ type LoadedScriptsItem = BaseTreeItem;
 class BaseTreeItem {
 
 	private _showedMoreThanOne: boolean;
-	private _children: { [key: string]: BaseTreeItem; };
-	private _source: Source;
+	private _children = new Map<string, BaseTreeItem>();
+	private _source: Source | undefined;
 
 	constructor(private _parent: BaseTreeItem | undefined, private _label: string) {
-		this._children = {};
 		this._showedMoreThanOne = false;
 	}
 
 	isLeaf(): boolean {
-		return Object.keys(this._children).length === 0;
+		return this._children.size === 0;
 	}
 
 	getSession(): IDebugSession | undefined {
@@ -66,12 +65,12 @@ class BaseTreeItem {
 
 	setSource(session: IDebugSession, source: Source): void {
 		this._source = source;
-		this._children = {};
+		this._children.clear();
 		if (source.raw && source.raw.sources) {
 			for (const src of source.raw.sources) {
 				if (src.name && src.path) {
 					const s = new BaseTreeItem(this, src.name);
-					this._children[src.path] = s;
+					this._children.set(src.path, s);
 					const ss = session.getSource(src);
 					s.setSource(session, ss);
 				}
@@ -80,26 +79,26 @@ class BaseTreeItem {
 	}
 
 	createIfNeeded<T extends BaseTreeItem>(key: string, factory: (parent: BaseTreeItem, label: string) => T): T {
-		let child = <T>this._children[key];
+		let child = <T>this._children.get(key);
 		if (!child) {
 			child = factory(this, key);
-			this._children[key] = child;
+			this._children.set(key, child);
 		}
 		return child;
 	}
 
-	getChild(key: string): BaseTreeItem {
-		return this._children[key];
+	getChild(key: string): BaseTreeItem | undefined {
+		return this._children.get(key);
 	}
 
 	remove(key: string): void {
-		delete this._children[key];
+		this._children.delete(key);
 	}
 
 	removeFromParent(): void {
 		if (this._parent) {
 			this._parent.remove(this._label);
-			if (Object.keys(this._parent._children).length === 0) {
+			if (this._parent._children.size === 0) {
 				this._parent.removeFromParent();
 			}
 		}
@@ -142,7 +141,7 @@ class BaseTreeItem {
 		if (child) {
 			return child.hasChildren();
 		}
-		return Object.keys(this._children).length > 0;
+		return this._children.size > 0;
 	}
 
 	// skips intermediate single-child nodes
@@ -151,7 +150,10 @@ class BaseTreeItem {
 		if (child) {
 			return child.getChildren();
 		}
-		const array = Object.keys(this._children).map(key => this._children[key]);
+		const array: BaseTreeItem[] = [];
+		for (let child of this._children.values()) {
+			array.push(child);
+		}
 		return Promise.resolve(array.sort((a, b) => this.compare(a, b)));
 	}
 
@@ -182,7 +184,7 @@ class BaseTreeItem {
 	}
 
 	// skips intermediate single-child nodes
-	getSource(): Source {
+	getSource(): Source | undefined {
 		const child = this.oneChild();
 		if (child) {
 			return child.getSource();
@@ -199,12 +201,11 @@ class BaseTreeItem {
 
 	private oneChild(): BaseTreeItem | undefined {
 		if (SMART && !this._source && !this._showedMoreThanOne && !(this instanceof RootFolderTreeItem) && !(this instanceof SessionTreeItem)) {
-			const keys = Object.keys(this._children);
-			if (keys.length === 1) {
-				return this._children[keys[0]];
+			if (this._children.size === 1) {
+				return this._children.values().next().value;
 			}
 			// if a node had more than one child once, it will never be skipped again
-			if (keys.length > 1) {
+			if (this._children.size > 1) {
 				this._showedMoreThanOne = true;
 			}
 		}
@@ -243,7 +244,7 @@ class SessionTreeItem extends BaseTreeItem {
 
 	private _session: IDebugSession;
 	private _initialized: boolean;
-	private _map: Map<string, BaseTreeItem>;
+	private _map = new Map<string, BaseTreeItem>();
 	private _labelService: ILabelService;
 
 	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
@@ -251,7 +252,6 @@ class SessionTreeItem extends BaseTreeItem {
 		this._labelService = labelService;
 		this._initialized = false;
 		this._session = session;
-		this._map = new Map();
 	}
 
 	getSession(): IDebugSession {
@@ -381,13 +381,13 @@ class SessionTreeItem extends BaseTreeItem {
 
 export class LoadedScriptsView extends ViewletPanel {
 
-	private treeContainer: HTMLElement;
+	private treeContainer!: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private tree: WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>;
-	private treeLabels: ResourceLabels;
-	private changeScheduler: RunOnceScheduler;
-	private treeNeedsRefreshOnVisible: boolean;
-	private filter: LoadedScriptsFilter;
+	private tree!: WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>;
+	private treeLabels!: ResourceLabels;
+	private changeScheduler!: RunOnceScheduler;
+	private treeNeedsRefreshOnVisible = false;
+	private filter!: LoadedScriptsFilter;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -402,7 +402,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
@@ -417,7 +417,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService, this.labelService);
 
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.disposables.push(this.treeLabels);
+		this._register(this.treeLabels);
 
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new LoadedScriptsDelegate(),
 			[new LoadedScriptsRenderer(this.treeLabels)],
@@ -433,7 +433,7 @@ export class LoadedScriptsView extends ViewletPanel {
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
 			}
-		) as WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>;
+		);
 
 		this.tree.setInput(root);
 
@@ -443,11 +443,11 @@ export class LoadedScriptsView extends ViewletPanel {
 				this.tree.updateChildren();
 			}
 		}, 300);
-		this.disposables.push(this.changeScheduler);
+		this._register(this.changeScheduler);
 
 		const loadedScriptsNavigator = new TreeResourceNavigator2(this.tree);
-		this.disposables.push(loadedScriptsNavigator);
-		this.disposables.push(loadedScriptsNavigator.onDidOpenResource(e => {
+		this._register(loadedScriptsNavigator);
+		this._register(loadedScriptsNavigator.onDidOpenResource(e => {
 			if (e.element instanceof BaseTreeItem) {
 				const source = e.element.getSource();
 				if (source && source.available) {
@@ -457,7 +457,7 @@ export class LoadedScriptsView extends ViewletPanel {
 			}
 		}));
 
-		this.disposables.push(this.tree.onDidChangeFocus(() => {
+		this._register(this.tree.onDidChangeFocus(() => {
 			const focus = this.tree.getFocus();
 			if (focus instanceof SessionTreeItem) {
 				this.loadedScriptsItemType.set('session');
@@ -467,7 +467,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		}));
 
 		const registerLoadedSourceListener = (session: IDebugSession) => {
-			this.disposables.push(session.onDidLoadedSource(event => {
+			this._register(session.onDidLoadedSource(event => {
 				let sessionRoot: SessionTreeItem;
 				switch (event.reason) {
 					case 'new':
@@ -501,17 +501,17 @@ export class LoadedScriptsView extends ViewletPanel {
 			}));
 		};
 
-		this.disposables.push(this.debugService.onDidNewSession(registerLoadedSourceListener));
+		this._register(this.debugService.onDidNewSession(registerLoadedSourceListener));
 		this.debugService.getModel().getSessions().forEach(registerLoadedSourceListener);
 
-		this.disposables.push(this.debugService.onDidEndSession(session => {
+		this._register(this.debugService.onDidEndSession(session => {
 			root.remove(session.getId());
 			this.changeScheduler.schedule();
 		}));
 
 		this.changeScheduler.schedule(0);
 
-		this.disposables.push(this.onDidChangeBodyVisibility(visible => {
+		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.treeNeedsRefreshOnVisible) {
 				this.changeScheduler.schedule();
 			}
@@ -635,7 +635,7 @@ class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider<Loaded
 
 class LoadedScriptsFilter implements ITreeFilter<BaseTreeItem, FuzzyScore> {
 
-	private filterText: string;
+	private filterText: string | undefined;
 
 	setFilter(filterText: string) {
 		this.filterText = filterText;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -173,12 +173,12 @@ export class MainThreadTextEditor {
 	private readonly _id: string;
 	private _model: ITextModel;
 	private readonly _modelService: IModelService;
-	private _modelListeners: IDisposable[];
+	private readonly _modelListeners = new DisposableStore();
 	private _codeEditor: ICodeEditor | null;
 	private readonly _focusTracker: IFocusTracker;
-	private _codeEditorListeners: IDisposable[];
+	private readonly _codeEditorListeners = new DisposableStore();
 
-	private _properties: MainThreadTextEditorProperties;
+	private _properties: MainThreadTextEditorProperties | null;
 	private readonly _onPropertiesChanged: Emitter<IEditorPropertiesChangeData>;
 
 	constructor(
@@ -191,14 +191,13 @@ export class MainThreadTextEditor {
 		this._id = id;
 		this._model = model;
 		this._codeEditor = null;
+		this._properties = null;
 		this._focusTracker = focusTracker;
 		this._modelService = modelService;
-		this._codeEditorListeners = [];
 
 		this._onPropertiesChanged = new Emitter<IEditorPropertiesChangeData>();
 
-		this._modelListeners = [];
-		this._modelListeners.push(this._model.onDidChangeOptions((e) => {
+		this._modelListeners.add(this._model.onDidChangeOptions((e) => {
 			this._updatePropertiesNow(null);
 		}));
 
@@ -208,9 +207,9 @@ export class MainThreadTextEditor {
 
 	public dispose(): void {
 		this._model = null!;
-		this._modelListeners = dispose(this._modelListeners);
+		this._modelListeners.dispose();
 		this._codeEditor = null;
-		this._codeEditorListeners = dispose(this._codeEditorListeners);
+		this._codeEditorListeners.dispose();
 	}
 
 	private _updatePropertiesNow(selectionChangeSource: string | null): void {
@@ -249,36 +248,36 @@ export class MainThreadTextEditor {
 			// Nothing to do...
 			return;
 		}
-		this._codeEditorListeners = dispose(this._codeEditorListeners);
+		this._codeEditorListeners.clear();
 
 		this._codeEditor = codeEditor;
 		if (this._codeEditor) {
 
 			// Catch early the case that this code editor gets a different model set and disassociate from this model
-			this._codeEditorListeners.push(this._codeEditor.onDidChangeModel(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidChangeModel(() => {
 				this.setCodeEditor(null);
 			}));
 
-			this._codeEditorListeners.push(this._codeEditor.onDidFocusEditorWidget(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidFocusEditorWidget(() => {
 				this._focusTracker.onGainedFocus();
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidBlurEditorWidget(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidBlurEditorWidget(() => {
 				this._focusTracker.onLostFocus();
 			}));
 
-			this._codeEditorListeners.push(this._codeEditor.onDidChangeCursorSelection((e) => {
+			this._codeEditorListeners.add(this._codeEditor.onDidChangeCursorSelection((e) => {
 				// selection
 				this._updatePropertiesNow(e.source);
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidChangeConfiguration(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidChangeConfiguration(() => {
 				// options
 				this._updatePropertiesNow(null);
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidLayoutChange(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidLayoutChange(() => {
 				// visibleRanges
 				this._updatePropertiesNow(null);
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidScrollChange(() => {
+			this._codeEditorListeners.add(this._codeEditor.onDidScrollChange(() => {
 				// visibleRanges
 				this._updatePropertiesNow(null);
 			}));
@@ -291,7 +290,7 @@ export class MainThreadTextEditor {
 	}
 
 	public getProperties(): MainThreadTextEditorProperties {
-		return this._properties;
+		return this._properties!;
 	}
 
 	public get onPropertiesChanged(): Event<IEditorPropertiesChangeData> {
@@ -306,7 +305,7 @@ export class MainThreadTextEditor {
 
 		const newSelections = selections.map(Selection.liftSelection);
 		this._setProperties(
-			new MainThreadTextEditorProperties(newSelections, this._properties.options, this._properties.visibleRanges),
+			new MainThreadTextEditorProperties(newSelections, this._properties!.options, this._properties!.visibleRanges),
 			null
 		);
 	}
@@ -469,7 +468,7 @@ export class MainThreadTextEditor {
 		return true;
 	}
 
-	insertSnippet(template: string, ranges: IRange[], opts: IUndoStopOptions) {
+	insertSnippet(template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor) {
 			return false;
@@ -486,7 +485,7 @@ export class MainThreadTextEditor {
 		this._codeEditor.focus();
 
 		// make modifications
-		snippetController.insert(template, 0, 0, opts.undoStopBefore, opts.undoStopAfter);
+		snippetController.insert(template, { overwriteBefore: 0, overwriteAfter: 0, undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter });
 
 		return true;
 	}

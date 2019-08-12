@@ -458,14 +458,14 @@ function getLightIconUri(iconPath: QuickInputButton['iconPath']) {
 			|| iconPath instanceof URI) {
 			return getIconUri(iconPath);
 		}
-		return getIconUri(iconPath['light']);
+		return getIconUri((iconPath as any).light);
 	}
 	return undefined;
 }
 
 function getDarkIconUri(iconPath: QuickInputButton['iconPath']) {
-	if (iconPath && !(iconPath instanceof ThemeIcon) && iconPath['dark']) {
-		return getIconUri(iconPath['dark']);
+	if (iconPath && !(iconPath instanceof ThemeIcon) && (iconPath as any).dark) {
+		return getIconUri((iconPath as any).dark);
 	}
 	return undefined;
 }

@@ -36,7 +36,7 @@ export interface IConfirmationResult {
 
 	/**
 	 * This will only be defined if the confirmation was created
-	 * with the checkox option defined.
+	 * with the checkbox option defined.
 	 */
 	checkboxChecked?: boolean;
 }
@@ -127,6 +127,8 @@ export const IDialogService = createDecorator<IDialogService>('dialogService');
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
+	checkboxLabel?: string;
+	checkboxChecked?: boolean;
 }
 
 /**
@@ -200,6 +202,11 @@ export interface IFileDialogService {
 	 * Shows a workspace selection dialog and opens the selected entry.
 	 */
 	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
+
+	/**
+	 * Shows a save file file dialog and save the file at the chosen file URI.
+	 */
+	pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined>;
 
 	/**
 	 * Shows a save file dialog and returns the chosen file URI.

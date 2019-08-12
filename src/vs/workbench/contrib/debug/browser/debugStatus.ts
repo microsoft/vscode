@@ -4,100 +4,81 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { STATUS_BAR_DEBUGGING_FOREGROUND, isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
+import { IStatusbarEntry, IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
-const $ = dom.$;
 
-export class DebugStatus extends Themable implements IStatusbarItem {
-	private container: HTMLElement;
-	private statusBarItem: HTMLElement;
-	private label: HTMLElement;
-	private icon: HTMLElement;
-	private showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
+export class DebugStatusContribution implements IWorkbenchContribution {
+
+	private showInStatusBar!: 'never' | 'always' | 'onFirstSessionStart';
+	private toDispose: IDisposable[] = [];
+	private entryAccessor: IStatusbarEntryAccessor | undefined;
 
 	constructor(
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IStatusbarService private readonly statusBarService: IStatusbarService,
+		@IDebugService readonly debugService: IDebugService,
+		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
-		super(themeService);
-		this._register(this.debugService.getConfigurationManager().onDidSelectConfiguration(e => {
-			this.setLabel();
-		}));
-		this._register(this.debugService.onDidChangeState(state => {
-			if (state !== State.Inactive && this.showInStatusBar === 'onFirstSessionStart') {
-				this.doRender();
-			} else {
-				if (this.showInStatusBar !== 'never') {
-					this.updateStyles();
-				}
+
+		const addStatusBarEntry = () => {
+			this.entryAccessor = this.statusBarService.addEntry(this.entry, 'status.debug', nls.localize('status.debug', "Debug"), StatusbarAlignment.LEFT, 30 /* Low Priority */);
+		};
+
+		const setShowInStatusBar = () => {
+			this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
+			if (this.showInStatusBar === 'always' && !this.entryAccessor) {
+				addStatusBarEntry();
+			}
+		};
+		setShowInStatusBar();
+
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			if (state !== State.Inactive && this.showInStatusBar === 'onFirstSessionStart' && !this.entryAccessor) {
+				addStatusBarEntry();
 			}
 		}));
-		this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
-		this._register(configurationService.onDidChangeConfiguration(e => {
+		this.toDispose.push(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.showInStatusBar')) {
-				this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
-				if (this.showInStatusBar === 'always') {
-					this.doRender();
+				setShowInStatusBar();
+				if (this.entryAccessor && this.showInStatusBar === 'never') {
+					this.entryAccessor.dispose();
+					this.entryAccessor = undefined;
 				}
-				if (this.statusBarItem) {
-					dom.toggleClass(this.statusBarItem, 'hidden', this.showInStatusBar === 'never');
-				}
+			}
+		}));
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(e => {
+			if (this.entryAccessor) {
+				this.entryAccessor.update(this.entry);
 			}
 		}));
 	}
 
-	protected updateStyles(): void {
-		if (this.icon) {
-			if (isStatusbarInDebugMode(this.debugService)) {
-				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_DEBUGGING_FOREGROUND);
-			} else {
-				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
-			}
+	private getText(): string {
+		const manager = this.debugService.getConfigurationManager();
+		const name = manager.selectedConfiguration.name || '';
+		const nameAndLaunchPresent = name && manager.selectedConfiguration.launch;
+		if (nameAndLaunchPresent) {
+			return '$(play) ' + (manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch!.name})` : name);
 		}
+
+		return '';
 	}
 
-	public render(container: HTMLElement): IDisposable {
-		this.container = container;
-		if (this.showInStatusBar === 'always') {
-			this.doRender();
-		}
-		// noop, we render when we decide is best
-		return this;
+	private get entry(): IStatusbarEntry {
+		return {
+			text: this.getText(),
+			tooltip: nls.localize('selectAndStartDebug', "Select and start debug configuration"),
+			command: 'workbench.action.debug.selectandstart'
+		};
 	}
 
-	private doRender(): void {
-		if (!this.statusBarItem && this.container) {
-			this.statusBarItem = dom.append(this.container, $('.debug-statusbar-item'));
-			this._register(dom.addDisposableListener(this.statusBarItem, 'click', () => this.quickOpenService.show('debug ')));
-			this.statusBarItem.title = nls.localize('selectAndStartDebug', "Select and start debug configuration");
-			const a = dom.append(this.statusBarItem, $('a'));
-			this.icon = dom.append(a, $('.icon'));
-			this.label = dom.append(a, $('span.label'));
-			this.setLabel();
+	dispose(): void {
+		if (this.entryAccessor) {
+			this.entryAccessor.dispose();
 		}
-
-		this.updateStyles();
-	}
-
-	private setLabel(): void {
-		if (this.label && this.statusBarItem) {
-			const manager = this.debugService.getConfigurationManager();
-			const name = manager.selectedConfiguration.name || '';
-			const nameAndLaunchPresent = name && manager.selectedConfiguration.launch;
-			dom.toggleClass(this.statusBarItem, 'hidden', this.showInStatusBar === 'never' || !nameAndLaunchPresent);
-			if (nameAndLaunchPresent) {
-				this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch!.name})` : name;
-			}
-		}
+		dispose(this.toDispose);
 	}
 }

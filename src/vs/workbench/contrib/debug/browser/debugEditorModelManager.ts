@@ -15,6 +15,7 @@ import { getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/bro
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface IBreakpointDecoration {
 	decorationId: string;
@@ -35,7 +36,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	static readonly STICKINESS = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 	private modelDataMap: Map<string, IDebugEditorModelData>;
 	private toDispose: lifecycle.IDisposable[];
-	private ignoreDecorationsChangedEvent: boolean;
+	private ignoreDecorationsChangedEvent = false;
 
 	constructor(
 		@IModelService private readonly modelService: IModelService,
@@ -180,7 +181,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return;
 		}
 
-		const data: { [id: string]: IBreakpointUpdateData } = Object.create(null);
+		const data = new Map<string, IBreakpointUpdateData>();
 		const breakpoints = this.debugService.getModel().getBreakpoints();
 		const modelUri = modelData.model.uri;
 		for (let i = 0, len = modelData.breakpointDecorations.length; i < len; i++) {
@@ -191,15 +192,15 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				const breakpoint = breakpoints.filter(bp => bp.getId() === breakpointDecoration.modelId).pop();
 				// since we know it is collapsed, it cannot grow to multiple lines
 				if (breakpoint) {
-					data[breakpoint.getId()] = {
+					data.set(breakpoint.getId(), {
 						lineNumber: decorationRange.startLineNumber,
 						column: breakpoint.column ? decorationRange.startColumn : undefined,
-					};
+					});
 				}
 			}
 		}
 
-		this.debugService.updateBreakpoints(modelUri, data, true);
+		this.debugService.updateBreakpoints(modelUri, data, true).then(undefined, onUnexpectedError);
 	}
 
 	private onBreakpointsChange(): void {

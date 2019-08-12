@@ -5,17 +5,20 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { getUriForLinkWithKnownExternalScheme } from '../util/links';
 
-function normalizeLink(
+const localize = nls.loadMessageBundle();
+
+function parseLink(
 	document: vscode.TextDocument,
 	link: string,
 	base: string
-): vscode.Uri {
+): { uri: vscode.Uri, tooltip?: string } {
 	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
 	if (externalSchemeUri) {
-		return externalSchemeUri;
+		return { uri: externalSchemeUri };
 	}
 
 	// Assume it must be an relative or absolute file path
@@ -34,7 +37,10 @@ function normalizeLink(
 		resourcePath = base ? path.join(base, tempUri.path) : tempUri.path;
 	}
 
-	return OpenDocumentLinkCommand.createCommandUri(resourcePath, tempUri.fragment);
+	return {
+		uri: OpenDocumentLinkCommand.createCommandUri(resourcePath, tempUri.fragment),
+		tooltip: localize('documentLink.tooltip', 'Follow link')
+	};
 }
 
 function matchAll(
@@ -61,18 +67,21 @@ function extractDocumentLink(
 	const linkStart = document.positionAt(offset);
 	const linkEnd = document.positionAt(offset + link.length);
 	try {
-		return new vscode.DocumentLink(
+		const { uri, tooltip } = parseLink(document, link, base);
+		const documentLink = new vscode.DocumentLink(
 			new vscode.Range(linkStart, linkEnd),
-			normalizeLink(document, link, base));
+			uri);
+		documentLink.tooltip = tooltip;
+		return documentLink;
 	} catch (e) {
 		return undefined;
 	}
 }
 
 export default class LinkProvider implements vscode.DocumentLinkProvider {
-	private readonly linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|[^\]]*\])\(\s*)(([^\s\(\)]|\(\S*?\))+)\s*(".*?")?\)/g;
-	private readonly referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)([^\s\]]*?)\]/g;
-	private readonly definitionPattern = /^([\t ]*\[([^\]]+)\]:\s*)(\S+)/gm;
+	private readonly linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\(\S*?\))+)\s*(".*?")?\)/g;
+	private readonly referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
+	private readonly definitionPattern = /^([\t ]*\[((?:\\\]|[^\]])+)\]:\s*)(\S+)/gm;
 
 	public provideDocumentLinks(
 		document: vscode.TextDocument,
@@ -144,11 +153,10 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 			}
 		}
 
-		for (const definition of Array.from(definitions.values())) {
+		for (const definition of definitions.values()) {
 			try {
-				results.push(new vscode.DocumentLink(
-					definition.linkRange,
-					normalizeLink(document, definition.link, base)));
+				const { uri } = parseLink(document, definition.link, base);
+				results.push(new vscode.DocumentLink(definition.linkRange, uri));
 			} catch (e) {
 				// noop
 			}

@@ -191,14 +191,13 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		return super.setInput(input, options, token).then(() => {
+	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, token);
 
-			// Update editor options after having set the input. We do this because there can be
-			// editor input specific options (e.g. an ARIA label depending on the input showing)
-			this.updateEditorConfiguration();
-			this._editorContainer.setAttribute('aria-label', this.computeAriaLabel());
-		});
+		// Update editor options after having set the input. We do this because there can be
+		// editor input specific options (e.g. an ARIA label depending on the input showing)
+		this.updateEditorConfiguration();
+		this._editorContainer.setAttribute('aria-label', this.computeAriaLabel());
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {

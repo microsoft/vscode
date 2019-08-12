@@ -7,6 +7,9 @@ import * as vscode from 'vscode';
 import * as languageModeIds from './languageModeIds';
 import { TypeScriptVersion } from './versionProvider';
 import { Disposable } from './dispose';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 export default class VersionStatus extends Disposable {
 	private readonly _versionBarEntry: vscode.StatusBarItem;
@@ -15,7 +18,12 @@ export default class VersionStatus extends Disposable {
 		private readonly _normalizePath: (resource: vscode.Uri) => string | undefined
 	) {
 		super();
-		this._versionBarEntry = this._register(vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99 /* to the right of editor status (100) */));
+		this._versionBarEntry = this._register(vscode.window.createStatusBarItem({
+			id: 'status.typescript.version',
+			name: localize('typescriptVersion', "TypeScript: Version"),
+			alignment: vscode.StatusBarAlignment.Right,
+			priority: 99 /* to the right of editor status (100) */
+		}));
 		vscode.window.onDidChangeActiveTextEditor(this.showHideStatus, this, this._disposables);
 	}
 

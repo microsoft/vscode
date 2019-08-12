@@ -384,8 +384,8 @@ export class URI implements UriComponents {
 			return data;
 		} else {
 			const result = new _URI(data);
-			result._fsPath = (<UriState>data).fsPath;
 			result._formatted = (<UriState>data).external;
+			result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath : null;
 			return result;
 		}
 	}
@@ -401,10 +401,12 @@ export interface UriComponents {
 
 interface UriState extends UriComponents {
 	$mid: number;
-	fsPath: string;
 	external: string;
+	fsPath: string;
+	_sep: 1 | undefined;
 }
 
+const _pathSepMarker = isWindows ? 1 : undefined;
 
 // tslint:disable-next-line:class-name
 class _URI extends URI {
@@ -438,6 +440,7 @@ class _URI extends URI {
 		// cached state
 		if (this._fsPath) {
 			res.fsPath = this._fsPath;
+			res._sep = _pathSepMarker;
 		}
 		if (this._formatted) {
 			res.external = this._formatted;

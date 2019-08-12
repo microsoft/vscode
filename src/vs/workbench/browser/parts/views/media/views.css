@@ -21,28 +21,28 @@
 }
 
 .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded.svg");
+	background-image: url("tree-expanded-light.svg");
 }
 
 .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
 	display: inline-block;
-	background-image: url("collapsed.svg");
+	background-image: url("tree-collapsed-light.svg");
 }
 
 .vs-dark .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded-dark.svg");
+	background-image: url("tree-expanded-dark.svg");
 }
 
 .vs-dark .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("collapsed-dark.svg");
+	background-image: url("tree-collapsed-dark.svg");
 }
 
 .hc-black .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded-hc.svg");
+	background-image: url("tree-expanded-hc.svg");
 }
 
 .hc-black .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("collapsed-hc.svg");
+	background-image: url("tree-collapsed-hc.svg");
 }
 
 .file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before,
@@ -53,6 +53,7 @@
 /* File icons in trees */
 
 .file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.collapsible),
+.file-icon-themable-tree .align-icon-with-twisty .monaco-tl-twistie:not(.collapsible),
 .file-icon-themable-tree.hide-arrows .monaco-tl-twistie {
 	background-image: none !important;
 	width: 0 !important;
@@ -93,35 +94,37 @@
 	display: none;
 }
 
-.customview-tree.file-icon-themable-tree .monaco-tree-row .content.align-icon-with-twisty::before {
+.customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
 	display: none;
 }
 
-.customview-tree.file-icon-themable-tree .monaco-tree-row .content:not(.align-icon-with-twisty)::before {
+.customview-tree .monaco-list-row .monaco-tl-contents:not(.align-icon-with-twisty)::before {
 	display: inline-block;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row {
+.customview-tree .monaco-list .monaco-list-row {
 	padding-right: 12px;
+	padding-left: 0px;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
 	display: flex;
 	height: 22px;
 	line-height: 22px;
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
-	flex-wrap: nowrap
+	flex-wrap: nowrap;
+	padding-left: 3px;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel {
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
 	background-size: 16px;
 	background-position: left center;
 	background-repeat: no-repeat;
@@ -131,27 +134,28 @@
 	-webkit-font-smoothing: antialiased;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
 	flex: 1;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel::after {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel::after {
 	padding-right: 0px;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .actions {
 	display: none;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
-.customview-tree .monaco-tree .monaco-tree-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
-.customview-tree .monaco-tree .monaco-tree-row.focused .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
+.customview-tree .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .actions,
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .actions,
+.customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .actions {
 	display: block;
 }
 
-.customview-tree .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label {
+.customview-tree .monaco-list .custom-view-tree-node-item .actions .action-label {
 	width: 16px;
 	height: 100%;
+	background-size: 16px;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 }

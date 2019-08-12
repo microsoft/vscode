@@ -111,26 +111,16 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 	getTypeId() { return 'testFileEditorInputForGroups'; }
 	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+	setEncoding(encoding: string) { }
+	getEncoding(): string { return null!; }
+	setPreferredEncoding(encoding: string) { }
+	getResource(): URI { return this.resource; }
+	setForceOpenAsBinary(): void { }
+	setMode(mode: string) { }
+	setPreferredMode(mode: string) { }
 
 	matches(other: TestFileEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestFileEditorInput;
-	}
-
-	setEncoding(encoding: string) {
-	}
-
-	getEncoding(): string {
-		return null!;
-	}
-
-	setPreferredEncoding(encoding: string) {
-	}
-
-	getResource(): URI {
-		return this.resource;
-	}
-
-	setForceOpenAsBinary(): void {
 	}
 }
 

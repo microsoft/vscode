@@ -169,6 +169,31 @@ export function getAllPropertyNames(obj: object): string[] {
 	return res;
 }
 
+export function getAllMethodNames(obj: object): string[] {
+	const methods: string[] = [];
+	for (const prop of getAllPropertyNames(obj)) {
+		if (typeof (obj as any)[prop] === 'function') {
+			methods.push(prop);
+		}
+	}
+	return methods;
+}
+
+export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: any[]) => any): T {
+	const createProxyMethod = (method: string): () => any => {
+		return function () {
+			const args = Array.prototype.slice.call(arguments, 0);
+			return invoke(method, args);
+		};
+	};
+
+	let result = {} as T;
+	for (const methodName of methodNames) {
+		(<any>result)[methodName] = createProxyMethod(methodName);
+	}
+	return result;
+}
+
 /**
  * Converts null to undefined, passes all other values through.
  */

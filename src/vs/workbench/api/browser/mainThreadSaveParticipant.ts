@@ -28,7 +28,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ISaveParticipant, SaveReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -266,14 +266,18 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 		const codeActionsOnSave = Object.keys(setting)
 			.filter(x => setting[x]).map(x => new CodeActionKind(x))
 			.sort((a, b) => {
-				if (a.value === CodeActionKind.SourceFixAll.value) {
+				if (CodeActionKind.SourceFixAll.contains(a)) {
+					if (CodeActionKind.SourceFixAll.contains(b)) {
+						return 0;
+					}
 					return -1;
 				}
-				if (b.value === CodeActionKind.SourceFixAll.value) {
+				if (CodeActionKind.SourceFixAll.contains(b)) {
 					return 1;
 				}
 				return 0;
 			});
+
 		if (!codeActionsOnSave.length) {
 			return undefined;
 		}
@@ -289,11 +293,8 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 					reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout));
 				}, timeout)),
 			this.applyOnSaveActions(model, codeActionsOnSave, tokenSource.token)
-		]).then(() => {
+		]).finally(() => {
 			tokenSource.cancel();
-		}, (e) => {
-			tokenSource.cancel();
-			return Promise.reject(e);
 		});
 	}
 
@@ -304,6 +305,8 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 				await this.applyCodeActions(actionsToRun.actions);
 			} catch {
 				// Failure to apply a code action should not block other on save actions
+			} finally {
+				actionsToRun.dispose();
 			}
 		}
 	}
@@ -361,7 +364,7 @@ export class SaveParticipant implements ISaveParticipant {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProgressService2 private readonly _progressService: IProgressService2,
+		@IProgressService private readonly _progressService: IProgressService,
 		@ILogService private readonly _logService: ILogService
 	) {
 		this._saveParticipants = new IdleValue(() => [

@@ -46,7 +46,7 @@ class TagClosing extends Disposable {
 
 	private onDidChangeTextDocument(
 		document: vscode.TextDocument,
-		changes: vscode.TextDocumentContentChangeEvent[]
+		changes: readonly vscode.TextDocumentContentChangeEvent[]
 	) {
 		const activeDocument = vscode.window.activeTextEditor && vscode.window.activeTextEditor.document;
 		if (document !== activeDocument || changes.length === 0) {

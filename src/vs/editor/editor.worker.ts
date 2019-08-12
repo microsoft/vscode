@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SimpleWorkerServer } from 'vs/base/common/worker/simpleWorker';
-import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
+import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
 
 let initialized = false;
 
@@ -14,10 +15,9 @@ export function initialize(foreignModule: any) {
 	}
 	initialized = true;
 
-	const editorWorker = new EditorSimpleWorkerImpl(foreignModule);
 	const simpleWorker = new SimpleWorkerServer((msg) => {
 		(<any>self).postMessage(msg);
-	}, editorWorker);
+	}, (host: EditorWorkerHost) => new EditorSimpleWorker(host, foreignModule));
 
 	self.onmessage = (e) => {
 		simpleWorker.onmessage(e.data);

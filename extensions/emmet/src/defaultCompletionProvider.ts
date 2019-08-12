@@ -5,12 +5,15 @@
 
 import * as vscode from 'vscode';
 import { Node, Stylesheet } from 'EmmetNode';
-import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, parseDocument, getEmbeddedCssNodeIfAny, isStyleAttribute, getNode } from './util';
+import { isValidLocationForEmmetAbbreviation, getSyntaxFromArgs } from './abbreviationActions';
+import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, parseDocument, getNode, allowedMimeTypesInScriptTag, trimQuotes } from './util';
+import { getLanguageService, TextDocument, TokenType } from 'vscode-html-languageservice';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	private lastCompletionType: string | undefined;
+
+	private htmlLS = getLanguageService();
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, _: vscode.CancellationToken, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
 		const completionResult = this.provideCompletionItemsInternal(document, position, context);
@@ -76,19 +79,54 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 			}
 			if (validateLocation) {
-				rootNode = parseDocument(document, false);
-				currentNode = getNode(rootNode, position, true);
-				if (isStyleAttribute(currentNode, position)) {
+				const lsDoc = TextDocument.create(document.uri.toString(), 'html', 0, document.getText());
+				const parsedLsDoc = this.htmlLS.parseHTMLDocument(lsDoc);
+				const positionOffset = document.offsetAt(position);
+				const node = parsedLsDoc.findNodeAt(positionOffset);
+
+				if (node.tag === 'script') {
+					if (node.attributes && 'type' in node.attributes) {
+						const rawTypeAttrValue = node.attributes['type'];
+						if (rawTypeAttrValue) {
+							const typeAttrValue = trimQuotes(rawTypeAttrValue);
+							if (typeAttrValue === 'application/javascript' || typeAttrValue === 'text/javascript') {
+								if (!getSyntaxFromArgs({ language: 'javascript' })) {
+									return;
+								} else {
+									validateLocation = false;
+								}
+							}
+
+							else if (allowedMimeTypesInScriptTag.indexOf(trimQuotes(rawTypeAttrValue)) > -1) {
+								validateLocation = false;
+							}
+						}
+					} else {
+						return;
+					}
+				}
+				else if (node.tag === 'style') {
 					syntax = 'css';
 					validateLocation = false;
 				} else {
-					const embeddedCssNode = getEmbeddedCssNodeIfAny(document, currentNode, position);
-					if (embeddedCssNode) {
-						currentNode = getNode(embeddedCssNode, position, true);
-						syntax = 'css';
+					if (node.attributes && node.attributes['style']) {
+						const scanner = this.htmlLS.createScanner(document.getText(), node.start);
+						let tokenType = scanner.scan();
+						let prevAttr = undefined;
+						while (tokenType !== TokenType.EOS && (scanner.getTokenEnd() <= positionOffset)) {
+							tokenType = scanner.scan();
+							if (tokenType === TokenType.AttributeName) {
+								prevAttr = scanner.getTokenText();
+							}
+						}
+						if (prevAttr === 'style') {
+							syntax = 'css';
+							validateLocation = false;
+						}
 					}
 				}
 			}
+
 
 		}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
+import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 
@@ -44,6 +44,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		} else {
 			this._delegate.stopFind(false);
 		}
+		return false;
 	}
 
 	protected onFocusTrackerFocus() { }
@@ -53,4 +54,6 @@ export class WebviewFindWidget extends SimpleFindWidget {
 	protected onFindInputFocusTrackerFocus() { }
 
 	protected onFindInputFocusTrackerBlur() { }
+
+	protected findFirst() { }
 }

@@ -228,7 +228,7 @@ export interface PresentationOptions {
 	 * Controls whether the problems pane is revealed when running this task or not.
 	 * Defaults to `RevealProblemKind.Never`.
 	 */
-	revealProblem: RevealProblemKind;
+	revealProblems: RevealProblemKind;
 
 	/**
 	 * Controls whether the command associated with the task is echoed
@@ -266,14 +266,14 @@ export interface PresentationOptions {
 
 export namespace PresentationOptions {
 	export const defaults: PresentationOptions = {
-		echo: true, reveal: RevealKind.Always, revealProblem: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+		echo: true, reveal: RevealKind.Always, revealProblems: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
 	};
 }
 
 export enum RuntimeType {
 	Shell = 1,
 	Process = 2,
-	CustomExecution = 3
+	CustomExecution2 = 3
 }
 
 export namespace RuntimeType {
@@ -283,8 +283,8 @@ export namespace RuntimeType {
 				return RuntimeType.Shell;
 			case 'process':
 				return RuntimeType.Process;
-			case 'customExecution':
-				return RuntimeType.CustomExecution;
+			case 'customExecution2':
+				return RuntimeType.CustomExecution2;
 			default:
 				return RuntimeType.Process;
 		}
@@ -431,6 +431,11 @@ export const enum GroupType {
 	user = 'user'
 }
 
+export const enum DependsOrder {
+	parallel = 'parallel',
+	sequence = 'sequence'
+}
+
 export interface ConfigurationProperties {
 
 	/**
@@ -477,6 +482,11 @@ export interface ConfigurationProperties {
 	 * The other tasks this task depends on.
 	 */
 	dependsOn?: TaskDependency[];
+
+	/**
+	 * The order the dependsOn tasks should be executed in.
+	 */
+	dependsOrder?: DependsOrder;
 
 	/**
 	 * The problem watchers to use for this task
@@ -607,7 +617,7 @@ export class CustomTask extends CommonTask {
 	type: '$customized'; // CUSTOMIZED_TASK_TYPE
 
 	/**
-	 * Indicated the source of the task (e.g tasks.json or extension)
+	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 */
 	_source: WorkspaceTaskSource;
 
@@ -650,8 +660,8 @@ export class CustomTask extends CommonTask {
 					type = 'process';
 					break;
 
-				case RuntimeType.CustomExecution:
-					type = 'customExecution';
+				case RuntimeType.CustomExecution2:
+					type = 'customExecution2';
 					break;
 
 				case undefined:
@@ -714,7 +724,7 @@ export class CustomTask extends CommonTask {
 export class ConfiguringTask extends CommonTask {
 
 	/**
-	 * Indicated the source of the task (e.g tasks.json or extension)
+	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 */
 	_source: WorkspaceTaskSource;
 
@@ -735,12 +745,15 @@ export class ConfiguringTask extends CommonTask {
 		return object;
 	}
 
+	public getDefinition(): KeyedTaskIdentifier {
+		return this.configures;
+	}
 }
 
 export class ContributedTask extends CommonTask {
 
 	/**
-	 * Indicated the source of the task (e.g tasks.json or extension)
+	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 */
 	_source: ExtensionTaskSource;
 
@@ -807,7 +820,7 @@ export class ContributedTask extends CommonTask {
 
 export class InMemoryTask extends CommonTask {
 	/**
-	 * Indicated the source of the task (e.g tasks.json or extension)
+	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 */
 	_source: InMemoryTaskSource;
 

@@ -7,6 +7,7 @@ import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/product/node/product';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class KeybindingsReferenceAction extends Action {
 
@@ -91,8 +92,31 @@ export class OpenTipsAndTricksUrlAction extends Action {
 
 	run(): Promise<void> {
 		window.open(OpenTipsAndTricksUrlAction.URL);
-
 		return Promise.resolve();
+	}
+}
+
+export class OpenNewsletterSignupUrlAction extends Action {
+
+	static readonly ID = 'workbench.action.openNewsletterSignupUrl';
+	static readonly LABEL = nls.localize('newsletterSignup', "Signup for the VS Code Newsletter");
+	private telemetryService: ITelemetryService;
+	private static readonly URL = product.newsletterSignupUrl;
+	static readonly AVAILABLE = !!OpenNewsletterSignupUrlAction.URL;
+
+	constructor(
+		id: string,
+		label: string,
+		@ITelemetryService telemetryService: ITelemetryService
+	) {
+		super(id, label);
+		this.telemetryService = telemetryService;
+	}
+
+	async run(): Promise<void> {
+		const info = await this.telemetryService.getTelemetryInfo();
+
+		window.open(`${OpenNewsletterSignupUrlAction.URL}?machineId=${encodeURIComponent(info.machineId)}`);
 	}
 }
 

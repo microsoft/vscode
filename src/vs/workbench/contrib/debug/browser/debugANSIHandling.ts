@@ -5,12 +5,14 @@
 
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { RGBA, Color } from 'vs/base/common/color';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
 /**
  * @param text The content to stylize.
  * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
  */
-export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTMLSpanElement {
+export function handleANSIOutput(text: string, linkDetector: LinkDetector, themeService: IThemeService): HTMLSpanElement {
 
 	const root: HTMLSpanElement = document.createElement('span');
 	const textLength: number = text.length;
@@ -105,23 +107,20 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	/**
 	 * Change the foreground or background color by clearing the current color
 	 * and adding the new one.
-	 * @param newClass If string or number, new class will be
-	 *  `code-(foreground or background)-newClass`. If `undefined`, no new class
-	 * 	will be added.
 	 * @param colorType If `'foreground'`, will change the foreground color, if
 	 * 	`'background'`, will change the background color.
-	 * @param customColor If provided, this custom color will be used instead of
-	 * 	a class-defined color.
+	 * @param color Color to change to. If `undefined` or not provided,
+	 * will clear current color without adding a new one.
 	 */
-	function changeColor(newClass: string | number | undefined, colorType: 'foreground' | 'background', customColor?: RGBA): void {
-		styleNames = styleNames.filter(style => !style.match(new RegExp(`^code-${colorType}-(\\d+|custom)$`)));
-		if (newClass) {
-			styleNames.push(`code-${colorType}-${newClass}`);
-		}
+	function changeColor(colorType: 'foreground' | 'background', color?: RGBA | undefined): void {
 		if (colorType === 'foreground') {
-			customFgColor = customColor;
-		} else {
-			customBgColor = customColor;
+			customFgColor = color;
+		} else if (colorType === 'background') {
+			customBgColor = color;
+		}
+		styleNames = styleNames.filter(style => style !== `code-${colorType}-colored`);
+		if (color !== undefined) {
+			styleNames.push(`code-${colorType}-colored`);
 		}
 	}
 
@@ -137,22 +136,37 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 	 */
 	function setBasicFormatters(styleCodes: number[]): void {
 		for (let code of styleCodes) {
-			if (code === 0) {
-				styleNames = [];
-			} else if (code === 1) {
-				styleNames.push('code-bold');
-			} else if (code === 3) {
-				styleNames.push('code-italic');
-			} else if (code === 4) {
-				styleNames.push('code-underline');
-			} else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
-				changeColor(code, 'foreground');
-			} else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
-				changeColor(code, 'background');
-			} else if (code === 39) {
-				changeColor(undefined, 'foreground');
-			} else if (code === 49) {
-				changeColor(undefined, 'background');
+			switch (code) {
+				case 0: {
+					styleNames = [];
+					customFgColor = undefined;
+					customBgColor = undefined;
+					break;
+				}
+				case 1: {
+					styleNames.push('code-bold');
+					break;
+				}
+				case 3: {
+					styleNames.push('code-italic');
+					break;
+				}
+				case 4: {
+					styleNames.push('code-underline');
+					break;
+				}
+				case 39: {
+					changeColor('foreground', undefined);
+					break;
+				}
+				case 49: {
+					changeColor('background', undefined);
+					break;
+				}
+				default: {
+					setBasicColor(code);
+					break;
+				}
 			}
 		}
 	}
@@ -171,7 +185,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 			styleCodes[3] >= 0 && styleCodes[3] <= 255 &&
 			styleCodes[4] >= 0 && styleCodes[4] <= 255) {
 			const customColor = new RGBA(styleCodes[2], styleCodes[3], styleCodes[4]);
-			changeColor('custom', colorType, customColor);
+			changeColor(colorType, customColor);
 		}
 	}
 
@@ -188,7 +202,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 		const color = calcANSI8bitColor(colorNumber);
 
 		if (color) {
-			changeColor('custom', colorType, color);
+			changeColor(colorType, color);
 		} else if (colorNumber >= 0 && colorNumber <= 15) {
 			// Need to map to one of the four basic color ranges (30-37, 90-97, 40-47, 100-107)
 			colorNumber += 30;
@@ -199,7 +213,43 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 			if (colorType === 'background') {
 				colorNumber += 10;
 			}
-			changeColor(colorNumber, colorType);
+			setBasicColor(colorNumber);
+		}
+	}
+
+	/**
+	 * Calculate and set styling for basic bright and dark ANSI color codes. Uses
+	 * theme colors if available. Automatically distinguishes between foreground
+	 * and background colors; does not support color-clearing codes 39 and 49.
+	 * @param styleCode Integer color code on one of the following ranges:
+	 * [30-37, 90-97, 40-47, 100-107]. If not on one of these ranges, will do
+	 * nothing.
+	 */
+	function setBasicColor(styleCode: number): void {
+		const theme = themeService.getTheme();
+		let colorType: 'foreground' | 'background' | undefined;
+		let colorIndex: number | undefined;
+
+		if (styleCode >= 30 && styleCode <= 37) {
+			colorIndex = styleCode - 30;
+			colorType = 'foreground';
+		} else if (styleCode >= 90 && styleCode <= 97) {
+			colorIndex = (styleCode - 90) + 8; // High-intensity (bright)
+			colorType = 'foreground';
+		} else if (styleCode >= 40 && styleCode <= 47) {
+			colorIndex = styleCode - 40;
+			colorType = 'background';
+		} else if (styleCode >= 100 && styleCode <= 107) {
+			colorIndex = (styleCode - 100) + 8; // High-intensity (bright)
+			colorType = 'background';
+		}
+
+		if (colorIndex !== undefined && colorType) {
+			const colorName = ansiColorIdentifiers[colorIndex];
+			const color = theme.getColor(colorName);
+			if (color) {
+				changeColor(colorType, color.rgba);
+			}
 		}
 	}
 }

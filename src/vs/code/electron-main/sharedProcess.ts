@@ -11,34 +11,34 @@ import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { IStateService } from 'vs/platform/state/common/state';
-import { getBackgroundColor } from 'vs/code/electron-main/theme';
-import { dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
 export class SharedProcess implements ISharedProcess {
 
 	private barrier = new Barrier();
 
-	private window: Electron.BrowserWindow | null;
+	private window: Electron.BrowserWindow | null = null;
 
 	constructor(
 		private readonly machineId: string,
 		private userEnv: NodeJS.ProcessEnv,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IStateService private readonly stateService: IStateService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) { }
 
 	@memoize
 	private get _whenReady(): Promise<void> {
 		this.window = new BrowserWindow({
 			show: false,
-			backgroundColor: getBackgroundColor(this.stateService),
+			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
 				images: false,
 				webaudio: false,
 				webgl: false,
+				nodeIntegration: true,
 				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
 		});
@@ -67,10 +67,10 @@ export class SharedProcess implements ISharedProcess {
 
 		this.window.on('close', onClose);
 
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		this.lifecycleService.onWillShutdown(() => {
-			dispose(disposables);
+			disposables.dispose();
 
 			// Shut the shared process down when we are quitting
 			//
@@ -104,7 +104,7 @@ export class SharedProcess implements ISharedProcess {
 					logLevel: this.logService.getLevel()
 				});
 
-				disposables.push(toDisposable(() => sender.send('handshake:goodbye')));
+				disposables.add(toDisposable(() => sender.send('handshake:goodbye')));
 				ipcMain.once('handshake:im ready', () => c(undefined));
 			});
 		});

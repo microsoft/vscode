@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
@@ -81,7 +81,10 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			await treeView.refresh();
 		}
 		for (const parent of parentChain) {
-			await treeView.expand(parent);
+			const parentItem = dataProvider.getItem(parent.handle);
+			if (parentItem) {
+				await treeView.expand(parentItem);
+			}
 		}
 		const item = dataProvider.getItem(itemIn.handle);
 		if (item) {
@@ -202,7 +205,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		if (current) {
 			const properties = distinct([...Object.keys(current), ...Object.keys(treeItem)]);
 			for (const property of properties) {
-				current[property] = treeItem[property];
+				(<any>current)[property] = (<any>treeItem)[property];
 			}
 		}
 	}

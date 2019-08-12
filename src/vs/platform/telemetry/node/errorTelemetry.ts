@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import BaseErrorTelemetry from '../common/errorTelemetry';
 
 export default class ErrorTelemetry extends BaseErrorTelemetry {
 	protected installErrorListeners(): void {
+		setUnexpectedErrorHandler(err => console.error(err));
+
 		// Print a console message when rejection isn't handled within N seconds. For details:
 		// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 		// and https://nodejs.org/api/process.html#process_event_rejectionhandled

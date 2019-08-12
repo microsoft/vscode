@@ -185,7 +185,11 @@ export class Workspace implements IWorkspace {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource.toString()) || null;
+		return this._foldersMap.findSubstr(resource.with({
+			scheme: resource.scheme,
+			authority: resource.authority,
+			path: resource.path
+		}).toString()) || null;
 	}
 
 	private updateFoldersMap(): void {
@@ -228,7 +232,7 @@ export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
 
 export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI): WorkspaceFolder[] {
 	let result: WorkspaceFolder[] = [];
-	let seen: { [uri: string]: boolean } = Object.create(null);
+	let seen: Set<string> = new Set();
 
 	const relativeTo = resources.dirname(workspaceConfigFile);
 	for (let configuredFolder of configuredFolders) {
@@ -252,8 +256,8 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 		if (uri) {
 			// remove duplicates
 			let comparisonKey = resources.getComparisonKey(uri);
-			if (!seen[comparisonKey]) {
-				seen[comparisonKey] = true;
+			if (!seen.has(comparisonKey)) {
+				seen.add(comparisonKey);
 
 				const name = configuredFolder.name || resources.basenameOrAuthority(uri);
 				result.push(new WorkspaceFolder({ uri, name, index: result.length }, configuredFolder));

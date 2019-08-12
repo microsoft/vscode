@@ -13,7 +13,7 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +34,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakopintWidgetService');
@@ -44,10 +45,10 @@ export interface IPrivateBreakpointWidgetService {
 const DECORATION_KEY = 'breakpointwidgetdecoration';
 
 export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWidgetService {
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
-	private selectContainer: HTMLElement;
-	private input: IActiveCodeEditor;
+	private selectContainer!: HTMLElement;
+	private input!: IActiveCodeEditor;
 	private toDispose: lifecycle.IDisposable[];
 	private conditionInput = '';
 	private hitCountInput = '';
@@ -129,12 +130,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
-	public show(rangeOrPos: IRange | IPosition, heightInLines: number) {
+	show(rangeOrPos: IRange | IPosition, heightInLines: number) {
 		const lineNum = this.input.getModel().getLineCount();
 		super.show(rangeOrPos, lineNum + 1);
 	}
 
-	public fitHeightToContent() {
+	fitHeightToContent() {
 		const lineNum = this.input.getModel().getLineCount();
 		this._relayout(lineNum + 1);
 	}
@@ -162,50 +163,6 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.input.setPosition({ lineNumber: 1, column: this.input.getModel().getLineMaxColumn(1) });
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.input.focus(), 150);
-	}
-
-	public close(success: boolean): void {
-		if (success) {
-			// if there is already a breakpoint on this location - remove it.
-
-			let condition = this.breakpoint && this.breakpoint.condition;
-			let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
-			let logMessage = this.breakpoint && this.breakpoint.logMessage;
-			this.rememberInput();
-
-			if (this.conditionInput || this.context === Context.CONDITION) {
-				condition = this.conditionInput;
-			}
-			if (this.hitCountInput || this.context === Context.HIT_COUNT) {
-				hitCondition = this.hitCountInput;
-			}
-			if (this.logMessageInput || this.context === Context.LOG_MESSAGE) {
-				logMessage = this.logMessageInput;
-			}
-
-			if (this.breakpoint) {
-				this.debugService.updateBreakpoints(this.breakpoint.uri, {
-					[this.breakpoint.getId()]: {
-						condition,
-						hitCondition,
-						logMessage
-					}
-				}, false);
-			} else {
-				const model = this.editor.getModel();
-				if (model) {
-					this.debugService.addBreakpoints(model.uri, [{
-						lineNumber: this.lineNumber,
-						enabled: true,
-						condition,
-						hitCondition,
-						logMessage
-					}], `breakpointWidget`);
-				}
-			}
-		}
-
-		this.dispose();
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
@@ -304,7 +261,51 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		return false;
 	}
 
-	public dispose(): void {
+	close(success: boolean): void {
+		if (success) {
+			// if there is already a breakpoint on this location - remove it.
+
+			let condition = this.breakpoint && this.breakpoint.condition;
+			let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
+			let logMessage = this.breakpoint && this.breakpoint.logMessage;
+			this.rememberInput();
+
+			if (this.conditionInput || this.context === Context.CONDITION) {
+				condition = this.conditionInput;
+			}
+			if (this.hitCountInput || this.context === Context.HIT_COUNT) {
+				hitCondition = this.hitCountInput;
+			}
+			if (this.logMessageInput || this.context === Context.LOG_MESSAGE) {
+				logMessage = this.logMessageInput;
+			}
+
+			if (this.breakpoint) {
+				const data = new Map<string, IBreakpointUpdateData>();
+				data.set(this.breakpoint.getId(), {
+					condition,
+					hitCondition,
+					logMessage
+				});
+				this.debugService.updateBreakpoints(this.breakpoint.uri, data, false).then(undefined, onUnexpectedError);
+			} else {
+				const model = this.editor.getModel();
+				if (model) {
+					this.debugService.addBreakpoints(model.uri, [{
+						lineNumber: this.lineNumber,
+						enabled: true,
+						condition,
+						hitCondition,
+						logMessage
+					}], `breakpointWidget`);
+				}
+			}
+		}
+
+		this.dispose();
+	}
+
+	dispose(): void {
 		super.dispose();
 		this.input.dispose();
 		lifecycle.dispose(this.toDispose);
@@ -326,7 +327,7 @@ class AcceptBreakpointWidgetInputAction extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		accessor.get(IPrivateBreakpointWidgetService).close(true);
 	}
 }
@@ -346,7 +347,7 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const debugContribution = editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
 		if (debugContribution) {
 			// if focus is in outer editor we need to use the debug contribution to close

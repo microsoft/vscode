@@ -37,7 +37,7 @@ class ServiceAccessor {
 
 class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 
-	public value: boolean | Promise<boolean>;
+	public value: boolean | Promise<boolean> | undefined;
 	public reason = ShutdownReason.CLOSE;
 
 	veto(value: boolean | Promise<boolean>): void {
@@ -65,8 +65,8 @@ suite('Files - TextFileService', () => {
 		accessor.untitledEditorService.revertAll();
 	});
 
-	test('confirm onWillShutdown - no veto', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+	test('confirm onWillShutdown - no veto', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const event = new BeforeShutdownEventImpl();
@@ -76,14 +76,12 @@ suite('Files - TextFileService', () => {
 		if (typeof veto === 'boolean') {
 			assert.ok(!veto);
 		} else {
-			veto.then(veto => {
-				assert.ok(!veto);
-			});
+			assert.ok(!(await veto));
 		}
 	});
 
 	test('confirm onWillShutdown - veto if user cancels', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
@@ -99,7 +97,7 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('confirm onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
@@ -125,7 +123,7 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('confirm onWillShutdown - save (hot.exit: off)', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
@@ -144,7 +142,7 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('isDirty/getDirty - files and untitled', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
@@ -171,7 +169,7 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('save - file', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
@@ -187,11 +185,11 @@ suite('Files - TextFileService', () => {
 
 	test('save - UNC path', async function () {
 		const untitledUncUri = URI.from({ scheme: 'untitled', authority: 'server', path: '/share/path/file.txt' });
-		model = instantiationService.createInstance(TextFileEditorModel, untitledUncUri, 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, untitledUncUri, 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const mockedFileUri = untitledUncUri.with({ scheme: Schemas.file });
-		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8');
+		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8', undefined);
 		const loadOrCreateStub = sinon.stub(accessor.textFileService.models, 'loadOrCreate', () => Promise.resolve(mockedEditorInput));
 
 		sinon.stub(accessor.untitledEditorService, 'exists', () => true);
@@ -211,7 +209,7 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('saveAll - file', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
@@ -228,7 +226,7 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('saveAs - file', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
@@ -244,7 +242,7 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('revert - file', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
@@ -260,7 +258,7 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('delete - dirty file', async function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
@@ -274,8 +272,16 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('move - dirty file', async function () {
-		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
-		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target.txt'), 'utf8');
+		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'));
+	});
+
+	test('move - dirty file (target exists and is dirty)', async function () {
+		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true);
+	});
+
+	async function testMove(source: URI, target: URI, targetDirty?: boolean): Promise<void> {
+		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
+		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(sourceModel.getResource(), sourceModel);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(targetModel.getResource(), targetModel);
 
@@ -285,11 +291,22 @@ suite('Files - TextFileService', () => {
 		sourceModel.textEditorModel!.setValue('foo');
 		assert.ok(service.isDirty(sourceModel.getResource()));
 
+		if (targetDirty) {
+			await targetModel.load();
+			targetModel.textEditorModel!.setValue('bar');
+			assert.ok(service.isDirty(targetModel.getResource()));
+		}
+
 		await service.move(sourceModel.getResource(), targetModel.getResource(), true);
+
+		assert.equal(targetModel.textEditorModel!.getValue(), 'foo');
+
 		assert.ok(!service.isDirty(sourceModel.getResource()));
+		assert.ok(service.isDirty(targetModel.getResource()));
+
 		sourceModel.dispose();
 		targetModel.dispose();
-	});
+	}
 
 	suite('Hot Exit', () => {
 		suite('"onExit" setting', () => {
@@ -395,7 +412,7 @@ suite('Files - TextFileService', () => {
 		});
 
 		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: true, shouldVeto: boolean): Promise<void> {
-			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 			(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 			const service = accessor.textFileService;
