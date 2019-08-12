@@ -18,6 +18,8 @@ import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/co
 import { RemoteExtensionHostClient, IInitDataProvider } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { WebWorkerExtensionHostStarter } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHostStarter';
+import { URI } from 'vs/base/common/uri';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -60,6 +62,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	protected _createExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): ExtensionHostProcessManager[] {
 		const result: ExtensionHostProcessManager[] = [];
+
+		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, Promise.resolve([]), URI.parse('empty:value'));
+		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, null, initialActivationEvents);
+		result.push(webHostProcessManager);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection()!;
 		const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);

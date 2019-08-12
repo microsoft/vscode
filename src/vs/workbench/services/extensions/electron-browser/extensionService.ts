@@ -34,7 +34,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IProductService } from 'vs/platform/product/common/product';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
-import { WebWorkerExtensionHostStarter } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHostStarter';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -350,15 +349,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 
 		const result: ExtensionHostProcessManager[] = [];
-		const workerExtensions: Record<string, true> = { ['jrieken.helloworld']: true };
 
-		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions.then(e => e.filter(e => !workerExtensions[e.identifier.value])), this._extensionHostLogsLocation);
+		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, true, extHostProcessWorker, null, initialActivationEvents);
 		result.push(extHostProcessManager);
-
-		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, extensions.then(e => e.filter(e => workerExtensions[e.identifier.value])), this._extensionHostLogsLocation);
-		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, null, initialActivationEvents);
-		result.push(webHostProcessManager);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
