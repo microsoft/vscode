@@ -246,7 +246,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 	// Window
 
 	let windowTitleDescription = nls.localize('windowTitle', "Controls the window title based on the active editor. Variables are substituted based on the context:");
-	windowTitleDescription += [
+	windowTitleDescription += '\n- ' + [
 		nls.localize('activeEditorShort', "`\${activeEditorShort}`: the file name (e.g. myFile.txt)."),
 		nls.localize('activeEditorMedium', "`\${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
 		nls.localize('activeEditorLong', "`\${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)."),
