@@ -6,6 +6,9 @@ resources:
   - container: snapcraft
     image: snapcore/snapcraft:stable
 
+variables:
+  skipComponentGovernanceDetection: $[ne(variables['Build.SourceBranch'], 'refs/heads/master')]
+
 jobs:
 - job: Compile
   pool:
