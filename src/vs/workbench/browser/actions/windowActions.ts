@@ -7,11 +7,11 @@ import 'vs/css!./media/actions';
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen, IWindowsService } from 'vs/platform/windows/common/windows';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsFullscreenContext, IsDevelopmentContext } from 'vs/workbench/browser/contextkeys';
+import { IsFullscreenContext, IsDevelopmentContext, IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -226,6 +226,24 @@ export class ReloadWindowAction extends Action {
 	}
 }
 
+export class ShowAboutDialogAction extends Action {
+
+	static readonly ID = 'workbench.action.showAboutDialog';
+	static readonly LABEL = nls.localize('about', "About");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private readonly windowsService: IWindowsService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<void> {
+		return this.windowsService.openAboutDialog();
+	}
+}
+
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
 // --- Actions Registration
@@ -239,6 +257,9 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction
 
 const developerCategory = nls.localize('developer', "Developer");
 registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL), 'Developer: Reload Window', developerCategory);
+
+const helpCategory = nls.localize('help', "Help");
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAboutDialogAction, ShowAboutDialogAction.ID, ShowAboutDialogAction.LABEL), `Help: About`, helpCategory);
 
 // --- Commands/Keybindings Registration
 
@@ -297,4 +318,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		toggled: IsFullscreenContext
 	},
 	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: 'z_about',
+	command: {
+		id: ShowAboutDialogAction.ID,
+		title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
+	},
+	order: 1,
+	when: IsMacNativeContext.toNegated()
 });

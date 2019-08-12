@@ -154,9 +154,13 @@ export class ExtensionHostProcessManager extends Disposable {
 	private async _measureUp(proxy: ExtHostExtensionServiceShape): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		let b = Buffer.alloc(SIZE, Math.random() % 256);
+		let buff = VSBuffer.alloc(SIZE);
+		let value = Math.ceil(Math.random() * 256);
+		for (let i = 0; i < buff.byteLength; i++) {
+			buff.writeUInt8(i, value);
+		}
 		const sw = StopWatch.create(true);
-		await proxy.$test_up(VSBuffer.wrap(b));
+		await proxy.$test_up(buff);
 		sw.stop();
 		return ExtensionHostProcessManager._convert(SIZE, sw.elapsed());
 	}
