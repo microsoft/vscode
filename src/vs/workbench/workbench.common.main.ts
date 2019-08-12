@@ -45,6 +45,72 @@ import 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import 'vs/workbench/browser/parts/panel/panelPart';
 import 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import 'vs/workbench/browser/parts/statusbar/statusbarPart';
+import 'vs/workbench/browser/parts/views/views';
+
+//#endregion
+
+
+//#region --- workbench services
+
+import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
+import 'vs/workbench/services/keybinding/common/keybindingEditing';
+import 'vs/workbench/services/decorations/browser/decorationsService';
+import 'vs/workbench/services/progress/browser/progressService';
+import 'vs/workbench/services/editor/browser/codeEditorService';
+import 'vs/workbench/services/preferences/browser/preferencesService';
+import 'vs/workbench/services/configuration/common/jsonEditingService';
+import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import 'vs/workbench/services/dialogs/browser/fileDialogService';
+import 'vs/workbench/services/editor/browser/editorService';
+import 'vs/workbench/services/history/browser/history';
+import 'vs/workbench/services/activity/browser/activityService';
+import 'vs/workbench/services/keybinding/browser/keybindingService';
+import 'vs/workbench/services/untitled/common/untitledEditorService';
+import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
+import 'vs/workbench/services/mode/common/workbenchModeService';
+import 'vs/workbench/services/commands/common/commandService';
+import 'vs/workbench/services/themes/browser/workbenchThemeService';
+import 'vs/workbench/services/label/common/labelService';
+import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
+import 'vs/workbench/services/notification/common/notificationService';
+
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IListService, ListService } from 'vs/platform/list/browser/listService';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsServiceImpl';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
+import { IMenuService } from 'vs/platform/actions/common/actions';
+import { MenuService } from 'vs/platform/actions/common/menuService';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { DownloadService } from 'vs/platform/download/common/downloadService';
+
+registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
+registerSingleton(IContextViewService, ContextViewService, true);
+registerSingleton(IListService, ListService, true);
+registerSingleton(IOpenerService, OpenerService, true);
+registerSingleton(IEditorWorkerService, EditorWorkerServiceImpl);
+registerSingleton(IMarkerDecorationsService, MarkerDecorationsService);
+registerSingleton(IMarkerService, MarkerService, true);
+registerSingleton(IContextKeyService, ContextKeyService);
+registerSingleton(IModelService, ModelServiceImpl, true);
+registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService);
+registerSingleton(IMenuService, MenuService, true);
+registerSingleton(IDownloadService, DownloadService, true);
 
 //#endregion
 
@@ -62,7 +128,6 @@ import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 import { IPreferencesSearchService } from 'vs/workbench/contrib/preferences/common/preferences';
 import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/browser/preferencesSearch';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
 
 // Logs
