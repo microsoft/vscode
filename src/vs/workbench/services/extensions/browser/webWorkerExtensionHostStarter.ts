@@ -107,46 +107,43 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 		return undefined;
 	}
 
-	private _createExtHostInitData(): Promise<IInitData> {
-		return Promise.all([this._telemetryService.getTelemetryInfo(), this._extensions])
-			.then(([telemetryInfo, extensionDescriptions]) => {
-				const workspace = this._contextService.getWorkspace();
-				const r: IInitData = {
-					commit: this._productService.commit,
-					version: this._productService.version,
-					parentPid: process.pid,
-					environment: {
-						isExtensionDevelopmentDebug: false, // < todo@joh
-						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
-						appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
-						appName: this._productService.nameLong,
-						appUriScheme: this._productService.urlProtocol,
-						appLanguage: platform.language,
-						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
-						userHome: URI.file(this._environmentService.userHome),
-						webviewResourceRoot: this._environmentService.webviewResourceRoot,
-						webviewCspSource: this._environmentService.webviewCspSource,
-					},
-					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
-						configuration: workspace.configuration || undefined,
-						id: workspace.id,
-						name: this._labelService.getWorkspaceLabel(workspace)
-					},
-					resolvedExtensions: [],
-					hostExtensions: [],
-					extensions: extensionDescriptions,
-					telemetryInfo,
-					logLevel: this._logService.getLevel(),
-					logsLocation: this._extensionHostLogsLocation,
-					autoStart: true,// < todo@joh this._autoStart,
-					remote: {
-						authority: this._environmentService.configuration.remoteAuthority,
-						isRemote: false
-					},
-				};
-				return r;
-			});
+	private async _createExtHostInitData(): Promise<IInitData> {
+		const [telemetryInfo, extensionDescriptions] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._extensions]);
+		const workspace = this._contextService.getWorkspace();
+		return {
+			commit: this._productService.commit,
+			version: this._productService.version,
+			parentPid: -1,
+			environment: {
+				isExtensionDevelopmentDebug: false,
+				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
+				appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
+				appName: this._productService.nameLong,
+				appUriScheme: this._productService.urlProtocol,
+				appLanguage: platform.language,
+				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
+				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
+				globalStorageHome: URI.file(this._environmentService.globalStorageHome),
+				userHome: URI.file(this._environmentService.userHome),
+				webviewResourceRoot: this._environmentService.webviewResourceRoot,
+				webviewCspSource: this._environmentService.webviewCspSource,
+			},
+			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
+				configuration: workspace.configuration || undefined,
+				id: workspace.id,
+				name: this._labelService.getWorkspaceLabel(workspace)
+			},
+			resolvedExtensions: [],
+			hostExtensions: [],
+			extensions: extensionDescriptions,
+			telemetryInfo,
+			logLevel: this._logService.getLevel(),
+			logsLocation: this._extensionHostLogsLocation,
+			autoStart: true,
+			remote: {
+				authority: this._environmentService.configuration.remoteAuthority,
+				isRemote: false
+			},
+		};
 	}
 }
