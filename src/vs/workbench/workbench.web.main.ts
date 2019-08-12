@@ -3,37 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//#region --- workbench/editor core
 
-import 'vs/editor/editor.all';
+// #######################################################################
+// ###                                                                 ###
+// ### !!! PLEASE ADD COMMON IMPORTS INTO WORKBENCH.COMMON.MAIN.TS !!! ###
+// ###                                                                 ###
+// #######################################################################
 
-import 'vs/workbench/api/browser/extensionHost.contribution';
 
-import 'vs/workbench/browser/workbench.contribution';
+//#region --- workbench common
+
+import 'vs/workbench/workbench.common.main';
+
+//#endregion
+
+
+//#region --- workbench (web main)
 
 import 'vs/workbench/browser/web.main';
-
-//#endregion
-
-
-//#region --- workbench actions
-
-import 'vs/workbench/browser/actions/layoutActions';
-import 'vs/workbench/browser/actions/windowActions';
-import 'vs/workbench/browser/actions/developerActions';
-import 'vs/workbench/browser/actions/listCommands';
-import 'vs/workbench/browser/actions/navigationActions';
-import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
-import 'vs/workbench/browser/parts/quickinput/quickInputActions';
-
-//#endregion
-
-
-//#region --- API Extension Points
-
-import 'vs/workbench/api/common/menusExtensionPoint';
-import 'vs/workbench/api/common/configurationExtensionPoint';
-import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#endregion
 
@@ -168,191 +155,26 @@ registerSingleton(IContextMenuService, ContextMenuService);
 //#endregion
 
 
-//#region --- workbench parts
-
-import 'vs/workbench/browser/parts/quickinput/quickInput';
-import 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import 'vs/workbench/browser/parts/titlebar/titlebarPart';
-import 'vs/workbench/browser/parts/editor/editorPart';
-import 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import 'vs/workbench/browser/parts/panel/panelPart';
-import 'vs/workbench/browser/parts/sidebar/sidebarPart';
-import 'vs/workbench/browser/parts/statusbar/statusbarPart';
-
-//#endregion
-
-
 //#region --- workbench contributions
 
 // Resource Service Worker
 import 'vs/workbench/contrib/resources/browser/resourceServiceWorkerClient';
 
-// Workspace File Watching
-import 'vs/workbench/services/files/common/workspaceWatcher';
-
-// Telemetry
-import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
-
-// Localizations
-// import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
-
 // Preferences
-import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
-import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
 import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
-import { IPreferencesSearchService } from 'vs/workbench/contrib/preferences/common/preferences';
-import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/browser/preferencesSearch';
-registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
-
-// Logs
-import 'vs/workbench/contrib/logs/common/logs.contribution';
-
-// Quick Open Handlers
-import 'vs/workbench/contrib/quickopen/browser/quickopen.contribution';
-
-// Explorer
-import 'vs/workbench/contrib/files/browser/explorerViewlet';
-import 'vs/workbench/contrib/files/browser/fileActions.contribution';
-import 'vs/workbench/contrib/files/browser/files.contribution';
-
-// Backup
-import 'vs/workbench/contrib/backup/common/backup.contribution';
-
-// Stats
-// import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
-
-// Rapid Render Splash
-// import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
-
-// Search
-import 'vs/workbench/contrib/search/browser/search.contribution';
-import 'vs/workbench/contrib/search/browser/searchView';
-import 'vs/workbench/contrib/search/browser/openAnythingHandler';
-
-// SCM
-import 'vs/workbench/contrib/scm/browser/scm.contribution';
-import 'vs/workbench/contrib/scm/browser/scmViewlet';
 
 // Debug
-import 'vs/workbench/contrib/debug/browser/debug.contribution';
-import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
-import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
-import 'vs/workbench/contrib/debug/browser/repl';
-import 'vs/workbench/contrib/debug/browser/debugViewlet';
 import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
-// Markers
-import 'vs/workbench/contrib/markers/browser/markers.contribution';
-
-// Comments
-import 'vs/workbench/contrib/comments/browser/comments.contribution';
-
-// URL Support
-import 'vs/workbench/contrib/url/common/url.contribution';
-
 // Webview
-import 'vs/workbench/contrib/webview/browser/webview.contribution';
-
-import { IWebviewService } from 'vs/workbench/contrib/webview/common/webview';
-import { WebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
-import { IWebviewEditorService, WebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-registerSingleton(IWebviewService, WebviewService, true);
-registerSingleton(IWebviewEditorService, WebviewEditorService, true);
-
-// Extensions Management
-import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
-import 'vs/workbench/contrib/extensions/browser/extensionsQuickOpen';
-import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
-
-// Output Panel
-import 'vs/workbench/contrib/output/browser/output.contribution';
-import 'vs/workbench/contrib/output/browser/outputPanel';
+import 'vs/workbench/contrib/webview/browser/webviewService';
+import 'vs/workbench/contrib/webview/browser/webviewEditorService';
 
 // Terminal
-import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
-// import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
-import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
-import 'vs/workbench/contrib/terminal/browser/terminalPanel';
-
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalNativeService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalNativeService } from 'vs/workbench/contrib/terminal/browser/terminalNativeService';
-import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
-registerSingleton(ITerminalNativeService, TerminalNativeService, true);
-registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
-
-// Relauncher
-import 'vs/workbench/contrib/relauncher/common/relauncher.contribution';
+import 'vs/workbench/contrib/terminal/browser/terminalNativeService';
+import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Tasks
-import 'vs/workbench/contrib/tasks/browser/task.contribution';
-import { TaskService } from 'vs/workbench/contrib/tasks/browser/taskService';
-import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-registerSingleton(ITaskService, TaskService, true);
-
-// Remote
-import 'vs/workbench/contrib/remote/common/remote.contribution';
-// import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
-
-// Emmet
-import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
-
-// CodeEditor Contributions
-import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
-// import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
-
-// External terminal
-import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
-
-// Snippets
-import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
-import 'vs/workbench/contrib/snippets/browser/snippetsService';
-import 'vs/workbench/contrib/snippets/browser/insertSnippet';
-import 'vs/workbench/contrib/snippets/browser/configureSnippets';
-import 'vs/workbench/contrib/snippets/browser/tabCompletion';
-
-// Formatter Help
-import 'vs/workbench/contrib/format/browser/format.contribution';
-
-// Send a Smile
-// import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
-
-// Update
-// import 'vs/workbench/contrib/update/electron-browser/update.contribution';
-
-// Surveys
-// import 'vs/workbench/contrib/surveys/electron-browser/nps.contribution';
-// import 'vs/workbench/contrib/surveys/electron-browser/languageSurveys.contribution';
-
-// Performance
-// import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
-
-// CLI
-// import 'vs/workbench/contrib/cli/node/cli.contribution';
-
-// Themes Support
-import 'vs/workbench/contrib/themes/browser/themes.contribution';
-// import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution';
-
-// Watermark
-import 'vs/workbench/contrib/watermark/browser/watermark';
-
-// Welcome
-import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
-// import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
-import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
-// import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
-
-// Call Hierarchy
-import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
-
-// Outline
-import 'vs/workbench/contrib/outline/browser/outline.contribution';
-
-// Experiments
-// import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
-
-// Issues
-// import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
+import 'vs/workbench/contrib/tasks/browser/taskService';
 
 //#endregion
