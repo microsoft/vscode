@@ -65,7 +65,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection()!;
 
-		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, Promise.resolve([]), URI.parse('empty:value')); //todo@joh
+		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, true, Promise.resolve([]), URI.parse('empty:value')); //todo@joh
 		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
 		result.push(webHostProcessManager);
 
