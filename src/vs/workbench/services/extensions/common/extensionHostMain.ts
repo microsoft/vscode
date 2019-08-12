@@ -45,7 +45,6 @@ export class ExtensionHostMain {
 		protocol: IMessagePassingProtocol,
 		initData: IInitData,
 		hostUtils: IHostUtils,
-		consolePatchFn: IConsolePatchFn,
 		uriTransformer: IURITransformer | null
 	) {
 		this._isTerminating = false;
@@ -54,9 +53,6 @@ export class ExtensionHostMain {
 
 		// ensure URIs are transformed and revived
 		initData = ExtensionHostMain._transform(initData, rpcProtocol);
-
-		// allow to patch console
-		consolePatchFn(rpcProtocol.getProxy(MainContext.MainThreadConsole));
 
 		// services
 

@@ -102,17 +102,11 @@ export function create(postMessage: (message: any, transfer?: Transferable[]) =>
 	const res = new ExtensionWorker(postMessage);
 
 	connectToRenderer(res.protocol).then(data => {
-		// console.log('INIT_DATA', data.initData);
-
-		// data.protocol.onMessage(msg => {
-		// 	// console.log('SOME MSG', msg.toString());
-		// });
 
 		const extHostMain = new ExtensionHostMain(
 			data.protocol,
 			data.initData,
 			hostUtil,
-			() => { },
 			null,
 		);
 
