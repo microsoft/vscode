@@ -34,7 +34,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IProductService } from 'vs/platform/product/common/product';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
-import { WebWorkerExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/webWorkerExtensionHostStarter';
+import { WebWorkerExtensionHostStarter } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHostStarter';
 
 class DeltaExtensionsQueueItem {
 	constructor(
