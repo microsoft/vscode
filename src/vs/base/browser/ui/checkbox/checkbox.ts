@@ -25,6 +25,12 @@ export interface ICheckboxStyles {
 	inputActiveOptionBackground?: Color;
 }
 
+export interface ISimpleCheckboxStyles {
+	checkboxBackground?: Color;
+	checkboxBorder?: Color;
+	checkboxForeground?: Color;
+}
+
 const defaultOpts = {
 	inputActiveOptionBorder: Color.fromHex('#007ACC00'),
 	inputActiveOptionBackground: Color.fromHex('#0E639C50')
@@ -172,5 +178,48 @@ export class Checkbox extends Widget {
 	disable(): void {
 		DOM.removeTabIndexAndUpdateFocus(this.domNode);
 		this.domNode.setAttribute('aria-disabled', String(true));
+	}
+}
+
+export class SimpleCheckbox extends Widget {
+	private checkbox: Checkbox;
+	private styles: ISimpleCheckboxStyles;
+
+	readonly domNode: HTMLElement;
+
+	constructor(private title: string, private isChecked: boolean) {
+		super();
+
+		this.checkbox = new Checkbox({ title: this.title, isChecked: this.isChecked, actionClassName: 'monaco-simple-checkbox' });
+
+		this.domNode = this.checkbox.domNode;
+
+		this.styles = {};
+
+		this.checkbox.onChange(() => {
+			this.applyStyles();
+		});
+	}
+
+	get checked(): boolean {
+		return this.checkbox.checked;
+	}
+
+	set checked(newIsChecked: boolean) {
+		this.checkbox.checked = newIsChecked;
+
+		this.applyStyles();
+	}
+
+	style(styles: ISimpleCheckboxStyles): void {
+		this.styles = styles;
+
+		this.applyStyles();
+	}
+
+	protected applyStyles(): void {
+		this.domNode.style.color = this.styles.checkboxForeground ? this.styles.checkboxForeground.toString() : null;
+		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : null;
+		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : null;
 	}
 }

@@ -1256,10 +1256,9 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		openConfig.cli['file-uri'] = fileUris;
 
 		// if there are no files or folders cli args left, use the "remote" cli argument
-		if (!cliArgs.length && !folderUris.length && !fileUris.length) {
-			if (authority) {
-				openConfig.cli.remote = authority;
-			}
+		const noFilesOrFolders = !cliArgs.length && !folderUris.length && !fileUris.length;
+		if (noFilesOrFolders && authority) {
+			openConfig.cli.remote = authority;
 		}
 
 		// Open it
@@ -1267,7 +1266,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			context: openConfig.context,
 			cli: openConfig.cli,
 			forceNewWindow: true,
-			forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length,
+			forceEmpty: noFilesOrFolders,
 			userEnv: openConfig.userEnv,
 			noRecentEntry: true,
 			waitMarkerFileURI: openConfig.waitMarkerFileURI

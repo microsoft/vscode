@@ -352,7 +352,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		row1.appendChild(icon);
 
 		// Label
-		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true });
+		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportOcticons: true });
 
 		// Keybinding
 		const keybindingContainer = document.createElement('span');

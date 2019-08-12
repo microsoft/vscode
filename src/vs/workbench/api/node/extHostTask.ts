@@ -12,10 +12,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { win32 } from 'vs/base/node/processes';
 
 
-import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench/api/common/extHost.protocol';
 
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { ExtHostWorkspace, IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
+import { IExtHostWorkspaceProvider, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO,
@@ -25,12 +25,15 @@ import {
 	TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO, TaskSetDTO
 } from '../common/shared/tasks';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
+import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { Schemas } from 'vs/base/common/network';
 
 namespace TaskDefinitionDTO {
 	export function from(value: vscode.TaskDefinition): TaskDefinitionDTO | undefined {
@@ -354,11 +357,13 @@ interface HandlerData {
 
 export class ExtHostTask implements ExtHostTaskShape {
 
-	private _proxy: MainThreadTaskShape;
-	private _workspaceProvider: IExtHostWorkspaceProvider;
-	private _editorService: ExtHostDocumentsAndEditors;
-	private _configurationService: ExtHostConfiguration;
-	private _terminalService: ExtHostTerminalService;
+	readonly _serviceBrand: any;
+
+	private readonly _proxy: MainThreadTaskShape;
+	private readonly _workspaceProvider: IExtHostWorkspaceProvider;
+	private readonly _editorService: IExtHostDocumentsAndEditors;
+	private readonly _configurationService: IExtHostConfiguration;
+	private readonly _terminalService: IExtHostTerminalService;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
@@ -372,12 +377,14 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
 
 	constructor(
-		mainContext: IMainContext,
-		workspaceService: ExtHostWorkspace,
-		editorService: ExtHostDocumentsAndEditors,
-		configurationService: ExtHostConfiguration,
-		extHostTerminalService: ExtHostTerminalService) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
+		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
+		@IExtHostConfiguration configurationService: IExtHostConfiguration,
+		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService
+	) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTask);
 		this._workspaceProvider = workspaceService;
 		this._editorService = editorService;
 		this._configurationService = configurationService;
@@ -387,6 +394,14 @@ export class ExtHostTask implements ExtHostTaskShape {
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
 		this._providedCustomExecutions2 = new Map<string, vscode.CustomExecution2>();
 		this._activeCustomExecutions2 = new Map<string, vscode.CustomExecution2>();
+
+		if (initData.remote.isRemote && initData.remote.authority) {
+			this.registerTaskSystem(Schemas.vscodeRemote, {
+				scheme: Schemas.vscodeRemote,
+				authority: initData.remote.authority,
+				platform: process.platform
+			});
+		}
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable {

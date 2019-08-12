@@ -250,7 +250,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Open new file via doubleclick on empty container
 		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
-			if (this.isEmpty()) {
+			if (this.isEmpty) {
 				EventHelper.stop(e);
 
 				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
@@ -259,7 +259,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close empty editor group via middle mouse click
 		this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
-			if (this.isEmpty() && e.button === 1 /* Middle Button */) {
+			if (this.isEmpty && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e);
 
 				this.accessor.removeGroup(this);
@@ -308,7 +308,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private onShowContainerContextMenu(menu: IMenu, e?: MouseEvent): void {
-		if (!this.isEmpty()) {
+		if (!this.isEmpty) {
 			return; // only for empty editor groups
 		}
 
@@ -339,7 +339,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Container
 		const containerFocusTracker = this._register(trackFocus(this.element));
 		this._register(containerFocusTracker.onDidFocus(() => {
-			if (this.isEmpty()) {
+			if (this.isEmpty) {
 				this._onDidFocus.fire(); // only when empty to prevent accident focus
 			}
 		}));
@@ -381,7 +381,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private updateContainer(): void {
 
 		// Empty Container: add some empty container attributes
-		if (this.isEmpty()) {
+		if (this.isEmpty) {
 			addClass(this.element, 'empty');
 			this.element.tabIndex = 0;
 			this.element.setAttribute('aria-label', localize('emptyEditorGroup', "{0} (empty)", this.label));
@@ -672,6 +672,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._whenRestored;
 	}
 
+	get isEmpty(): boolean {
+		return this._group.count === 0;
+	}
+
+	get isMinimized(): boolean {
+		if (!this.dimension) {
+			return false;
+		}
+
+		return this.dimension.width === this.minimumWidth || this.dimension.height === this.minimumHeight;
+	}
+
 	notifyIndexChanged(newIndex: number): void {
 		if (this._index !== newIndex) {
 			this._index = newIndex;
@@ -694,10 +706,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Event
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_ACTIVE });
-	}
-
-	isEmpty(): boolean {
-		return this._group.count === 0;
 	}
 
 	//#endregion
@@ -1224,7 +1232,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region closeEditors()
 
 	async closeEditors(args: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> {
-		if (this.isEmpty()) {
+		if (this.isEmpty) {
 			return;
 		}
 
@@ -1296,7 +1304,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region closeAllEditors()
 
 	async closeAllEditors(): Promise<void> {
-		if (this.isEmpty()) {
+		if (this.isEmpty) {
 
 			// If the group is empty and the request is to close all editors, we still close
 			// the editor group is the related setting to close empty groups is enabled for
@@ -1408,7 +1416,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region Themable
 
 	protected updateStyles(): void {
-		const isEmpty = this.isEmpty();
+		const isEmpty = this.isEmpty;
 
 		// Container
 		if (isEmpty) {

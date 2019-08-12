@@ -19,6 +19,7 @@ import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { joinPath } from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export type Tags = { [index: string]: boolean | number | string | undefined };
 
@@ -503,3 +504,5 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 }
+
+registerSingleton(IWorkspaceStatsService, WorkspaceStatsService, true);

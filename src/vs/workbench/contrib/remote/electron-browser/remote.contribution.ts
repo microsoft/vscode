@@ -85,7 +85,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 				group: '6_close',
 				command: {
 					id: CLOSE_REMOTE_COMMAND_ID,
-					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "C&&lose Remote Connection")
+					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "Close Re&&mote Connection")
 				},
 				order: 3.5
 			});

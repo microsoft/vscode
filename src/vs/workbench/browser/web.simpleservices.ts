@@ -35,6 +35,11 @@ import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/h
 // tslint:disable-next-line: import-patterns
 import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IProductService } from 'vs/platform/product/common/product';
+import Severity from 'vs/base/common/severity';
+import { localize } from 'vs/nls';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 //#region Extension Tips
 
@@ -516,7 +521,10 @@ export class SimpleWindowsService implements IWindowsService {
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
 
 	constructor(
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IProductService private readonly productService: IProductService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 	}
 	isFocused(_windowId: number): Promise<boolean> {
@@ -650,6 +658,15 @@ export class SimpleWindowsService implements IWindowsService {
 		// we pass the "ParsedArgs" as query parameters of the URL
 
 		let newAddress = `${document.location.origin}/?`;
+		let gotFolder = false;
+
+		const addQueryParameter = (key: string, value: string) => {
+			const lastChar = newAddress.charAt(newAddress.length - 1);
+			if (lastChar !== '?' && lastChar !== '&') {
+				newAddress += '&';
+			}
+			newAddress += `${key}=${encodeURIComponent(value)}`;
+		};
 
 		const f = args['folder-uri'];
 		if (f) {
@@ -662,8 +679,13 @@ export class SimpleWindowsService implements IWindowsService {
 				u = URI.parse(f);
 			}
 			if (u) {
-				newAddress += `folder=${encodeURIComponent(u.path)}`;
+				gotFolder = true;
+				addQueryParameter('folder', u.path);
 			}
+		}
+		if (!gotFolder) {
+			// request empty window
+			addQueryParameter('ew', 'true');
 		}
 
 		const ep = args['extensionDevelopmentPath'];
@@ -677,23 +699,23 @@ export class SimpleWindowsService implements IWindowsService {
 				u = ep;
 			}
 			if (u) {
-				newAddress += `&edp=${encodeURIComponent(u)}`;
+				addQueryParameter('edp', u);
 			}
 		}
 
 		const di = args['debugId'];
 		if (di) {
-			newAddress += `&di=${encodeURIComponent(di)}`;
+			addQueryParameter('di', di);
 		}
 
 		const ibe = args['inspect-brk-extensions'];
 		if (ibe) {
-			newAddress += `&ibe=${encodeURIComponent(ibe)}`;
+			addQueryParameter('ibe', ibe);
 		}
 
 		// add connection token
 		if (this.workbenchEnvironmentService.configuration.connectionToken) {
-			newAddress += `&tkn=${this.workbenchEnvironmentService.configuration.connectionToken}`;
+			addQueryParameter('tkn', this.workbenchEnvironmentService.configuration.connectionToken);
 		}
 
 		window.open(newAddress);
@@ -772,8 +794,20 @@ export class SimpleWindowsService implements IWindowsService {
 		throw new Error('not implemented');
 	}
 
-	openAboutDialog(): Promise<void> {
-		return Promise.resolve();
+	async openAboutDialog(): Promise<void> {
+		const detail = localize('aboutDetail',
+			"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
+			this.productService.version || 'Unknown',
+			this.productService.commit || 'Unknown',
+			this.productService.date || 'Unknown',
+			navigator.userAgent
+		);
+
+		const result = await this.dialogService.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail });
+
+		if (result === 0) {
+			this.clipboardService.writeText(detail);
+		}
 	}
 
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {

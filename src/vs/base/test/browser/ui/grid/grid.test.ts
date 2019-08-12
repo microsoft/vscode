@@ -834,6 +834,24 @@ suite('SerializableGrid', function () {
 		assert.deepEqual(view4.size, [200, 200]);
 		assert.deepEqual(view5.size, [600, 0]);
 
+		grid.setViewVisible(view5, true);
+
+		assert.deepEqual(view1.size, [600, 300]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(view5.size, [600, 100]);
+
+		grid.setViewVisible(view5, false);
+
+		assert.deepEqual(view1.size, [600, 400]);
+		assert.deepEqual(view2.size, [600, 200]);
+		assert.deepEqual(view3.size, [200, 400]);
+		assert.deepEqual(view4.size, [200, 200]);
+		assert.deepEqual(view5.size, [600, 0]);
+
+		grid.setViewVisible(view5, false);
+
 		const json = grid.serialize();
 		assert.deepEqual(json, {
 			orientation: 0,

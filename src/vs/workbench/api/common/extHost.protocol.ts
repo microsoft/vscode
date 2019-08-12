@@ -245,7 +245,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean }): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Promise<void>;
 	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void>;
-	$setMessage(treeViewId: string, message: string | IMarkdownString): void;
+	$setMessage(treeViewId: string, message: string): void;
 }
 
 export interface MainThreadDownloadServiceShape extends IDisposable {
@@ -815,9 +815,6 @@ export interface ExtHostTreeViewsShape {
 	$setVisible(treeViewId: string, visible: boolean): void;
 }
 
-export interface ExtHostDownloadServiceShape {
-}
-
 export interface ExtHostWorkspaceShape {
 	$initializeWorkspace(workspace: IWorkspaceData | null): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
@@ -1169,7 +1166,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestLatency(id: number): number;
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	$requestAvailableShells(): Promise<IShellDefinitionDto[]>;
-	$requestDefaultShellAndArgs(): Promise<IShellAndArgsDto>;
+	$requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 }
 
 export interface ExtHostSCMShape {
@@ -1354,7 +1351,6 @@ export const ExtHostContext = {
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors'),
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
-	ExtHostDownloadService: createExtId<ExtHostDownloadServiceShape>('ExtHostDownloadService'),
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),

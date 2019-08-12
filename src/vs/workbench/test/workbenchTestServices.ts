@@ -665,6 +665,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
+	onDidGroupIndexChange: Event<IEditorGroup> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
 
 	orientation: any;
@@ -769,6 +770,9 @@ export class TestEditorGroup implements IEditorGroupView {
 	minimumHeight: number;
 	maximumHeight: number;
 
+	isEmpty = true;
+	isMinimized = false;
+
 	onWillDispose: Event<void> = Event.None;
 	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
 	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
@@ -838,7 +842,6 @@ export class TestEditorGroup implements IEditorGroupView {
 		throw new Error('not implemented');
 	}
 
-	isEmpty(): boolean { return true; }
 	setActive(_isActive: boolean): void { }
 	notifyIndexChanged(_index: number): void { }
 	dispose(): void { }

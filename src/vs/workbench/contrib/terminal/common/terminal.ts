@@ -76,6 +76,11 @@ export interface ITerminalConfiguration {
 		osx: string | null;
 		windows: string | null;
 	};
+	automationShell: {
+		linux: string | null;
+		osx: string | null;
+		windows: string | null;
+	};
 	shellArgs: {
 		linux: string[];
 		osx: string[];
@@ -242,7 +247,7 @@ export interface ITerminalService {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
-	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
+	createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
@@ -754,7 +759,8 @@ export interface IAvailableShellsRequest {
 }
 
 export interface IDefaultShellAndArgsRequest {
-	(shell: string, args: string[] | string | undefined): void;
+	useAutomationShell: boolean;
+	callback: (shell: string, args: string[] | string | undefined) => void;
 }
 
 export enum LinuxDistro {
