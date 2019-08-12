@@ -4456,6 +4456,16 @@ declare namespace monaco.languages {
 	export function registerFoldingRangeProvider(languageId: string, provider: FoldingRangeProvider): IDisposable;
 
 	/**
+	 * Register a declaration provider
+	 */
+	export function registerDeclarationProvider(languageId: string, provider: DeclarationProvider): IDisposable;
+
+	/**
+	 * Register a selection range provider
+	 */
+	export function registerSelectionRangeProvider(languageId: string, provider: SelectionRangeProvider): IDisposable;
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
