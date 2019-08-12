@@ -375,7 +375,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
 
-			result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
+			result = es.merge(result, gulp.src(['resources/win32/bin/code.cmd', 'resources/win32/bin/code.ps1'], { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename(function (f) { f.basename = product.applicationName; })));
 

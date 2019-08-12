@@ -75,6 +75,7 @@ Name: "addcontextmenufiles"; Description: "{cm:AddContextMenuFiles,{#NameShort}}
 Name: "addcontextmenufolders"; Description: "{cm:AddContextMenuFolders,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "associatewithfiles"; Description: "{cm:AssociateWithFiles,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Other}"
+Name: "addpowershellalias"; Description: "{cm:AddPowerShellAlias}"; GroupDescription: "{cm:Other}"
 Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{cm:Other}"; Check: WizardSilent
 
 [Files]
@@ -90,6 +91,14 @@ Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; File
 [Run]
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Flags: nowait postinstall; Check: WizardNotSilent
+#if "user" == InstallTarget
+#define PowerShellProfilePropName "CurrentUserAllHosts"
+#else
+#define PowerShellProfilePropName "AllUsersAllHosts"
+#endif
+#define ExeBasenameNoSpaces StringChange(ExeBasename, ' ', '')
+
+Filename: powershell.exe; Parameters: "if (!(Test-Path alias:code)) {{ New-Item -ItemType Directory -Force -Path (Split-Path $PROFILE.{#PowerShellProfilePropName}) | Out-Null; '','Set-Alias -Name code -Value ''{app}\bin\{#ExeBasenameNoSpaces}.ps1'' -Description ''{#NameLong}''' | Add-Content -Force -LiteralPath $profile.{#PowerShellProfilePropName} }"; Description: Updating PowerShell profile; Tasks: addpowershellalias; Flags: runascurrentuser
 
 [Registry]
 #if "user" == InstallTarget
