@@ -801,7 +801,7 @@ export class Repository {
 			const elements = await this.lsfiles(path);
 
 			if (elements.length === 0) {
-				throw new GitError({ message: 'Error running ls-files' });
+				throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 			}
 
 			const { mode, object } = elements[0];
@@ -814,7 +814,7 @@ export class Repository {
 		const elements = await this.lstree(treeish, path);
 
 		if (elements.length === 0) {
-			throw new GitError({ message: 'Error running ls-files' });
+			throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 		}
 
 		const { mode, object, size } = elements[0];
@@ -1134,6 +1134,10 @@ export class Repository {
 			const details = await this.getObjectDetails('HEAD', path);
 			mode = details.mode;
 		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.UnknownPath) {
+				throw err;
+			}
+
 			mode = '100644';
 			add = '--add';
 		}
