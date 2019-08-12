@@ -245,7 +245,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean }): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Promise<void>;
 	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void>;
-	$setMessage(treeViewId: string, message: string | IMarkdownString): void;
+	$setMessage(treeViewId: string, message: string): void;
 }
 
 export interface MainThreadDownloadServiceShape extends IDisposable {

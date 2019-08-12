@@ -38,6 +38,8 @@ import 'vs/workbench/services/configurationResolver/browser/configurationResolve
 import 'vs/workbench/browser/web.simpleservices';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/workbench/services/request/browser/requestService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -53,6 +55,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 
+registerSingleton(IRequestService, RequestService, true);
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
 registerSingleton(IDialogService, DialogService, true);

@@ -32,7 +32,7 @@ import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/extensions/common/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/search/node/searchService';
-import 'vs/workbench/services/extensions/electron-browser/extensionHostDebugService';
+import 'vs/workbench/contrib/debug/electron-browser/extensionHostDebugService';
 import 'vs/workbench/services/output/node/outputChannelModelService';
 import 'vs/workbench/services/textfile/node/textFileService';
 import 'vs/workbench/services/dialogs/electron-browser/dialogService';
