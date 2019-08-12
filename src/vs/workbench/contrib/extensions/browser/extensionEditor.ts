@@ -54,22 +54,6 @@ import { URI } from 'vs/base/common/uri';
 import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
-function renderBody(body: string): string {
-	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
-	return `<!DOCTYPE html>
-		<html>
-			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-resource:; child-src 'none'; frame-src 'none';">
-				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
-			</head>
-			<body>
-				<a id="scroll-to-top" role="button" aria-label="scroll to top" href="#"><span class="icon"></span></a>
-				${body}
-			</body>
-		</html>`;
-}
-
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
 
@@ -550,7 +534,7 @@ export class ExtensionEditor extends BaseEditor {
 	private openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string): Promise<IActiveElement> {
 		return this.loadContents(() => cacheResult)
 			.then(marked.parse)
-			.then(renderBody)
+			.then(content => this.renderBody(content))
 			.then(removeEmbeddedSVGs)
 			.then(body => {
 				const webviewElement = this.webviewService.createWebview('extensionEditor',
@@ -586,6 +570,22 @@ export class ExtensionEditor extends BaseEditor {
 				p.textContent = noContentCopy;
 				return p;
 			});
+	}
+
+	private renderBody(body: string): string {
+		const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
+		return `<!DOCTYPE html>
+		<html>
+			<head>
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-resource:; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
+			</head>
+			<body>
+				<a id="scroll-to-top" role="button" aria-label="scroll to top" href="#"><span class="icon"></span></a>
+				${body}
+			</body>
+		</html>`;
 	}
 
 	private openReadme(): Promise<IActiveElement> {
