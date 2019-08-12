@@ -67,3 +67,7 @@ export function conditionalTest(name: string, testCallback: (done: MochaDone) =>
 function isTestTypeActive(): boolean {
 	return !!vscode.extensions.getExtension('vscode-resolver-test');
 }
+
+export function delay(ms: number) {
+	return new Promise(resolve => setTimeout(resolve, ms));
+}

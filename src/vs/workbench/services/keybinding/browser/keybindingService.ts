@@ -725,7 +725,6 @@ const keyboardConfiguration: IConfigurationNode = {
 			'markdownDescription': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
 			'included': OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
 		}
-		// no touch bar support
 	}
 };
 

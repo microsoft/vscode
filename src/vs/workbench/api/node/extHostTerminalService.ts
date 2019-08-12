@@ -274,7 +274,7 @@ export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostT
 		this._setupExtHostProcessListeners(id, p);
 	}
 
-	public getDefaultShell(configProvider: ExtHostConfigProvider): string {
+	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
@@ -289,11 +289,12 @@ export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostT
 			process.env.windir,
 			this._lastActiveWorkspace,
 			this._variableResolver,
-			this._logService
+			this._logService,
+			useAutomationShell
 		);
 	}
 
-	private _getDefaultShellArgs(configProvider: ExtHostConfigProvider): string[] | string {
+	private _getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
 		const fetchSetting = (key: string) => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
@@ -301,7 +302,7 @@ export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostT
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
 
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, this._lastActiveWorkspace, this._variableResolver, this._logService);
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, useAutomationShell, this._lastActiveWorkspace, this._variableResolver, this._logService);
 	}
 
 	public async $acceptActiveTerminalChanged(id: number | null): Promise<void> {
@@ -461,8 +462,8 @@ export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostT
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		if (!shellLaunchConfig.executable) {
-			shellLaunchConfig.executable = this.getDefaultShell(configProvider);
-			shellLaunchConfig.args = this._getDefaultShellArgs(configProvider);
+			shellLaunchConfig.executable = this.getDefaultShell(false, configProvider);
+			shellLaunchConfig.args = this._getDefaultShellArgs(false, configProvider);
 		} else {
 			if (this._variableResolver) {
 				shellLaunchConfig.executable = this._variableResolver.resolve(this._lastActiveWorkspace, shellLaunchConfig.executable);
@@ -603,11 +604,11 @@ export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostT
 		return detectAvailableShells();
 	}
 
-	public async $requestDefaultShellAndArgs(): Promise<IShellAndArgsDto> {
+	public async $requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		return Promise.resolve({
-			shell: this.getDefaultShell(configProvider),
-			args: this._getDefaultShellArgs(configProvider)
+			shell: this.getDefaultShell(useAutomationShell, configProvider),
+			args: this._getDefaultShellArgs(useAutomationShell, configProvider)
 		});
 	}
 

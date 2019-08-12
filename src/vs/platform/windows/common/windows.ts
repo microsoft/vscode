@@ -426,6 +426,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 
 	remoteAuthority?: string;
+	connectionToken?: string;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
@@ -444,7 +445,6 @@ export interface IWindowConfiguration extends ParsedArgs {
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
 	termProgram?: string;
-	connectionToken?: string;
 }
 
 export interface IRunActionInWindowRequest {

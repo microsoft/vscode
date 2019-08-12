@@ -255,7 +255,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostClipboard;
 			},
 			get shell() {
-				return extHostTerminalService.getDefaultShell(configProvider);
+				return extHostTerminalService.getDefaultShell(false, configProvider);
 			},
 			openExternal(uri: URI) {
 				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });

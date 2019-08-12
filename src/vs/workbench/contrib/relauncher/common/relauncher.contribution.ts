@@ -23,7 +23,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
 	telemetry: { enableCrashReporter: boolean };
-	keyboard: { touchbar: { enabled: boolean } };
 	workbench: { list: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
 	debug: { console: { wordWrap: boolean } };
 }
@@ -36,7 +35,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private clickThroughInactive: boolean;
 	private updateMode: string;
 	private enableCrashReporter: boolean;
-	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
 	private useGridLayout: boolean;
 	private debugConsoleWordWrap: boolean;
@@ -110,12 +108,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Crash reporter
 			if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 				this.enableCrashReporter = config.telemetry.enableCrashReporter;
-				changed = true;
-			}
-
-			// macOS: Touchbar config
-			if (isMacintosh && config.keyboard && config.keyboard.touchbar && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
-				this.touchbarEnabled = config.keyboard.touchbar.enabled;
 				changed = true;
 			}
 		}

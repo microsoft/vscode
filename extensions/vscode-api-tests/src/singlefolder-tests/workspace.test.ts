@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs } from '../utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay } from '../utils';
 import { join, posix, basename } from 'path';
 import * as fs from 'fs';
 
@@ -587,13 +587,15 @@ suite('workspace-namespace', () => {
 		}, cancellation.token);
 	});
 
-	test('applyEdit', () => {
+	test('applyEdit', async () => {
+		const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './new2.txt')));
 
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './new2.txt'))).then(doc => {
-			let edit = new vscode.WorkspaceEdit();
-			edit.insert(doc.uri, new vscode.Position(0, 0), new Array(1000).join('Hello World'));
-			return vscode.workspace.applyEdit(edit);
-		});
+		let edit = new vscode.WorkspaceEdit();
+		edit.insert(doc.uri, new vscode.Position(0, 0), new Array(1000).join('Hello World'));
+
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, true);
+		assert.equal(doc.isDirty, true);
 	});
 
 	test('applyEdit should fail when editing deleted resource', async () => {
@@ -630,19 +632,31 @@ suite('workspace-namespace', () => {
 	});
 
 	test('applyEdit "edit A -> rename A to B -> edit B"', async () => {
+		await testEditRenameEdit(oldUri => oldUri.with({ path: oldUri.path + 'NEW' }));
+	});
+
+	test('applyEdit "edit A -> rename A to B (different case)" -> edit B', async () => {
+		await testEditRenameEdit(oldUri => oldUri.with({ path: oldUri.path.toUpperCase() }));
+	});
+
+	test('applyEdit "edit A -> rename A to B (same case)" -> edit B', async () => {
+		await testEditRenameEdit(oldUri => oldUri);
+	});
+
+	async function testEditRenameEdit(newUriCreator: (oldUri: vscode.Uri) => vscode.Uri): Promise<void> {
 		const oldUri = await createRandomFile();
-		const newUri = oldUri.with({ path: oldUri.path + 'NEW' });
+		const newUri = newUriCreator(oldUri);
 		const edit = new vscode.WorkspaceEdit();
 		edit.insert(oldUri, new vscode.Position(0, 0), 'BEFORE');
 		edit.renameFile(oldUri, newUri);
 		edit.insert(newUri, new vscode.Position(0, 0), 'AFTER');
 
-		let success = await vscode.workspace.applyEdit(edit);
-		assert.equal(success, true);
+		assert.ok(await vscode.workspace.applyEdit(edit));
 
 		let doc = await vscode.workspace.openTextDocument(newUri);
 		assert.equal(doc.getText(), 'AFTERBEFORE');
-	});
+		assert.equal(doc.isDirty, true);
+	}
 
 	function nameWithUnderscore(uri: vscode.Uri) {
 		return uri.with({ path: posix.join(posix.dirname(uri.path), `_${posix.basename(uri.path)}`) });
@@ -807,7 +821,7 @@ suite('workspace-namespace', () => {
 		assert.ok(await vscode.workspace.applyEdit(we));
 	});
 
-	test('The api workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735', async function () {
+	test('WorkspaceEdit: insert & rename multiple', async function () {
 
 		let [f1, f2, f3] = await Promise.all([createRandomFile(), createRandomFile(), createRandomFile()]);
 
@@ -831,4 +845,56 @@ suite('workspace-namespace', () => {
 			assert.ok(true);
 		}
 	});
+
+	test('workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735 (with opened editor)', async function () {
+		await test77735(true);
+	});
+
+	test('workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735 (without opened editor)', async function () {
+		await test77735(false);
+	});
+
+	async function test77735(withOpenedEditor: boolean): Promise<void> {
+		const docUriOriginal = await createRandomFile();
+		const docUriMoved = docUriOriginal.with({ path: `${docUriOriginal.path}.moved` });
+
+		if (withOpenedEditor) {
+			const document = await vscode.workspace.openTextDocument(docUriOriginal);
+			await vscode.window.showTextDocument(document);
+		} else {
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		}
+
+		for (let i = 0; i < 4; i++) {
+			let we = new vscode.WorkspaceEdit();
+			let oldUri: vscode.Uri;
+			let newUri: vscode.Uri;
+			let expected: string;
+
+			if (i % 2 === 0) {
+				oldUri = docUriOriginal;
+				newUri = docUriMoved;
+				we.insert(oldUri, new vscode.Position(0, 0), 'Hello');
+				expected = 'Hello';
+			} else {
+				oldUri = docUriMoved;
+				newUri = docUriOriginal;
+				we.delete(oldUri, new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 5)));
+				expected = '';
+			}
+
+			we.renameFile(oldUri, newUri);
+			assert.ok(await vscode.workspace.applyEdit(we));
+
+			const document = await vscode.workspace.openTextDocument(newUri);
+			assert.equal(document.isDirty, true);
+
+			await document.save();
+			assert.equal(document.isDirty, false);
+
+			assert.equal(document.getText(), expected);
+
+			await delay(10);
+		}
+	}
 });
