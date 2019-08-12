@@ -74,6 +74,7 @@ let node;
 let entryPoint;
 let waitForUpdate = Promise.resolve();
 if (SELFHOST) {
+	env['VSCODE_AGENT_FOLDER'] = path.join(os.homedir(), '.vscode-web');
 	const runtime = RUNTIMES[process.platform];
 
 	const serverLocation = path.join(path.dirname(path.dirname(path.dirname(path.dirname(__dirname)))), runtime.folder);
