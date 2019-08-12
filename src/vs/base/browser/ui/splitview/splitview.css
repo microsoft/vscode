@@ -39,7 +39,6 @@
 	white-space: initial;
 	flex: none;
 	position: relative;
-	overflow: hidden;
 }
 
 .monaco-split-view2 > .split-view-container > .split-view-view:not(.visible) {

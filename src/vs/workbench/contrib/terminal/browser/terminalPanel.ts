@@ -239,20 +239,6 @@ export class TerminalPanel extends Panel {
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(parentDomElement, 'mouseup', async (event: MouseEvent) => {
-			if (this._configurationService.getValue('terminal.integrated.copyOnSelection')) {
-				if (this._terminalService.terminalInstances.length === 0) {
-					return;
-				}
-
-				if (event.which === 1) {
-					const terminal = this._terminalService.getActiveInstance();
-					if (terminal && terminal.hasSelection()) {
-						await terminal.copySelection();
-					}
-				}
-			}
-		}));
 		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
 				const standardEvent = new StandardMouseEvent(event);
