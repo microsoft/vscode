@@ -47,7 +47,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 	private tail: Promise<void> | undefined;
 
 	// [owner] -> ApplyToKind
-	private applyToByOwner: Map<string, ApplyToKind>;
+	protected applyToByOwner: Map<string, ApplyToKind>;
 	// [owner] -> [resource] -> URI
 	private resourcesToClean: Map<string, Map<string, URI>>;
 	// [owner] -> [resource] -> [markerkey] -> markerData
@@ -511,5 +511,12 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		if (this.currentOwner && this.currentResource) {
 			this.deliverMarkersPerOwnerAndResource(this.currentOwner, this.currentResource);
 		}
+	}
+
+	public done(): void {
+		[...this.applyToByOwner.keys()].forEach(owner => {
+			this.recordResourcesToClean(owner);
+		});
+		super.done();
 	}
 }
