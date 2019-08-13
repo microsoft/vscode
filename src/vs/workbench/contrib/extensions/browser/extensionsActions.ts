@@ -3046,8 +3046,12 @@ export class InstallLocalExtensionsInRemoteAction extends Action {
 	}
 
 	get label(): string {
-		return this.extensionManagementServerService.remoteExtensionManagementServer ?
-			localize('install local extensions', "Install Local Extensions in {0}...", this.extensionManagementServerService.remoteExtensionManagementServer.label) : '';
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return this.selectAndInstall ?
+				localize('select and install local extensions', "Install Local Extensions in {0}...", this.extensionManagementServerService.remoteExtensionManagementServer.label)
+				: localize('install local extensions', "Install Local Extensions in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+		}
+		return '';
 	}
 
 	private updateExtensions(): void {
@@ -3057,6 +3061,7 @@ export class InstallLocalExtensionsInRemoteAction extends Action {
 
 	private update(): void {
 		this.enabled = !!this.extensions && this.getExtensionsToInstall(this.extensions).length > 0;
+		this.tooltip = this.label;
 	}
 
 	async run(): Promise<void> {
