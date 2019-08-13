@@ -213,6 +213,7 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid state');
 		}
 
+		// branch nodes should flip the normal/orthogonal directions
 		this._size = orthogonalSize;
 		this._orthogonalSize = size;
 
