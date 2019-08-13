@@ -13,7 +13,7 @@ import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.proto
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
-import { TreeItemCollapsibleState, ThemeIcon, MarkdownString } from 'vs/workbench/api/common/extHostTypes';
+import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -81,7 +81,10 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get visible() { return treeView.visible; },
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
 			get message() { return treeView.message; },
-			set message(message: string | MarkdownString) { checkProposedApiEnabled(extension); treeView.message = message; },
+			set message(message: string) {
+				checkProposedApiEnabled(extension);
+				treeView.message = message;
+			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
 			},
@@ -250,12 +253,12 @@ class ExtHostTreeView<T> extends Disposable {
 				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), { select, focus, expand })), error => this.logService.error(error));
 	}
 
-	private _message: string | MarkdownString = '';
-	get message(): string | MarkdownString {
+	private _message: string = '';
+	get message(): string {
 		return this._message;
 	}
 
-	set message(message: string | MarkdownString) {
+	set message(message: string) {
 		this._message = message;
 		this._onDidChangeData.fire({ message: true, element: false });
 	}

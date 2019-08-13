@@ -2313,19 +2313,19 @@ vsce@1.48.0:
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
-vscode-ripgrep@^1.5.5:
-  version "1.5.5"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.5.tgz#24c0e9cb356cf889c98e15ecb58f9cf654a1d961"
-  integrity sha512-OrPrAmcun4+uZAuNcQvE6CCPskh+5AsjANod/Q3zRcJcGNxgoOSGlQN9RPtatkUNmkN8Nn8mZBnS1jMylu/dKg==
+vscode-ripgrep@^1.5.6:
+  version "1.5.6"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.6.tgz#93bf5c99ca5f8248950a305e224f6ca153c30af4"
+  integrity sha512-WRIM9XpUj6dsfdAmuI3ANbmT1ysPUVsYy/2uCLDHJa9kbiB4T7uGvFnnc0Rgx2qQnyRAwL7PeWaFgUljPPxf2g==
 
-vscode-telemetry-extractor@1.5.3:
-  version "1.5.3"
-  resolved "https://registry.yarnpkg.com/vscode-telemetry-extractor/-/vscode-telemetry-extractor-1.5.3.tgz#c17f9065a47425edafd23ea161e80c23274e009d"
-  integrity sha512-feioJ1e1KyMa9rzblnLbSOduo+Ny0l62H3/bSDgfgCSnU/km+tTSYxPBvZHVr7iQfQGC95J61yC/ObqS9EbaQg==
+vscode-telemetry-extractor@^1.5.4:
+  version "1.5.4"
+  resolved "https://registry.yarnpkg.com/vscode-telemetry-extractor/-/vscode-telemetry-extractor-1.5.4.tgz#bcb0d17667fa1b77715e3a3bf372ade18f846782"
+  integrity sha512-MN9LNPo0Rc6cy3sIWTAG97PTWkEKdRnP0VeYoS8vjKSNtG9CAsrUxHgFfYoHm2vNK/ijd0a4NzETyVGO2kT6hw==
   dependencies:
     command-line-args "^5.1.1"
     ts-morph "^3.1.3"
-    vscode-ripgrep "^1.5.5"
+    vscode-ripgrep "^1.5.6"
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

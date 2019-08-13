@@ -1075,6 +1075,8 @@ export class CodeAction {
 
 	kind?: CodeActionKind;
 
+	isPreferred?: boolean;
+
 	constructor(title: string, kind?: CodeActionKind) {
 		this.title = title;
 		this.kind = kind;

@@ -1624,8 +1624,14 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(): Promise<Ref[]> {
-		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)', '--sort', '-committerdate']);
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate' }): Promise<Ref[]> {
+		const args = ['for-each-ref', '--format', '%(refname) %(objectname)'];
+
+		if (opts && opts.sort && opts.sort !== 'alphabetically') {
+			args.push('--sort', opts.sort);
+		}
+
+		const result = await this.run(args);
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;

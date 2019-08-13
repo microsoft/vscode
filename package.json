@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.38.0",
-  "distro": "cefe99a704b186add6f59357a54daa389f5be07d",
+  "distro": "a7dba33608e7866342d550c5cd6ed038bba999b4",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -28,6 +28,7 @@
     "update-distro": "node build/npm/update-distro.js"
   },
   "dependencies": {
+    "@microsoft/applicationinsights-web": "^2.1.1",
     "applicationinsights": "1.0.8",
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
@@ -51,7 +52,7 @@
     "vscode-ripgrep": "^1.5.6",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
-    "xterm": "3.15.0-beta94",
+    "xterm": "3.15.0-beta98",
     "xterm-addon-search": "0.2.0-beta3",
     "xterm-addon-web-links": "0.1.0-beta10",
     "yauzl": "^2.9.2",
