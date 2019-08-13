@@ -10,7 +10,7 @@
     "https-proxy-agent": "^2.2.1",
     "iconv-lite": "0.5.0",
     "jschardet": "1.6.0",
-    "native-watchdog": "microsoft/node-native-watchdog#napi",
+    "native-watchdog": "microsoft/node-native-watchdog#4cb304008383cfdaa444020568fc93d82833017d",
     "node-pty": "0.9.0-beta19",
     "nsfw": "1.2.5",
     "onigasm-umd": "^2.2.2",
@@ -29,6 +29,6 @@
   },
   "optionalDependencies": {
     "vscode-windows-ca-certs": "0.1.0",
-    "vscode-windows-registry": "1.0.1"
+    "vscode-windows-registry": "1.0.2"
   }
 }
