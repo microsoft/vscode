@@ -469,24 +469,26 @@ async function readCaCertificates() {
 }
 
 async function readWindowsCaCertificates() {
-	const winCA = await import('vscode-windows-ca-certs');
+	// Not using await to work around minifier bug (https://github.com/microsoft/vscode/issues/79044).
+	return import('vscode-windows-ca-certs')
+		.then(winCA => {
+			let ders: any[] = [];
+			const store = winCA();
+			try {
+				let der: any;
+				while (der = store.next()) {
+					ders.push(der);
+				}
+			} finally {
+				store.done();
+			}
 
-	let ders: any[] = [];
-	const store = winCA();
-	try {
-		let der: any;
-		while (der = store.next()) {
-			ders.push(der);
-		}
-	} finally {
-		store.done();
-	}
-
-	const certs = new Set(ders.map(derToPem));
-	return {
-		certs: Array.from(certs),
-		append: true
-	};
+			const certs = new Set(ders.map(derToPem));
+			return {
+				certs: Array.from(certs),
+				append: true
+			};
+		});
 }
 
 async function readMacCaCertificates() {
