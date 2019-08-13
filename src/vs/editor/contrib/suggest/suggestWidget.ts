@@ -275,7 +275,11 @@ class SuggestionDetails {
 			.filter(e => e.fontInfo)
 			.on(this.configureFont, this, this.disposables);
 
-		markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this, this.disposables);
+		markdownRenderer.onDidRenderCodeBlock(() => {
+			this.scrollbar.scanDomNode();
+			addClass(this.el, 'code-markdown-details');
+			addClass(this.docs, 'code-markdown-docs');
+		}, this, this.disposables);
 	}
 
 	get element() {
@@ -310,6 +314,8 @@ class SuggestionDetails {
 			return;
 		}
 		removeClass(this.el, 'no-docs');
+		removeClass(this.el, 'code-markdown-details');
+		removeClass(this.docs, 'code-markdown-docs');
 		if (typeof documentation === 'string') {
 			removeClass(this.docs, 'markdown-docs');
 			this.docs.textContent = documentation;

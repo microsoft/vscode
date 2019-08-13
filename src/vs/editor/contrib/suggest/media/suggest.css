@@ -40,6 +40,14 @@
 	float: left;
 }
 
+.monaco-editor .suggest-widget.docs-side > .details:not(.code-markdown-details) {
+	max-width: 800px;
+}
+
+.monaco-editor .suggest-widget.docs-side > .details .docs:not(.code-markdown-docs) {
+	max-width: 500px;
+}
+
 .monaco-editor .suggest-widget.docs-side.list-right > .tree,
 .monaco-editor .suggest-widget.docs-side.list-right > .details  {
 	float: right;
