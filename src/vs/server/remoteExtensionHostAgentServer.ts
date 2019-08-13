@@ -138,6 +138,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 							workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 							remoteAuthority,
 							webviewEndpoint,
+							driver: this._environmentService.driverHandle === 'web' ? true : undefined,
 						})))
 						.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
 						.replace('{{PRODUCT_CONFIGURATION}}', escapeAttribute(JSON.stringify(product)))
