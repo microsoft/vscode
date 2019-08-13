@@ -397,8 +397,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (result) {
 			await this.migrateStorage(result.workspace);
 			// Reinitialize backup service
-			if (this.backupFileService instanceof BackupFileService) {
-				this.backupFileService.initialize(toBackupWorkspaceResource(result.backupPath!, this.environmentService));
+			if (this.backupFileService instanceof BackupFileService && result.backupPath) {
+				this.backupFileService.initialize(toBackupWorkspaceResource(result.backupPath, this.environmentService));
 			}
 		}
 
