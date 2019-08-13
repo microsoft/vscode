@@ -74,14 +74,15 @@ class ExtensionListViewWarning extends Error { }
 export class ExtensionsListView extends ViewletPanel {
 
 	protected readonly server: IExtensionManagementServer | undefined;
-	private messageContainer: HTMLElement;
-	private messageSeverityIcon: HTMLElement;
-	private messageBox: HTMLElement;
-	private extensionsList: HTMLElement;
-	private badge: CountBadge;
-	protected badgeContainer: HTMLElement;
-	private list: WorkbenchPagedList<IExtension> | null;
-	private queryRequest: { query: string, request: CancelablePromise<IPagedModel<IExtension>> } | null;
+	private bodyTemplate: {
+		messageContainer: HTMLElement;
+		messageSeverityIcon: HTMLElement;
+		messageBox: HTMLElement;
+		extensionsList: HTMLElement;
+	} | undefined;
+	private badge: CountBadge | undefined;
+	private list: WorkbenchPagedList<IExtension> | null = null;
+	private queryRequest: { query: string, request: CancelablePromise<IPagedModel<IExtension>> } | null = null;
 
 	constructor(
 		options: ExtensionsListViewOptions,
@@ -111,20 +112,19 @@ export class ExtensionsListView extends ViewletPanel {
 		addClass(container, 'extension-view-header');
 		super.renderHeader(container);
 
-		this.badgeContainer = append(container, $('.count-badge-wrapper'));
-		this.badge = new CountBadge(this.badgeContainer);
+		this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
 		this._register(attachBadgeStyler(this.badge, this.themeService));
 	}
 
 	renderBody(container: HTMLElement): void {
-		this.extensionsList = append(container, $('.extensions-list'));
-		this.messageContainer = append(container, $('.message-container'));
-		this.messageSeverityIcon = append(this.messageContainer, $(''));
-		this.messageBox = append(this.messageContainer, $('.message'));
+		const extensionsList = append(container, $('.extensions-list'));
+		const messageContainer = append(container, $('.message-container'));
+		const messageSeverityIcon = append(messageContainer, $(''));
+		const messageBox = append(messageContainer, $('.message'));
 		const delegate = new Delegate();
 		const extensionsViewState = new ExtensionsViewState();
 		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState);
-		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance(WorkbenchPagedList, extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
@@ -144,10 +144,19 @@ export class ExtensionsListView extends ViewletPanel {
 			.map(e => e.elements[0])
 			.filter(e => !!e)
 			.on(this.pin, this));
+
+		this.bodyTemplate = {
+			extensionsList,
+			messageBox,
+			messageContainer,
+			messageSeverityIcon
+		};
 	}
 
 	protected layoutBody(height: number, width: number): void {
-		this.extensionsList.style.height = height + 'px';
+		if (this.bodyTemplate) {
+			this.bodyTemplate.extensionsList.style.height = height + 'px';
+		}
 		if (this.list) {
 			this.list.layout(height, width);
 		}
@@ -479,7 +488,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 	}
 
-	private _searchExperiments: Promise<IExperiment[]>;
+	private _searchExperiments: Promise<IExperiment[]> | undefined;
 	private getSearchExperiments(): Promise<IExperiment[]> {
 		if (!this._searchExperiments) {
 			this._searchExperiments = this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults);
@@ -690,24 +699,27 @@ export class ExtensionsListView extends ViewletPanel {
 			this.list.scrollTop = 0;
 			const count = this.count();
 
-			toggleClass(this.extensionsList, 'hidden', count === 0);
-			toggleClass(this.messageContainer, 'hidden', count > 0);
-			this.badge.setCount(count);
+			if (this.bodyTemplate && this.badge) {
 
-			if (count === 0 && this.isBodyVisible()) {
-				if (error) {
-					if (error instanceof ExtensionListViewWarning) {
-						this.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
-						this.messageBox.textContent = getErrorMessage(error);
+				toggleClass(this.bodyTemplate.extensionsList, 'hidden', count === 0);
+				toggleClass(this.bodyTemplate.messageContainer, 'hidden', count > 0);
+				this.badge.setCount(count);
+
+				if (count === 0 && this.isBodyVisible()) {
+					if (error) {
+						if (error instanceof ExtensionListViewWarning) {
+							this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
+							this.bodyTemplate.messageBox.textContent = getErrorMessage(error);
+						} else {
+							this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
+							this.bodyTemplate.messageBox.textContent = localize('error', "Error while loading extensions. {0}", getErrorMessage(error));
+						}
 					} else {
-						this.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
-						this.messageBox.textContent = localize('error', "Error while loading extensions. {0}", getErrorMessage(error));
+						this.bodyTemplate.messageSeverityIcon.className = '';
+						this.bodyTemplate.messageBox.textContent = localize('no extensions found', "No extensions found.");
 					}
-				} else {
-					this.messageSeverityIcon.className = '';
-					this.messageBox.textContent = localize('no extensions found', "No extensions found.");
+					alert(this.bodyTemplate.messageBox.textContent);
 				}
-				alert(this.messageBox.textContent);
 			}
 		}
 	}
@@ -949,7 +961,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 
 export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 	private readonly recommendedExtensionsQuery = '@recommended:workspace';
-	private installAllAction: InstallWorkspaceRecommendedExtensionsAction;
+	private installAllAction: InstallWorkspaceRecommendedExtensionsAction | undefined;
 
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
