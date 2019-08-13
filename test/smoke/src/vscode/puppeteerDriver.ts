@@ -192,7 +192,7 @@ export async function launch(_args): Promise<void> {
 	const webUserDataDir = join(tmpdir(), `smoketest-${Math.random() * 10000000000}`);
 	await promisify(mkdir)(webUserDataDir);
 	server = spawn(join(args[0], 'resources/server/web.sh'), ['--driver', 'web', '--web-user-data-dir', webUserDataDir]);
-	server.stderr.on('data', e => console.log('Server error: ' + e));
+	server.stderr.on('data', e => console.log('Server stderr: ' + e));
 	process.on('exit', teardown);
 	endpoint = await waitForEndpoint();
 }
