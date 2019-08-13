@@ -646,8 +646,6 @@ export class GridView implements IDisposable {
 		const { size, orthogonalSize } = this._root;
 		this.root = flipNode(this._root, orthogonalSize, size);
 		this.root.layout(size, orthogonalSize);
-		// this.root.layout(size);
-		// this.root.orthogonalLayout(orthogonalSize);
 	}
 
 	get width(): number { return this.root.width; }
