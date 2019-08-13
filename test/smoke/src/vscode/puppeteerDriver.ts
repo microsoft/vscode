@@ -182,7 +182,7 @@ function timeout(ms: number): Promise<void> {
 // function runInDriver(call: string, args: (string | boolean)[]): Promise<any> {}
 
 let args;
-let server: ChildProcess;
+let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 
 export async function launch(_args): Promise<void> {
@@ -193,13 +193,20 @@ export async function launch(_args): Promise<void> {
 	await promisify(mkdir)(webUserDataDir);
 	server = spawn(join(args[0], 'resources/server/web.sh'), ['--driver', 'web', '--web-user-data-dir', webUserDataDir]);
 	server.stderr.on('data', e => console.log('Server error: ' + e));
-	process.on('exit', () => server.kill());
+	process.on('exit', teardown);
 	endpoint = await waitForEndpoint();
+}
+
+function teardown(): void {
+	if (server) {
+		server.kill();
+		server = undefined;
+	}
 }
 
 function waitForEndpoint(): Promise<string> {
 	return new Promise<string>(r => {
-		server.stdout.on('data', d => {
+		server!.stdout.on('data', d => {
 			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
 				r(matches[1]);
@@ -222,11 +229,7 @@ export function connect(headless: boolean, outPath: string, handle: string): Pro
 		const endpointSplit = endpoint!.split('#');
 		await page.goto(`${endpointSplit[0]}?folder=${args[1]}#${endpointSplit[1]}`);
 		const result = {
-			client: {
-				dispose: () => {
-					server.kill();
-				}
-			},
+			client: { dispose: () => teardown },
 			driver: buildDriver(browser, page)
 		};
 		c(result);
