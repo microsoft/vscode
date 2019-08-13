@@ -41,6 +41,7 @@ import { BrowserStorageService } from 'vs/platform/storage/browser/storageServic
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
+import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 
 class CodeRendererMain extends Disposable {
 
@@ -82,6 +83,11 @@ class CodeRendererMain extends Disposable {
 			this.saveBaseTheme();
 		}));
 		this._register(workbench.onShutdown(() => this.dispose()));
+
+		// Driver
+		if (this.configuration.driver) {
+			registerWindowDriver();
+		}
 
 		// Startup
 		workbench.startup();

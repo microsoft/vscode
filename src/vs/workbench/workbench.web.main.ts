@@ -54,7 +54,6 @@ import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuS
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
-import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 
 registerSingleton(IRequestService, RequestService, true);
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
@@ -91,6 +90,3 @@ import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import 'vs/workbench/contrib/tasks/browser/taskService';
 
 //#endregion
-
-// TODO: This should only be registered in a particular launch setup
-registerWindowDriver();
