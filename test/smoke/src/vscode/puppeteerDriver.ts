@@ -6,7 +6,6 @@
 import * as puppeteer from 'puppeteer';
 import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
-import { Readable } from 'stream';
 
 const width = 1200;
 const height = 800;
