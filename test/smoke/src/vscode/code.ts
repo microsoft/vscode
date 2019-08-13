@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
 import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable } from './driver';
-import { connect as connectPuppeteerDriver, launch } from './puppeteer-driver';
+import { connect as connectPuppeteerDriver, launch } from './puppeteerDriver';
 import { Logger } from '../logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
