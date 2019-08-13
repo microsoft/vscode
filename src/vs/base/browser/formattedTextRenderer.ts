@@ -4,17 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { createElement, IContentActionHandler, RenderOptions } from 'vs/base/browser/htmlContentRenderer';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
-export function renderText(text: string, options: RenderOptions = {}): HTMLElement {
+export interface IContentActionHandler {
+	callback: (content: string, event?: IMouseEvent) => void;
+	readonly disposeables: DisposableStore;
+}
+
+export interface FormattedTextRenderOptions {
+	readonly className?: string;
+	readonly inline?: boolean;
+	readonly actionHandler?: IContentActionHandler;
+}
+
+export function renderText(text: string, options: FormattedTextRenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 	element.textContent = text;
 	return element;
 }
 
-export function renderFormattedText(formattedText: string, options: RenderOptions = {}): HTMLElement {
+export function renderFormattedText(formattedText: string, options: FormattedTextRenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 	_renderFormattedText(element, parseFormattedText(formattedText), options.actionHandler);
+	return element;
+}
+
+export function createElement(options: FormattedTextRenderOptions): HTMLElement {
+	const tagName = options.inline ? 'span' : 'div';
+	const element = document.createElement(tagName);
+	if (options.className) {
+		element.className = options.className;
+	}
 	return element;
 }
 
@@ -64,7 +85,7 @@ interface IFormatParseTree {
 	children?: IFormatParseTree[];
 }
 
-export function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionHandler?: IContentActionHandler) {
+function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionHandler?: IContentActionHandler) {
 	let child: Node | undefined;
 
 	if (treeNode.type === FormatType.Text) {
@@ -98,7 +119,7 @@ export function _renderFormattedText(element: Node, treeNode: IFormatParseTree, 
 	}
 }
 
-export function parseFormattedText(content: string): IFormatParseTree {
+function parseFormattedText(content: string): IFormatParseTree {
 
 	const root: IFormatParseTree = {
 		type: FormatType.Root,
