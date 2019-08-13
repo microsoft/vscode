@@ -9,6 +9,7 @@ import { TestView, nodesToArrays } from './util';
 import { deepClone } from 'vs/base/common/objects';
 
 // Simple example:
+//
 //  +-----+---------------+
 //  |  4  |      2        |
 //  +-----+---------+-----+
@@ -16,6 +17,16 @@ import { deepClone } from 'vs/base/common/objects';
 //  +---------------+  3  |
 //  |        5      |     |
 //  +---------------+-----+
+//
+//  V
+//  +-H
+//  | +-4
+//  | +-2
+//  +-H
+//  | +-V
+//  |   +-1
+//  |   +-5
+//  +-3
 
 suite('Grid', function () {
 	let container: HTMLElement;
