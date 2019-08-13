@@ -356,6 +356,10 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid index');
 		}
 
+		if (this.splitview.isViewVisible(index) === visible) {
+			return;
+		}
+
 		this.splitview.setViewVisible(index, visible);
 		this._onDidChange.fire(undefined);
 	}
