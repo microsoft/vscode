@@ -384,7 +384,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 			try {
 				activationTimesBuilder.activateCallStart();
 				logService.trace(`ExtensionService#_callActivateOptional ${extensionId.value}`);
-				const scope = typeof global === 'object' ? global : self; //todo@joh not so nice
+				const scope = typeof global === 'object' ? global : self; // `global` is nodejs while `self` is for workers
 				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(scope, [context]);
 				activationTimesBuilder.activateCallStop();
 
@@ -525,7 +525,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	}
 
 	private async _doHandleExtensionTests(): Promise<void> {
-		const { extensionDevelopmentLocationURI: extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
+		const { extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
 		if (!(extensionDevelopmentLocationURI && extensionTestsLocationURI && extensionTestsLocationURI.scheme === Schemas.file)) {
 			return Promise.resolve(undefined);
 		}
