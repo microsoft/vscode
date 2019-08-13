@@ -484,7 +484,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
-	private _extensionAllowedBadgeProviders: string[];
+	private _extensionAllowedBadgeProviders: string[] | undefined;
 	private installing: IExtension[] = [];
 
 	constructor(
@@ -1096,12 +1096,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 
-	private _ignoredAutoUpdateExtensions: string[];
+	private _ignoredAutoUpdateExtensions: string[] | undefined;
 	private get ignoredAutoUpdateExtensions(): string[] {
 		if (!this._ignoredAutoUpdateExtensions) {
 			this._ignoredAutoUpdateExtensions = JSON.parse(this.storageService.get('extensions.ignoredAutoUpdateExtension', StorageScope.GLOBAL, '[]') || '[]');
 		}
-		return this._ignoredAutoUpdateExtensions;
+		return this._ignoredAutoUpdateExtensions!;
 	}
 
 	private set ignoredAutoUpdateExtensions(extensionIds: string[]) {
