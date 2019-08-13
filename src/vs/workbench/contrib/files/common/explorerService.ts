@@ -159,6 +159,12 @@ export class ExplorerService implements IExplorerService {
 		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === 'modified' };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
+
+		// Do not waste time looking in a different scheme
+		if (resource.scheme !== rootUri.scheme) {
+			return Promise.resolve(undefined);
+		}
+
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
 
 		try {
