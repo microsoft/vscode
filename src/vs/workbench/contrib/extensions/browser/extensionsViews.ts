@@ -28,7 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -73,7 +73,7 @@ class ExtensionListViewWarning extends Error { }
 
 export class ExtensionsListView extends ViewletPanel {
 
-	private readonly server: IExtensionManagementServer | undefined;
+	protected readonly server: IExtensionManagementServer | undefined;
 	private messageContainer: HTMLElement;
 	private messageSeverityIcon: HTMLElement;
 	private messageBox: HTMLElement;
@@ -860,6 +860,15 @@ export class ServerExtensionsView extends ExtensionsListView {
 			query = query += ' @installed';
 		}
 		return super.show(query.trim());
+	}
+
+	getActions(): IAction[] {
+		if (this.extensionManagementServerService.localExtensionManagementServer === this.server) {
+			const installLocalExtensionsInRemoteAction = this._register(this.instantiationService.createInstance(InstallLocalExtensionsInRemoteAction, false));
+			installLocalExtensionsInRemoteAction.class = 'octicon octicon-cloud-download';
+			return [installLocalExtensionsInRemoteAction];
+		}
+		return [];
 	}
 }
 
