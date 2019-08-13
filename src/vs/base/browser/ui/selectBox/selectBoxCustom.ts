@@ -18,7 +18,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 
 const $ = dom.$;
 

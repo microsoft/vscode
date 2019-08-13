@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';

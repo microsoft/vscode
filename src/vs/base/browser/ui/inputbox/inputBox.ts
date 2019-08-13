@@ -8,7 +8,7 @@ import 'vs/css!./inputBox';
 import * as nls from 'vs/nls';
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { MarkdownRenderOptions } from 'vs/base/browser/htmlContentRenderer';
+import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction } from 'vs/base/common/actions';

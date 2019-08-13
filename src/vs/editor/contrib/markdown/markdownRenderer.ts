@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { renderMarkdown, MarkdownRenderOptions } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown, MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';

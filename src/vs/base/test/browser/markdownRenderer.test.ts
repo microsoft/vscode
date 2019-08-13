@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import * as marked from 'vs/base/common/marked/marked';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 
-suite('HtmlContent', () => {
+suite('MarkdownRenderer', () => {
 	test('image rendering conforms to default', () => {
 		const markdown = { value: `![image](someimageurl 'caption')` };
 		const result: HTMLElement = renderMarkdown(markdown);
