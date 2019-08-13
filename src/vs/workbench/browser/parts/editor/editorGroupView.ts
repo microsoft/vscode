@@ -798,7 +798,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditor()
 
-	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | null> {
+	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | null> {
 
 		// Guard against invalid inputs
 		if (!editor) {
@@ -814,7 +814,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Proceed with opening
-		return this.doOpenEditor(editor, options).then(withUndefinedAsNull);
+		return withUndefinedAsNull(await this.doOpenEditor(editor, options));
 	}
 
 	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | undefined> {
