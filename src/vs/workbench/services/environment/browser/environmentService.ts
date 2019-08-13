@@ -105,7 +105,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 			for (let p of vars) {
 				const pair = p.split('=');
 				if (pair.length >= 2) {
-					map.set(decodeURIComponent(pair[0]), decodeURIComponent(pair[1]));
+					map.set(pair[0], decodeURIComponent(pair[1]));
 				}
 			}
 

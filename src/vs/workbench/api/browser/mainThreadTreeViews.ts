@@ -10,7 +10,6 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
@@ -63,7 +62,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return Promise.resolve();
 	}
 
-	$setMessage(treeViewId: string, message: string | IMarkdownString): void {
+	$setMessage(treeViewId: string, message: string): void {
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
 			viewer.message = message;
@@ -125,7 +124,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._dataProviders.forEach((dataProvider, treeViewId) => {
 			const treeView = this.getTreeView(treeViewId);
 			if (treeView) {
-				treeView.dataProvider = null;
+				treeView.dataProvider = undefined;
 			}
 		});
 		this._dataProviders.clear();

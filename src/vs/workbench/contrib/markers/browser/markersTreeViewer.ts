@@ -334,9 +334,11 @@ class MarkerWidget extends Disposable {
 			const sourceMatches = filterData && filterData.sourceMatches || [];
 			source.set(marker.source, sourceMatches);
 
-			const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')), false);
-			const codeMatches = filterData && filterData.codeMatches || [];
-			code.set(marker.code, codeMatches);
+			if (marker.code) {
+				const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')), false);
+				const codeMatches = filterData && filterData.codeMatches || [];
+				code.set(marker.code, codeMatches);
+			}
 		}
 
 		const lnCol = dom.append(parent, dom.$('span.marker-line'));

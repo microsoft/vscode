@@ -846,7 +846,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 					this._register(model.onDidChangeGroups(() => this.onConfigUpdate()));
 					this.defaultSettingsEditorModel = model;
-					return this.onConfigUpdate();
+					return this.onConfigUpdate(undefined, true);
 				});
 		}
 		return Promise.resolve(null);

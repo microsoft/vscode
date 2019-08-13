@@ -470,7 +470,9 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	hasBackup(): boolean;
 
-	isDirty(): boolean;
+	isDirty(): this is IResolvedTextFileEditorModel;
+
+	makeDirty(): void;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
 

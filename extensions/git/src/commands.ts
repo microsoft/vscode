@@ -353,9 +353,11 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
+			case Status.INDEX_ADDED:
 				return this.getURI(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
+			case Status.UNTRACKED:
 				return this.getURI(resource.resourceUri, '~');
 
 			case Status.DELETED_BY_THEM:
@@ -414,6 +416,7 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
+			case Status.INDEX_ADDED:
 				return `${basename} (Index)`;
 
 			case Status.MODIFIED:
@@ -426,6 +429,10 @@ export class CommandCenter {
 
 			case Status.DELETED_BY_THEM:
 				return `${basename} (Ours)`;
+
+			case Status.UNTRACKED:
+
+				return `${basename} (Untracked)`;
 		}
 
 		return '';

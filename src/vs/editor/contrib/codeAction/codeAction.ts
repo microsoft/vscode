@@ -117,8 +117,8 @@ function getCodeActionProviders(
 }
 
 registerLanguageCommand('_executeCodeActionProvider', async function (accessor, args): Promise<ReadonlyArray<CodeAction>> {
-	const { resource, range, kind } = args;
-	if (!(resource instanceof URI) || !Range.isIRange(range)) {
+	const { resource, rangeOrSelection, kind } = args;
+	if (!(resource instanceof URI)) {
 		throw illegalArgument();
 	}
 
@@ -127,9 +127,19 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 		throw illegalArgument();
 	}
 
+	const validatedRangeOrSelection = Selection.isISelection(rangeOrSelection)
+		? Selection.liftSelection(rangeOrSelection)
+		: Range.isIRange(rangeOrSelection)
+			? model.validateRange(rangeOrSelection)
+			: undefined;
+
+	if (!validatedRangeOrSelection) {
+		throw illegalArgument();
+	}
+
 	const codeActionSet = await getCodeActions(
 		model,
-		model.validateRange(range),
+		validatedRangeOrSelection,
 		{ type: 'manual', filter: { includeSourceActions: true, kind: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
 		CancellationToken.None);
 

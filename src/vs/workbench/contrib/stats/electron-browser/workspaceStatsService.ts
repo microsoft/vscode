@@ -5,7 +5,7 @@
 
 import * as crypto from 'crypto';
 import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
@@ -19,6 +19,7 @@ import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { joinPath } from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export type Tags = { [index: string]: boolean | number | string | undefined };
 
@@ -97,6 +98,12 @@ export const IWorkspaceStatsService = createDecorator<IWorkspaceStatsService>('w
 export interface IWorkspaceStatsService {
 	_serviceBrand: any;
 	getTags(): Promise<Tags>;
+
+	/**
+	 * Returns an id for the workspace, different from the id returned by the context service. A hash based
+	 * on the folder uri or workspace configuration, not time-based, and undefined for empty workspaces.
+	 */
+	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined;
 }
 
 
@@ -121,6 +128,28 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		}
 
 		return this._tags;
+	}
+
+	public getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
+		function createHash(uri: URI): string {
+			return crypto.createHash('sha1').update(uri.scheme === Schemas.file ? uri.fsPath : uri.toString()).digest('hex');
+		}
+
+		let workspaceId: string | undefined;
+		switch (state) {
+			case WorkbenchState.EMPTY:
+				workspaceId = undefined;
+				break;
+			case WorkbenchState.FOLDER:
+				workspaceId = createHash(workspace.folders[0].uri);
+				break;
+			case WorkbenchState.WORKSPACE:
+				if (workspace.configuration) {
+					workspaceId = createHash(workspace.configuration);
+				}
+		}
+
+		return workspaceId;
 	}
 
 	/* __GDPR__FRAGMENT__
@@ -225,25 +254,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
 
-		function createHash(uri: URI): string {
-			return crypto.createHash('sha1').update(uri.scheme === Schemas.file ? uri.fsPath : uri.toString()).digest('hex');
-		}
-
-		let workspaceId: string | undefined;
-		switch (state) {
-			case WorkbenchState.EMPTY:
-				workspaceId = undefined;
-				break;
-			case WorkbenchState.FOLDER:
-				workspaceId = createHash(workspace.folders[0].uri);
-				break;
-			case WorkbenchState.WORKSPACE:
-				if (workspace.configuration) {
-					workspaceId = createHash(workspace.configuration);
-				}
-		}
-
-		tags['workspace.id'] = workspaceId;
+		tags['workspace.id'] = this.getTelemetryWorkspaceId(workspace, state);
 
 		const { filesToOpenOrCreate, filesToDiff } = configuration;
 		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
@@ -503,3 +514,5 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 }
+
+registerSingleton(IWorkspaceStatsService, WorkspaceStatsService, true);

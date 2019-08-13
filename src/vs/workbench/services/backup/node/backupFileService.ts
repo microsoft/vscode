@@ -7,13 +7,14 @@ import { BackupFileService as CommonBackupFileService } from 'vs/workbench/servi
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as crypto from 'crypto';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export class BackupFileService extends CommonBackupFileService {
 
 	protected hashPath(resource: URI): string {
 		return hashPath(resource);
 	}
-
 }
 
 /*
@@ -21,5 +22,8 @@ export class BackupFileService extends CommonBackupFileService {
  */
 export function hashPath(resource: URI): string {
 	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
+
 	return crypto.createHash('md5').update(str).digest('hex');
 }
+
+registerSingleton(IBackupFileService, BackupFileService);

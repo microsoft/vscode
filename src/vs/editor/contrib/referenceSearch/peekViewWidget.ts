@@ -84,12 +84,12 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	private _onDidClose = new Emitter<PeekViewWidget>();
 
-	protected _headElement: HTMLDivElement;
-	protected _primaryHeading: HTMLElement;
-	protected _secondaryHeading: HTMLElement;
-	protected _metaHeading: HTMLElement;
-	protected _actionbarWidget: ActionBar;
-	protected _bodyElement: HTMLDivElement;
+	protected _headElement?: HTMLDivElement;
+	protected _primaryHeading?: HTMLElement;
+	protected _secondaryHeading?: HTMLElement;
+	protected _metaHeading?: HTMLElement;
+	protected _actionbarWidget?: ActionBar;
+	protected _bodyElement?: HTMLDivElement;
 
 	constructor(editor: ICodeEditor, options: IPeekViewOptions = {}) {
 		super(editor, options);
@@ -139,8 +139,8 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('peekview-widget');
 
-		this._headElement = dom.$('.head');
-		this._bodyElement = dom.$('.body');
+		this._headElement = dom.$<HTMLDivElement>('.head');
+		this._bodyElement = dom.$<HTMLDivElement>('.body');
 
 		this._fillHead(this._headElement);
 		this._fillBody(this._bodyElement);
@@ -151,7 +151,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		const titleElement = dom.$('.peekview-title');
-		dom.append(this._headElement, titleElement);
+		dom.append(this._headElement!, titleElement);
 		dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
 
 		this._fillTitleIcon(titleElement);
@@ -161,7 +161,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		dom.append(titleElement, this._primaryHeading, this._secondaryHeading, this._metaHeading);
 
 		const actionsContainer = dom.$('.peekview-actions');
-		dom.append(this._headElement, actionsContainer);
+		dom.append(this._headElement!, actionsContainer);
 
 		const actionBarOptions = this._getActionBarOptions();
 		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
@@ -185,20 +185,24 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	public setTitle(primaryHeading: string, secondaryHeading?: string): void {
-		this._primaryHeading.innerHTML = strings.escape(primaryHeading);
-		this._primaryHeading.setAttribute('aria-label', primaryHeading);
-		if (secondaryHeading) {
-			this._secondaryHeading.innerHTML = strings.escape(secondaryHeading);
-		} else {
-			dom.clearNode(this._secondaryHeading);
+		if (this._primaryHeading && this._secondaryHeading) {
+			this._primaryHeading.innerHTML = strings.escape(primaryHeading);
+			this._primaryHeading.setAttribute('aria-label', primaryHeading);
+			if (secondaryHeading) {
+				this._secondaryHeading.innerHTML = strings.escape(secondaryHeading);
+			} else {
+				dom.clearNode(this._secondaryHeading);
+			}
 		}
 	}
 
 	public setMetaTitle(value: string): void {
-		if (value) {
-			this._metaHeading.innerHTML = strings.escape(value);
-		} else {
-			dom.clearNode(this._metaHeading);
+		if (this._metaHeading) {
+			if (value) {
+				this._metaHeading.innerHTML = strings.escape(value);
+			} else {
+				dom.clearNode(this._metaHeading);
+			}
 		}
 	}
 
@@ -220,11 +224,15 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	protected _doLayoutHead(heightInPixel: number, widthInPixel: number): void {
-		this._headElement.style.height = `${heightInPixel}px`;
-		this._headElement.style.lineHeight = this._headElement.style.height;
+		if (this._headElement) {
+			this._headElement.style.height = `${heightInPixel}px`;
+			this._headElement.style.lineHeight = this._headElement.style.height;
+		}
 	}
 
 	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
-		this._bodyElement.style.height = `${heightInPixel}px`;
+		if (this._bodyElement) {
+			this._bodyElement.style.height = `${heightInPixel}px`;
+		}
 	}
 }

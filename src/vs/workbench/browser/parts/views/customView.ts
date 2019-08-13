@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -33,18 +33,14 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
 import { editorFindMatchHighlight, editorFindMatchHighlightBorder, textLinkForeground, textCodeBlockBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isString } from 'vs/base/common/types';
-import { renderMarkdown, RenderOptions } from 'vs/base/browser/htmlContentRenderer';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IMarkdownRenderResult } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -165,18 +161,15 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private _showCollapseAllAction = false;
 
 	private focused: boolean = false;
-	private domNode: HTMLElement;
-	private treeContainer: HTMLElement;
-	private _messageValue: string | IMarkdownString | undefined;
-	private messageElement: HTMLDivElement;
-	private tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>;
-	private treeLabels: ResourceLabels;
+	private domNode!: HTMLElement;
+	private treeContainer!: HTMLElement;
+	private _messageValue: string | undefined;
+	private messageElement!: HTMLDivElement;
+	private tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> | undefined;
+	private treeLabels: ResourceLabels | undefined;
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
 	private menus: TitleMenus;
-
-	private markdownRenderer: MarkdownRenderer;
-	private markdownResult: IMarkdownRenderResult | null;
 
 	private readonly _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
@@ -217,12 +210,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				this.doRefresh([this.root]); /** soft refresh **/
 			}
 		}));
-		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer);
-		this._register(toDisposable(() => {
-			if (this.markdownResult) {
-				this.markdownResult.dispose();
-			}
-		}));
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onDidChangeContainer(({ views, from, to }) => {
 			if (from === this.viewContainer && views.some(v => v.id === this.id)) {
 				this.viewContainer = to;
@@ -231,12 +218,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.create();
 	}
 
-	private _dataProvider: ITreeViewDataProvider | null;
-	get dataProvider(): ITreeViewDataProvider | null {
+	private _dataProvider: ITreeViewDataProvider | undefined;
+	get dataProvider(): ITreeViewDataProvider | undefined {
 		return this._dataProvider;
 	}
 
-	set dataProvider(dataProvider: ITreeViewDataProvider | null) {
+	set dataProvider(dataProvider: ITreeViewDataProvider | undefined) {
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
@@ -251,17 +238,17 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this.updateMessage();
 			this.refresh();
 		} else {
-			this._dataProvider = null;
+			this._dataProvider = undefined;
 			this.updateMessage();
 		}
 	}
 
-	private _message: string | IMarkdownString | undefined;
-	get message(): string | IMarkdownString | undefined {
+	private _message: string | undefined;
+	get message(): string | undefined {
 		return this._message;
 	}
 
-	set message(message: string | IMarkdownString | undefined) {
+	set message(message: string | undefined) {
 		this._message = message;
 		this.updateMessage();
 	}
@@ -412,7 +399,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			if (!e.browserEvent) {
 				return;
 			}
-			const selection = this.tree.getSelection();
+			const selection = this.tree!.getSelection();
 			if ((selection.length === 1) && selection[0].command) {
 				this.commandService.executeCommand(selection[0].command.id, ...(selection[0].command.arguments || []));
 			}
@@ -429,7 +416,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		event.preventDefault();
 		event.stopPropagation();
 
-		this.tree.setFocus([node]);
+		this.tree!.setFocus([node]);
 		const actions = treeMenus.getResourceContextActions(node);
 		if (!actions.length) {
 			return;
@@ -449,13 +436,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
-					this.tree.domFocus();
+					this.tree!.domFocus();
 				}
 			},
 
 			getActionsContext: () => (<TreeViewItemHandleArg>{ $treeViewId: this.id, $treeItemHandle: node.handle }),
 
-			actionRunner: new MultipleSelectionActionRunner(() => this.tree.getSelection())
+			actionRunner: new MultipleSelectionActionRunner(() => this.tree!.getSelection())
 		});
 	}
 
@@ -470,16 +457,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.updateContentAreas();
 	}
 
-	private showMessage(message: string | IMarkdownString): void {
+	private showMessage(message: string): void {
 		DOM.removeClass(this.messageElement, 'hide');
 		if (this._messageValue !== message) {
 			this.resetMessageElement();
 			this._messageValue = message;
-			if (isString(this._messageValue)) {
+			if (!isFalsyOrWhitespace(this._message)) {
 				this.messageElement.textContent = this._messageValue;
-			} else {
-				this.markdownResult = this.markdownRenderer.render(this._messageValue);
-				DOM.append(this.messageElement, this.markdownResult.element);
 			}
 			this.layout(this._height, this._width);
 		}
@@ -492,15 +476,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	private resetMessageElement(): void {
-		if (this.markdownResult) {
-			this.markdownResult.dispose();
-			this.markdownResult = null;
-		}
 		DOM.clearNode(this.messageElement);
 	}
 
-	private _height: number;
-	private _width: number;
+	private _height: number = 0;
+	private _width: number = 0;
 	layout(height: number, width: number) {
 		if (height && width) {
 			this._height = height;
@@ -552,10 +532,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	async expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
-		if (this.tree) {
+		const tree = this.tree;
+		if (tree) {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 			await Promise.all(itemOrItems.map(element => {
-				return this.tree.expand(element, false);
+				return tree.expand(element, false);
 			}));
 		}
 		return Promise.resolve(undefined);
@@ -595,18 +576,19 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private refreshing: boolean = false;
 	private async doRefresh(elements: ITreeItem[]): Promise<void> {
-		if (this.tree) {
+		const tree = this.tree;
+		if (tree) {
 			this.refreshing = true;
 			const parents: Set<ITreeItem> = new Set<ITreeItem>();
 			elements.forEach(element => {
 				if (element !== this.root) {
-					const parent = this.tree.getParentElement(element);
+					const parent = tree.getParentElement(element);
 					parents.add(parent);
 				} else {
 					parents.add(element);
 				}
 			});
-			await Promise.all(Array.from(parents.values()).map(element => this.tree.updateChildren(element, true)));
+			await Promise.all(Array.from(parents.values()).map(element => tree.updateChildren(element, true)));
 			this.refreshing = false;
 			this.updateContentAreas();
 			if (this.focused) {
@@ -792,7 +774,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 }
 
 class Aligner extends Disposable {
-	private _tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>;
+	private _tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> | undefined;
 
 	constructor(private themeService: IWorkbenchThemeService) {
 		super();
@@ -810,11 +792,15 @@ class Aligner extends Disposable {
 			return false;
 		}
 
-		const parent: ITreeItem = this._tree.getParentElement(treeItem) || this._tree.getInput();
-		if (this.hasIcon(parent)) {
+		if (this._tree) {
+			const parent: ITreeItem = this._tree.getParentElement(treeItem) || this._tree.getInput();
+			if (this.hasIcon(parent)) {
+				return false;
+			}
+			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
+		} else {
 			return false;
 		}
-		return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
 	}
 
 	private hasIcon(node: ITreeItem): boolean {
@@ -893,38 +879,3 @@ class TreeMenus extends Disposable implements IDisposable {
 	}
 }
 
-class MarkdownRenderer {
-
-	constructor(
-		@IOpenerService private readonly _openerService: IOpenerService
-	) {
-	}
-
-	private getOptions(disposeables: DisposableStore): RenderOptions {
-		return {
-			actionHandler: {
-				callback: (content) => {
-					let uri: URI | undefined;
-					try {
-						uri = URI.parse(content);
-					} catch {
-						// ignore
-					}
-					if (uri && this._openerService) {
-						this._openerService.open(uri).catch(onUnexpectedError);
-					}
-				},
-				disposeables
-			}
-		};
-	}
-
-	render(markdown: IMarkdownString): IMarkdownRenderResult {
-		const disposeables = new DisposableStore();
-		const element: HTMLElement = markdown ? renderMarkdown(markdown, this.getOptions(disposeables)) : document.createElement('span');
-		return {
-			element,
-			dispose: () => disposeables.dispose()
-		};
-	}
-}

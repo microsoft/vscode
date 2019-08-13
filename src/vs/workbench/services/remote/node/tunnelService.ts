@@ -14,6 +14,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemotePort: number): Promise<RemoteTunnel> {
 	const tunnel = new NodeRemoteTunnel(options, tunnelRemotePort);
@@ -113,3 +114,5 @@ export class TunnelService implements ITunnelService {
 		return createRemoteTunnel(options, remotePort);
 	}
 }
+
+registerSingleton(ITunnelService, TunnelService, true);

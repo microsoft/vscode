@@ -19,7 +19,6 @@ class BrowserWindowDriver extends BaseWindowDriver {
 }
 
 export async function registerWindowDriver(): Promise<IDisposable> {
-	console.log('registerWindowDriver');
 	(<any>window).driver = new BrowserWindowDriver();
 	// const windowDriverChannel = new WindowDriverChannel(windowDriver);
 	// mainProcessService.registerChannel('windowDriver', windowDriverChannel);

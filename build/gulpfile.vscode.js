@@ -47,7 +47,7 @@ const nodeModules = ['electron', 'original-fs']
 
 // Build
 const vscodeEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/workbench/workbench.main'),
+	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
 	buildfile.base,
 	buildfile.serviceWorker,
 	buildfile.workbench,
@@ -250,8 +250,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const out = sourceFolderName;
 
 		const checksums = computeChecksums(out, [
-			'vs/workbench/workbench.main.js',
-			'vs/workbench/workbench.main.css',
+			'vs/workbench/workbench.desktop.main.js',
+			'vs/workbench/workbench.desktop.main.css',
 			'vs/code/electron-browser/workbench/workbench.html',
 			'vs/code/electron-browser/workbench/workbench.js'
 		]);
@@ -365,12 +365,15 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(electron(_.extend({}, config, { platform, arch, ffmpegChromium: true })))
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version'], { dot: true }));
 
-		result = es.merge(result, gulp.src('resources/completions/bash/code', { base: '.' })
-			.pipe(replace('@@APPNAME@@', product.applicationName))
-			.pipe(rename(function (f) { f.basename = product.applicationName; })));
-		result = es.merge(result, gulp.src('resources/completions/zsh/_code', { base: '.' })
-			.pipe(replace('@@APPNAME@@', product.applicationName))
-			.pipe(rename(function (f) { f.basename = '_' + product.applicationName; })));
+		if (platform === 'linux') {
+			result = es.merge(result, gulp.src('resources/completions/bash/code', { base: '.' })
+				.pipe(replace('@@APPNAME@@', product.applicationName))
+				.pipe(rename(function (f) { f.basename = product.applicationName; })));
+
+			result = es.merge(result, gulp.src('resources/completions/zsh/_code', { base: '.' })
+				.pipe(replace('@@APPNAME@@', product.applicationName))
+				.pipe(rename(function (f) { f.basename = '_' + product.applicationName; })));
+		}
 
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
