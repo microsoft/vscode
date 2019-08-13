@@ -48,6 +48,11 @@ export interface IWorkbenchConstructionOptions {
 	 * A factory for web sockets.
 	 */
 	webSocketFactory?: IWebSocketFactory;
+
+	/**
+	 * Experimental: Whether to enable the smoke test driver.
+	 */
+	driver?: boolean;
 }
 
 /**
