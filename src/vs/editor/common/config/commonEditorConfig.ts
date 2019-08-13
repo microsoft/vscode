@@ -699,6 +699,11 @@ const editorConfiguration: IConfigurationNode = {
 			maximum: 15,
 			description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
 		},
+		'editor.suggest.largeDetail': {
+			type: 'boolean',
+			default: EDITOR_DEFAULTS.contribInfo.suggest.largeDetail,
+			description: nls.localize('suggest.largeDetail', "Controls whether to enlarge details in suggestions.")
+		},
 		'editor.suggest.filteredTypes': {
 			type: 'object',
 			default: { keyword: true, snippet: true },

@@ -453,6 +453,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	readonly onDidHide: Event<this> = this.onDidHideEmitter.event;
 	readonly onDidShow: Event<this> = this.onDidShowEmitter.event;
 
+	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
 	private readonly storageService: IStorageService;
 	private readonly listAndTypeWidth = 430;
@@ -960,15 +961,18 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		removeClass(this.element, 'docs-side');
 		removeClass(this.element, 'docs-below');
 		this.editor.layoutContentWidget(this);
-		this.element.style.width = null;
-		this.listElement.style.width = null;
-		this.details.element.style.width = null;
-		this.details.element.style.maxHeight = null;
-		const cursorX = this.getCursorX();
-		const editorLeft = this.getEditorLeft();
-		if (cursorX !== null && editorLeft !== null) {
-			const left = Math.min(cursorX, this.getEditorWidth() + editorLeft - this.listAndTypeWidth - this.minRightMargin);
-			this.element.style.left = `${left}px`;
+		const largeDetail = this.editor.getConfiguration().contribInfo.suggest.largeDetail;
+		if (largeDetail) {
+			this.element.style.width = null;
+			this.listElement.style.width = null;
+			this.details.element.style.width = null;
+			this.details.element.style.maxHeight = null;
+			const cursorX = this.getCursorX();
+			const editorLeft = this.getEditorLeft();
+			if (cursorX !== null && editorLeft !== null) {
+				const left = Math.min(cursorX, this.getEditorWidth() + editorLeft - this.listAndTypeWidth - this.minRightMargin);
+				this.element.style.left = `${left}px`;
+			}
 		}
 	}
 
@@ -1033,15 +1037,18 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		show(this.details.element);
 
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
-		const widgetY = getDomNodePagePosition(this.element).top;
+		const largeDetail = this.editor.getConfiguration().contribInfo.suggest.largeDetail;
+		if (largeDetail) {
+			const widgetY = getDomNodePagePosition(this.element).top;
 
-		if (hasClass(this.element, 'docs-side')) {
-			const detailWidth = this.getDetailWidth();
-			if (detailWidth !== null) {
-				this.element.style.width = `${detailWidth + this.listWidth}px`;
-				this.listElement.style.width = `${this.listWidth}px`;
-				this.details.element.style.width = `${detailWidth}px`;
-				this.details.element.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height - widgetY, this.maxWidgetHeight)}px`;
+			if (hasClass(this.element, 'docs-side')) {
+				const detailWidth = this.getDetailWidth();
+				if (detailWidth !== null) {
+					this.element.style.width = `${detailWidth + this.listWidth}px`;
+					this.listElement.style.width = `${this.listWidth}px`;
+					this.details.element.style.width = `${detailWidth}px`;
+					this.details.element.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height - widgetY, this.maxWidgetHeight)}px`;
+				}
 			}
 		}
 
@@ -1148,9 +1155,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const lineHeight = this.editor.getConfiguration().fontInfo.lineHeight;
 		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
+		const cursorX = editorCoords.left + cursorCoords.left;
 		const cursorY = editorCoords.top + cursorCoords.top + cursorCoords.height;
 		const widgetCoords = getDomNodePagePosition(this.element);
+		const widgetX = widgetCoords.left;
 		const widgetY = widgetCoords.top;
+		const largeDetail = this.editor.getConfiguration().contribInfo.suggest.largeDetail;
 
 		// Fixes #27649
 		// Check if the Y changed to the top of the cursor and keep the widget flagged to prefer top
@@ -1163,19 +1173,28 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 		this.docsPositionPreviousWidgetY = widgetY;
 
-		const rightDetailWidth = this.getRightDetailWidth();
-		const leftDetailWidth = this.getLeftDetailWidth();
-		const detailWidth = this.getDetailWidth();
-		const cursorX = this.getCursorX();
-		const editorLeft = this.getEditorLeft();
-		if (hasClass(this.element, 'docs-side') && editorLeft !== null &&
-			rightDetailWidth !== null && leftDetailWidth !== null && detailWidth !== null && cursorX !== null &&
-			rightDetailWidth < leftDetailWidth) {
-			addClass(this.element, 'list-right');
-			const left = Math.min(cursorX - detailWidth, this.getEditorWidth() + editorLeft - detailWidth - this.listWidth - this.minRightMargin);
-			this.element.style.left = `${Math.max(left, 0)}px`;
+		if (largeDetail) {
+			const rightDetailWidth = this.getRightDetailWidth();
+			const leftDetailWidth = this.getLeftDetailWidth();
+			const detailWidth = this.getDetailWidth();
+			const cursorX = this.getCursorX();
+			const editorLeft = this.getEditorLeft();
+			if (hasClass(this.element, 'docs-side') && editorLeft !== null &&
+				rightDetailWidth !== null && leftDetailWidth !== null && detailWidth !== null && cursorX !== null &&
+				rightDetailWidth < leftDetailWidth) {
+				addClass(this.element, 'list-right');
+				const left = Math.min(cursorX - detailWidth, this.getEditorWidth() + editorLeft - detailWidth - this.listWidth - this.minRightMargin);
+				this.element.style.left = `${Math.max(left, 0)}px`;
+			} else {
+				removeClass(this.element, 'list-right');
+			}
 		} else {
-			removeClass(this.element, 'list-right');
+			if (widgetX < cursorX - this.listWidth) {
+				// Widget is too far to the left of cursor, swap list and docs
+				addClass(this.element, 'list-right');
+			} else {
+				removeClass(this.element, 'list-right');
+			}
 		}
 
 		// Compare top of the cursor (cursorY - lineheight) with widgetTop to determine if
@@ -1200,12 +1219,24 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			removeClass(this.element, 'docs-below');
 			return;
 		}
+		const largeDetail = this.editor.getConfiguration().contribInfo.suggest.largeDetail;
 
-		const detailWidth = this.getDetailWidth();
-		if (detailWidth !== null && this.getEditorWidth() < detailWidth + this.listWidth) {
-			addClass(this.element, 'docs-below');
-			removeClass(this.element, 'docs-side');
-		} else if (canExpandCompletionItem(this.focusedItem)) {
+		if (largeDetail) {
+			const detailWidth = this.getDetailWidth();
+			if (detailWidth !== null && this.getEditorWidth() < detailWidth + this.listWidth) {
+				addClass(this.element, 'docs-below');
+				removeClass(this.element, 'docs-side');
+				return;
+			}
+		} else {
+			let matches = this.element.style.maxWidth!.match(/(\d+)px/);
+			if (!matches || Number(matches[1]) < this.maxWidgetWidth) {
+				addClass(this.element, 'docs-below');
+				removeClass(this.element, 'docs-side');
+				return;
+			}
+		}
+		if (canExpandCompletionItem(this.focusedItem)) {
 			addClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 		}

@@ -213,6 +213,10 @@ export interface ISuggestOptions {
 	 */
 	maxVisibleSuggestions?: boolean;
 	/**
+	 * Enable or disable the large detail of completion items.
+	*/
+	largeDetail?: boolean;
+	/**
 	 * Names of suggestion types to filter.
 	 */
 	filteredTypes?: Record<string, boolean>;
@@ -952,6 +956,7 @@ export interface InternalSuggestOptions {
 	readonly shareSuggestSelections: boolean;
 	readonly showIcons: boolean;
 	readonly maxVisibleSuggestions: number;
+	readonly largeDetail: boolean;
 	readonly filteredTypes: Record<string, boolean>;
 }
 
@@ -1955,6 +1960,7 @@ export class EditorOptionsValidator {
 			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
 			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
 			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 15),
+			largeDetail: _boolean(suggestOpts.largeDetail, defaults.largeDetail),
 			filteredTypes: isObject(suggestOpts.filteredTypes) ? suggestOpts.filteredTypes : Object.create(null)
 		};
 	}
@@ -2727,6 +2733,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			shareSuggestSelections: false,
 			showIcons: true,
 			maxVisibleSuggestions: 12,
+			largeDetail: false,
 			filteredTypes: Object.create(null)
 		},
 		gotoLocation: {

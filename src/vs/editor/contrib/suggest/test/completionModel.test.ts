@@ -165,6 +165,7 @@ suite('CompletionModel', function () {
 				shareSuggestSelections: false,
 				showIcons: true,
 				maxVisibleSuggestions: 12,
+				largeDetail: false,
 				filteredTypes: Object.create(null)
 			});
 
@@ -193,6 +194,7 @@ suite('CompletionModel', function () {
 				shareSuggestSelections: false,
 				showIcons: true,
 				maxVisibleSuggestions: 12,
+				largeDetail: false,
 				filteredTypes: Object.create(null)
 			});
 
@@ -220,6 +222,7 @@ suite('CompletionModel', function () {
 				shareSuggestSelections: false,
 				showIcons: true,
 				maxVisibleSuggestions: 12,
+				largeDetail: false,
 				filteredTypes: Object.create(null)
 			});
 

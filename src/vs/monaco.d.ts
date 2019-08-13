@@ -2599,6 +2599,10 @@ declare namespace monaco.editor {
 		 */
 		maxVisibleSuggestions?: boolean;
 		/**
+		 * Enable or disable the large detail of completion items.
+		*/
+		largeDetail?: boolean;
+		/**
 		 * Names of suggestion types to filter.
 		 */
 		filteredTypes?: Record<string, boolean>;
@@ -3267,6 +3271,7 @@ declare namespace monaco.editor {
 		readonly shareSuggestSelections: boolean;
 		readonly showIcons: boolean;
 		readonly maxVisibleSuggestions: number;
+		readonly largeDetail: boolean;
 		readonly filteredTypes: Record<string, boolean>;
 	}
 
