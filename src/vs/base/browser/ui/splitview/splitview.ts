@@ -24,12 +24,12 @@ const defaultStyles: ISplitViewStyles = {
 };
 
 export interface ISplitViewOptions {
-	orientation?: Orientation; // default Orientation.VERTICAL
-	styles?: ISplitViewStyles;
-	orthogonalStartSash?: Sash;
-	orthogonalEndSash?: Sash;
-	inverseAltBehavior?: boolean;
-	proportionalLayout?: boolean; // default true
+	readonly orientation?: Orientation; // default Orientation.VERTICAL
+	readonly styles?: ISplitViewStyles;
+	readonly orthogonalStartSash?: Sash;
+	readonly orthogonalEndSash?: Sash;
+	readonly inverseAltBehavior?: boolean;
+	readonly proportionalLayout?: boolean; // default true
 }
 
 /**
@@ -48,7 +48,7 @@ export interface IView {
 	readonly onDidChange: Event<number | undefined>;
 	readonly priority?: LayoutPriority;
 	readonly snap?: boolean;
-	layout(size: number, orientation: Orientation): void;
+	layout(size: number, orthogonalSize: number | undefined): void;
 	setVisible?(visible: boolean): void;
 }
 
@@ -125,13 +125,13 @@ abstract class ViewItem {
 		dom.addClass(container, 'visible');
 	}
 
-	layout(): void {
+	layout(_orthogonalSize: number | undefined): void {
 		this.container.scrollTop = 0;
 		this.container.scrollLeft = 0;
 	}
 
-	layoutView(orientation: Orientation): void {
-		this.view.layout(this.size, orientation);
+	layoutView(orthogonalSize: number | undefined): void {
+		this.view.layout(this.size, orthogonalSize);
 	}
 
 	dispose(): IView {
@@ -142,19 +142,19 @@ abstract class ViewItem {
 
 class VerticalViewItem extends ViewItem {
 
-	layout(): void {
-		super.layout();
+	layout(orthogonalSize: number | undefined): void {
+		super.layout(orthogonalSize);
 		this.container.style.height = `${this.size}px`;
-		this.layoutView(Orientation.VERTICAL);
+		this.layoutView(orthogonalSize);
 	}
 }
 
 class HorizontalViewItem extends ViewItem {
 
-	layout(): void {
-		super.layout();
+	layout(orthogonalSize: number | undefined): void {
+		super.layout(orthogonalSize);
 		this.container.style.width = `${this.size}px`;
-		this.layoutView(Orientation.HORIZONTAL);
+		this.layoutView(orthogonalSize);
 	}
 }
 
@@ -205,6 +205,7 @@ export class SplitView extends Disposable {
 	private sashContainer: HTMLElement;
 	private viewContainer: HTMLElement;
 	private size = 0;
+	private orthogonalSize: number | undefined;
 	private contentSize = 0;
 	private proportions: undefined | number[] = undefined;
 	private viewItems: ViewItem[] = [];
@@ -475,9 +476,10 @@ export class SplitView extends Disposable {
 		return viewItem.cachedVisibleSize;
 	}
 
-	layout(size: number): void {
+	layout(size: number, orthogonalSize?: number): void {
 		const previousSize = Math.max(this.size, this.contentSize);
 		this.size = size;
+		this.orthogonalSize = orthogonalSize;
 
 		if (!this.proportions) {
 			const indexes = range(this.viewItems.length);
@@ -820,7 +822,7 @@ export class SplitView extends Disposable {
 		this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 
 		// Layout views
-		this.viewItems.forEach(item => item.layout());
+		this.viewItems.forEach(item => item.layout(this.orthogonalSize));
 
 		// Layout sashes
 		this.sashItems.forEach(item => item.sash.layout());
