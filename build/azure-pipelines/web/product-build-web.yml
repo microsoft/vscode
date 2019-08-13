@@ -94,6 +94,7 @@ steps:
     yarn compile
     cd -
     yarn smoketest --web --headless
+  continueOnError: true
   displayName: Smoke tests
 
   # upload only the workbench.web.api.js source maps because
