@@ -6,6 +6,9 @@
 import * as puppeteer from 'puppeteer';
 import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
+import { tmpdir } from 'os';
+import { mkdir } from 'fs';
+import { promisify } from 'util';
 
 const width = 1200;
 const height = 800;
@@ -184,11 +187,18 @@ let endpoint: string | undefined;
 
 export async function launch(_args): Promise<void> {
 	args = _args;
-	console.log('launch args', args);
 
-	// TODO: --web-user-data-dir (tmpdir)
-	server = spawn(join(args[0], '/resources/server/web.sh'), ['--driver', 'web']);
-	endpoint = await new Promise<string>(r => {
+	// TODO: Don't open up the system browser
+	const webUserDataDir = join(tmpdir(), `smoketest-${Math.random() * 10000000000}`);
+	await promisify(mkdir)(webUserDataDir);
+	server = spawn(join(args[0], 'resources/server/web.sh'), ['--driver', 'web', '--web-user-data-dir', webUserDataDir]);
+	server.stderr.on('data', e => console.log('Server error: ' + e));
+	endpoint = await waitForEndpoint();
+	await timeout(2000);
+}
+
+function waitForEndpoint(): Promise<string> {
+	return new Promise<string>(r => {
 		server.stdout.on('data', d => {
 			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
