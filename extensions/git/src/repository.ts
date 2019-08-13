@@ -701,6 +701,9 @@ export class Repository implements Disposable {
 		onConfigListener(updateIndexGroupVisibility, this, this.disposables);
 		updateIndexGroupVisibility();
 
+		const onConfigListenerForBranchSortOrder = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.sortOrderForBranch', root));
+		onConfigListenerForBranchSortOrder(this.updateModelState, this, this.disposables);
+
 		this.mergeGroup.hideWhenEmpty = true;
 
 		this.disposables.push(this.mergeGroup);
@@ -1405,7 +1408,7 @@ export class Repository implements Disposable {
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
-
+		const sortBranchListByCommitterDate = config.get<string>('sortOrderForBranch') === 'committerdate';
 		this.isRepositoryHuge = didHitLimit;
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
@@ -1455,7 +1458,7 @@ export class Repository implements Disposable {
 			// noop
 		}
 
-		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
+		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs(sortBranchListByCommitterDate), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs;
