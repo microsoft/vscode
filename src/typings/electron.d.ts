@@ -1,4 +1,4 @@
-// Type definitions for Electron 6.0.1
+// Type definitions for Electron 6.0.2
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -1923,7 +1923,7 @@ declare namespace Electron {
 		 */
 		setFullScreenable(fullscreenable: boolean): void;
 		/**
-		 * Sets whether the window should have a shadow. On Windows and Linux does nothing.
+		 * Sets whether the window should have a shadow.
 		 */
 		setHasShadow(hasShadow: boolean): void;
 		/**
