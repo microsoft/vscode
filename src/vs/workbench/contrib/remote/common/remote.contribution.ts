@@ -36,7 +36,8 @@ export class LabelContribution implements IWorkbenchContribution {
 						formatting: {
 							label: '${path}',
 							separator: remoteEnvironment.os === OperatingSystem.Windows ? '\\' : '/',
-							tildify: remoteEnvironment.os !== OperatingSystem.Windows
+							tildify: remoteEnvironment.os !== OperatingSystem.Windows,
+							normalizeDriveLetter: remoteEnvironment.os === OperatingSystem.Windows
 						}
 					});
 				}
