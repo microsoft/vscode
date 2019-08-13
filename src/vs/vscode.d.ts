@@ -5208,7 +5208,7 @@ declare module 'vscode' {
 	 */
 	export enum TaskScope {
 		/**
-		 * The task is a global task
+		 * The task is a global task. Global tasks are currrently not supported.
 		 */
 		Global = 1,
 
@@ -5237,7 +5237,7 @@ declare module 'vscode' {
 		 * Creates a new task.
 		 *
 		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
+		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder. Global tasks are currently not supported.
 		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
