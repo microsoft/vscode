@@ -14,7 +14,7 @@ import { IExtensionManagementServer, IExtensionManagementServerService, IExtensi
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { append, $, toggleClass } from 'vs/base/browser/dom';
+import { append, $, toggleClass, addClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { IExtension, IExtensionsWorkbenchService, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -27,7 +27,7 @@ import { OpenGlobalSettingsAction } from 'vs/workbench/contrib/preferences/brows
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -103,16 +103,13 @@ export class ExtensionsListView extends ViewletPanel {
 		@IProductService protected readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title, showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.server = options.server;
 	}
 
 	protected renderHeader(container: HTMLElement): void {
-		this.renderHeaderTitle(container);
-	}
-
-	renderHeaderTitle(container: HTMLElement): void {
-		super.renderHeaderTitle(container, this.title);
+		addClass(container, 'extension-view-header');
+		super.renderHeader(container);
 
 		this.badgeContainer = append(container, $('.count-badge-wrapper'));
 		this.badge = new CountBadge(this.badgeContainer);
@@ -953,25 +950,15 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.update()));
 	}
 
-	renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
+	getActions(): IAction[] {
+		if (!this.installAllAction) {
+			this.installAllAction = this._register(this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, InstallWorkspaceRecommendedExtensionsAction.LABEL, []));
+			this.installAllAction.class = 'octicon octicon-cloud-download';
+		}
 
-		const listActionBar = $('.list-actionbar-container');
-		container.insertBefore(listActionBar, this.badgeContainer);
-
-		const actionbar = this._register(new ActionBar(listActionBar, {
-			animated: false
-		}));
-		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
-
-		this.installAllAction = this._register(this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, InstallWorkspaceRecommendedExtensionsAction.LABEL, []));
 		const configureWorkspaceFolderAction = this._register(this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL));
-
-		this.installAllAction.class = 'octicon octicon-cloud-download';
 		configureWorkspaceFolderAction.class = 'octicon octicon-pencil';
-
-		actionbar.push([this.installAllAction], { icon: true, label: false });
-		actionbar.push([configureWorkspaceFolderAction], { icon: true, label: false });
+		return [this.installAllAction, configureWorkspaceFolderAction];
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
@@ -986,9 +973,11 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		this.setRecommendationsToInstall();
 	}
 
-	private setRecommendationsToInstall(): Promise<void> {
-		return this.getRecommendationsToInstall()
-			.then(recommendations => { this.installAllAction.recommendations = recommendations; });
+	private async setRecommendationsToInstall(): Promise<void> {
+		const recommendations = await this.getRecommendationsToInstall();
+		if (this.installAllAction) {
+			this.installAllAction.recommendations = recommendations;
+		}
 	}
 
 	private getRecommendationsToInstall(): Promise<IExtensionRecommendation[]> {
