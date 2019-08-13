@@ -518,7 +518,7 @@ export abstract class CommonTask {
 	/**
 	 * The cached label.
 	 */
-	_label: string;
+	_label: string = '';
 
 	type?: string;
 
@@ -614,7 +614,7 @@ export abstract class CommonTask {
 
 export class CustomTask extends CommonTask {
 
-	type: '$customized'; // CUSTOMIZED_TASK_TYPE
+	type!: '$customized'; // CUSTOMIZED_TASK_TYPE
 
 	/**
 	 * Indicated the source of the task (e.g. tasks.json or extension)
@@ -626,7 +626,7 @@ export class CustomTask extends CommonTask {
 	/**
 	 * The command configuration
 	 */
-	command: CommandConfiguration;
+	command: CommandConfiguration = {};
 
 	public constructor(id: string, source: WorkspaceTaskSource, label: string, type: string, command: CommandConfiguration | undefined,
 		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
@@ -754,8 +754,9 @@ export class ContributedTask extends CommonTask {
 
 	/**
 	 * Indicated the source of the task (e.g. tasks.json or extension)
+	 * Set in the super constructor
 	 */
-	_source: ExtensionTaskSource;
+	_source!: ExtensionTaskSource;
 
 	defines: KeyedTaskIdentifier;
 
@@ -824,7 +825,7 @@ export class InMemoryTask extends CommonTask {
 	 */
 	_source: InMemoryTaskSource;
 
-	type: 'inMemory';
+	type!: 'inMemory';
 
 	public constructor(id: string, source: InMemoryTaskSource, label: string, type: string,
 		runOptions: RunOptions, configurationProperties: ConfigurationProperties) {

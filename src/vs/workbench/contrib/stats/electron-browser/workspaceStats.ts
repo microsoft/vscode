@@ -15,6 +15,7 @@ import { endsWith } from 'vs/base/common/strings';
 import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
+import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -175,10 +176,20 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportProxyStats();
 
 		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
-		diagnosticsChannel.call('reportWorkspaceStats', this.contextService.getWorkspace());
+		diagnosticsChannel.call('reportWorkspaceStats', this.getWorkspaceInformation());
 	}
 
-
+	private getWorkspaceInformation(): IWorkspaceInformation {
+		const workspace = this.contextService.getWorkspace();
+		const state = this.contextService.getWorkbenchState();
+		const id = this.workspaceStatsService.getTelemetryWorkspaceId(workspace, state);
+		return {
+			id: workspace.id,
+			telemetryId: id,
+			folders: workspace.folders,
+			configuration: workspace.configuration
+		};
+	}
 
 	private reportWorkspaceTags(tags: Tags): void {
 		/* __GDPR__

@@ -161,12 +161,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private _showCollapseAllAction = false;
 
 	private focused: boolean = false;
-	private domNode: HTMLElement;
-	private treeContainer: HTMLElement;
+	private domNode!: HTMLElement;
+	private treeContainer!: HTMLElement;
 	private _messageValue: string | undefined;
-	private messageElement: HTMLDivElement;
-	private tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>;
-	private treeLabels: ResourceLabels;
+	private messageElement!: HTMLDivElement;
+	private tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> | undefined;
+	private treeLabels: ResourceLabels | undefined;
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
 	private menus: TitleMenus;
@@ -218,12 +218,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.create();
 	}
 
-	private _dataProvider: ITreeViewDataProvider | null;
-	get dataProvider(): ITreeViewDataProvider | null {
+	private _dataProvider: ITreeViewDataProvider | undefined;
+	get dataProvider(): ITreeViewDataProvider | undefined {
 		return this._dataProvider;
 	}
 
-	set dataProvider(dataProvider: ITreeViewDataProvider | null) {
+	set dataProvider(dataProvider: ITreeViewDataProvider | undefined) {
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
@@ -238,7 +238,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			this.updateMessage();
 			this.refresh();
 		} else {
-			this._dataProvider = null;
+			this._dataProvider = undefined;
 			this.updateMessage();
 		}
 	}
@@ -399,7 +399,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			if (!e.browserEvent) {
 				return;
 			}
-			const selection = this.tree.getSelection();
+			const selection = this.tree!.getSelection();
 			if ((selection.length === 1) && selection[0].command) {
 				this.commandService.executeCommand(selection[0].command.id, ...(selection[0].command.arguments || []));
 			}
@@ -416,7 +416,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		event.preventDefault();
 		event.stopPropagation();
 
-		this.tree.setFocus([node]);
+		this.tree!.setFocus([node]);
 		const actions = treeMenus.getResourceContextActions(node);
 		if (!actions.length) {
 			return;
@@ -436,13 +436,13 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
-					this.tree.domFocus();
+					this.tree!.domFocus();
 				}
 			},
 
 			getActionsContext: () => (<TreeViewItemHandleArg>{ $treeViewId: this.id, $treeItemHandle: node.handle }),
 
-			actionRunner: new MultipleSelectionActionRunner(() => this.tree.getSelection())
+			actionRunner: new MultipleSelectionActionRunner(() => this.tree!.getSelection())
 		});
 	}
 
@@ -479,8 +479,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		DOM.clearNode(this.messageElement);
 	}
 
-	private _height: number;
-	private _width: number;
+	private _height: number = 0;
+	private _width: number = 0;
 	layout(height: number, width: number) {
 		if (height && width) {
 			this._height = height;
@@ -532,10 +532,11 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	async expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
-		if (this.tree) {
+		const tree = this.tree;
+		if (tree) {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
 			await Promise.all(itemOrItems.map(element => {
-				return this.tree.expand(element, false);
+				return tree.expand(element, false);
 			}));
 		}
 		return Promise.resolve(undefined);
@@ -575,18 +576,19 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private refreshing: boolean = false;
 	private async doRefresh(elements: ITreeItem[]): Promise<void> {
-		if (this.tree) {
+		const tree = this.tree;
+		if (tree) {
 			this.refreshing = true;
 			const parents: Set<ITreeItem> = new Set<ITreeItem>();
 			elements.forEach(element => {
 				if (element !== this.root) {
-					const parent = this.tree.getParentElement(element);
+					const parent = tree.getParentElement(element);
 					parents.add(parent);
 				} else {
 					parents.add(element);
 				}
 			});
-			await Promise.all(Array.from(parents.values()).map(element => this.tree.updateChildren(element, true)));
+			await Promise.all(Array.from(parents.values()).map(element => tree.updateChildren(element, true)));
 			this.refreshing = false;
 			this.updateContentAreas();
 			if (this.focused) {
@@ -772,7 +774,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 }
 
 class Aligner extends Disposable {
-	private _tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>;
+	private _tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> | undefined;
 
 	constructor(private themeService: IWorkbenchThemeService) {
 		super();
@@ -790,11 +792,15 @@ class Aligner extends Disposable {
 			return false;
 		}
 
-		const parent: ITreeItem = this._tree.getParentElement(treeItem) || this._tree.getInput();
-		if (this.hasIcon(parent)) {
+		if (this._tree) {
+			const parent: ITreeItem = this._tree.getParentElement(treeItem) || this._tree.getInput();
+			if (this.hasIcon(parent)) {
+				return false;
+			}
+			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
+		} else {
 			return false;
 		}
-		return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
 	}
 
 	private hasIcon(node: ITreeItem): boolean {
