@@ -8,9 +8,8 @@ import * as browser from 'vs/base/browser/browser';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -77,63 +76,6 @@ export class SimpleExtensionTipsService implements IExtensionTipsService {
 }
 
 registerSingleton(IExtensionTipsService, SimpleExtensionTipsService, true);
-
-//#endregion
-
-export class SimpleExtensionManagementService implements IExtensionManagementService {
-
-	_serviceBrand: any;
-
-	onInstallExtension = Event.None;
-	onDidInstallExtension = Event.None;
-	onUninstallExtension = Event.None;
-	onDidUninstallExtension = Event.None;
-
-	zip(extension: ILocalExtension): Promise<URI> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	install(vsix: URI): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	uninstall(extension: ILocalExtension, force?: boolean): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		// @ts-ignore
-		return Promise.resolve([]);
-	}
-
-	getExtensionsReport(): Promise<IReportedExtension[]> {
-		// @ts-ignore
-		return Promise.resolve([]);
-	}
-
-	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(local);
-	}
-}
-
-registerSingleton(IExtensionManagementService, SimpleExtensionManagementService);
 
 //#endregion
 
