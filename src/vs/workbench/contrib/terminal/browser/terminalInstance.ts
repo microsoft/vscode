@@ -871,7 +871,11 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public async paste(): Promise<void> {
 		this.focus();
-		this._xterm._core._coreService.triggerDataEvent(await this._clipboardService.readText(), true);
+		if (platform.isWeb) {
+			this._xterm._core._coreService.triggerDataEvent(await this._clipboardService.readText(), true);
+		} else {
+			document.execCommand('paste');
+		}
 	}
 
 	public write(text: string): void {
