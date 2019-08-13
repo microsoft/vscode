@@ -1355,14 +1355,14 @@
           "default": false,
           "description": "%config.supportCancellation%"
         },
-        "git.sortOrderForBranch": {
+        "git.branchSortOrder": {
           "type": "string",
           "enum": [
             "committerdate",
             "alphabetically"
           ],
           "default": "committerdate",
-          "description": "%config.sortOrderForBranch%"
+          "description": "%config.branchSortOrder%"
         }
       }
     },
