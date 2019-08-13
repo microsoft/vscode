@@ -511,7 +511,8 @@ suite('SerializableGrid', function () {
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 
-		assert.deepEqual(grid.serialize(), {
+		const actual = grid.serialize();
+		assert.deepEqual(actual, {
 			orientation: 0,
 			width: 800,
 			height: 600,

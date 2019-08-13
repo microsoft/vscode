@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/74c2c0eaad8f647e98a188da0f95a64f7239cbe0",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/031ef619bef4c5a1ca46e6fa69d7c913e0c32068",
 	"name": "C++",
 	"scopeName": "source.cpp",
 	"patterns": [
@@ -121,6 +121,250 @@
 			"match": "(?<!\\w)(?:[a-zA-Z_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))(?:[a-zA-Z0-9_]|(?:\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}))*(?!\\w)",
 			"name": "entity.name.function.preprocessor.cpp"
 		},
+		"preprocessor_number_literal": {
+			"begin": "(?<!\\w)(?=\\d|\\.\\d)",
+			"end": "(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+			"patterns": [
+				{
+					"match": "(\\G0[xX])([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)?((?:(?<=[0-9a-fA-F])\\.|\\.(?=[0-9a-fA-F])))([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)?((?<!')([pP])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)))?([lLfF](?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.hexadecimal.cpp"
+						},
+						"2": {
+							"name": "constant.numeric.hexadecimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"4": {
+							"name": "constant.numeric.hexadecimal.cpp"
+						},
+						"5": {
+							"name": "constant.numeric.hexadecimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"6": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"8": {
+							"name": "keyword.other.unit.exponent.hexadecimal.cpp"
+						},
+						"9": {
+							"name": "keyword.operator.plus.exponent.hexadecimal.cpp"
+						},
+						"10": {
+							"name": "keyword.operator.minus.exponent.hexadecimal.cpp"
+						},
+						"11": {
+							"name": "constant.numeric.exponent.hexadecimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"12": {
+							"name": "keyword.other.unit.suffix.floating-point.cpp"
+						}
+					}
+				},
+				{
+					"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)?((?:(?<=[0-9])\\.|\\.(?=[0-9])))([0-9](?:[0-9]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)?((?<!')([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)))?([lLfF](?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"2": {
+							"name": "constant.numeric.decimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"4": {
+							"name": "constant.numeric.decimal.point.cpp"
+						},
+						"5": {
+							"name": "constant.numeric.decimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"6": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"8": {
+							"name": "keyword.other.unit.exponent.decimal.cpp"
+						},
+						"9": {
+							"name": "keyword.operator.plus.exponent.decimal.cpp"
+						},
+						"10": {
+							"name": "keyword.operator.minus.exponent.decimal.cpp"
+						},
+						"11": {
+							"name": "constant.numeric.exponent.decimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"12": {
+							"name": "keyword.other.unit.suffix.floating-point.cpp"
+						}
+					}
+				},
+				{
+					"match": "(\\G0[bB])([01](?:[01]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.binary.cpp"
+						},
+						"2": {
+							"name": "constant.numeric.binary.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"4": {
+							"name": "keyword.other.unit.suffix.integer.cpp"
+						}
+					}
+				},
+				{
+					"match": "(\\G0)((?:[0-7]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))+)((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.octal.cpp"
+						},
+						"2": {
+							"name": "constant.numeric.octal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"4": {
+							"name": "keyword.other.unit.suffix.integer.cpp"
+						}
+					}
+				},
+				{
+					"match": "(\\G0[xX])([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)((?<!')([pP])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)))?((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.hexadecimal.cpp"
+						},
+						"2": {
+							"name": "constant.numeric.hexadecimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"5": {
+							"name": "keyword.other.unit.exponent.hexadecimal.cpp"
+						},
+						"6": {
+							"name": "keyword.operator.plus.exponent.hexadecimal.cpp"
+						},
+						"7": {
+							"name": "keyword.operator.minus.exponent.hexadecimal.cpp"
+						},
+						"8": {
+							"name": "constant.numeric.exponent.hexadecimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"9": {
+							"name": "keyword.other.unit.suffix.integer.cpp"
+						}
+					}
+				},
+				{
+					"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)((?<!')([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)))?((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"2": {
+							"name": "constant.numeric.decimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric.cpp"
+						},
+						"5": {
+							"name": "keyword.other.unit.exponent.decimal.cpp"
+						},
+						"6": {
+							"name": "keyword.operator.plus.exponent.decimal.cpp"
+						},
+						"7": {
+							"name": "keyword.operator.minus.exponent.decimal.cpp"
+						},
+						"8": {
+							"name": "constant.numeric.exponent.decimal.cpp",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric.cpp"
+								}
+							]
+						},
+						"9": {
+							"name": "keyword.other.unit.suffix.integer.cpp"
+						}
+					}
+				},
+				{
+					"match": "(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-])+",
+					"name": "invalid.illegal.constant.numeric.cpp"
+				}
+			]
+		},
 		"pragma_mark": {
 			"match": "((?:^)((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))(#)\\s*pragma\\s+mark)\\s+(.*)",
 			"captures": {
@@ -210,7 +454,7 @@
 					"name": "entity.other.attribute-name.pragma.preprocessor.cpp"
 				},
 				{
-					"include": "#number_literal"
+					"include": "#preprocessor_number_literal"
 				},
 				{
 					"include": "#line_continuation_character"
@@ -417,7 +661,7 @@
 					"include": "#string_context_c"
 				},
 				{
-					"include": "#number_literal"
+					"include": "#preprocessor_number_literal"
 				},
 				{
 					"include": "#line_continuation_character"
@@ -425,7 +669,7 @@
 			]
 		},
 		"diagnostic": {
-			"name": "meta.preprocessor.diagnostic.cpp",
+			"name": "meta.preprocessor.diagnostic.$reference(directive).cpp",
 			"begin": "((?:^)((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))(#)\\s*((?:error|warning)))\\b\\s*",
 			"beginCaptures": {
 				"1": {
@@ -667,13 +911,13 @@
 					"begin": "\\G\\s*(\\()",
 					"beginCaptures": {
 						"1": {
-							"name": "punctuation.definition.parameters.begin.cpp"
+							"name": "punctuation.definition.parameters.begin.preprocessor.cpp"
 						}
 					},
 					"end": "(\\))",
 					"endCaptures": {
 						"1": {
-							"name": "punctuation.definition.parameters.end.cpp"
+							"name": "punctuation.definition.parameters.end.preprocessor.cpp"
 						}
 					},
 					"patterns": [
@@ -745,7 +989,7 @@
 			},
 			"patterns": [
 				{
-					"name": "meta.conditional.preprocessor.cpp",
+					"name": "meta.preprocessor.conditional.cpp",
 					"begin": "\\G(?<=ifndef|ifdef|if)",
 					"end": "(?<!\\\\)(?=\\n)",
 					"patterns": [
@@ -774,7 +1018,7 @@
 					"include": "#string_context_c"
 				},
 				{
-					"include": "#number_literal"
+					"include": "#preprocessor_number_literal"
 				},
 				{
 					"include": "#operators"
@@ -1236,7 +1480,7 @@
 					"name": "meta.toc-list.banner.block.cpp"
 				},
 				"6": {
-					"name": "comment.line.block.cpp"
+					"name": "comment.line.banner.cpp"
 				},
 				"7": {
 					"name": "punctuation.definition.comment.cpp"

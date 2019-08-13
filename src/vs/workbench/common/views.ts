@@ -300,7 +300,7 @@ export interface IViewsService {
 
 export interface ITreeView extends IDisposable {
 
-	dataProvider: ITreeViewDataProvider | null;
+	dataProvider: ITreeViewDataProvider | undefined;
 
 	showCollapseAllAction: boolean;
 

@@ -124,7 +124,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._dataProviders.forEach((dataProvider, treeViewId) => {
 			const treeView = this.getTreeView(treeViewId);
 			if (treeView) {
-				treeView.dataProvider = null;
+				treeView.dataProvider = undefined;
 			}
 		});
 		this._dataProviders.clear();

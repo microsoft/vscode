@@ -264,7 +264,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 
 	public abstract get matchLength(): number;
 
-	protected fillProblemData(data: ProblemData | null, pattern: ProblemPattern, matches: RegExpExecArray): data is ProblemData {
+	protected fillProblemData(data: ProblemData | undefined, pattern: ProblemPattern, matches: RegExpExecArray): data is ProblemData {
 		if (data) {
 			this.fillProperty(data, 'file', pattern, matches, true);
 			this.appendProperty(data, 'message', pattern, matches, true);
@@ -449,7 +449,7 @@ class SingleLineMatcher extends AbstractLineMatcher {
 class MultiLineMatcher extends AbstractLineMatcher {
 
 	private patterns: ProblemPattern[];
-	private data: ProblemData | null;
+	private data: ProblemData | undefined;
 
 	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
 		super(matcher, fileService);
@@ -480,7 +480,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		}
 		let loop = !!this.patterns[this.patterns.length - 1].loop;
 		if (!loop) {
-			this.data = null;
+			this.data = undefined;
 		}
 		const markerMatch = data ? this.getMarkerMatch(data) : null;
 		return { match: markerMatch ? markerMatch : null, continue: loop };
@@ -491,7 +491,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		Assert.ok(pattern.loop === true && this.data !== null);
 		let matches = pattern.regexp.exec(line);
 		if (!matches) {
-			this.data = null;
+			this.data = undefined;
 			return null;
 		}
 		let data = Objects.deepClone(this.data);
@@ -794,7 +794,7 @@ export namespace Config {
 		fileLocation?: string | string[];
 
 		/**
-		* The name of a predefined problem pattern, the inline definintion
+		* The name of a predefined problem pattern, the inline definition
 		* of a problem pattern or an array of problem patterns to match
 		* problems spread over multiple lines.
 		*/
