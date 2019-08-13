@@ -24,7 +24,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 // tslint:disable-next-line: import-patterns
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -774,6 +774,8 @@ export class SimpleWindowsService implements IWindowsService {
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
 	openExternal(_url: string): Promise<boolean> {
+		windowOpenNoOpener(_url);
+
 		return Promise.resolve(true);
 	}
 
