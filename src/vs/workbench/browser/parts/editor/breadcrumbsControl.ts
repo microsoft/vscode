@@ -69,7 +69,9 @@ class Item extends BreadcrumbsItem {
 			return false;
 		}
 		if (this.element instanceof FileElement && other.element instanceof FileElement) {
-			return isEqual(this.element.uri, other.element.uri, false);
+			return (isEqual(this.element.uri, other.element.uri, false) &&
+				this.options.showFileIcons === other.options.showFileIcons &&
+				this.options.showSymbolIcons === other.options.showSymbolIcons);
 		}
 		if (this.element instanceof TreeElement && other.element instanceof TreeElement) {
 			return this.element.id === other.element.id;
@@ -143,6 +145,7 @@ export class BreadcrumbsControl {
 	private readonly _ckBreadcrumbsActive: IContextKey<boolean>;
 
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
+	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
@@ -185,6 +188,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
+		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(_configurationService);
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
 	}
@@ -196,6 +200,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible.reset();
 		this._ckBreadcrumbsActive.reset();
 		this._cfUseQuickPick.dispose();
+		this._cfShowIcons.dispose();
 		this._widget.dispose();
 		this.domNode.remove();
 	}
@@ -246,15 +251,23 @@ export class BreadcrumbsControl {
 		dom.toggleClass(this.domNode, 'backslash-path', this._labelService.getSeparator(uri.scheme, uri.authority) === '\\');
 
 		const updateBreadcrumbs = () => {
-			const items = model.getElements().map(element => new Item(element, this._options, this._instantiationService));
+			const showIcons = this._cfShowIcons.getValue();
+			const options: IBreadcrumbsControlOptions = {
+				...this._options,
+				showFileIcons: this._options.showFileIcons && showIcons,
+				showSymbolIcons: this._options.showSymbolIcons && showIcons
+			};
+			const items = model.getElements().map(element => new Item(element, options, this._instantiationService));
 			this._widget.setItems(items);
 			this._widget.reveal(items[items.length - 1]);
 		};
 		const listener = model.onDidUpdate(updateBreadcrumbs);
+		const configListener = this._cfShowIcons.onDidChange(updateBreadcrumbs);
 		updateBreadcrumbs();
 		this._breadcrumbsDisposables.clear();
 		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(listener);
+		this._breadcrumbsDisposables.add(configListener);
 
 		// close picker on hide/update
 		this._breadcrumbsDisposables.add({
