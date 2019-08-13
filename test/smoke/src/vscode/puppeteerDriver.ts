@@ -191,7 +191,7 @@ export async function launch(_args): Promise<void> {
 	// TODO: Don't open up the system browser
 	const webUserDataDir = join(tmpdir(), `smoketest-${Math.random() * 10000000000}`);
 	await promisify(mkdir)(webUserDataDir);
-	server = spawn(join(args[0], 'resources/server/web.sh'), ['--driver', 'web', '--web-user-data-dir', webUserDataDir]);
+	server = spawn(join(args[0], `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`), ['--driver', 'web', '--web-user-data-dir', webUserDataDir]);
 	server.stderr.on('data', e => console.log('Server stderr: ' + e));
 	process.on('exit', teardown);
 	endpoint = await waitForEndpoint();
