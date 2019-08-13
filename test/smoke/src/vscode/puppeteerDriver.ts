@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as puppeteer from 'puppeteer';
+import { ChildProcess, spawn } from 'child_process';
+import { join } from 'path';
+import { Readable } from 'stream';
 
 const width = 1200;
 const height = 800;
@@ -177,10 +180,23 @@ function timeout(ms: number): Promise<void> {
 // function runInDriver(call: string, args: (string | boolean)[]): Promise<any> {}
 
 let args;
+let server: ChildProcess;
+let endpoint: string | undefined;
 
-export function launch(_args): void {
+export async function launch(_args): Promise<void> {
 	args = _args;
-	// TODO: Move puppeteer launch here
+	console.log('launch args', args);
+
+	// TODO: --web-user-data-dir (tmpdir)
+	server = spawn(join(args[0], '/resources/server/web.sh'), ['--driver', 'web']);
+	endpoint = await new Promise<string>(r => {
+		server.stdout.on('data', d => {
+			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
+			if (matches !== null) {
+				r(matches[1]);
+			}
+		});
+	});
 }
 
 export function connect(headless: boolean, outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }> {
@@ -194,9 +210,14 @@ export function connect(headless: boolean, outPath: string, handle: string): Pro
 		});
 		const page = (await browser.pages())[0];
 		await page.setViewport({ width, height });
-		await page.goto(`http://127.0.0.1:9888?folder=${args[1]}`);
+		const endpointSplit = endpoint!.split('#');
+		await page.goto(`${endpointSplit[0]}?folder=${args[1]}#${endpointSplit[1]}`);
 		const result = {
-			client: { dispose: () => { } },
+			client: {
+				dispose: () => {
+					server.kill();
+				}
+			},
 			driver: buildDriver(browser, page)
 		};
 		c(result);

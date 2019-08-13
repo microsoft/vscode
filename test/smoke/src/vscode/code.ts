@@ -173,7 +173,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	let connectDriver: typeof connectElectronDriver;
 
 	if (options.web) {
-		launch(args);
+		await launch(args);
 		connectDriver = connectPuppeteerDriver.bind(connectPuppeteerDriver, !!options.headless);
 	} else {
 		const spawnOptions: cp.SpawnOptions = { env };
