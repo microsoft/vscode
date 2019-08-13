@@ -193,8 +193,8 @@ export async function launch(_args): Promise<void> {
 	await promisify(mkdir)(webUserDataDir);
 	server = spawn(join(args[0], 'resources/server/web.sh'), ['--driver', 'web', '--web-user-data-dir', webUserDataDir]);
 	server.stderr.on('data', e => console.log('Server error: ' + e));
+	process.on('exit', () => server.kill());
 	endpoint = await waitForEndpoint();
-	await timeout(2000);
 }
 
 function waitForEndpoint(): Promise<string> {
