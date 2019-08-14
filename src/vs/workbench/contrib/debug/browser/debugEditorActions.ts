@@ -35,24 +35,22 @@ class ToggleBreakpointAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
-		if (editor.hasModel()) {
+		if (editor.hasModel() && editor.getSelections()) {
 			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
-			const lineNumbers = new Set(editor._getCursors().getAll()
-				.filter(cs => cs.modelState.position)
-				.map(cs => cs.modelState.position.lineNumber));
-
-			const promises = Array<Promise<any>>();
-			lineNumbers.forEach(lineNumber => {
-				const bps = debugService.getModel().getBreakpoints({ lineNumber: lineNumber, uri: modelUri });
-
+			const canSet = debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel());
+			// Does not account for multi line selections, Set to remove multiple cursor on the same line
+			const lineNumbers = [...new Set(editor.getSelections().map(s => s.getPosition().lineNumber))];
+			return Promise.all(lineNumbers.map(line => {
+				const bps = debugService.getModel().getBreakpoints({ lineNumber: line, uri: modelUri });
 				if (bps.length) {
-					bps.map(bp => debugService.removeBreakpoints(bp.getId())).forEach(p => promises.push(p));
-				} else if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-					promises.push(debugService.addBreakpoints(modelUri, [{ lineNumber: lineNumber }], 'debugEditorActions.toggleBreakpointAction'));
+					return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
+				} else if (canSet) {
+					return (debugService.addBreakpoints(modelUri, [{ lineNumber: line }], 'debugEditorActions.toggleBreakpointAction'));
+				} else { //Line where a breakpoint cant be set
+					return Promise.resolve([]);
 				}
-			});
-			return Promise.all(promises);
+			}));
 		}
 		return Promise.resolve();
 	}
