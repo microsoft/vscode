@@ -6,12 +6,13 @@
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape, IOpenUriOptions } from '../common/extHost.protocol';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { extractLocalHostUriMetaDataForPortMapping } from 'vs/workbench/contrib/webview/common/portMapping';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -23,7 +24,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IWindowService private readonly windowService: IWindowService,
-		@IWindowsService private readonly windowsService: IWindowsService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
@@ -58,7 +59,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			}
 		}
 
-		return this.windowsService.openExternal(encodeURI(uri.toString(true)));
+		return this.openerService.openExternal(uri);
 	}
 
 	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {

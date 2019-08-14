@@ -48,6 +48,7 @@ import 'vs/workbench/services/extensionManagement/node/extensionManagementServic
 import 'vs/workbench/services/accessibility/node/accessibilityService';
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
+import 'vs/workbench/services/opener/electron-browser/openerService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
