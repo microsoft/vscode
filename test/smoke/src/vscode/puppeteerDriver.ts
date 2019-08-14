@@ -194,6 +194,7 @@ export async function launch(_args): Promise<void> {
 	server = spawn(join(args[0], `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`), ['--no-browser', '--driver', 'web', '--web-user-data-dir', webUserDataDir]);
 	server.stderr.on('data', e => console.log('Server stderr: ' + e));
 	process.on('exit', teardown);
+	process.on('SIGINT', teardown);
 	endpoint = await waitForEndpoint();
 }
 
