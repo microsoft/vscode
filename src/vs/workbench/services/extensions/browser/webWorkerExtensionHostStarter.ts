@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
+import { getWorkerBootstrapUrl } from 'vs/base/worker/defaultWorkerFactory';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -49,23 +49,29 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 		if (!this._protocol) {
 
 			const emitter = new Emitter<VSBuffer>();
-			const worker = new DefaultWorkerFactory('WorkerExtensionHost').create(
-				'vs/workbench/services/extensions/worker/extensionHostWorker', data => {
-					if (data instanceof ArrayBuffer) {
-						emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
-					} else {
-						console.warn('UNKNOWN data received', data);
-						this._onDidExit.fire([77, 'UNKNOWN data received']);
-					}
-				}, err => {
-					this._onDidExit.fire([81, err]);
-					console.error(err);
+
+			const url = getWorkerBootstrapUrl(require.toUrl('../worker/extensionHostWorkerMain.js'), 'WorkerExtensionHost');
+			const worker = new Worker(url);
+
+			worker.onmessage = (event) => {
+				const { data } = event;
+				if (!(data instanceof ArrayBuffer)) {
+					console.warn('UNKNOWN data received', data);
+					this._onDidExit.fire([77, 'UNKNOWN data received']);
+					return;
 				}
-			);
+
+				emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
+			};
+
+			worker.onerror = (event) => {
+				console.error(event.error);
+				this._onDidExit.fire([81, event.error]);
+			};
 
 			// keep for cleanup
 			this._toDispose.add(emitter);
-			this._toDispose.add(worker);
+			this._toDispose.add(toDisposable(() => worker.terminate()));
 
 			const protocol: IMessagePassingProtocol = {
 				onMessage: emitter.event,
