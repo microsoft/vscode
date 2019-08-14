@@ -7,7 +7,7 @@ import 'vs/css!./accessibilityHelp';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { renderFormattedText } from 'vs/base/browser/htmlContentRenderer';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';

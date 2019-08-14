@@ -399,7 +399,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onWillType(listener: (text: string) => void): IDisposable;
 	/**
-	 * An event emitted before interpreting typed characters (on the keyboard).
+	 * An event emitted after interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */

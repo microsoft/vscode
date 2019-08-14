@@ -13,6 +13,8 @@ import * as vscode from 'vscode';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { isWeb } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 
 class ApiInstances {
 
@@ -83,8 +85,14 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		};
 
 		try {
+			// todo@joh this is a copy of `dom.ts#asDomUri`
+			// build url of the things we resolve
+			const url = isWeb
+				? URI.parse(window.location.href).with({ path: '/vscode-remote', query: JSON.stringify(URI.file(modulePath)) }).toString(true)
+				: modulePath;
+
 			activationTimesBuilder.codeLoadingStart();
-			importScripts(modulePath);
+			importScripts(url);
 		} finally {
 			activationTimesBuilder.codeLoadingStop();
 		}
