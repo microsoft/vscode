@@ -6,15 +6,16 @@
 import { createApiFactoryAndRegisterActors, IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
 import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { endsWith } from 'vs/base/common/strings';
+import { endsWith, startsWith } from 'vs/base/common/strings';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import * as vscode from 'vscode';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
 
 class ApiInstances {
 
@@ -56,9 +57,6 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	protected _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 
-		// make sure modulePath ends with `.js`
-		const suffix = '.js';
-		let modulePath = endsWith(module.fsPath, suffix) ? module.fsPath : module.fsPath + suffix;
 
 		interface FakeCommonJSSelf {
 			module?: object;
@@ -71,28 +69,44 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// FAKE commonjs world that only collects exports
 		const patchSelf: FakeCommonJSSelf = <any>self;
-		const exports = Object.create(null);
-		patchSelf.module = { exports };
-		patchSelf.exports = exports;
 		patchSelf.window = self; // <- that's improper but might help extensions that aren't authored correctly
 
 		// FAKE require function that only works for the vscode-module
-		patchSelf.require = (module: string) => {
-			if (module !== 'vscode') {
-				throw new Error(`Cannot load module '${module}'`);
+		const moduleStack: URI[] = [];
+		patchSelf.require = (mod: string) => {
+			const parent = moduleStack[moduleStack.length - 1];
+			if (mod === 'vscode') {
+				return this._apiInstances!.get(parent.fsPath);
 			}
-			return this._apiInstances!.get(modulePath);
+			if (!startsWith(mod, '.')) {
+				throw new Error(`Cannot load module '${mod}'`);
+			}
+
+			const exports = Object.create(null);
+			patchSelf.module = { exports };
+			patchSelf.exports = exports;
+
+			const next = joinPath(parent, '..', ensureSuffix(mod, '.js'));
+			moduleStack.push(next);
+			importScripts(asDomUri(next).toString(true));
+			moduleStack.pop();
+
+			return exports;
 		};
 
 		try {
-			// todo@joh this is a copy of `dom.ts#asDomUri`
-			// build url of the things we resolve
-			const url = isWeb
-				? URI.parse(window.location.href).with({ path: '/vscode-remote', query: JSON.stringify(URI.file(modulePath)) }).toString(true)
-				: modulePath;
-
 			activationTimesBuilder.codeLoadingStart();
-			importScripts(url);
+
+			const exports = Object.create(null);
+			patchSelf.module = { exports };
+			patchSelf.exports = exports;
+
+			module = module.with({ path: ensureSuffix(module.path, '.js') });
+			moduleStack.push(module);
+
+			importScripts(asDomUri(module).toString(true));
+			moduleStack.pop();
+
 		} finally {
 			activationTimesBuilder.codeLoadingStop();
 		}
@@ -103,4 +117,18 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
 		throw new Error('Not supported');
 	}
+}
+
+// todo@joh this is a copy of `dom.ts#asDomUri`
+function asDomUri(uri: URI): URI {
+	if (Schemas.vscodeRemote === uri.scheme) {
+		// rewrite vscode-remote-uris to uris of the window location
+		// so that they can be intercepted by the service worker
+		return URI.parse(window.location.href).with({ path: '/vscode-remote', query: JSON.stringify(uri) });
+	}
+	return uri;
+}
+
+function ensureSuffix(path: string, suffix: string): string {
+	return endsWith(path, suffix) ? path : path + suffix;
 }
