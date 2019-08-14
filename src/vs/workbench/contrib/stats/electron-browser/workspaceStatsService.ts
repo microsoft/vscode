@@ -18,10 +18,8 @@ import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspa
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { joinPath } from 'vs/base/common/resources';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-
-export type Tags = { [index: string]: boolean | number | string | undefined };
+import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
 
 const DISABLE_WORKSPACE_PROMPT_KEY = 'workspaces.dontPromptToOpen';
 
@@ -92,20 +90,6 @@ const PyModulesToLookFor = [
 	'botbuilder-schema',
 	'botframework-connector'
 ];
-
-export const IWorkspaceStatsService = createDecorator<IWorkspaceStatsService>('workspaceStatsService');
-
-export interface IWorkspaceStatsService {
-	_serviceBrand: any;
-	getTags(): Promise<Tags>;
-
-	/**
-	 * Returns an id for the workspace, different from the id returned by the context service. A hash based
-	 * on the folder uri or workspace configuration, not time-based, and undefined for empty workspaces.
-	 */
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined;
-}
-
 
 export class WorkspaceStatsService implements IWorkspaceStatsService {
 	_serviceBrand: any;

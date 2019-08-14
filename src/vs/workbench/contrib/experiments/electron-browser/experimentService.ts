@@ -20,7 +20,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ExperimentState, IExperimentAction, IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IProductService } from 'vs/platform/product/common/product';
-import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
+import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
 
 interface IExperimentStorageState {
 	enabled: boolean;

@@ -22,7 +22,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 // tslint:disable-next-line: import-patterns
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
@@ -39,6 +39,8 @@ import { IProductService } from 'vs/platform/product/common/product';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+// tslint:disable-next-line: import-patterns
+import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
 
 //#region Extension Tips
 
@@ -846,6 +848,22 @@ registerSingleton(ITunnelService, SimpleTunnelService);
 //#endregion
 
 //#region experiments
+
+class WorkspaceStatsService implements IWorkspaceStatsService {
+
+	_serviceBrand: any;
+
+	getTags(): Promise<Tags> {
+		return Promise.resolve({});
+	}
+
+	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
+		return undefined;
+	}
+
+}
+
+registerSingleton(IWorkspaceStatsService, WorkspaceStatsService);
 
 class ExperimentService implements IExperimentService {
 	_serviceBrand: any;
