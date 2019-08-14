@@ -489,18 +489,18 @@ export abstract class TerminalService implements ITerminalService {
 		this.configHelper.setWorkspaceShellAllowed(value === allowItem);
 	}
 
-	protected _showTerminalCloseConfirmation(): Promise<boolean> {
-		let message;
+	protected async _showTerminalCloseConfirmation(): Promise<boolean> {
+		let message: string;
 		if (this.terminalInstances.length === 1) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
 		} else {
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
-
-		return this._dialogService.confirm({
+		const res = await this._dialogService.confirm({
 			message,
 			type: 'warning',
-		}).then(res => !res.confirmed);
+		});
+		return !res.confirmed;
 	}
 
 	protected _showNotEnoughSpaceToast(): void {
