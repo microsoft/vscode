@@ -181,15 +181,13 @@ function timeout(ms: number): Promise<void> {
 
 // function runInDriver(call: string, args: (string | boolean)[]): Promise<any> {}
 
-let args;
+let args: string[] | undefined;
 let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 
-export async function launch(_args): Promise<void> {
+export async function launch(_args: string[]): Promise<void> {
 	args = _args;
-
-	// TODO: Don't open up the system browser
-	const webUserDataDir = join(tmpdir(), `smoketest-${Math.random() * 10000000000}`);
+	const webUserDataDir = args.filter(e => e.includes('--user-data-dir='))[0].replace('--user-data-dir=', '');
 	await promisify(mkdir)(webUserDataDir);
 	server = spawn(join(args[0], `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`), ['--no-browser', '--driver', 'web', '--web-user-data-dir', webUserDataDir]);
 	server.stderr.on('data', e => console.log('Server stderr: ' + e));

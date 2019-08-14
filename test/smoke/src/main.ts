@@ -142,8 +142,7 @@ if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
 	fail(`Can't find Stable Code at ${stablePath}.`);
 }
 
-// TODO: Server should be launched from smoke tests
-const userDataDir = opts.web ? path.join(process.env.HOME!, '.vscode-remote/data') : path.join(testDataPath, 'd');
+const userDataDir = path.join(testDataPath, 'd');
 
 let quality: Quality;
 if (process.env.VSCODE_DEV === '1') {
