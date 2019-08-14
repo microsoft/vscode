@@ -479,8 +479,14 @@ export abstract class TerminalService implements ITerminalService {
 		return terminalIndex;
 	}
 
-	public setWorkspaceShellAllowed(isAllowed: boolean): void {
-		this.configHelper.setWorkspaceShellAllowed(isAllowed);
+	public async manageWorkspaceShellPermissions(): Promise<void> {
+		const allowItem: IQuickPickItem = { label: nls.localize('workbench.action.terminal.allowWorkspaceShell', "Allow Workspace Shell Configuration") };
+		const disallowItem: IQuickPickItem = { label: nls.localize('workbench.action.terminal.disallowWorkspaceShell', "Disallow Workspace Shell Configuration") };
+		const value = await this._quickInputService.pick([allowItem, disallowItem], { canPickMany: false });
+		if (!value) {
+			return;
+		}
+		this.configHelper.setWorkspaceShellAllowed(value === allowItem);
 	}
 
 	protected _showTerminalCloseConfirmation(): Promise<boolean> {
