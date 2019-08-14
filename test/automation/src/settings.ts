@@ -5,15 +5,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Editor } from '../editor/editor';
-import { Editors } from '../editor/editors';
-import { Code } from '../../vscode/code';
-import { QuickOpen } from '../quickopen/quickopen';
-
-export const enum ActivityBarPosition {
-	LEFT = 0,
-	RIGHT = 1
-}
+import { Editor } from './editor';
+import { Editors } from './editors';
+import { Code } from './code';
+import { QuickOpen } from './quickopen';
 
 export class SettingsEditor {
 

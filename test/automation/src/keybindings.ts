@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from '../../vscode/code';
+import { Code } from './code';
 
 const SEARCH_INPUT = '.keybindings-header .settings-search-input input';
 

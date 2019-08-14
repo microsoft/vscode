@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Viewlet } from '../workbench/viewlet';
-import { Editors } from '../editor/editors';
-import { Code } from '../../vscode/code';
+import { Viewlet } from './viewlet';
+import { Editors } from './editors';
+import { Code } from './code';
 
 export class Explorer extends Viewlet {
 

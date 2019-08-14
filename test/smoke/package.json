@@ -3,13 +3,10 @@
   "version": "0.1.0",
   "main": "./src/main.js",
   "scripts": {
+    "preinstall": "yarn --cwd ../automation",
     "postinstall": "npm run compile",
-    "compile": "npm run copy-driver && npm run copy-driver-definition && tsc",
-    "watch": "concurrently \"npm run watch-driver\" \"npm run watch-driver-definition\" \"tsc --watch\"",
-    "copy-driver": "cpx src/vscode/driver.js out/vscode",
-    "watch-driver": "cpx src/vscode/driver.js out/vscode -w",
-    "copy-driver-definition": "node tools/copy-driver-definition.js",
-    "watch-driver-definition": "watch \"node tools/copy-driver-definition.js\" ../../src/vs/platform/driver/node",
+    "compile": "tsc",
+    "watch": "concurrently \"yarn --cwd ../automation watch\" \"tsc --watch\"",
     "mocha": "mocha"
   },
   "devDependencies": {
@@ -18,12 +15,9 @@
     "@types/mocha": "2.2.41",
     "@types/ncp": "2.0.1",
     "@types/node": "^10.14.8",
-    "@types/puppeteer": "^1.19.0",
     "@types/rimraf": "2.0.2",
-    "@types/webdriverio": "4.6.1",
     "concurrently": "^3.5.1",
     "cpx": "^1.5.0",
-    "electron": "4.2.10",
     "htmlparser2": "^3.9.2",
     "mkdirp": "^0.5.1",
     "mocha": "^5.2.0",
@@ -36,9 +30,7 @@
     "strip-json-comments": "^2.0.1",
     "tmp": "0.0.33",
     "typescript": "2.9.2",
+    "vscode-automation": "link:../automation",
     "watch": "^1.0.2"
-  },
-  "dependencies": {
-    "vscode-uri": "^2.0.3"
   }
 }

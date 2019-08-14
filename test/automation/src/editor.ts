@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { References } from './peek';
-import { Commands } from '../workbench/workbench';
-import { Code } from '../../vscode/code';
+import { Commands } from './workbench';
+import { Code } from './code';
 
 const RENAME_BOX = '.monaco-editor .monaco-editor.rename-box';
 const RENAME_INPUT = `${RENAME_BOX} .rename-input`;
-const EDITOR = filename => `.monaco-editor[data-uri$="${filename}"]`;
-const VIEW_LINES = filename => `${EDITOR(filename)} .view-lines`;
-const LINE_NUMBERS = filename => `${EDITOR(filename)} .margin .margin-view-overlays .line-numbers`;
+const EDITOR = (filename: string) => `.monaco-editor[data-uri$="${filename}"]`;
+const VIEW_LINES = (filename: string) => `${EDITOR(filename)} .view-lines`;
+const LINE_NUMBERS = (filename: string) => `${EDITOR(filename)} .margin .margin-view-overlays .line-numbers`;
 
 export class Editor {
 

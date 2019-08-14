@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Viewlet } from '../workbench/viewlet';
-import { IElement } from '../../vscode/driver';
-import { findElement, findElements, Code } from '../../vscode/code';
+import { Viewlet } from './viewlet';
+import { IElement } from '../src/driver';
+import { findElement, findElements, Code } from './code';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;

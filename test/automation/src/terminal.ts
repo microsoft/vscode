@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Code } from '../../vscode/code';
-import { QuickOpen } from '../quickopen/quickopen';
+import { Code } from './code';
+import { QuickOpen } from './quickopen';
 
 const PANEL_SELECTOR = 'div[id="workbench.panel.terminal"]';
 const XTERM_SELECTOR = `${PANEL_SELECTOR} .terminal-wrapper`;
