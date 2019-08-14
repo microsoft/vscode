@@ -12,6 +12,8 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class OpenerService extends BaseOpenerService {
 
@@ -20,9 +22,11 @@ export class OpenerService extends BaseOpenerService {
 	constructor(
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IConfigurationService readonly configurationService: IConfigurationService,
+		@IDialogService readonly dialogService: IDialogService
 	) {
-		super(codeEditorService, commandService);
+		super(codeEditorService, commandService, configurationService, dialogService);
 	}
 
 	async openExternal(resource: URI): Promise<boolean> {

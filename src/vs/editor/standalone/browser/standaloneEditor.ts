@@ -38,6 +38,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -51,7 +52,12 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 	}
 
 	if (!services.has(IOpenerService)) {
-		services.set(IOpenerService, new OpenerService(services.get(ICodeEditorService), services.get(ICommandService)));
+		services.set(IOpenerService, new OpenerService(
+			services.get(ICodeEditorService),
+			services.get(ICommandService),
+			services.get(IConfigurationService),
+			services.get(IDialogService),
+		));
 	}
 
 	let result = callback(services);

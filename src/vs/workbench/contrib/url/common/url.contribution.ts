@@ -11,6 +11,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class OpenUrlAction extends Action {
 
@@ -34,5 +35,50 @@ export class OpenUrlAction extends Action {
 	}
 }
 
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(OpenUrlAction, OpenUrlAction.ID, OpenUrlAction.LABEL), 'Open URL', localize('developer', "Developer"));
+export class ConfigureTrustedDomainsAction extends Action {
+
+	static readonly ID = 'workbench.action.configureTrustedDomains';
+	static readonly LABEL = localize('configureTrustedDomains', "Configure Trusted Domains");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<any> {
+		const trustedDomains = this.configurationService.getValue<string[]>('http.trustedDomains');
+
+		return this.quickInputService.pick(trustedDomains.map(d => {
+			return {
+				type: 'item',
+				label: d,
+				picked: true,
+			};
+		}), {
+			canPickMany: true
+		}).then(result => {
+			if (result) {
+				this.configurationService.updateValue('http.trustedDomains', result.map(r => r.label));
+			}
+		});
+	}
+}
+
+Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
+	new SyncActionDescriptor(OpenUrlAction, OpenUrlAction.ID, OpenUrlAction.LABEL),
+	'Open URL',
+	localize('developer', 'Developer')
+);
+Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
+	new SyncActionDescriptor(
+		ConfigureTrustedDomainsAction,
+		ConfigureTrustedDomainsAction.ID,
+		ConfigureTrustedDomainsAction.LABEL
+	),
+	'Configure Trusted Domains'
+);
+
