@@ -364,6 +364,7 @@ export class SearchView extends ViewletPanel {
 		const searchHistory = history.search || this.viewletState['query.searchHistory'] || [];
 		const replaceHistory = history.replace || this.viewletState['query.replaceHistory'] || [];
 		const showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
+		const preserveCase = this.viewletState['query.preserveCase'] === true;
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
 			value: contentPattern,
@@ -372,7 +373,8 @@ export class SearchView extends ViewletPanel {
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords,
 			searchHistory: searchHistory,
-			replaceHistory: replaceHistory
+			replaceHistory: replaceHistory,
+			preserveCase: preserveCase
 		}));
 
 		if (showReplace) {
@@ -390,6 +392,12 @@ export class SearchView extends ViewletPanel {
 			this.viewModel.replaceActive = state;
 			this.refreshTree();
 		}));
+
+		this._register(this.searchWidget.onPreserveCaseChange((state) => {
+			this.viewModel.preserveCase = state;
+			this.refreshTree();
+		}));
+
 		this._register(this.searchWidget.onReplaceValueChanged((value) => {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 			this.delayedRefresh.trigger(() => this.refreshTree());
@@ -1641,6 +1649,7 @@ export class SearchView extends ViewletPanel {
 		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
+		const preserveCase = this.viewModel.preserveCase;
 
 		this.viewletState['query.contentPattern'] = contentPattern;
 		this.viewletState['query.regex'] = isRegex;
@@ -1649,6 +1658,7 @@ export class SearchView extends ViewletPanel {
 		this.viewletState['query.folderExclusions'] = patternExcludes;
 		this.viewletState['query.folderIncludes'] = patternIncludes;
 		this.viewletState['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
+		this.viewletState['query.preserveCase'] = preserveCase;
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		this.viewletState['view.showReplace'] = isReplaceShown;

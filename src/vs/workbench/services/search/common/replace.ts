@@ -54,7 +54,7 @@ export class ReplacePattern {
 	* Returns the replace string for the first match in the given text.
 	* If text has no matches then returns null.
 	*/
-	getReplaceString(text: string): string | null {
+	getReplaceString(text: string, preserveCase?: boolean): string | null {
 		this._regExp.lastIndex = 0;
 		let match = this._regExp.exec(text);
 		if (match) {
@@ -65,10 +65,28 @@ export class ReplacePattern {
 				let replaceString = text.replace(this._regExp, this.pattern);
 				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
 			}
-			return this.pattern;
+			return this.buildReplaceString(match, preserveCase);
 		}
 
 		return null;
+	}
+
+	public buildReplaceString(matches: string[] | null, preserveCase?: boolean): string {
+
+		if (preserveCase && matches && (matches[0] !== '')) {
+			if (matches[0].toUpperCase() === matches[0]) {
+				return this._replacePattern.toUpperCase();
+			} else if (matches[0].toLowerCase() === matches[0]) {
+				return this._replacePattern.toLowerCase();
+			} else if (strings.containsUppercaseCharacter(matches[0][0])) {
+				return this._replacePattern[0].toUpperCase() + this._replacePattern.substr(1);
+			} else {
+				// we don't understand its pattern yet.
+				return this._replacePattern;
+			}
+		} else {
+			return this._replacePattern;
+		}
 	}
 
 	/**
