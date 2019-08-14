@@ -52,6 +52,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IProductService } from 'vs/platform/product/common/product';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -201,27 +202,32 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IURLService, URLService);
+		instantiationService.stub(IProductService, <Partial<IProductService>>{
+			productConfiguration: {
+				...product, ...{
+					extensionTips: {
+						'ms-vscode.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
+						'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6,**/.babelrc}',
+						'lukehoban.Go': '**/*.go'
+					},
+					extensionImportantTips: {
+						'ms-python.python': {
+							'name': 'Python',
+							'pattern': '{**/*.py}'
+						},
+						'ms-vscode.PowerShell': {
+							'name': 'PowerShell',
+							'pattern': '{**/*.ps,**/*.ps1}'
+						}
+					}
+				}
+			}
+		});
 
 		experimentService = instantiationService.createInstance(TestExperimentService);
 		instantiationService.stub(IExperimentService, experimentService);
 
 		onModelAddedEvent = new Emitter<ITextModel>();
-
-		product.extensionTips = {
-			'ms-vscode.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
-			'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6,**/.babelrc}',
-			'lukehoban.Go': '**/*.go'
-		};
-		product.extensionImportantTips = {
-			'ms-python.python': {
-				'name': 'Python',
-				'pattern': '{**/*.py}'
-			},
-			'ms-vscode.PowerShell': {
-				'name': 'PowerShell',
-				'pattern': '{**/*.ps,**/*.ps1}'
-			}
-		};
 	});
 
 	suiteTeardown(() => {

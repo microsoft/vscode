@@ -43,8 +43,8 @@ export interface IProductConfiguration {
 		readonly controlUrl: string;
 		readonly recommendationsUrl: string;
 	};
-	extensionTips: { [id: string]: string; };
-	extensionImportantTips: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
+	readonly extensionTips: { [id: string]: string; };
+	readonly extensionImportantTips: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
 	readonly exeBasedExtensionTips: { [id: string]: IExeBasedExtensionTip; };
 	readonly extensionKeywords: { [extension: string]: readonly string[]; };
 	readonly extensionAllowedBadgeProviders: readonly string[];
