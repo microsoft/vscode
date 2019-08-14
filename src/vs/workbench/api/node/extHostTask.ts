@@ -695,5 +695,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (extensionCallback2) {
 			this._activeCustomExecutions2.delete(execution.id);
 		}
+
+		// Technically we don't really need to do this, however, if an extension
+		// is executing a task through "executeTask" over and over again
+		// with different properties in the task definition, then this list
+		// could grow indefinitely, something we don't want.
+		this._providedCustomExecutions2.clear();
 	}
 }
