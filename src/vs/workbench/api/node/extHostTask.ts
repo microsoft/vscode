@@ -444,6 +444,14 @@ export class ExtHostTask implements ExtHostTaskShape {
 			if (dto === undefined) {
 				return Promise.reject(new Error('Task is not valid'));
 			}
+
+			// If this task is a custom execution, then we need to save it away
+			// in the provided custom execution map that is cleaned up after the
+			// task is executed.
+			if (CustomExecution2DTO.is(dto.execution)) {
+				await this.addCustomExecution2(dto, <vscode.Task2>task);
+			}
+
 			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
 		}
 	}
@@ -528,11 +536,6 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (!handler) {
 			return Promise.reject(new Error('no handler found'));
 		}
-
-		// For custom execution tasks, we need to store the execution objects locally
-		// since we obviously cannot send callback functions through the proxy.
-		// So, clear out any existing ones.
-		this._providedCustomExecutions2.clear();
 
 		// Set up a list of task ID promises that we can wait on
 		// before returning the provided tasks. The ensures that
