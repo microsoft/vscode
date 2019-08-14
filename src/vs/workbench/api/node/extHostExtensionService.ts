@@ -11,6 +11,8 @@ import { connectProxyResolver } from 'vs/workbench/services/extensions/node/prox
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
@@ -55,12 +57,15 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		};
 	}
 
-	protected _loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+		if (module.scheme !== Schemas.file) {
+			throw new Error(`Cannot load URI: '${module}', must be of file-scheme`);
+		}
 		let r: T | null = null;
 		activationTimesBuilder.codeLoadingStart();
-		this._logService.info(`ExtensionService#loadCommonJSModule ${modulePath}`);
+		this._logService.info(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
 		try {
-			r = require.__$__nodeRequire<T>(modulePath);
+			r = require.__$__nodeRequire<T>(module.fsPath);
 		} catch (e) {
 			return Promise.reject(e);
 		} finally {

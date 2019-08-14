@@ -54,11 +54,11 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		this._apiInstances = new ApiInstances(apiFactory, extensionPath, this._registry, configProvider);
 	}
 
-	protected _loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 
 		// make sure modulePath ends with `.js`
 		const suffix = '.js';
-		modulePath = endsWith(modulePath, suffix) ? modulePath : modulePath + suffix;
+		let modulePath = endsWith(module.fsPath, suffix) ? module.fsPath : module.fsPath + suffix;
 
 		interface FakeCommonJSSelf {
 			module?: object;
@@ -71,9 +71,9 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// FAKE commonjs world that only collects exports
 		const patchSelf: FakeCommonJSSelf = <any>self;
-		const module = { exports: {} };
-		patchSelf.module = module;
-		patchSelf.exports = module.exports;
+		const exports = Object.create(null);
+		patchSelf.module = { exports };
+		patchSelf.exports = exports;
 		patchSelf.window = self; // <- that's improper but might help extensions that aren't authored correctly
 
 		// FAKE require function that only works for the vscode-module
@@ -97,7 +97,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			activationTimesBuilder.codeLoadingStop();
 		}
 
-		return Promise.resolve(module.exports as T);
+		return Promise.resolve<T>(exports);
 	}
 
 	async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
