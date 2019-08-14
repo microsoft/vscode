@@ -84,6 +84,11 @@ class CodeRendererMain extends Disposable {
 		}));
 		this._register(workbench.onShutdown(() => this.dispose()));
 
+		// Driver
+		if (this.configuration.driver) {
+			registerWindowDriver().then(d => this._register(d));
+		}
+
 		// Startup
 		workbench.startup();
 	}
