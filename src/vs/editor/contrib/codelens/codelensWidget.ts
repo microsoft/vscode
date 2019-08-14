@@ -193,7 +193,7 @@ export class CodeLensWidget {
 
 	private readonly _editor: editorBrowser.ICodeEditor;
 	private readonly _viewZone!: CodeLensViewZone;
-	private readonly _viewZoneId!: number;
+	private readonly _viewZoneId!: string;
 	private readonly _contentWidget!: CodeLensContentWidget;
 	private _decorationIds: string[];
 	private _data: CodeLensItem[];

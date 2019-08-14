@@ -116,7 +116,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _replaceFocusTracker: dom.IFocusTracker;
 	private readonly _replaceInputFocused: IContextKey<boolean>;
 	private _viewZone?: FindWidgetViewZone;
-	private _viewZoneId?: number;
+	private _viewZoneId?: string;
 
 	private _resizeSash!: Sash;
 	private _resized!: boolean;
@@ -224,15 +224,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (!this._isVisible) {
 				return;
 			}
-			if (this._viewZoneId === undefined) {
-				return;
-			}
-			this._codeEditor.changeViewZones((accessor) => {
-				if (this._viewZoneId) {
-					accessor.removeZone(this._viewZoneId);
-				}
-				this._viewZoneId = undefined;
-			});
+			this._viewZoneId = undefined;
 		}));
 
 

@@ -48,6 +48,7 @@ import 'vs/workbench/services/extensionManagement/node/extensionManagementServic
 import 'vs/workbench/services/accessibility/node/accessibilityService';
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
+import 'vs/workbench/services/opener/electron-browser/openerService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -152,9 +153,6 @@ import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contributi
 // Welcome
 import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
 import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
-
-// Experiments
-import 'vs/workbench/contrib/experiments/electron-browser/experiments.contribution';
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';

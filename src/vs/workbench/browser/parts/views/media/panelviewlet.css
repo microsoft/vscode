@@ -7,6 +7,10 @@
 	border-top: none !important; /* less clutter: do not show any border for first views in a panel */
 }
 
+.monaco-panel-view .panel > .panel-header > .actions.show {
+	display: initial;
+}
+
 .monaco-panel-view .panel > .panel-header h3.title {
 	white-space: nowrap;
 	text-overflow: ellipsis;

@@ -54,6 +54,8 @@ import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuS
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 registerSingleton(IRequestService, RequestService, true);
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
@@ -63,6 +65,7 @@ registerSingleton(IClipboardService, BrowserClipboardService, true);
 registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
 registerSingleton(ILifecycleService, BrowserLifecycleService);
 registerSingleton(IContextMenuService, ContextMenuService);
+registerSingleton(IOpenerService, OpenerService, true);
 
 //#endregion
 

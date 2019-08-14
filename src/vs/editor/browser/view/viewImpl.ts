@@ -248,7 +248,7 @@ export class View extends ViewEventHandler {
 			getLastViewCursorsRenderData: () => {
 				return this.viewCursors.getLastRenderData() || [];
 			},
-			shouldSuppressMouseDownOnViewZone: (viewZoneId: number) => {
+			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
 				return this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
 			},
 			shouldSuppressMouseDownOnWidget: (widgetId: string) => {
@@ -473,17 +473,17 @@ export class View extends ViewEventHandler {
 
 		this._renderOnce(() => {
 			const changeAccessor: editorBrowser.IViewZoneChangeAccessor = {
-				addZone: (zone: editorBrowser.IViewZone): number => {
+				addZone: (zone: editorBrowser.IViewZone): string => {
 					zonesHaveChanged = true;
 					return this.viewZones.addZone(zone);
 				},
-				removeZone: (id: number): void => {
+				removeZone: (id: string): void => {
 					if (!id) {
 						return;
 					}
 					zonesHaveChanged = this.viewZones.removeZone(id) || zonesHaveChanged;
 				},
-				layoutZone: (id: number): void => {
+				layoutZone: (id: string): void => {
 					if (!id) {
 						return;
 					}

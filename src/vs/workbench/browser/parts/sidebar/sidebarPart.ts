@@ -63,7 +63,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			return;
 		}
 
-		return width;
+		return Math.max(width, 300);
 	}
 
 	//#endregion
