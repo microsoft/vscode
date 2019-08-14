@@ -148,7 +148,7 @@ export class ExplorerService implements IExplorerService {
 		return !!this.editable && (this.editable.stat === stat || !stat);
 	}
 
-	async select(resource: URI, reveal?: boolean): Promise<void> {
+	async select(resource: URI, reveal?: boolean, resolveAll?: boolean): Promise<void> {
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
 			this._onDidSelectResource.fire({ resource: fileStat.resource, reveal });
@@ -156,7 +156,7 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === 'modified' };
+		const options: IResolveFileOptions = { resolveTo: resolveAll ? undefined : [resource], resolveMetadata: this.sortOrder === 'modified' };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
@@ -180,14 +180,17 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	refresh(): void {
+		// Top level refresh
 		this.model.roots.forEach(r => r.forgetChildren());
-		this._onDidChangeItem.fire({ recursive: true });
 		const resource = this.editorService.activeEditor ? this.editorService.activeEditor.getResource() : undefined;
 		const autoReveal = this.configurationService.getValue<IFilesConfiguration>().explorer.autoReveal;
 
 		if (resource && autoReveal) {
-			// We did a top level refresh, reveal the active file #67118
-			this.select(resource, true);
+			// Reveal the active file #67118
+			//  passing third param true to ensure fresh stat of all dirs on path to it #78710
+			this.select(resource, true, true);
+		} else {
+			this._onDidChangeItem.fire({ recursive: true });
 		}
 	}
 
