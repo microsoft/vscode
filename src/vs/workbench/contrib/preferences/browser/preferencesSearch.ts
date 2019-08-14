@@ -73,7 +73,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 			};
 		} else {
 			return {
-				urlBase: this.productService.settingsSearchUrl
+				urlBase: this.productService.productConfiguration.settingsSearchUrl
 			};
 		}
 	}
@@ -364,7 +364,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		const extensions = await this.installedExtensions;
 		const filters = this.options.newExtensionsOnly ?
 			[`diminish eq 'latest'`] :
-			this.getVersionFilters(extensions, this.productService.settingsSearchBuildId);
+			this.getVersionFilters(extensions, this.productService.productConfiguration.settingsSearchBuildId);
 
 		const filterStr = filters
 			.slice(filterPage * RemoteSearchProvider.MAX_REQUEST_FILTERS, (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS)

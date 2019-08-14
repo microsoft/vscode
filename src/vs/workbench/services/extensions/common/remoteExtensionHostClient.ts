@@ -71,7 +71,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 
 	public start(): Promise<IMessagePassingProtocol> {
 		const options: IConnectionOptions = {
-			commit: this._productService.commit,
+			commit: this._productService.productConfiguration.commit,
 			socketFactory: this._socketFactory,
 			addressProvider: {
 				getAddress: async () => {
@@ -181,15 +181,15 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 			const hostExtensions = allExtensions.filter(extension => extension.main && extension.api === 'none').map(extension => extension.identifier);
 			const workspace = this._contextService.getWorkspace();
 			const r: IInitData = {
-				commit: this._productService.commit,
-				version: this._productService.version,
+				commit: this._productService.productConfiguration.commit,
+				version: this._productService.productConfiguration.version,
 				parentPid: remoteExtensionHostData.pid,
 				environment: {
 					isExtensionDevelopmentDebug,
 					appRoot: remoteExtensionHostData.appRoot,
 					appSettingsHome: remoteExtensionHostData.appSettingsHome,
-					appName: this._productService.nameLong,
-					appUriScheme: this._productService.urlProtocol,
+					appName: this._productService.productConfiguration.nameLong,
+					appUriScheme: this._productService.productConfiguration.urlProtocol,
 					appLanguage: platform.language,
 					extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 					extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
