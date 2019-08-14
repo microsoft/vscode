@@ -227,4 +227,7 @@ import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
 // Outline
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
+// Experiments
+import 'vs/workbench/contrib/experiments/browser/experiments.contribution';
+
 //#endregion

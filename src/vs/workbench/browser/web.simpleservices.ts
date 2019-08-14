@@ -31,8 +31,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
-// tslint:disable-next-line: import-patterns
-import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/product';
@@ -847,7 +845,7 @@ registerSingleton(ITunnelService, SimpleTunnelService);
 
 //#endregion
 
-//#region experiments
+//#region workspace stats
 
 class WorkspaceStatsService implements IWorkspaceStatsService {
 
@@ -864,32 +862,5 @@ class WorkspaceStatsService implements IWorkspaceStatsService {
 }
 
 registerSingleton(IWorkspaceStatsService, WorkspaceStatsService);
-
-class ExperimentService implements IExperimentService {
-	_serviceBrand: any;
-
-	async getExperimentById(id: string): Promise<IExperiment> {
-		return {
-			enabled: false,
-			id: '',
-			state: ExperimentState.NoRun
-		};
-	}
-
-	async getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]> {
-		return [];
-	}
-
-	async getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]> {
-		return [];
-	}
-
-	markAsCompleted(experimentId: string): void { }
-
-	onExperimentEnabled: Event<IExperiment> = Event.None;
-
-}
-
-registerSingleton(IExperimentService, ExperimentService);
 
 //#endregion
