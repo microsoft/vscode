@@ -37,6 +37,7 @@ const HAS_PORT = process.argv.indexOf('--port') !== -1;
 const INSIDERS = process.argv.indexOf('--insiders') !== -1;
 const SKIP_UPDATE = process.argv.indexOf('--disable-update') !== -1;
 const HAS_WORKSPACE = process.argv.indexOf('--folder') !== -1 || process.argv.indexOf('--workspace') !== -1;
+const NO_BROWSER = process.argv.indexOf('--no-browser') !== -1;
 
 // Workspace Config
 if (!HAS_WORKSPACE && SELFHOST) {
@@ -257,7 +258,7 @@ function startServer() {
 
 		// Bring up web URL when we detect the server is ready
 		const webUIAvailableURLRegEx = new RegExp(`Web UI available at (http://localhost:${PORT}/#tkn=.+)`);
-		if (!launched) {
+		if (!launched && !NO_BROWSER) {
 			const matches = webUIAvailableURLRegEx.exec(data.toString());
 			if (matches && matches[1]) {
 				launched = true;
