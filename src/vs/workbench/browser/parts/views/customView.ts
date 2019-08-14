@@ -385,7 +385,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				multipleSelectionSupport: this.canSelectMany,
 			}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		aligner.tree = this.tree;
-		const actionRunner = new MultipleSelectionActionRunner(() => this.tree.getSelection());
+		const actionRunner = new MultipleSelectionActionRunner(() => this.tree!.getSelection());
 		renderer.actionRunner = actionRunner;
 
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
@@ -453,7 +453,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 			},
 
 			getActionsContext: () => (<TreeViewItemHandleArg>{ $treeViewId: this.id, $treeItemHandle: node.handle }),
-			
+
 			actionRunner
 		});
 	}
