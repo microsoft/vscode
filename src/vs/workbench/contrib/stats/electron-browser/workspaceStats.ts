@@ -136,20 +136,6 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 	});
 }
 
-export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, textFileService: ITextFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
-	const path = workspaceUri.path;
-	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-	return fileService.exists(uri).then(exists => {
-		if (!exists) {
-			return [];
-		}
-		return textFileService.read(uri, { acceptTextOnly: true }).then(
-			content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
-			err => [] // ignore missing or binary file
-		);
-	});
-}
-
 export class WorkspaceStats implements IWorkbenchContribution {
 
 	constructor(
@@ -230,7 +216,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private reportRemotes(workspaceUris: URI[]): void {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
-			return getHashedRemotesFromUri(workspaceUri, this.fileService, this.textFileService, true);
+			return this.workspaceStatsService.getHashedRemotesFromUri(workspaceUri, true);
 		})).then(hashedRemotes => {
 			/* __GDPR__
 					"workspace.hashedRemotes" : {

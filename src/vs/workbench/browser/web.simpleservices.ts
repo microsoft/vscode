@@ -859,6 +859,10 @@ class WorkspaceStatsService implements IWorkspaceStatsService {
 		return undefined;
 	}
 
+	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]> {
+		return Promise.resolve([]);
+	}
+
 }
 
 registerSingleton(IWorkspaceStatsService, WorkspaceStatsService);

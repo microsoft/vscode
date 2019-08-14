@@ -20,6 +20,7 @@ import Severity from 'vs/base/common/severity';
 import { joinPath } from 'vs/base/common/resources';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
+import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
 
 const DISABLE_WORKSPACE_PROMPT_KEY = 'workspaces.dontPromptToOpen';
 
@@ -134,6 +135,20 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		}
 
 		return workspaceId;
+	}
+
+	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit: boolean = false): Promise<string[]> {
+		const path = workspaceUri.path;
+		const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+		return this.fileService.exists(uri).then(exists => {
+			if (!exists) {
+				return [];
+			}
+			return this.textFileService.read(uri, { acceptTextOnly: true }).then(
+				content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
+				err => [] // ignore missing or binary file
+			);
+		});
 	}
 
 	/* __GDPR__FRAGMENT__

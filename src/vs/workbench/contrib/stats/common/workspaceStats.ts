@@ -5,6 +5,7 @@
 
 import { WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
 
 export type Tags = { [index: string]: boolean | number | string | undefined };
 
@@ -20,4 +21,6 @@ export interface IWorkspaceStatsService {
 	 * on the folder uri or workspace configuration, not time-based, and undefined for empty workspaces.
 	 */
 	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined;
+
+	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]>;
 }

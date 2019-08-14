@@ -29,7 +29,6 @@ import { flatten, distinct, shuffle, coalesce } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { getHashedRemotesFromUri } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { isNumber } from 'vs/base/common/types';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -42,9 +41,9 @@ import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/wo
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { extname } from 'vs/base/common/resources';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IExeBasedExtensionTip } from 'vs/platform/product/common/product';
 import { timeout } from 'vs/base/common/async';
+import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -109,7 +108,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExperimentService private readonly experimentService: IExperimentService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@IWorkspaceStatsService private readonly workspaceStatsService: IWorkspaceStatsService
 	) {
 		super();
 
@@ -1078,7 +1077,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
 		const workspaceUri = this.contextService.getWorkspace().folders[0].uri;
-		return Promise.all([getHashedRemotesFromUri(workspaceUri, this.fileService, this.textFileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, this.textFileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
+		return Promise.all([this.workspaceStatsService.getHashedRemotesFromUri(workspaceUri, false), this.workspaceStatsService.getHashedRemotesFromUri(workspaceUri, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
 			const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
 			if (!hashedRemotes.length) {
 				return undefined;
