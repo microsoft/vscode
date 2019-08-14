@@ -206,7 +206,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 							return this.doUpdateItems(recoveryConnection, { insert: recovery() }).then(() => closeRecoveryConnection(), error => {
 
 								// In case of an error updating items, still ensure to close the connection
-								// to prevent SQLITE_BUSY errors when the connection is restablished
+								// to prevent SQLITE_BUSY errors when the connection is reestablished
 								closeRecoveryConnection();
 
 								return Promise.reject(error);
