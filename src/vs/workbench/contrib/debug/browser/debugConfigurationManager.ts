@@ -35,6 +35,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -647,6 +648,6 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): Promise<{ editor: IEditor | null, created: boolean }> {
-		return this.preferencesService.openGlobalSettings(false, { preserveFocus }).then(editor => ({ editor, created: false }));
+		return this.preferencesService.openGlobalSettings(false, { preserveFocus }).then(editor => ({ editor: withUndefinedAsNull(editor), created: false }));
 	}
 }

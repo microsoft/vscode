@@ -225,7 +225,7 @@ export class OpenFolderSettingsAction extends Action {
 					return this.preferencesService.openFolderSettings(workspaceFolder.uri);
 				}
 
-				return null;
+				return undefined;
 			});
 	}
 
