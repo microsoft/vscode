@@ -108,18 +108,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	protected _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 
-		interface FakeCommonJSSelf {
-			module?: object;
-			exports?: object;
-			require?: (module: string) => any;
-			window?: object;
-			__dirname: never;
-			__filename: never;
-		}
-
-		// FAKE commonjs world that only collects exports
-		const patchSelf: FakeCommonJSSelf = <any>self;
-		patchSelf.window = self; // <- that's improper but might help extensions that aren't authored correctly
+		(<any>self).window = self; // <- that's improper but might help extensions that aren't authored correctly
 
 		// FAKE require function that only works for the vscode-module
 		const moduleStack: URI[] = [];
