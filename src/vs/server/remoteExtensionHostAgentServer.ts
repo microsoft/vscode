@@ -22,7 +22,6 @@ import { findFreePort } from 'vs/base/node/ports';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import product from 'vs/platform/product/node/product';
 import { ConnectionType, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ExtensionHostConnection } from 'vs/server/extensionHostConnection';
 import { ManagementConnection, RemoteExtensionManagementServer } from 'vs/server/remoteExtensionManagement';
@@ -31,6 +30,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { ProductService } from 'vs/platform/product/node/productService';
+import { IProductService } from 'vs/platform/product/common/product';
 
 const textMmimeType = {
 	'.html': 'text/html',
@@ -46,6 +46,7 @@ const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
 export class RemoteExtensionHostAgentServer extends Disposable {
 
+	private readonly _productService: IProductService;
 	private _remoteExtensionManagementServer: RemoteExtensionManagementServer;
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection; };
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection; };
@@ -58,6 +59,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		private readonly _logService: ILogService
 	) {
 		super();
+		this._productService = new ProductService();
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 	}
@@ -98,7 +100,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			// Version
 			if (req.url === '/version') {
 				res.writeHead(200, { 'Content-Type': 'text/html' });
-				return res.end(product.commit || '');
+				return res.end(this._productService.productConfiguration.commit || '');
 			}
 
 			// Delay shutdown
@@ -142,7 +144,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 							driver: this._environmentService.driverHandle === 'web' ? true : undefined,
 						})))
 						.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
-						.replace('{{PRODUCT_CONFIGURATION}}', escapeAttribute(JSON.stringify(new ProductService().productConfiguration)))
+						.replace('{{PRODUCT_CONFIGURATION}}', escapeAttribute(JSON.stringify(this._productService.productConfiguration)))
 						.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(this._environmentService.webUserDataHome))));
 
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
@@ -467,7 +469,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				messageRegistration.dispose();
 
 				const rendererCommit = msg.commit;
-				const myCommit = product.commit;
+				const myCommit = this._productService.productConfiguration.commit;
 				if (rendererCommit && myCommit) {
 					// Running in the built version where commits are defined
 					if (rendererCommit !== myCommit) {
