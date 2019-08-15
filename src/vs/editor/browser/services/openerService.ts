@@ -17,6 +17,7 @@ import { LinkedList } from 'vs/base/common/linkedList';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { localize } from 'vs/nls';
+import { IProductService } from 'vs/platform/product/common/product';
 
 export class OpenerService implements IOpenerService {
 
@@ -28,7 +29,8 @@ export class OpenerService implements IOpenerService {
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IDialogService private readonly _dialogService: IDialogService
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		//
 	}
@@ -73,7 +75,12 @@ export class OpenerService implements IOpenerService {
 				return this._dialogService.confirm({
 					title: localize('openExternalLink', 'Open External Link'),
 					type: 'question',
-					message: localize('openExternalLinkAt', 'Do you want to leave VS Code to open the external website at') + ` ${resource.toString()}?`,
+					message: localize(
+						'openExternalLinkAt',
+						'Do you want {0} to open the external website at {1}?',
+						this._productService.productConfiguration.nameShort,
+						resource.toString(true)
+					),
 					primaryButton: localize('openLink', 'Open Link'),
 					secondaryButton: localize('cancel', 'Cancel'),
 					checkbox: {
