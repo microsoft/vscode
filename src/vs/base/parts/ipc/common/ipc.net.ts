@@ -8,8 +8,7 @@ import { IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as platform from 'vs/base/common/platform';
-
-declare var process: any;
+import * as process from 'vs/base/common/process';
 
 export interface ISocket extends IDisposable {
 	onData(listener: (e: VSBuffer) => void): IDisposable;
@@ -434,11 +433,7 @@ export function createBufferedEvent<T>(source: Event<T>): Event<T> {
 			// it is important to deliver these messages after this call, but before
 			// other messages have a chance to be received (to guarantee in order delivery)
 			// that's why we're using here nextTick and not other types of timeouts
-			if (typeof process !== 'undefined') {
-				process.nextTick(deliverMessages);
-			} else {
-				platform.setImmediate(deliverMessages);
-			}
+			process.nextTick(deliverMessages);
 		},
 		onLastListenerRemove: () => {
 			hasListeners = false;

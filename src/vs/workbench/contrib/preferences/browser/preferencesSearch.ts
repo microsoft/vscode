@@ -25,6 +25,7 @@ import { nullRange } from 'vs/workbench/services/preferences/common/preferencesM
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IProductService } from 'vs/platform/product/common/product';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -564,3 +565,5 @@ export class SettingMatches {
 		};
 	}
 }
+
+registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);

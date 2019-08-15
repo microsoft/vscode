@@ -15,7 +15,7 @@ import { endsWith } from 'vs/base/common/strings';
 import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
-import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;

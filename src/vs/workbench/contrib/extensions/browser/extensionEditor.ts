@@ -53,6 +53,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
+import { platform } from 'vs/base/common/process';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
@@ -1275,7 +1276,7 @@ export class ExtensionEditor extends BaseEditor {
 	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding | null {
 		let key: string | undefined;
 
-		switch (process.platform) {
+		switch (platform) {
 			case 'win32': key = rawKeyBinding.win; break;
 			case 'linux': key = rawKeyBinding.linux; break;
 			case 'darwin': key = rawKeyBinding.mac; break;

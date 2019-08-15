@@ -290,7 +290,8 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			if (x === diagnostic) {
 				return false;
 			}
-			return x.code === diagnostic.code || fixAllErrorCodes.get(x.code as number) === diagnostic.code;
+			return x.code === diagnostic.code
+				|| (fixAllErrorCodes.has(x.code as number) && fixAllErrorCodes.get(x.code as number) === fixAllErrorCodes.get(diagnostic.code as number));
 		})) {
 			return results;
 		}

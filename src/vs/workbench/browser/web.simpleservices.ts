@@ -412,6 +412,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	}
 
 	closeWindow(): Promise<void> {
+		window.close();
+
 		return Promise.resolve();
 	}
 
@@ -847,7 +849,7 @@ registerSingleton(ITunnelService, SimpleTunnelService);
 
 //#region workspace stats
 
-class WorkspaceStatsService implements IWorkspaceStatsService {
+class SimpleWorkspaceStatsService implements IWorkspaceStatsService {
 
 	_serviceBrand: any;
 
@@ -865,6 +867,6 @@ class WorkspaceStatsService implements IWorkspaceStatsService {
 
 }
 
-registerSingleton(IWorkspaceStatsService, WorkspaceStatsService);
+registerSingleton(IWorkspaceStatsService, SimpleWorkspaceStatsService);
 
 //#endregion

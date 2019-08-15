@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 import { IdleValue } from 'vs/base/common/async';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 type KeytarModule = {
 	getPassword(service: string, account: string): Promise<string | null>;
@@ -15,7 +17,7 @@ type KeytarModule = {
 
 export class KeytarCredentialsService implements ICredentialsService {
 
-	_serviceBrand: any;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly _keytar = new IdleValue<Promise<KeytarModule>>(() => import('keytar'));
 
@@ -39,3 +41,5 @@ export class KeytarCredentialsService implements ICredentialsService {
 		return keytar.findPassword(service);
 	}
 }
+
+registerSingleton(ICredentialsService, KeytarCredentialsService, true);
