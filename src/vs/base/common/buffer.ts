@@ -66,12 +66,12 @@ export class VSBuffer {
 		this.byteLength = this.buffer.byteLength;
 	}
 
-	toString(): string {
+	toString(encoding: string = 'uft8'): string {
 		if (hasBuffer) {
 			return this.buffer.toString();
 		} else {
-			if (!textDecoder) {
-				textDecoder = new TextDecoder();
+			if (!textDecoder || textDecoder.encoding !== encoding) {
+				textDecoder = new TextDecoder(encoding);
 			}
 			return textDecoder.decode(this.buffer);
 		}
