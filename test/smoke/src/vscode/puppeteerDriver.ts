@@ -36,8 +36,9 @@ function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver 
 		exitApplication: () => browser.close(),
 		dispatchKeybinding: async (windowId, keybinding) => {
 			const chords = keybinding.split(' ');
-			chords.forEach(async (chord, index) => {
-				if (index > 0) {
+			for (let i = 0; i < chords.length; i++) {
+				const chord = chords[i];
+				if (i > 0) {
 					await timeout(100);
 				}
 				const keys = chord.split('+');
@@ -52,7 +53,7 @@ function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver 
 				while (keysDown.length > 0) {
 					await page.keyboard.up(keysDown.pop()!);
 				}
-			});
+			}
 
 			await timeout(100);
 		},
