@@ -5,45 +5,9 @@
 
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-
-export const ID = 'driverService';
-export const IDriver = createDecorator<IDriver>(ID);
-
-// !! Do not remove the following START and END markers, they are parsed by the smoketest build
-
-//*START
-export interface IElement {
-	tagName: string;
-	className: string;
-	textContent: string;
-	attributes: { [name: string]: string; };
-	children: IElement[];
-	top: number;
-	left: number;
-}
-
-export interface IDriver {
-	_serviceBrand: any;
-
-	getWindowIds(): Promise<number[]>;
-	capturePage(windowId: number): Promise<string>;
-	reloadWindow(windowId: number): Promise<void>;
-	exitApplication(): Promise<void>;
-	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
-	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
-	doubleClick(windowId: number, selector: string): Promise<void>;
-	setValue(windowId: number, selector: string, text: string): Promise<void>;
-	getTitle(windowId: number): Promise<string>;
-	isActiveElement(windowId: number, selector: string): Promise<boolean>;
-	getElements(windowId: number, selector: string, recursive?: boolean): Promise<IElement[]>;
-	typeInEditor(windowId: number, selector: string, text: string): Promise<void>;
-	getTerminalBuffer(windowId: number, selector: string): Promise<string[]>;
-	writeInTerminal(windowId: number, selector: string, text: string): Promise<void>;
-}
-//*END
+import { IDriver, IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
 
 export class DriverChannel implements IServerChannel {
 
@@ -66,6 +30,7 @@ export class DriverChannel implements IServerChannel {
 			case 'getTitle': return this.driver.getTitle(arg[0]);
 			case 'isActiveElement': return this.driver.isActiveElement(arg[0], arg[1]);
 			case 'getElements': return this.driver.getElements(arg[0], arg[1], arg[2]);
+			case 'getElementXY': return this.driver.getElementXY(arg[0], arg[1], arg[2]);
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1], arg[2]);
 			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg[0], arg[1]);
 			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1], arg[2]);
@@ -125,6 +90,10 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('getElements', [windowId, selector, recursive]);
 	}
 
+	getElementXY(windowId: number, selector: string, xoffset: number | undefined, yoffset: number | undefined): Promise<{ x: number, y: number }> {
+		return this.channel.call('getElementXY', [windowId, selector, xoffset, yoffset]);
+	}
+
 	typeInEditor(windowId: number, selector: string, text: string): Promise<void> {
 		return this.channel.call('typeInEditor', [windowId, selector, text]);
 	}
@@ -180,18 +149,6 @@ export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry 
 	}
 }
 
-export interface IWindowDriver {
-	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
-	doubleClick(selector: string): Promise<void>;
-	setValue(selector: string, text: string): Promise<void>;
-	getTitle(): Promise<string>;
-	isActiveElement(selector: string): Promise<boolean>;
-	getElements(selector: string, recursive: boolean): Promise<IElement[]>;
-	typeInEditor(selector: string, text: string): Promise<void>;
-	getTerminalBuffer(selector: string): Promise<string[]>;
-	writeInTerminal(selector: string, text: string): Promise<void>;
-}
-
 export class WindowDriverChannel implements IServerChannel {
 
 	constructor(private driver: IWindowDriver) { }
@@ -208,6 +165,7 @@ export class WindowDriverChannel implements IServerChannel {
 			case 'getTitle': return this.driver.getTitle();
 			case 'isActiveElement': return this.driver.isActiveElement(arg);
 			case 'getElements': return this.driver.getElements(arg[0], arg[1]);
+			case 'getElementXY': return this.driver.getElementXY(arg[0], arg[1], arg[2]);
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1]);
 			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg);
 			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1]);
@@ -245,6 +203,10 @@ export class WindowDriverChannelClient implements IWindowDriver {
 
 	getElements(selector: string, recursive: boolean): Promise<IElement[]> {
 		return this.channel.call('getElements', [selector, recursive]);
+	}
+
+	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number, y: number }> {
+		return this.channel.call('getElementXY', [selector, xoffset, yoffset]);
 	}
 
 	typeInEditor(selector: string, text: string): Promise<void> {

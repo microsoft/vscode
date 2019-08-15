@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getTopLeftOffset } from 'vs/base/browser/dom';
+import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
 import { IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
 
@@ -45,7 +45,6 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 
 	constructor() { }
 
-	// TODO: This doesn't work in browser driver
 	abstract click(selector: string, xoffset?: number, yoffset?: number): Promise<void>;
 	abstract doubleClick(selector: string): Promise<void>;
 
@@ -99,6 +98,11 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		}
 
 		return result;
+	}
+
+	async getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+		const offset = typeof xoffset === 'number' && typeof yoffset === 'number' ? { x: xoffset, y: yoffset } : undefined;
+		return this._getElementXY(selector, offset);
 	}
 
 	async typeInEditor(selector: string, text: string): Promise<void> {
@@ -157,6 +161,31 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		}
 
 		xterm._core._coreService.triggerDataEvent(text);
+	}
+
+	protected async _getElementXY(selector: string, offset?: { x: number, y: number }): Promise<{ x: number; y: number; }> {
+		const element = document.querySelector(selector);
+
+		if (!element) {
+			return Promise.reject(new Error(`Element not found: ${selector}`));
+		}
+
+		const { left, top } = getTopLeftOffset(element as HTMLElement);
+		const { width, height } = getClientArea(element as HTMLElement);
+		let x: number, y: number;
+
+		if (offset) {
+			x = left + offset.x;
+			y = top + offset.y;
+		} else {
+			x = left + (width / 2);
+			y = top + (height / 2);
+		}
+
+		x = Math.round(x);
+		y = Math.round(y);
+
+		return { x, y };
 	}
 
 	abstract async openDevTools(): Promise<void>;

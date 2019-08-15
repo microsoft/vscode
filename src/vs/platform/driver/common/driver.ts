@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// TODO: Change smoketest build to read off common instead
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 // !! Do not remove the following START and END markers, they are parsed by the smoketest build
 
@@ -32,11 +32,15 @@ export interface IDriver {
 	getTitle(windowId: number): Promise<string>;
 	isActiveElement(windowId: number, selector: string): Promise<boolean>;
 	getElements(windowId: number, selector: string, recursive?: boolean): Promise<IElement[]>;
+	getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }>;
 	typeInEditor(windowId: number, selector: string, text: string): Promise<void>;
 	getTerminalBuffer(windowId: number, selector: string): Promise<string[]>;
 	writeInTerminal(windowId: number, selector: string, text: string): Promise<void>;
 }
 //*END
+
+export const ID = 'driverService';
+export const IDriver = createDecorator<IDriver>(ID);
 
 export interface IWindowDriver {
 	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
@@ -45,6 +49,7 @@ export interface IWindowDriver {
 	getTitle(): Promise<string>;
 	isActiveElement(selector: string): Promise<boolean>;
 	getElements(selector: string, recursive: boolean): Promise<IElement[]>;
+	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }>;
 	typeInEditor(selector: string, text: string): Promise<void>;
 	getTerminalBuffer(selector: string): Promise<string[]>;
 	writeInTerminal(selector: string, text: string): Promise<void>;

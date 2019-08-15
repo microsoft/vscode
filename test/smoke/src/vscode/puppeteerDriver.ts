@@ -26,7 +26,7 @@ const vscodeToPuppeteerKey = {
 };
 
 function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver {
-	return {
+	const driver = {
 		_serviceBrand: undefined,
 		getWindowIds: () => {
 			return Promise.resolve([1]);
@@ -57,121 +57,25 @@ function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver 
 			await timeout(100);
 		},
 		click: async (windowId, selector, xoffset, yoffset) => {
-			const { x, y } = await page.evaluate(`
-				(function() {
-					function convertToPixels(element, value) {
-						return parseFloat(value) || 0;
-					}
-					function getDimension(element, cssPropertyName, jsPropertyName) {
-						let computedStyle = getComputedStyle(element);
-						let value = '0';
-						if (computedStyle) {
-							if (computedStyle.getPropertyValue) {
-								value = computedStyle.getPropertyValue(cssPropertyName);
-							} else {
-								// IE8
-								value = (computedStyle).getAttribute(jsPropertyName);
-							}
-						}
-						return convertToPixels(element, value);
-					}
-					function getBorderLeftWidth(element) {
-						return getDimension(element, 'border-left-width', 'borderLeftWidth');
-					}
-					function getBorderRightWidth(element) {
-						return getDimension(element, 'border-right-width', 'borderRightWidth');
-					}
-					function getBorderTopWidth(element) {
-						return getDimension(element, 'border-top-width', 'borderTopWidth');
-					}
-					function getBorderBottomWidth(element) {
-						return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
-					}
-					function getClientArea(element) {
-						// Try with DOM clientWidth / clientHeight
-						if (element !== document.body) {
-							return { width: element.clientWidth, height: element.clientHeight };
-						}
-
-						// Try innerWidth / innerHeight
-						if (window.innerWidth && window.innerHeight) {
-							return { width: window.innerWidth, height: window.innerHeight };
-						}
-
-						// Try with document.body.clientWidth / document.body.clientHeight
-						if (document.body && document.body.clientWidth && document.body.clientHeight) {
-							return { width: document.body.clientWidth, height: document.body.clientHeight };
-						}
-
-						// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
-						if (document.documentElement && document.documentElement.clientWidth && document.documentElement.clientHeight) {
-							return { width: document.documentElement.clientWidth, height: document.documentElement.clientHeight };
-						}
-
-						throw new Error('Unable to figure out browser width and height');
-					}
-					function getTopLeftOffset(element) {
-						// Adapted from WinJS.Utilities.getPosition
-						// and added borders to the mix
-
-						let offsetParent = element.offsetParent, top = element.offsetTop, left = element.offsetLeft;
-
-						while ((element = element.parentNode) !== null && element !== document.body && element !== document.documentElement) {
-							top -= element.scrollTop;
-							let c = getComputedStyle(element);
-							if (c) {
-								left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
-							}
-
-							if (element === offsetParent) {
-								left += getBorderLeftWidth(element);
-								top += getBorderTopWidth(element);
-								top += element.offsetTop;
-								left += element.offsetLeft;
-								offsetParent = element.offsetParent;
-							}
-						}
-
-						return {
-							left: left,
-							top: top
-						};
-					}
-					const element = document.querySelector('${selector}');
-
-					if (!element) {
-						throw new Error('Element not found: ${selector}');
-					}
-
-					const { left, top } = getTopLeftOffset(element);
-					const { width, height } = getClientArea(element);
-					let x, y;
-
-					x = left + (width / 2);
-					y = top + (height / 2);
-
-					x = Math.round(x);
-					y = Math.round(y);
-
-					return { x, y };
-				})();
-			`);
+			const { x, y } = await driver.getElementXY(windowId, selector, xoffset, yoffset);
 			await page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
 		},
 		doubleClick: async (windowId, selector) => {
-			await this.click(windowId, selector, 0, 0);
+			await driver.click(windowId, selector, 0, 0);
 			await timeout(60);
-			await this.click(windowId, selector, 0, 0);
+			await driver.click(windowId, selector, 0, 0);
 			await timeout(100);
 		},
 		setValue: async (windowId, selector, text) => page.evaluate(`window.driver.setValue('${selector}', '${text}')`),
 		getTitle: (windowId) => page.evaluate(`window.driver.getTitle()`),
 		isActiveElement: (windowId, selector) => page.evaluate(`window.driver.isActiveElement('${selector}')`),
 		getElements: (windowId, selector, recursive) => page.evaluate(`window.driver.getElements('${selector}', ${recursive})`),
+		getElementXY: (windowId, selector, xoffset?, yoffset?) => page.evaluate(`window.driver.getElementXY('${selector}', ${xoffset}, ${yoffset})`),
 		typeInEditor: (windowId, selector, text) => page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`),
 		getTerminalBuffer: (windowId, selector) => page.evaluate(`window.driver.getTerminalBuffer('${selector}')`),
 		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`)
 	};
+	return driver;
 }
 
 function timeout(ms: number): Promise<void> {
@@ -275,6 +179,7 @@ export interface IDriver {
 	getTitle(windowId: number): Promise<string>;
 	isActiveElement(windowId: number, selector: string): Promise<boolean>;
 	getElements(windowId: number, selector: string, recursive?: boolean): Promise<IElement[]>;
+	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }>;
 	typeInEditor(windowId: number, selector: string, text: string): Promise<void>;
 	getTerminalBuffer(windowId: number, selector: string): Promise<string[]>;
 	writeInTerminal(windowId: number, selector: string, text: string): Promise<void>;

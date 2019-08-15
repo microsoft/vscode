@@ -7,7 +7,6 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { timeout } from 'vs/base/common/async';
@@ -28,31 +27,6 @@ class WindowDriver extends BaseWindowDriver {
 
 	doubleClick(selector: string): Promise<void> {
 		return this._click(selector, 2);
-	}
-
-	private async _getElementXY(selector: string, offset?: { x: number, y: number }): Promise<{ x: number; y: number; }> {
-		const element = document.querySelector(selector);
-
-		if (!element) {
-			return Promise.reject(new Error(`Element not found: ${selector}`));
-		}
-
-		const { left, top } = getTopLeftOffset(element as HTMLElement);
-		const { width, height } = getClientArea(element as HTMLElement);
-		let x: number, y: number;
-
-		if (offset) {
-			x = left + offset.x;
-			y = top + offset.y;
-		} else {
-			x = left + (width / 2);
-			y = top + (height / 2);
-		}
-
-		x = Math.round(x);
-		y = Math.round(y);
-
-		return { x, y };
 	}
 
 	private async _click(selector: string, clickCount: number, offset?: { x: number, y: number }): Promise<void> {
