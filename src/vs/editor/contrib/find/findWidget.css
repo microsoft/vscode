@@ -81,7 +81,7 @@
 
 .monaco-editor .find-widget > .find-part .monaco-inputbox,
 .monaco-editor .find-widget > .replace-part .monaco-inputbox {
-	height: 25px;
+	min-height: 25px;
 }
 
 .monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input {
@@ -94,7 +94,9 @@
 }
 
 .monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input,
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .input {
+.monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .mirror,
+.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .input,
+.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .mirror {
 	padding-top: 2px;
 	padding-bottom: 2px;
 }

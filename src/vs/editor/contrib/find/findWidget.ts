@@ -84,6 +84,22 @@ export class FindWidgetViewZone implements IViewZone {
 	}
 }
 
+function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
+	const isMultiline = !!value.match(/\n/);
+	if (textarea && isMultiline && textarea.selectionStart > 0) {
+		event.stopPropagation();
+		return;
+	}
+}
+
+function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
+	const isMultiline = !!value.match(/\n/);
+	if (textarea && isMultiline && textarea.selectionEnd < textarea.value.length) {
+		event.stopPropagation();
+		return;
+	}
+}
+
 export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
 	private static readonly ID = 'editor.contrib.findWidget';
 	private readonly _codeEditor: ICodeEditor;
@@ -646,6 +662,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 	}
 
+	private _tryUpdateHeight() {
+
+	}
+
 	// ----- Public
 
 	public focusFindInput(): void {
@@ -705,6 +725,22 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			return;
 		}
 
+		if (e.equals(KeyMod.WinCtrl | KeyCode.Enter)) {
+			const inputElement = this._findInput.inputBox.inputElement;
+			const start = inputElement.selectionStart;
+			const end = inputElement.selectionEnd;
+			const content = inputElement.value;
+
+			if (start && end) {
+				const value = content.substr(0, start) + '\n' + content.substr(end);
+				this._findInput.inputBox.value = value;
+				inputElement.setSelectionRange(start + 1, start + 1);
+				this._findInput.inputBox.layout();
+				e.preventDefault();
+				return;
+			}
+		}
+
 		if (e.equals(KeyCode.Tab)) {
 			if (this._isReplaceVisible) {
 				this._replaceInputBox.focus();
@@ -720,6 +756,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			e.preventDefault();
 			return;
 		}
+
+		if (e.equals(KeyCode.UpArrow)) {
+			return stopPropagationForMultiLineUpwards(e, this._findInput.getValue(), this._findInput.domNode.querySelector('textarea'));
+		}
+
+		if (e.equals(KeyCode.DownArrow)) {
+			return stopPropagationForMultiLineDownwards(e, this._findInput.getValue(), this._findInput.domNode.querySelector('textarea'));
+		}
 	}
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
@@ -728,6 +772,22 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._controller.replace();
 			e.preventDefault();
 			return;
+		}
+
+		if (e.equals(KeyMod.WinCtrl | KeyCode.Enter)) {
+			const inputElement = this._replaceInputBox.inputElement;
+			const start = inputElement.selectionStart;
+			const end = inputElement.selectionEnd;
+			const content = inputElement.value;
+
+			if (start && end) {
+				const value = content.substr(0, start) + '\n' + content.substr(end);
+				this._replaceInputBox.value = value;
+				inputElement.setSelectionRange(start + 1, start + 1);
+				this._replaceInputBox.layout();
+				e.preventDefault();
+				return;
+			}
 		}
 
 		if (e.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
@@ -752,6 +812,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._codeEditor.focus();
 			e.preventDefault();
 			return;
+		}
+
+		if (e.equals(KeyCode.UpArrow)) {
+			return stopPropagationForMultiLineUpwards(e, this._replaceInputBox.value, this._replaceInputBox.element.querySelector('textarea'));
+		}
+
+		if (e.equals(KeyCode.DownArrow)) {
+			return stopPropagationForMultiLineDownwards(e, this._replaceInputBox.value, this._replaceInputBox.element.querySelector('textarea'));
 		}
 	}
 
@@ -796,7 +864,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				} catch (e) {
 					return { content: e.message };
 				}
-			}
+			},
+			flexibleHeight: true
 		}, this._contextKeyService, true));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
@@ -822,6 +891,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					e.preventDefault();
 				}
 			}
+		}));
+		this._register(this._findInput.inputBox.onDidHeightChange((e) => {
+			console.log(e);
 		}));
 		if (platform.isLinux) {
 			this._register(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
@@ -907,7 +979,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._replaceInputBox = this._register(new ContextScopedHistoryInputBox(replaceInput, undefined, {
 			ariaLabel: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
-			history: []
+			history: [],
+			flexibleHeight: true
 		}, this._contextKeyService));
 
 
@@ -973,6 +1046,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._state.change({ isReplaceRevealed: !this._isReplaceVisible }, false);
 				if (this._isReplaceVisible) {
 					this._replaceInputBox.width = this._findInput.inputBox.width;
+					this._replaceInputBox.layout();
 				}
 				this._showViewZone();
 			}
