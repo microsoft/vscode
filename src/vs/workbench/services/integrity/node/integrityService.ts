@@ -14,6 +14,7 @@ import product from 'vs/platform/product/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -55,7 +56,7 @@ class IntegrityStorage {
 
 export class IntegrityServiceImpl implements IIntegrityService {
 
-	_serviceBrand: any;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private _storage: IntegrityStorage;
 	private _isPurePromise: Promise<IntegrityTestResult>;

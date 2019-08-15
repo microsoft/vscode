@@ -131,9 +131,6 @@ import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 // Execution
 import 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 
-// Send a Smile
-import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
-
 // Update
 import 'vs/workbench/contrib/update/electron-browser/update.contribution';
 
