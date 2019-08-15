@@ -73,10 +73,10 @@ export class OpenerService implements IOpenerService {
 				return this._dialogService.confirm({
 					title: localize('openExternalLink', 'Open External Link'),
 					type: 'question',
-					message: localize('openExternalLinkAt', 'Do you want to leave VS Code and open the external website at') + ` ${resource.toString()}?`,
+					message: localize('openExternalLinkAt', 'Do you want to leave VS Code to open the external website at') + ` ${resource.toString()}?`,
 					detail: resource.toString(),
 					primaryButton: localize('openLink', 'Open Link'),
-					secondaryButton: localize('cance', 'Cancel'),
+					secondaryButton: localize('cancel', 'Cancel'),
 					checkbox: {
 						label: localize('trustAllLinksOn', 'Trust all links on') + ` ${domainToOpen}`,
 						checked: false
