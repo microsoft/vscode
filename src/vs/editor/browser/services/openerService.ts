@@ -14,10 +14,10 @@ import { IOpenerService, IOpener } from 'vs/platform/opener/common/opener';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/product';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class OpenerService implements IOpenerService {
 
@@ -28,7 +28,7 @@ export class OpenerService implements IOpenerService {
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IProductService private readonly _productService: IProductService
 	) {
@@ -66,7 +66,11 @@ export class OpenerService implements IOpenerService {
 		}
 
 		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
-			const trustedDomains = this._configurationService.getValue<string[]>('http.trustedDomains');
+			let trustedDomains: string[] = [];
+			try {
+				trustedDomains = JSON.parse(this._storageService.get('http.trustedDomains', StorageScope.GLOBAL, '[]'));
+			} catch (err) { }
+
 			const domainToOpen = `${scheme}://${authority}`;
 
 			if (isDomainTrusted(domainToOpen, trustedDomains)) {
@@ -77,7 +81,7 @@ export class OpenerService implements IOpenerService {
 					type: 'question',
 					message: localize(
 						'openExternalLinkAt',
-						'Do you want {0} to open the external website at {1}?',
+						'Do you want {0} to open the external website?\n{1}',
 						this._productService.productConfiguration.nameShort,
 						resource.toString(true)
 					),
@@ -89,7 +93,7 @@ export class OpenerService implements IOpenerService {
 					}
 				}).then(({ confirmed, checkboxChecked }) => {
 					if (checkboxChecked) {
-						this._configurationService.updateValue('http.trustedDomains', [...trustedDomains, domainToOpen]);
+						this._storageService.store('http.trustedDomains', JSON.stringify([...trustedDomains, domainToOpen]), StorageScope.GLOBAL);
 					}
 					if (confirmed) {
 						return this.openExternal(resource);

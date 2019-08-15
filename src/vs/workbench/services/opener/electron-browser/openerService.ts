@@ -12,9 +12,9 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/product';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class OpenerService extends BaseOpenerService {
 
@@ -24,11 +24,11 @@ export class OpenerService extends BaseOpenerService {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IWindowsService private readonly windowsService: IWindowsService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
+		@IStorageService readonly storageService: IStorageService,
 		@IDialogService readonly dialogService: IDialogService,
 		@IProductService readonly productService: IProductService
 	) {
-		super(codeEditorService, commandService, configurationService, dialogService, productService);
+		super(codeEditorService, commandService, storageService, dialogService, productService);
 	}
 
 	async openExternal(resource: URI): Promise<boolean> {

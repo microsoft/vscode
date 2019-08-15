@@ -7,10 +7,10 @@ import { URI } from 'vs/base/common/uri';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/product';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 suite('OpenerService', function () {
 
@@ -28,23 +28,23 @@ suite('OpenerService', function () {
 		}
 	};
 
-	function getConfigurationService(trustedDomainsSetting: string[]) {
+	function getStorageService(trustedDomainsSetting: string[]) {
 		let _settings = deepClone(trustedDomainsSetting);
 
-		return new class implements IConfigurationService {
-			getValue = () => _settings;
-			updateValue = (key: string, val: string[]) => {
-				_settings = val;
-				return Promise.resolve();
-			}
+		return new class implements IStorageService {
+			get = () => JSON.stringify(_settings);
+			store = (key: string, val: string) => _settings = JSON.parse(val);
 
 			// Don't care
 			_serviceBrand: any;
-			onDidChangeConfiguration = () => ({ dispose: () => { } });
-			getConfigurationData = () => null;
-			reloadConfiguration = () => Promise.resolve();
-			inspect = () => null as any;
-			keys = () => null as any;
+
+			onDidChangeStorage = () => ({ dispose: () => { } });
+			onWillSaveState = () => ({ dispose: () => { } });
+
+			getBoolean = () => true;
+			getNumber = () => 0;
+			remove = () => { };
+			logStorage = () => { };
 		};
 	}
 
@@ -85,7 +85,7 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(
 			editorService,
 			NullCommandService,
-			getConfigurationService([]),
+			getStorageService([]),
 			getDialogService(),
 			getProductService()
 		);
@@ -98,7 +98,7 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(
 			editorService,
 			NullCommandService,
-			getConfigurationService([]),
+			getStorageService([]),
 			getDialogService(),
 			getProductService()
 		);
@@ -127,7 +127,7 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(
 			editorService,
 			NullCommandService,
-			getConfigurationService([]),
+			getStorageService([]),
 			getDialogService(),
 			getProductService()
 		);
@@ -152,7 +152,7 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(
 			editorService,
 			commandService,
-			getConfigurationService([]),
+			getStorageService([]),
 			getDialogService(),
 			getProductService()
 		);
@@ -181,7 +181,7 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(
 			editorService,
 			commandService,
-			getConfigurationService([]),
+			getStorageService([]),
 			dialogService,
 			getProductService()
 		);
@@ -195,7 +195,7 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(
 			editorService,
 			commandService,
-			getConfigurationService(['https://microsoft.com']),
+			getStorageService(['https://microsoft.com']),
 			dialogService,
 			getProductService()
 		);
@@ -214,7 +214,7 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(
 			editorService,
 			commandService,
-			getConfigurationService(['https://microsoft.com']),
+			getStorageService(['https://microsoft.com']),
 			dialogService,
 			getProductService()
 		);
@@ -230,7 +230,7 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(
 			editorService,
 			commandService,
-			getConfigurationService(['*']),
+			getStorageService(['*']),
 			dialogService,
 			getProductService()
 		);
