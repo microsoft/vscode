@@ -847,7 +847,7 @@ registerSingleton(ITunnelService, SimpleTunnelService);
 
 //#region workspace stats
 
-class WorkspaceStatsService implements IWorkspaceStatsService {
+class SimpleWorkspaceStatsService implements IWorkspaceStatsService {
 
 	_serviceBrand: any;
 
@@ -865,6 +865,6 @@ class WorkspaceStatsService implements IWorkspaceStatsService {
 
 }
 
-registerSingleton(IWorkspaceStatsService, WorkspaceStatsService);
+registerSingleton(IWorkspaceStatsService, SimpleWorkspaceStatsService);
 
 //#endregion
