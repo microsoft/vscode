@@ -624,6 +624,27 @@
 				"restrictions": "**/vs/**"
 			}
 		],
+		"no-unsafe-globals": [
+			true,
+			{
+				"target": "**/vs/base/common/{path,process,platform}.ts",
+				"unsafe": []
+			},
+			{
+				"target": "**/vs/**/{common,browser}/**",
+				"unsafe": [
+					"Buffer",
+					"process",
+					"__filename",
+					"__dirname",
+					"clearImmediate",
+					"exports",
+					"global",
+					"module",
+					"setImmediate"
+				]
+			}
+		],
 		"duplicate-imports": true,
 		"no-new-buffer": true,
 		"translation-remind": true,
