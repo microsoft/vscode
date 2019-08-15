@@ -70,8 +70,7 @@ export class ConfigureTrustedDomainsAction extends Action {
 		});
 		quickPickItems.unshift({
 			type: 'item',
-			label: '*',
-			description: 'Allow all links to be open without protection',
+			label: 'Allow all links to be open without protection',
 			picked: trustedDomains.indexOf('*') !== -1
 		});
 
