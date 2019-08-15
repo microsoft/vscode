@@ -108,6 +108,15 @@ steps:
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
+  set -e
+  cd test/smoke
+  yarn compile
+  cd -
+  yarn smoketest --web --headless
+continueOnError: true
+displayName: Smoke tests
+
+- script: |
     set -e
     pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin.zip * && popd
   displayName: Archive build
