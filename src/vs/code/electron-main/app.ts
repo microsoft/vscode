@@ -55,7 +55,7 @@ import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/err
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { connectRemoteAgentManagement, ManagementPersistentConnection, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { hasArgs } from 'vs/platform/environment/node/argv';
