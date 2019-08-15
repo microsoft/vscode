@@ -462,12 +462,12 @@ class ProposedApiController {
 		}
 
 		this.enableProposedApiForAll = !environmentService.isBuilt ||
-			(!!environmentService.extensionDevelopmentLocationURI && productService.nameLong !== 'Visual Studio Code') ||
+			(!!environmentService.extensionDevelopmentLocationURI && productService.productConfiguration.nameLong !== 'Visual Studio Code') ||
 			(this.enableProposedApiFor.length === 0 && 'enable-proposed-api' in environmentService.args);
 
 		this.productAllowProposedApi = new Set<string>();
-		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
-			productService.extensionAllowedProposedApi.forEach((id) => this.productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
+		if (isNonEmptyArray(productService.productConfiguration.extensionAllowedProposedApi)) {
+			productService.productConfiguration.extensionAllowedProposedApi.forEach((id) => this.productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
 		}
 	}
 

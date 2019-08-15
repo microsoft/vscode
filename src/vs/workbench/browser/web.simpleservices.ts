@@ -8,9 +8,8 @@ import * as browser from 'vs/base/browser/browser';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManagementService, ILocalExtension, IGalleryMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -23,8 +22,8 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 // tslint:disable-next-line: import-patterns
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { addDisposableListener, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -32,14 +31,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
-// tslint:disable-next-line: import-patterns
-import { IExperimentService, IExperiment, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/product';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+// tslint:disable-next-line: import-patterns
+import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
 
 //#region Extension Tips
 
@@ -77,63 +76,6 @@ export class SimpleExtensionTipsService implements IExtensionTipsService {
 }
 
 registerSingleton(IExtensionTipsService, SimpleExtensionTipsService, true);
-
-//#endregion
-
-export class SimpleExtensionManagementService implements IExtensionManagementService {
-
-	_serviceBrand: any;
-
-	onInstallExtension = Event.None;
-	onDidInstallExtension = Event.None;
-	onUninstallExtension = Event.None;
-	onDidUninstallExtension = Event.None;
-
-	zip(extension: ILocalExtension): Promise<URI> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	install(vsix: URI): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	uninstall(extension: ILocalExtension, force?: boolean): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		// @ts-ignore
-		return Promise.resolve([]);
-	}
-
-	getExtensionsReport(): Promise<IReportedExtension[]> {
-		// @ts-ignore
-		return Promise.resolve([]);
-	}
-
-	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		// @ts-ignore
-		return Promise.resolve(local);
-	}
-}
-
-registerSingleton(IExtensionManagementService, SimpleExtensionManagementService);
 
 //#endregion
 
@@ -774,6 +716,8 @@ export class SimpleWindowsService implements IWindowsService {
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
 	openExternal(_url: string): Promise<boolean> {
+		windowOpenNoOpener(_url);
+
 		return Promise.resolve(true);
 	}
 
@@ -797,13 +741,13 @@ export class SimpleWindowsService implements IWindowsService {
 	async openAboutDialog(): Promise<void> {
 		const detail = localize('aboutDetail',
 			"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
-			this.productService.version || 'Unknown',
-			this.productService.commit || 'Unknown',
-			this.productService.date || 'Unknown',
+			this.productService.productConfiguration.version || 'Unknown',
+			this.productService.productConfiguration.commit || 'Unknown',
+			this.productService.productConfiguration.date || 'Unknown',
 			navigator.userAgent
 		);
 
-		const result = await this.dialogService.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail });
+		const result = await this.dialogService.show(Severity.Info, this.productService.productConfiguration.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail });
 
 		if (result === 0) {
 			this.clipboardService.writeText(detail);
@@ -901,33 +845,26 @@ registerSingleton(ITunnelService, SimpleTunnelService);
 
 //#endregion
 
-//#region experiments
+//#region workspace stats
 
-class ExperimentService implements IExperimentService {
+class WorkspaceStatsService implements IWorkspaceStatsService {
+
 	_serviceBrand: any;
 
-	async getExperimentById(id: string): Promise<IExperiment> {
-		return {
-			enabled: false,
-			id: '',
-			state: ExperimentState.NoRun
-		};
+	getTags(): Promise<Tags> {
+		return Promise.resolve({});
 	}
 
-	async getExperimentsByType(type: ExperimentActionType): Promise<IExperiment[]> {
-		return [];
+	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
+		return undefined;
 	}
 
-	async getCuratedExtensionsList(curatedExtensionsKey: string): Promise<string[]> {
-		return [];
+	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]> {
+		return Promise.resolve([]);
 	}
-
-	markAsCompleted(experimentId: string): void { }
-
-	onExperimentEnabled: Event<IExperiment> = Event.None;
 
 }
 
-registerSingleton(IExperimentService, ExperimentService);
+registerSingleton(IWorkspaceStatsService, WorkspaceStatsService);
 
 //#endregion

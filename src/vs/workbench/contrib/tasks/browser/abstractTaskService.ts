@@ -179,10 +179,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private static nextHandle: number = 0;
 
-	private _schemaVersion: JsonSchemaVersion;
-	private _executionEngine: ExecutionEngine;
-	private _workspaceFolders: IWorkspaceFolder[];
-	private _ignoredWorkspaceFolders: IWorkspaceFolder[];
+	private _schemaVersion: JsonSchemaVersion | undefined;
+	private _executionEngine: ExecutionEngine | undefined;
+	private _workspaceFolders: IWorkspaceFolder[] | undefined;
+	private _ignoredWorkspaceFolders: IWorkspaceFolder[] | undefined;
 	private _showIgnoreMessage?: boolean;
 	private _providers: Map<number, ITaskProvider>;
 	private _providerTypes: Map<number, string>;
@@ -192,7 +192,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _taskSystem?: ITaskSystem;
 	protected _taskSystemListener?: IDisposable;
-	private _recentlyUsedTasks: LinkedMap<string, string>;
+	private _recentlyUsedTasks: LinkedMap<string, string> | undefined;
 
 	protected _taskRunningState: IContextKey<boolean>;
 
@@ -375,28 +375,28 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._workspaceFolders) {
 			this.updateSetup();
 		}
-		return this._workspaceFolders;
+		return this._workspaceFolders!;
 	}
 
 	private get ignoredWorkspaceFolders(): IWorkspaceFolder[] {
 		if (!this._ignoredWorkspaceFolders) {
 			this.updateSetup();
 		}
-		return this._ignoredWorkspaceFolders;
+		return this._ignoredWorkspaceFolders!;
 	}
 
 	protected get executionEngine(): ExecutionEngine {
 		if (this._executionEngine === undefined) {
 			this.updateSetup();
 		}
-		return this._executionEngine;
+		return this._executionEngine!;
 	}
 
 	private get schemaVersion(): JsonSchemaVersion {
 		if (this._schemaVersion === undefined) {
 			this.updateSetup();
 		}
-		return this._schemaVersion;
+		return this._schemaVersion!;
 	}
 
 	private get showIgnoreMessage(): boolean {

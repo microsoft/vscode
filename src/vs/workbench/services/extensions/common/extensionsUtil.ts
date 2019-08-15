@@ -10,6 +10,11 @@ import { getGalleryExtensionId, areSameExtensions } from 'vs/platform/extensionM
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IProductService } from 'vs/platform/product/common/product';
 
+export function isWebExtension(manifest: IExtensionManifest, configurationService: IConfigurationService): boolean {
+	const extensionKind = getExtensionKind(manifest, configurationService);
+	return extensionKind === 'web';
+}
+
 export function isUIExtension(manifest: IExtensionManifest, productService: IProductService, configurationService: IConfigurationService): boolean {
 	const uiContributions = ExtensionsRegistry.getExtensionPoints().filter(e => e.defaultExtensionKind !== 'workspace').map(e => e.name);
 	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
@@ -19,7 +24,7 @@ export function isUIExtension(manifest: IExtensionManifest, productService: IPro
 		case 'workspace': return false;
 		default: {
 			// Tagged as UI extension in product
-			if (isNonEmptyArray(productService.uiExtensions) && productService.uiExtensions.some(id => areSameExtensions({ id }, { id: extensionId }))) {
+			if (isNonEmptyArray(productService.productConfiguration.uiExtensions) && productService.productConfiguration.uiExtensions.some(id => areSameExtensions({ id }, { id: extensionId }))) {
 				return true;
 			}
 			// Not an UI extension if it has main

@@ -58,7 +58,7 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 	) {
 		super();
 
-		if (productService.sendASmile) {
+		if (productService.productConfiguration.sendASmile) {
 			this.entry = this._register(statusbarService.addEntry(this.getStatusEntry(), 'status.feedback', localize('status.feedback', "Tweet Feedback"), StatusbarAlignment.RIGHT, -100 /* towards the end of the right hand side */));
 
 			CommandsRegistry.registerCommand('_feedback.open', () => this.toggleFeedback());

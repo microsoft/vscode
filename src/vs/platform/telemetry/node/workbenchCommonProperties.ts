@@ -6,6 +6,7 @@
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export async function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string | undefined, version: string | undefined, machineId: string, installSourcePath: string, remoteAuthority?: string): Promise<{ [name: string]: string | undefined }> {
 	const result = await resolveCommonProperties(commit, version, machineId, installSourcePath);
@@ -29,20 +30,4 @@ export async function resolveWorkbenchCommonProperties(storageService: IStorageS
 	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority);
 
 	return result;
-}
-
-function cleanRemoteAuthority(remoteAuthority?: string): string {
-	if (!remoteAuthority) {
-		return 'none';
-	}
-
-	let ret = 'other';
-	// Whitelisted remote authorities
-	['ssh-remote', 'dev-container', 'wsl'].forEach((res: string) => {
-		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
-			ret = res;
-		}
-	});
-
-	return ret;
 }

@@ -24,8 +24,11 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { IExtHostStorage, ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 
 // register singleton services
+registerSingleton(ILogService, ExtHostLogService);
 registerSingleton(IExtHostOutputService, ExtHostOutputService2);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace);
 registerSingleton(IExtHostDecorations, ExtHostDecorations);

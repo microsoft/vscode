@@ -144,8 +144,10 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
 
-		// Close DBs
-		this.globalStorage.close();
-		this.workspaceStorage.close();
+		// We explicitly do not close our DBs because writing data onBeforeUnload()
+		// can result in unexpected results. Namely, it seems that - even though this
+		// operation is async - sometimes it is being triggered on unload and
+		// succeeds. Often though, the DBs turn out to be empty because the write
+		// never had a chance to complete.
 	}
 }

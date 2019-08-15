@@ -114,11 +114,11 @@ class Extension implements IExtension {
 	}
 
 	get url(): string | undefined {
-		if (!this.productService.extensionsGallery || !this.gallery) {
+		if (!this.productService.productConfiguration.extensionsGallery || !this.gallery) {
 			return undefined;
 		}
 
-		return `${this.productService.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
+		return `${this.productService.productConfiguration.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
 	}
 
 	get iconUrl(): string {
@@ -484,7 +484,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
-	private _extensionAllowedBadgeProviders: string[];
+	private _extensionAllowedBadgeProviders: string[] | undefined;
 	private installing: IExtension[] = [];
 
 	constructor(
@@ -615,7 +615,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			text = text.replace(extensionRegex, (m, ext) => {
 
 				// Get curated keywords
-				const lookup = this.productService.extensionKeywords || {};
+				const lookup = this.productService.productConfiguration.extensionKeywords || {};
 				const keywords = lookup[ext] || [];
 
 				// Get mode name
@@ -1022,7 +1022,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	get allowedBadgeProviders(): string[] {
 		if (!this._extensionAllowedBadgeProviders) {
-			this._extensionAllowedBadgeProviders = (this.productService.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
+			this._extensionAllowedBadgeProviders = (this.productService.productConfiguration.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
 		}
 		return this._extensionAllowedBadgeProviders;
 	}
@@ -1096,12 +1096,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 
-	private _ignoredAutoUpdateExtensions: string[];
+	private _ignoredAutoUpdateExtensions: string[] | undefined;
 	private get ignoredAutoUpdateExtensions(): string[] {
 		if (!this._ignoredAutoUpdateExtensions) {
 			this._ignoredAutoUpdateExtensions = JSON.parse(this.storageService.get('extensions.ignoredAutoUpdateExtension', StorageScope.GLOBAL, '[]') || '[]');
 		}
-		return this._ignoredAutoUpdateExtensions;
+		return this._ignoredAutoUpdateExtensions!;
 	}
 
 	private set ignoredAutoUpdateExtensions(extensionIds: string[]) {

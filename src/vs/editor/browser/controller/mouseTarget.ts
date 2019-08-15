@@ -19,7 +19,7 @@ import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 
 export interface IViewZoneData {
-	viewZoneId: number;
+	viewZoneId: string;
 	positionBefore: Position | null;
 	positionAfter: Position | null;
 	position: Position;

@@ -458,12 +458,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	switchToSettingsFile(): Promise<IEditor | null> {
+	switchToSettingsFile(): Promise<IEditor | undefined> {
 		const query = parseQuery(this.searchWidget.getValue());
 		return this.openSettingsFile(query.query);
 	}
 
-	private openSettingsFile(query?: string): Promise<IEditor | null> {
+	private openSettingsFile(query?: string): Promise<IEditor | undefined> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		const options: ISettingsEditorOptions = { query };
@@ -846,7 +846,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 					this._register(model.onDidChangeGroups(() => this.onConfigUpdate()));
 					this.defaultSettingsEditorModel = model;
-					return this.onConfigUpdate();
+					return this.onConfigUpdate(undefined, true);
 				});
 		}
 		return Promise.resolve(null);

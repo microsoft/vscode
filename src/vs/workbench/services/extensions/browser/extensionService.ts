@@ -18,6 +18,10 @@ import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/co
 import { RemoteExtensionHostClient, IInitDataProvider } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { WebWorkerExtensionHostStarter } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHostStarter';
+import { URI } from 'vs/base/common/uri';
+import { isWebExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -32,6 +36,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		super(
 			instantiationService,
@@ -62,7 +67,15 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const result: ExtensionHostProcessManager[] = [];
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection()!;
-		const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, this.getExtensions(), this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
+
+		const webExtensions = this.getExtensions().then(extensions => extensions.filter(ext => isWebExtension(ext, this._configService)));
+		const remoteExtensions = this.getExtensions().then(extensions => extensions.filter(ext => !isWebExtension(ext, this._configService)));
+
+		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, true, webExtensions, URI.parse('empty:value')); //todo@joh
+		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
+		result.push(webHostProcessManager);
+
+		const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, remoteExtensions, this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
 		const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
 		result.push(remoteExtHostProcessManager);
 
