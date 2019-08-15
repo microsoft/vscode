@@ -43,6 +43,69 @@ class ApiInstances {
 	}
 }
 
+class ExportsTrap {
+
+	static readonly Instance = new ExportsTrap();
+
+	private readonly _names: string[] = [];
+	private readonly _exports = new Map<string, any>();
+
+	private constructor() {
+
+		const exportsProxy = new Proxy({}, {
+			set: (target: any, p: PropertyKey, value: any, receiver: any) => {
+				// store in target
+				target[p] = value;
+				// store in named-bucket
+				const name = this._names[this._names.length - 1];
+				this._exports.get(name)![p] = value;
+				return true;
+			}
+		});
+
+
+		const moduleProxy = new Proxy({}, {
+
+			get: (target: any, p: PropertyKey) => {
+				if (p === 'exports') {
+					return exportsProxy;
+				}
+
+				return target[p];
+			},
+
+			set: (target: any, p: PropertyKey, value: any, receiver: any) => {
+				// store in target
+				target[p] = value;
+
+				// override bucket
+				if (p === 'exports') {
+					const name = this._names[this._names.length - 1];
+					this._exports.set(name, value);
+				}
+				return true;
+			}
+		});
+
+		(<any>self).exports = exportsProxy;
+		(<any>self).module = moduleProxy;
+	}
+
+	add(name: string) {
+		this._exports.set(name, Object.create(null));
+		this._names.push(name);
+
+		return {
+			claim: () => {
+				const result = this._exports.get(name);
+				this._exports.delete(name);
+				this._names.pop();
+				return result;
+			}
+		};
+	}
+}
+
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	private _apiInstances?: ApiInstances;
@@ -56,7 +119,6 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	}
 
 	protected _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
-
 
 		interface FakeCommonJSSelf {
 			module?: object;
@@ -82,38 +144,30 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 				throw new Error(`Cannot load module '${mod}'`);
 			}
 
-			const moduleExportsTrap = { exports: Object.create(null) };
-			patchSelf.module = moduleExportsTrap;
-			patchSelf.exports = moduleExportsTrap.exports;
-
 			const next = joinPath(parent, '..', ensureSuffix(mod, '.js'));
 			moduleStack.push(next);
+			const trap = ExportsTrap.Instance.add(next.toString());
 			importScripts(asDomUri(next).toString(true));
 			moduleStack.pop();
 
-			return moduleExportsTrap.exports;
+			return trap.claim();
 		};
 
 		try {
 			activationTimesBuilder.codeLoadingStart();
-
-			const moduleExportsTrap = { exports: Object.create(null) };
-			patchSelf.module = moduleExportsTrap;
-			patchSelf.exports = moduleExportsTrap.exports;
-
 			module = module.with({ path: ensureSuffix(module.path, '.js') });
 			moduleStack.push(module);
-
+			const trap = ExportsTrap.Instance.add(module.toString());
 			importScripts(asDomUri(module).toString(true));
 			moduleStack.pop();
-			return Promise.resolve<T>(moduleExportsTrap.exports);
+			return Promise.resolve<T>(trap.claim());
 
 		} finally {
 			activationTimesBuilder.codeLoadingStop();
 		}
 	}
 
-	async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
+	async $setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> {
 		throw new Error('Not supported');
 	}
 }
