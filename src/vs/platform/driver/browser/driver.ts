@@ -20,20 +20,7 @@ class BrowserWindowDriver extends BaseWindowDriver {
 
 export async function registerWindowDriver(): Promise<IDisposable> {
 	(<any>window).driver = new BrowserWindowDriver();
-	// const windowDriverChannel = new WindowDriverChannel(windowDriver);
-	// mainProcessService.registerChannel('windowDriver', windowDriverChannel);
 
-	// const windowDriverRegistryChannel = mainProcessService.getChannel('windowDriverRegistry');
-	// const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
-
-	// await windowDriverRegistry.registerWindowDriver(windowService.windowId);
-	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
-
-	// if (options.verbose) {
-	// 	windowDriver.openDevTools();
-	// }
-
-	// return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowService.windowId));
 	return toDisposable(() => {
 		return { dispose: () => { } };
 	});
