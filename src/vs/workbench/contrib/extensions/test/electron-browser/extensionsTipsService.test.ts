@@ -22,7 +22,7 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestLifecycleService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestLifecycleService, TestSharedProcessService, productService } from 'vs/workbench/test/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
@@ -36,7 +36,6 @@ import { ConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensi
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
-import product from 'vs/platform/product/node/product';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -202,23 +201,22 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IURLService, URLService);
-		instantiationService.stub(IProductService, <Partial<IProductService>>{
-			productConfiguration: {
-				...product, ...{
-					extensionTips: {
-						'ms-vscode.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
-						'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6,**/.babelrc}',
-						'lukehoban.Go': '**/*.go'
+		instantiationService.set(IProductService, {
+			...productService,
+			...{
+				extensionTips: {
+					'ms-vscode.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
+					'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6,**/.babelrc}',
+					'lukehoban.Go': '**/*.go'
+				},
+				extensionImportantTips: {
+					'ms-python.python': {
+						'name': 'Python',
+						'pattern': '{**/*.py}'
 					},
-					extensionImportantTips: {
-						'ms-python.python': {
-							'name': 'Python',
-							'pattern': '{**/*.py}'
-						},
-						'ms-vscode.PowerShell': {
-							'name': 'PowerShell',
-							'pattern': '{**/*.ps,**/*.ps1}'
-						}
+					'ms-vscode.PowerShell': {
+						'name': 'PowerShell',
+						'pattern': '{**/*.ps,**/*.ps1}'
 					}
 				}
 			}
