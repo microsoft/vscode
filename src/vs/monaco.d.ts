@@ -4054,7 +4054,7 @@ declare namespace monaco.editor {
 		 * @param edits The edits to execute.
 		 * @param endCursorState Cursor state after the edits were applied.
 		 */
-		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
+		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 		/**
 		 * Execute multiple (concomitant) commands on the editor.
 		 * @param source The source of the call.
