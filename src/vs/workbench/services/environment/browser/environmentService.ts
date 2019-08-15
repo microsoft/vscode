@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWindowConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService, IExtensionHostDebugParams, IDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
+import { IExtensionHostDebugParams, IDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -13,6 +13,8 @@ import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { joinPath } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
@@ -66,26 +68,26 @@ export interface IBrowserWindowConfiguration {
 	connectionToken?: string;
 }
 
-export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
+export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
 
-	_serviceBrand!: ServiceIdentifier<IEnvironmentService>;
+	_serviceBrand!: ServiceIdentifier<IWorkbenchEnvironmentService>;
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 
-	constructor(configuration: IBrowserWindowConfiguration) {
+	constructor(workspaceId: string, public readonly options: IWorkbenchConstructionOptions) {
 		this.args = { _: [] };
 		this.appRoot = '/web/';
 		this.appNameLong = 'Visual Studio Code - Web';
 
-		this.configuration.remoteAuthority = configuration.remoteAuthority;
+		this.configuration.remoteAuthority = options.remoteAuthority;
 		this.userRoamingDataHome = URI.file('/User').with({ scheme: Schemas.userData });
 		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
 		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
 		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
 		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
 		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
-		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, configuration.workspaceId);
-		this.configuration.connectionToken = configuration.connectionToken || this.getConnectionTokenFromLocation();
+		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, workspaceId);
+		this.configuration.connectionToken = options.connectionToken || this.getConnectionTokenFromLocation();
 
 		this.logsPath = '/web/logs';
 
@@ -94,7 +96,7 @@ export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
 			break: false
 		};
 
-		this.webviewEndpoint = configuration.webviewEndpoint;
+		this.webviewEndpoint = options.webviewEndpoint;
 		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
 
 		if (document && document.location && document.location.search) {

@@ -117,12 +117,7 @@ class CodeRendererMain extends Disposable {
 		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		// Environment
-		const environmentService = new BrowserWorkbenchEnvironmentService({
-			workspaceId: payload.id,
-			remoteAuthority: this.configuration.remoteAuthority,
-			webviewEndpoint: this.configuration.webviewEndpoint,
-			connectionToken: this.configuration.connectionToken
-		});
+		const environmentService = new BrowserWorkbenchEnvironmentService(payload.id, this.configuration);
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
