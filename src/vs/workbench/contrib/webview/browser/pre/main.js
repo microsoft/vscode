@@ -285,6 +285,12 @@
 
 			applyStyles(newDocument, newDocument.body);
 
+			// Check for CSP
+			const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
+			if (!csp) {
+				host.postMessage('no-csp-found');
+			}
+
 			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
 			// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
 			return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;

@@ -13,9 +13,11 @@ import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
@@ -284,6 +286,8 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		@IFileService fileService: IFileService,
 		@ITunnelService tunnelService: ITunnelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IEnvironmentService private readonly _environementService: IEnvironmentService,
 	) {
 		super();
 		this.content = {
@@ -411,6 +415,10 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 
 				case 'did-blur':
 					this.handleFocusChange(false);
+					return;
+
+				case 'no-csp-found':
+					this.handleNoCspFound();
 					return;
 			}
 		}));
@@ -543,6 +551,32 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		this._focused = isFocused;
 		if (isFocused) {
 			this._onDidFocus.fire();
+		}
+	}
+
+	private _hasAlertedAboutMissingCsp = false;
+
+	private handleNoCspFound(): void {
+		if (this._hasAlertedAboutMissingCsp) {
+			return;
+		}
+		this._hasAlertedAboutMissingCsp = true;
+
+		if (this._options.extension && this._options.extension.id) {
+			if (this._environementService.isExtensionDevelopment) {
+				console.warn(`${this._options.extension.id.value} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
+			}
+
+			type TelemetryClassification = {
+				extension?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
+			};
+			type TelemetryData = {
+				extension?: string,
+			};
+
+			this._telemetryService.publicLog2<TelemetryData, TelemetryClassification>('webviewMissingCsp', {
+				extension: this._options.extension.id.value
+			});
 		}
 	}
 
