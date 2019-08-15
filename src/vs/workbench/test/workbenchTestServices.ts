@@ -1340,12 +1340,12 @@ export class TestWindowsService implements IWindowsService {
 
 	public windowCount = 1;
 
-	onWindowOpen: Event<number>;
-	onWindowFocus: Event<number>;
-	onWindowBlur: Event<number>;
-	onWindowMaximize: Event<number>;
-	onWindowUnmaximize: Event<number>;
-	onRecentlyOpenedChange: Event<void>;
+	readonly onWindowOpen: Event<number> = Event.None;
+	readonly onWindowFocus: Event<number> = Event.None;
+	readonly onWindowBlur: Event<number> = Event.None;
+	readonly onWindowMaximize: Event<number> = Event.None;
+	readonly onWindowUnmaximize: Event<number> = Event.None;
+	readonly onRecentlyOpenedChange: Event<void> = Event.None;
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(false);
