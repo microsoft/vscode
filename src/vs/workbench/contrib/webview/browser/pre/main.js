@@ -188,6 +188,11 @@
 				return;
 			}
 
+			// Prevent middle clicks opening a broken link in the browser
+			if (event.button == 1) {
+				event.preventDefault();
+			}
+
 			let baseElement = event.view.document.getElementsByTagName('base')[0];
 			/** @type {any} */
 			let node = event.target;
@@ -443,7 +448,7 @@
 					});
 
 					// Bubble out link clicks
-					newFrame.contentWindow.addEventListener('click', handleInnerClick);
+					newFrame.contentWindow.addEventListener('mousedown', handleInnerClick);
 
 					if (host.onIframeLoaded) {
 						host.onIframeLoaded(newFrame);
