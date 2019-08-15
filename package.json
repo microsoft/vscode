@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.38.0",
-  "distro": "c2664514acafa174a6b0b5a960931699641d6989",
+  "distro": "4365d6c41f9a5e75730c78c937b68583cf6f0e4a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -125,6 +125,7 @@
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
     "pump": "^1.0.1",
+    "puppeteer": "^1.19.0",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
     "rimraf": "^2.2.8",
