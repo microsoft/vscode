@@ -39,6 +39,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IProductService } from 'vs/platform/product/common/product';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -57,6 +58,7 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 			services.get(ICommandService),
 			services.get(IConfigurationService),
 			services.get(IDialogService),
+			services.get(IProductService)
 		));
 	}
 

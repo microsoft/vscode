@@ -10,6 +10,7 @@ import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platfo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IProductService } from 'vs/platform/product/common/product';
 
 suite('OpenerService', function () {
 
@@ -64,19 +65,43 @@ suite('OpenerService', function () {
 		};
 	}
 
+	function getProductService() {
+		return new class implements IProductService {
+			// Don't care
+			_serviceBrand: any;
+
+			productConfiguration = {
+				nameShort: 'VS Code'
+			} as any;
+		};
+	}
+
+
 	setup(function () {
 		lastCommand = undefined;
 	});
 
 	test('delegate to editorService, scheme:///fff', function () {
-		const openerService = new OpenerService(editorService, NullCommandService, getConfigurationService([]), getDialogService());
+		const openerService = new OpenerService(
+			editorService,
+			NullCommandService,
+			getConfigurationService([]),
+			getDialogService(),
+			getProductService()
+		);
 		openerService.open(URI.parse('another:///somepath'));
 		assert.equal(editorService.lastInput!.options!.selection, undefined);
 	});
 
 	test('delegate to editorService, scheme:///fff#L123', function () {
 
-		const openerService = new OpenerService(editorService, NullCommandService, getConfigurationService([]), getDialogService());
+		const openerService = new OpenerService(
+			editorService,
+			NullCommandService,
+			getConfigurationService([]),
+			getDialogService(),
+			getProductService()
+		);
 
 		openerService.open(URI.parse('file:///somepath#L23'));
 		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
@@ -99,7 +124,13 @@ suite('OpenerService', function () {
 
 	test('delegate to editorService, scheme:///fff#123,123', function () {
 
-		const openerService = new OpenerService(editorService, NullCommandService, getConfigurationService([]), getDialogService());
+		const openerService = new OpenerService(
+			editorService,
+			NullCommandService,
+			getConfigurationService([]),
+			getDialogService(),
+			getProductService()
+		);
 
 		openerService.open(URI.parse('file:///somepath#23'));
 		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
@@ -118,7 +149,13 @@ suite('OpenerService', function () {
 
 	test('delegate to commandsService, command:someid', function () {
 
-		const openerService = new OpenerService(editorService, commandService, getConfigurationService([]), getDialogService());
+		const openerService = new OpenerService(
+			editorService,
+			commandService,
+			getConfigurationService([]),
+			getDialogService(),
+			getProductService()
+		);
 
 		const id = `aCommand${Math.random()}`;
 		CommandsRegistry.registerCommand(id, function () { });
@@ -141,7 +178,13 @@ suite('OpenerService', function () {
 
 	test('links are protected by dialog confirmation', function () {
 		const dialogService = getDialogService();
-		const openerService = new OpenerService(editorService, commandService, getConfigurationService([]), dialogService);
+		const openerService = new OpenerService(
+			editorService,
+			commandService,
+			getConfigurationService([]),
+			dialogService,
+			getProductService()
+		);
 
 		openerService.open(URI.parse('https://www.microsoft.com'));
 		assert.equal(dialogService.confirmInvoked, 1);
@@ -149,7 +192,13 @@ suite('OpenerService', function () {
 
 	test('links on the whitelisted domains can be opened without dialog confirmation', function () {
 		const dialogService = getDialogService();
-		const openerService = new OpenerService(editorService, commandService, getConfigurationService(['https://microsoft.com']), dialogService);
+		const openerService = new OpenerService(
+			editorService,
+			commandService,
+			getConfigurationService(['https://microsoft.com']),
+			dialogService,
+			getProductService()
+		);
 
 		openerService.open(URI.parse('https://microsoft.com'));
 		openerService.open(URI.parse('https://microsoft.com/'));
@@ -162,7 +211,13 @@ suite('OpenerService', function () {
 
 	test('variations of links are protected by dialog confirmation', function () {
 		const dialogService = getDialogService();
-		const openerService = new OpenerService(editorService, commandService, getConfigurationService(['https://microsoft.com']), dialogService);
+		const openerService = new OpenerService(
+			editorService,
+			commandService,
+			getConfigurationService(['https://microsoft.com']),
+			dialogService,
+			getProductService()
+		);
 
 		openerService.open(URI.parse('http://microsoft.com'));
 		openerService.open(URI.parse('https://www.microsoft.com'));
@@ -172,7 +227,13 @@ suite('OpenerService', function () {
 
 	test('* removes all link protection', function () {
 		const dialogService = getDialogService();
-		const openerService = new OpenerService(editorService, commandService, getConfigurationService(['*']), dialogService);
+		const openerService = new OpenerService(
+			editorService,
+			commandService,
+			getConfigurationService(['*']),
+			dialogService,
+			getProductService()
+		);
 
 		openerService.open(URI.parse('https://code.visualstudio.com/'));
 		openerService.open(URI.parse('https://www.microsoft.com'));
