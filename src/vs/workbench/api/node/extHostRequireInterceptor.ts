@@ -22,7 +22,7 @@ interface LoadFunction {
 interface INodeModuleFactory {
 	readonly nodeModuleName: string | string[];
 	load(request: string, parent: { filename: string; }, isMain: any, original: LoadFunction): any;
-	alternaiveModuleName?(name: string): string | undefined;
+	alternativeModuleName?(name: string): string | undefined;
 }
 
 export class NodeModuleRequireInterceptor {
@@ -63,9 +63,9 @@ export class NodeModuleRequireInterceptor {
 		} else {
 			this._factories.set(interceptor.nodeModuleName, interceptor);
 		}
-		if (typeof interceptor.alternaiveModuleName === 'function') {
+		if (typeof interceptor.alternativeModuleName === 'function') {
 			this._alternatives.push((moduleName) => {
-				return interceptor.alternaiveModuleName!(moduleName);
+				return interceptor.alternativeModuleName!(moduleName);
 			});
 		}
 	}
@@ -155,7 +155,7 @@ export class KeytarNodeModuleFactory implements INodeModuleFactory {
 		return this._impl;
 	}
 
-	public alternaiveModuleName(name: string): string | undefined {
+	public alternativeModuleName(name: string): string | undefined {
 		const length = name.length;
 		// We need at least something like: `?/keytar` which requires
 		// more than 7 characters.
@@ -194,7 +194,7 @@ export class OpenNodeModuleFactory implements INodeModuleFactory {
 	private _original?: IOriginalOpen;
 	private _impl: IOpenModule;
 
-	constructor(mainThreadWindow: MainThreadWindowShape, private _mainThreadTelemerty: MainThreadTelemetryShape, private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>) {
+	constructor(mainThreadWindow: MainThreadWindowShape, private _mainThreadTelemetry: MainThreadTelemetryShape, private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>) {
 		this._impl = (target, options) => {
 			const uri: URI = URI.parse(target);
 			// If we have options use the original method.
@@ -234,7 +234,7 @@ export class OpenNodeModuleFactory implements INodeModuleFactory {
 		type ShimmingOpenClassification = {
 			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 		};
-		this._mainThreadTelemerty.$publicLog2<{ extension: string }, ShimmingOpenClassification>('shimming.open', { extension: this._extensionId });
+		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingOpenClassification>('shimming.open', { extension: this._extensionId });
 	}
 
 	private sendNoForwardTelemetry(): void {
@@ -244,6 +244,6 @@ export class OpenNodeModuleFactory implements INodeModuleFactory {
 		type ShimmingOpenCallNoForwardClassification = {
 			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 		};
-		this._mainThreadTelemerty.$publicLog2<{ extension: string }, ShimmingOpenCallNoForwardClassification>('shimming.open.call.noForward', { extension: this._extensionId });
+		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingOpenCallNoForwardClassification>('shimming.open.call.noForward', { extension: this._extensionId });
 	}
 }
