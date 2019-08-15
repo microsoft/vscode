@@ -1161,11 +1161,11 @@ declare module 'vscode' {
 		/**
 		 * Content security policy source for webview resources.
 		 *
-		 * This is origin used in a content security policy rule:
+		 * This is the origin that should be used in a content security policy rule:
 		 *
 		 * ```
 		 * img-src https: ${webview.cspSource} ...;
-		 * ````
+		 * ```
 		 */
 		readonly cspSource: string;
 	}
