@@ -578,7 +578,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 					pinned: created,
 					revealIfVisible: true
 				},
-			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created })));
+			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor: withUndefinedAsNull(editor), created })));
 		}, (error: Error) => {
 			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error.message));
 		});
@@ -614,7 +614,7 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 		return this.editorService.openEditor({
 			resource: this.contextService.getWorkspace().configuration!,
 			options: { preserveFocus }
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created: false }));
+		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor: withUndefinedAsNull(editor), created: false }));
 	}
 }
 

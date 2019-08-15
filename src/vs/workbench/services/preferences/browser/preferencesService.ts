@@ -189,11 +189,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return null;
 	}
 
-	openRawDefaultSettings(): Promise<IEditor | null> {
+	openRawDefaultSettings(): Promise<IEditor | undefined> {
 		return this.editorService.openEditor({ resource: this.defaultSettingsRawResource });
 	}
 
-	openRawUserSettings(): Promise<IEditor | null> {
+	openRawUserSettings(): Promise<IEditor | undefined> {
 		return this.editorService.openEditor({ resource: this.userSettingsResource });
 	}
 
@@ -232,7 +232,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const environment = await this.remoteAgentService.getEnvironment();
 		if (environment) {
 			await this.createIfNotExists(environment.settingsPath, emptyEditableSettingsContent);
-			return this.editorService.openEditor({ resource: environment.settingsPath, options: { pinned: true, revealIfOpened: true } }).then(withNullAsUndefined);
+			return this.editorService.openEditor({ resource: environment.settingsPath, options: { pinned: true, revealIfOpened: true } });
 		}
 		return undefined;
 	}
@@ -307,7 +307,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true, revealIfOpened: true }).then(() => undefined);
 	}
 
-	openDefaultKeybindingsFile(): Promise<IEditor | null> {
+	openDefaultKeybindingsFile(): Promise<IEditor | undefined> {
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
@@ -368,7 +368,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						this.editorService.openEditor(editableSettingsEditorInput, { pinned: true, revealIfOpened: true }, sideEditorGroup.id)
 					]).then(([defaultEditor, editor]) => withNullAsUndefined(editor));
 				} else {
-					return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group).then(withNullAsUndefined);
+					return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group);
 				}
 			});
 	}
@@ -385,7 +385,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
 				const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 				this.lastOpenedSettingsInput = preferencesEditorInput;
-				return this.editorService.openEditor(preferencesEditorInput, SettingsEditorOptions.create(options), group).then(withNullAsUndefined);
+				return this.editorService.openEditor(preferencesEditorInput, SettingsEditorOptions.create(options), group);
 			});
 	}
 
@@ -401,7 +401,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			folderUri
 		};
 
-		return this.editorService.openEditor(input, SettingsEditorOptions.create(settingsOptions), group).then(withNullAsUndefined);
+		return this.editorService.openEditor(input, SettingsEditorOptions.create(settingsOptions), group);
 	}
 
 	private async doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: IEditorGroup, options?: ISettingsEditorOptions): Promise<IEditor> {
