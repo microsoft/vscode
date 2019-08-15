@@ -123,9 +123,7 @@ import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
 import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
-import { IPreferencesSearchService } from 'vs/workbench/contrib/preferences/common/preferences';
-import { PreferencesSearchService } from 'vs/workbench/contrib/preferences/browser/preferencesSearch';
-registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
+import 'vs/workbench/contrib/preferences/browser/preferencesSearch';
 
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
@@ -230,5 +228,8 @@ import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
 // Experiments
 import 'vs/workbench/contrib/experiments/browser/experiments.contribution';
+
+// Send a Smile
+import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
 //#endregion

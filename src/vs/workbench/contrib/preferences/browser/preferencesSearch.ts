@@ -25,6 +25,7 @@ import { nullRange } from 'vs/workbench/services/preferences/common/preferencesM
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IProductService } from 'vs/platform/product/common/product';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -73,7 +74,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 			};
 		} else {
 			return {
-				urlBase: this.productService.productConfiguration.settingsSearchUrl
+				urlBase: this.productService.settingsSearchUrl
 			};
 		}
 	}
@@ -364,7 +365,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		const extensions = await this.installedExtensions;
 		const filters = this.options.newExtensionsOnly ?
 			[`diminish eq 'latest'`] :
-			this.getVersionFilters(extensions, this.productService.productConfiguration.settingsSearchBuildId);
+			this.getVersionFilters(extensions, this.productService.settingsSearchBuildId);
 
 		const filterStr = filters
 			.slice(filterPage * RemoteSearchProvider.MAX_REQUEST_FILTERS, (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS)
@@ -564,3 +565,5 @@ export class SettingMatches {
 		};
 	}
 }
+
+registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);

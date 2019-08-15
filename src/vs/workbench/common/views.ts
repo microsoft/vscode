@@ -310,6 +310,8 @@ export interface ITreeView extends IDisposable {
 
 	showCollapseAllAction: boolean;
 
+	canSelectMany: boolean;
+
 	message?: string;
 
 	readonly visible: boolean;

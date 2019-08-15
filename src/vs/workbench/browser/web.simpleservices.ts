@@ -412,6 +412,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	}
 
 	closeWindow(): Promise<void> {
+		window.close();
+
 		return Promise.resolve();
 	}
 
@@ -741,13 +743,13 @@ export class SimpleWindowsService implements IWindowsService {
 	async openAboutDialog(): Promise<void> {
 		const detail = localize('aboutDetail',
 			"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
-			this.productService.productConfiguration.version || 'Unknown',
-			this.productService.productConfiguration.commit || 'Unknown',
-			this.productService.productConfiguration.date || 'Unknown',
+			this.productService.version || 'Unknown',
+			this.productService.commit || 'Unknown',
+			this.productService.date || 'Unknown',
 			navigator.userAgent
 		);
 
-		const result = await this.dialogService.show(Severity.Info, this.productService.productConfiguration.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail });
+		const result = await this.dialogService.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail });
 
 		if (result === 0) {
 			this.clipboardService.writeText(detail);
@@ -847,7 +849,7 @@ registerSingleton(ITunnelService, SimpleTunnelService);
 
 //#region workspace stats
 
-class WorkspaceStatsService implements IWorkspaceStatsService {
+class SimpleWorkspaceStatsService implements IWorkspaceStatsService {
 
 	_serviceBrand: any;
 
@@ -865,6 +867,6 @@ class WorkspaceStatsService implements IWorkspaceStatsService {
 
 }
 
-registerSingleton(IWorkspaceStatsService, WorkspaceStatsService);
+registerSingleton(IWorkspaceStatsService, SimpleWorkspaceStatsService);
 
 //#endregion
