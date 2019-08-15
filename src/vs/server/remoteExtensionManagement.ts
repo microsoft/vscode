@@ -51,7 +51,6 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { RequestChannel } from 'vs/platform/request/common/requestIpc';
-import { ProductService } from 'vs/platform/product/node/productService';
 import { IProductService } from 'vs/platform/product/common/product';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 
@@ -165,6 +164,7 @@ export class RemoteExtensionManagementServer extends Disposable {
 
 		services.set(IEnvironmentService, this._environmentService);
 		services.set(ILogService, this._logService);
+		services.set(IProductService, { _serviceBrand: undefined, ...product });
 
 		// Files
 		const fileService = this._register(new FileService(this._logService));
@@ -173,7 +173,6 @@ export class RemoteExtensionManagementServer extends Disposable {
 
 		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [this._environmentService.machineSettingsResource]));
 		services.set(IRequestService, new SyncDescriptor(RequestService));
-		services.set(IProductService, new SyncDescriptor(ProductService));
 
 		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
 		if (!this._environmentService.args['disable-telemetry'] && product.enableTelemetry && this._environmentService.isBuilt) {
@@ -252,6 +251,7 @@ export async function run(argv: ParsedArgs, environmentService: EnvironmentServi
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
+	services.set(IProductService, { _serviceBrand: undefined, ...product });
 
 	// Files
 	const fileService = new FileService(logService);
@@ -269,7 +269,6 @@ export async function run(argv: ParsedArgs, environmentService: EnvironmentServi
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
-	services.set(IProductService, new SyncDescriptor(ProductService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(ITelemetryService, NullTelemetryService);
 	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
