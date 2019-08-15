@@ -48,8 +48,7 @@ import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { DiagnosticsChannel } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';

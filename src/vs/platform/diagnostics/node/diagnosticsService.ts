@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as osLib from 'os';
 import { virtualMachineHint } from 'vs/base/node/id';
-import { IMachineInfo, WorkspaceStats, WorkspaceStatItem, IDiagnosticsService, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IMachineInfo, WorkspaceStats, WorkspaceStatItem, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 import { readdir, stat, exists, readFile } from 'fs';
 import { join, basename } from 'vs/base/common/path';
 import { parse, ParseError } from 'vs/base/common/json';
@@ -17,6 +17,19 @@ import { URI } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
 import { IMainProcessInfo } from 'vs/platform/launch/common/launchService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const ID = 'diagnosticsService';
+export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
+
+export interface IDiagnosticsService {
+	_serviceBrand: any;
+
+	getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
+	getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
+	getDiagnostics(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string>;
+	reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void>;
+}
 
 export interface VersionInfo {
 	vscodeVersion: string;

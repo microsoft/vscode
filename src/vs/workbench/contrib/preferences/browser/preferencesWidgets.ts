@@ -36,7 +36,7 @@ import { ISettingsGroup } from 'vs/workbench/services/preferences/common/prefere
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
-	private id: number;
+	private id: string;
 	private _domNode: HTMLElement;
 
 	protected titleContainer: HTMLElement;
@@ -121,7 +121,7 @@ export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
-	private id: number;
+	private id: string;
 	private _afterLineNumber: number;
 	private _domNode: HTMLElement;
 

@@ -3605,17 +3605,17 @@ declare namespace monaco.editor {
 		 * @param zone Zone to create
 		 * @return A unique identifier to the view zone.
 		 */
-		addZone(zone: IViewZone): number;
+		addZone(zone: IViewZone): string;
 		/**
 		 * Remove a zone
 		 * @param id A unique identifier to the view zone, as returned by the `addZone` call.
 		 */
-		removeZone(id: number): void;
+		removeZone(id: string): void;
 		/**
 		 * Change a zone's position.
 		 * The editor will rescan the `afterLineNumber` and `afterColumn` properties of a view zone.
 		 */
-		layoutZone(id: number): void;
+		layoutZone(id: string): void;
 	}
 
 	/**

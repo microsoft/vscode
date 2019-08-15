@@ -51,7 +51,7 @@ const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 export class ViewZoneDelegate implements IViewZone {
 
 	public domNode: HTMLElement;
-	public id: number = 0; // A valid zone id should be greater than 0
+	public id: string = ''; // A valid zone id should be greater than 0
 	public afterLineNumber: number;
 	public afterColumn: number;
 	public heightInLines: number;

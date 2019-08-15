@@ -53,6 +53,7 @@ const buildfile = require('../src/buildfile');
 const vscodeWebEntryPoints = [
 	buildfile.workbenchWeb,
 	buildfile.serviceWorker,
+	buildfile.workerExtensionHost,
 	buildfile.keyboardMaps,
 	buildfile.base
 ];

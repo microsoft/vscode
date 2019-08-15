@@ -22,7 +22,7 @@ import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, AutoUpdate
 import {
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
-	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction, InstallLocalExtensionsInRemoteAction
+	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -319,7 +319,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 
 export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensionsViewlet {
 
-	private onSearchChange: EventOf<string>;
+	private readonly _onSearchChange: Emitter<string> = this._register(new Emitter<string>());
+	private readonly onSearchChange: EventOf<string> = this._onSearchChange.event;
 	private nonEmptyWorkspaceContextKey: IContextKey<boolean>;
 	private defaultViewsContextKey: IContextKey<boolean>;
 	private searchMarketplaceExtensionsContextKey: IContextKey<boolean>;
@@ -333,12 +334,10 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private defaultRecommendedExtensionsContextKey: IContextKey<boolean>;
 
 	private searchDelayer: Delayer<void>;
-	private root: HTMLElement;
-
-	private searchBox: SuggestEnabledInput;
-	private extensionsBox: HTMLElement;
-	private primaryActions: IAction[];
-	private secondaryActions: IAction[] | null;
+	private root: HTMLElement | undefined;
+	private searchBox: SuggestEnabledInput | undefined;
+	private primaryActions: IAction[] | undefined;
+	private secondaryActions: IAction[] | null = null;
 	private readonly searchViewletState: MementoObject;
 
 	constructor(
@@ -348,7 +347,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IThemeService themeService: IThemeService,
@@ -418,32 +416,35 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		this._register(attachSuggestEnabledInputBoxStyler(this.searchBox, this.themeService));
 
-		const _searchChange = new Emitter<string>();
-		this.onSearchChange = _searchChange.event;
 		this._register(this.searchBox.onInputDidChange(() => {
 			this.triggerSearch();
-			_searchChange.fire(this.searchBox.getValue());
+			this._onSearchChange.fire(this.searchBox!.getValue());
 		}, this));
 
 		this._register(this.searchBox.onShouldFocusResults(() => this.focusListView(), this));
 
 		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
-				this.searchBox.focus();
+				this.searchBox!.focus();
 			}
 		}));
 
-		this.extensionsBox = append(this.root, $('.extensions'));
-		super.create(this.extensionsBox);
+		super.create(append(this.root, $('.extensions')));
 	}
 
 	focus(): void {
-		this.searchBox.focus();
+		if (this.searchBox) {
+			this.searchBox.focus();
+		}
 	}
 
 	layout(dimension: Dimension): void {
-		toggleClass(this.root, 'narrow', dimension.width <= 300);
-		this.searchBox.layout({ height: 20, width: dimension.width - 34 });
+		if (this.root) {
+			toggleClass(this.root, 'narrow', dimension.width <= 300);
+		}
+		if (this.searchBox) {
+			this.searchBox.layout({ height: 20, width: dimension.width - 34 });
+		}
 		super.layout(new Dimension(dimension.width, dimension.height - 38));
 	}
 
@@ -454,7 +455,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	getActions(): IAction[] {
 		if (!this.primaryActions) {
 			this.primaryActions = [
-				this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL, this.onSearchChange, this.searchBox.getValue())
+				this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL, this.onSearchChange, this.searchBox ? this.searchBox.getValue() : '')
 			];
 		}
 		return this.primaryActions;
@@ -478,7 +479,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL),
 				...(this.configurationService.getValue(AutoUpdateConfigurationKey) ? [this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL)] : [this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL)]),
 				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL),
-				...(this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer ? [this.instantiationService.createInstance(InstallLocalExtensionsInRemoteAction)] : []),
 				new Separator(),
 				this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL),
 				this.instantiationService.createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL)
@@ -489,22 +489,24 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	search(value: string): void {
-		const event = new Event('input', { bubbles: true }) as SearchInputEvent;
-		event.immediate = true;
+		if (this.searchBox) {
+			const event = new Event('input', { bubbles: true }) as SearchInputEvent;
+			event.immediate = true;
 
-		this.searchBox.setValue(value);
+			this.searchBox.setValue(value);
+		}
 	}
 
-	private triggerSearch(immediate = false): void {
-		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.getValue() ? 0 : 500).then(undefined, err => this.onError(err));
+	private triggerSearch(): void {
+		this.searchDelayer.trigger(() => this.doSearch(), this.searchBox && this.searchBox.getValue() ? 500 : 0).then(undefined, err => this.onError(err));
 	}
 
 	private normalizedQuery(): string {
-		return this.searchBox.getValue().replace(/@category/g, 'category').replace(/@tag:/g, 'tag:').replace(/@ext:/g, 'ext:');
+		return this.searchBox ? this.searchBox.getValue().replace(/@category/g, 'category').replace(/@tag:/g, 'tag:').replace(/@ext:/g, 'ext:') : '';
 	}
 
 	protected saveState(): void {
-		const value = this.searchBox.getValue();
+		const value = this.searchBox ? this.searchBox.getValue() : '';
 		if (ExtensionsListView.isLocalExtensionsQuery(value)) {
 			this.searchViewletState['query.value'] = value;
 		} else {

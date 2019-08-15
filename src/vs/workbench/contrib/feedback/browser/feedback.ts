@@ -73,8 +73,8 @@ export class FeedbackDropdown extends Dropdown {
 		this.feedbackDelegate = options.feedbackService;
 		this.maxFeedbackCharacters = this.feedbackDelegate.getCharacterLimit(this.sentiment);
 
-		if (productService.sendASmile) {
-			this.requestFeatureLink = productService.sendASmile.requestFeatureUrl;
+		if (productService.productConfiguration.sendASmile) {
+			this.requestFeatureLink = productService.productConfiguration.sendASmile.requestFeatureUrl;
 		}
 
 		this.integrityService.isPure().then(result => {

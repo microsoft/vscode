@@ -21,7 +21,7 @@ class EditorWebviewZone implements IViewZone {
 	readonly afterColumn: number;
 	readonly heightInLines: number;
 
-	private _id?: number;
+	private _id?: string;
 	// suppressMouseDown?: boolean | undefined;
 	// heightInPx?: number | undefined;
 	// minWidthInPx?: number | undefined;
