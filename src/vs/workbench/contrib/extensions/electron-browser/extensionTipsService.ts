@@ -22,7 +22,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey, IExtensionsViewlet, IExtensionsWorkbenchService, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import * as os from 'os';
 import { flatten, distinct, shuffle, coalesce } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
@@ -42,6 +41,7 @@ import { extname } from 'vs/base/common/resources';
 import { IExeBasedExtensionTip, IProductService } from 'vs/platform/product/common/product';
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
+import { Platform } from 'vs/base/common/platform';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -982,11 +982,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	/**
 	 * If user has any of the tools listed in this.productService.productConfiguration.exeBasedExtensionTips, fetch corresponding recommendations
 	 */
-	private fetchExecutableRecommendations(important: boolean): Promise<void> {
-		const homeDir = os.homedir();
-		let foundExecutables: Set<string> = new Set<string>();
+	private async fetchExecutableRecommendations(important: boolean): Promise<void> {
+		if (Platform.Web) {
+			return;
+		}
 
-		let findExecutable = (exeName: string, tip: IExeBasedExtensionTip, path: string) => {
+		const foundExecutables: Set<string> = new Set<string>();
+		const findExecutable = (exeName: string, tip: IExeBasedExtensionTip, path: string) => {
 			return this.fileService.exists(URI.file(path)).then(exists => {
 				if (exists && !foundExecutables.has(exeName)) {
 					foundExecutables.add(exeName);
@@ -1002,7 +1004,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			});
 		};
 
-		let promises: Promise<void>[] = [];
+		const promises: Promise<void>[] = [];
 		// Loop through recommended extensions
 		forEach(this.productService.productConfiguration.exeBasedExtensionTips, entry => {
 			if (typeof entry.value !== 'object' || !Array.isArray(entry.value['recommendations'])) {
@@ -1025,11 +1027,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				promises.push(findExecutable(exeName, entry.value, windowsPath));
 			} else {
 				promises.push(findExecutable(exeName, entry.value, join('/usr/local/bin', exeName)));
-				promises.push(findExecutable(exeName, entry.value, join(homeDir, exeName)));
+				promises.push(findExecutable(exeName, entry.value, join(this.environmentService.userHome, exeName)));
 			}
 		});
 
-		return Promise.all(promises).then(() => undefined);
+		await Promise.all(promises);
 	}
 
 	/**
