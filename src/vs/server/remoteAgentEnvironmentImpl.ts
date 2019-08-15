@@ -24,7 +24,7 @@ import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/remoteL
 import { ContextKeyExpr, ContextKeyDefinedExpr, ContextKeyNotExpr, ContextKeyEqualsExpr, ContextKeyNotEqualsExpr, ContextKeyRegexExpr, IContextKeyExprMapper } from 'vs/platform/contextkey/common/contextkey';
 import { listProcesses } from 'vs/base/node/ps';
 import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { basename } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
