@@ -191,6 +191,7 @@ import 'vs/workbench/contrib/tasks/browser/task.contribution';
 
 // Remote
 import 'vs/workbench/contrib/remote/common/remote.contribution';
+import 'vs/workbench/contrib/remote/browser/remote';
 
 // Emmet
 import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
