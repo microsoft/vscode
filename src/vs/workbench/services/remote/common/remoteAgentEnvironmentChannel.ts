@@ -9,6 +9,7 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { RemoteAuthorities } from 'vs/base/common/network';
 
 export interface IGetEnvironmentDataArguments {
 	language: string;
@@ -43,6 +44,8 @@ export class RemoteExtensionEnvironmentChannelClient {
 		};
 
 		const data = await this.channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args);
+
+		RemoteAuthorities.setConnectionToken(remoteAuthority, data.connectionToken);
 
 		return {
 			pid: data.pid,
