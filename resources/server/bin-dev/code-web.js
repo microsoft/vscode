@@ -69,6 +69,9 @@ process.argv.forEach((arg, idx) => {
 	}
 });
 
+// Connection Token
+process.argv.push('--connectionToken', '00000');
+
 const env = { ...process.env };
 let node;
 let entryPoint;
