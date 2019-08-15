@@ -12,7 +12,7 @@ import * as url from 'url';
 import * as util from 'util';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -24,12 +24,52 @@ import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net'
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ConnectionType, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ExtensionHostConnection } from 'vs/server/extensionHostConnection';
-import { ManagementConnection, RemoteExtensionManagementServer } from 'vs/server/remoteExtensionManagement';
+import { ManagementConnection } from 'vs/server/remoteExtensionManagement';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import product from 'vs/platform/product/node/product';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestService } from 'vs/platform/request/node/requestService';
+import { NullTelemetryService, ITelemetryAppender, NullAppender, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { DownloadServiceChannelClient } from 'vs/platform/download/common/downloadIpc';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import pkg from 'vs/platform/product/node/package';
+import { getMachineId } from 'vs/base/node/id';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IProductService } from 'vs/platform/product/common/product';
+import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IPCServer, ClientConnectionEvent, IMessagePassingProtocol, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { Emitter, Event } from 'vs/base/common/event';
+import { RemoteAgentEnvironmentChannel } from 'vs/server/remoteAgentEnvironmentImpl';
+import { RemoteAgentFileSystemChannel } from 'vs/server/remoteAgentFileSystemImpl';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { RequestChannel } from 'vs/platform/request/common/requestIpc';
+import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
+import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
+import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 const textMmimeType = {
 	'.html': 'text/html',
@@ -43,9 +83,27 @@ const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
+const eventPrefix = 'monacoworkbench';
+
+class SocketServer<TContext = string> extends IPCServer<TContext> {
+
+	private _onDidConnectEmitter: Emitter<ClientConnectionEvent>;
+
+	constructor() {
+		const emitter = new Emitter<ClientConnectionEvent>();
+		super(emitter.event);
+		this._onDidConnectEmitter = emitter;
+	}
+
+	public acceptConnection(protocol: IMessagePassingProtocol, onDidClientDisconnect: Event<void>): void {
+		this._onDidConnectEmitter.fire({ protocol, onDidClientDisconnect });
+	}
+}
+
 export class RemoteExtensionHostAgentServer extends Disposable {
 
-	private _remoteExtensionManagementServer: RemoteExtensionManagementServer;
+	private readonly _socketServer: SocketServer<RemoteAgentConnectionContext>;
+	private readonly _uriTransformerCache: { [remoteAuthority: string]: IURITransformer; };
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection; };
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection; };
 
@@ -57,15 +115,96 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		private readonly _logService: ILogService
 	) {
 		super();
+		this._socketServer = new SocketServer<RemoteAgentConnectionContext>();
+		this._uriTransformerCache = Object.create(null);
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 	}
 
 	public async start(host: string, port: number) {
-		// Wait for the extension management server to be set up, cache the result so it can be accessed sync while handling requests
-		const server = await RemoteExtensionManagementServer.create(this._environmentService, this._logService);
-		this._remoteExtensionManagementServer = this._register(server);
+		await this._createServices();
 		return this._start(host, port);
+	}
+
+	private async _createServices(): Promise<void> {
+		const services = new ServiceCollection();
+
+		// ExtensionHost Debug broadcast service
+		this._socketServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ExtensionHostDebugBroadcastChannel());
+
+		// TODO: @Sandy @Joao need dynamic context based router
+		const router = new StaticRouter<RemoteAgentConnectionContext>(ctx => ctx.clientId === 'renderer');
+		this._socketServer.registerChannel('loglevel', new LogLevelSetterChannel(this._logService));
+
+		services.set(IEnvironmentService, this._environmentService);
+		services.set(ILogService, this._logService);
+		services.set(IProductService, { _serviceBrand: undefined, ...product });
+
+		// Files
+		const fileService = this._register(new FileService(this._logService));
+		services.set(IFileService, fileService);
+		fileService.registerProvider(Schemas.file, this._register(new DiskFileSystemProvider(this._logService)));
+
+		services.set(IConfigurationService, new SyncDescriptor(ConfigurationService, [this._environmentService.machineSettingsResource]));
+		services.set(IRequestService, new SyncDescriptor(RequestService));
+
+		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
+		if (!this._environmentService.args['disable-telemetry'] && product.enableTelemetry && this._environmentService.isBuilt) {
+			if (product.aiConfig && product.aiConfig.asimovKey) {
+				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, this._logService);
+				this._register(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
+			}
+
+			const machineId = await getMachineId();
+			const config: ITelemetryServiceConfig = {
+				appender: combinedAppender(appInsightsAppender, new LogAppender(this._logService)),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', machineId, this._environmentService.installSourcePath, 'remoteAgent'),
+				piiPaths: [this._environmentService.appRoot]
+			};
+
+			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
+		} else {
+			services.set(ITelemetryService, NullTelemetryService);
+		}
+
+		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+
+		const dialogChannel = this._socketServer.getChannel('dialog', router);
+		services.set(IDialogService, new DialogChannelClient(dialogChannel));
+
+		const downloadChannel = this._socketServer.getChannel('download', router);
+		services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, () => this.getUriTransformer('renderer') /* TODO: @Sandy @Joao need dynamic context based router */));
+
+		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+
+		const instantiationService = new InstantiationService(services);
+		services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
+
+		instantiationService.invokeFunction(accessor => {
+			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._environmentService, this._logService, accessor.get(ITelemetryService));
+			this._socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
+
+			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(this._logService, this._environmentService);
+			this._socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
+
+			this._socketServer.registerChannel('request', new RequestChannel(accessor.get(IRequestService)));
+
+			const extensionManagementService = accessor.get(IExtensionManagementService);
+			const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => this.getUriTransformer(ctx.remoteAuthority));
+			this._socketServer.registerChannel('extensions', channel);
+
+			// clean up deprecated extensions
+			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+
+			this._register(new ErrorTelemetry(accessor.get(ITelemetryService)));
+		});
+	}
+
+	private getUriTransformer(remoteAuthority: string): IURITransformer {
+		if (!this._uriTransformerCache[remoteAuthority]) {
+			this._uriTransformerCache[remoteAuthority] = createRemoteURITransformer(remoteAuthority);
+		}
+		return this._uriTransformerCache[remoteAuthority];
 	}
 
 	private async _start(host: string, port: number) {
@@ -540,7 +679,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 								socket.dispose();
 							} else {
 								protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'ok' })));
-								const con = new ManagementConnection(this._remoteExtensionManagementServer, protocol);
+								const con = new ManagementConnection(protocol);
+								this._socketServer.acceptConnection(con.protocol, con.onClose);
 								this._managementConnections[reconnectionToken] = con;
 								con.onClose(() => {
 									delete this._managementConnections[reconnectionToken];
