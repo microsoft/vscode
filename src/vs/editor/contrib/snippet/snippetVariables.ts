@@ -27,6 +27,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'CURRENT_DAY_NAME_SHORT': true,
 	'CURRENT_MONTH_NAME': true,
 	'CURRENT_MONTH_NAME_SHORT': true,
+	'CURRENT_SECONDS_UNIX': true,
 	'SELECTION': true,
 	'CLIPBOARD': true,
 	'TM_SELECTED_TEXT': true,
@@ -245,6 +246,8 @@ export class TimeBasedVariableResolver implements VariableResolver {
 			return TimeBasedVariableResolver.monthNames[new Date().getMonth()];
 		} else if (name === 'CURRENT_MONTH_NAME_SHORT') {
 			return TimeBasedVariableResolver.monthNamesShort[new Date().getMonth()];
+		} else if (name === 'CURRENT_SECONDS_UNIX') {
+			return String(Math.floor(Date.now() / 1000));
 		}
 
 		return undefined;
