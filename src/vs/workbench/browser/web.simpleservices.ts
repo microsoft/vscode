@@ -412,6 +412,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	}
 
 	closeWindow(): Promise<void> {
+		window.close();
+
 		return Promise.resolve();
 	}
 
