@@ -227,7 +227,7 @@ export class Code {
 	private driver: IDriver;
 
 	constructor(
-		private client: IDisposable | undefined,
+		private client: IDisposable,
 		driver: IDriver,
 		readonly logger: Logger
 	) {
@@ -343,9 +343,7 @@ export class Code {
 	}
 
 	dispose(): void {
-		if (this.client) {
-			this.client.dispose();
-		}
+		this.client.dispose();
 	}
 }
 
