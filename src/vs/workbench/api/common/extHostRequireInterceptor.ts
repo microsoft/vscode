@@ -5,14 +5,19 @@
 
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { MainThreadKeytarShape, IEnvironment, MainThreadWindowShape, MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
+import { MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { endsWith } from 'vs/base/common/strings';
 import { IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
+import { platform } from 'vs/base/common/process';
 
 
 interface LoadFunction {
@@ -21,39 +26,42 @@ interface LoadFunction {
 
 interface INodeModuleFactory {
 	readonly nodeModuleName: string | string[];
-	load(request: string, parent: { filename: string; }, isMain: any, original: LoadFunction): any;
+	load(request: string, parent: URI, isMain: any, original: LoadFunction): any;
 	alternativeModuleName?(name: string): string | undefined;
 }
 
-export class NodeModuleRequireInterceptor {
-	public static INSTANCE = new NodeModuleRequireInterceptor();
+export abstract class RequireInterceptor {
 
-	private readonly _factories: Map<string, INodeModuleFactory>;
-	private readonly _alternatives: ((moduleName: string) => string | undefined)[];
+	protected readonly _factories: Map<string, INodeModuleFactory>;
+	protected readonly _alternatives: ((moduleName: string) => string | undefined)[];
 
-	constructor() {
+	constructor(
+		private _apiFactory: IExtensionApiFactory,
+		private _extensionRegistry: ExtensionDescriptionRegistry,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IExtHostConfiguration private readonly _extHostConfiguration: IExtHostConfiguration,
+		@IExtHostExtensionService private readonly _extHostExtensionService: IExtHostExtensionService,
+		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService
+	) {
 		this._factories = new Map<string, INodeModuleFactory>();
 		this._alternatives = [];
-		this._installInterceptor(this._factories, this._alternatives);
 	}
 
-	private _installInterceptor(factories: Map<string, INodeModuleFactory>, alternatives: ((moduleName: string) => string | undefined)[]): void {
-		const node_module = <any>require.__$__nodeRequire('module');
-		const original = node_module._load;
-		node_module._load = function load(request: string, parent: { filename: string; }, isMain: any) {
-			for (let alternativeModuleName of alternatives) {
-				let alternative = alternativeModuleName(request);
-				if (alternative) {
-					request = alternative;
-					break;
-				}
-			}
-			if (!factories.has(request)) {
-				return original.apply(this, arguments);
-			}
-			return factories.get(request)!.load(request, parent, isMain, original);
-		};
+	async install(): Promise<void> {
+
+		this._installInterceptor();
+
+		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
+
+		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider));
+		this.register(this._instaService.createInstance(KeytarNodeModuleFactory));
+		if (this._initData.remote.isRemote) {
+			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths));
+		}
 	}
+
+	protected abstract _installInterceptor(): void;
 
 	public register(interceptor: INodeModuleFactory): void {
 		if (Array.isArray(interceptor.nodeModuleName)) {
@@ -71,7 +79,9 @@ export class NodeModuleRequireInterceptor {
 	}
 }
 
-export class VSCodeNodeModuleFactory implements INodeModuleFactory {
+//#region --- vscode-module
+
+class VSCodeNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName = 'vscode';
 
 	private readonly _extApiImpl = new Map<string, typeof vscode>();
@@ -85,10 +95,10 @@ export class VSCodeNodeModuleFactory implements INodeModuleFactory {
 	) {
 	}
 
-	public load(request: string, parent: { filename: string; }): any {
+	public load(_request: string, parent: URI): any {
 
 		// get extension id from filename and api for extension
-		const ext = this._extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
+		const ext = this._extensionPaths.findSubstr(parent.fsPath);
 		if (ext) {
 			let apiImpl = this._extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
 			if (!apiImpl) {
@@ -102,12 +112,17 @@ export class VSCodeNodeModuleFactory implements INodeModuleFactory {
 		if (!this._defaultApiImpl) {
 			let extensionPathsPretty = '';
 			this._extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
-			console.warn(`Could not identify extension for 'vscode' require call from ${parent.filename}. These are the extension path mappings: \n${extensionPathsPretty}`);
+			console.warn(`Could not identify extension for 'vscode' require call from ${parent.fsPath}. These are the extension path mappings: \n${extensionPathsPretty}`);
 			this._defaultApiImpl = this._apiFactory(nullExtensionDescription, this._extensionRegistry, this._configProvider);
 		}
 		return this._defaultApiImpl;
 	}
 }
+
+//#endregion
+
+
+//#region --- keytar-module
 
 interface IKeytarModule {
 	getPassword(service: string, account: string): Promise<string | null>;
@@ -116,16 +131,23 @@ interface IKeytarModule {
 	findPassword(service: string): Promise<string | null>;
 }
 
-export class KeytarNodeModuleFactory implements INodeModuleFactory {
+class KeytarNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName: string = 'keytar';
 
 	private alternativeNames: Set<string> | undefined;
 	private _impl: IKeytarModule;
 
-	constructor(mainThreadKeytar: MainThreadKeytarShape, environment: IEnvironment) {
+	constructor(
+		@IExtHostRpcService rpcService: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+
+	) {
+		const { environment } = initData;
+		const mainThreadKeytar = rpcService.getProxy(MainContext.MainThreadKeytar);
+
 		if (environment.appRoot) {
 			let appRoot = environment.appRoot.fsPath;
-			if (process.platform === 'win32') {
+			if (platform === 'win32') {
 				appRoot = appRoot.replace(/\\/g, '/');
 			}
 			if (appRoot[appRoot.length - 1] === '/') {
@@ -151,7 +173,7 @@ export class KeytarNodeModuleFactory implements INodeModuleFactory {
 		};
 	}
 
-	public load(request: string, parent: { filename: string; }): any {
+	public load(_request: string, _parent: URI): any {
 		return this._impl;
 	}
 
@@ -173,6 +195,11 @@ export class KeytarNodeModuleFactory implements INodeModuleFactory {
 	}
 }
 
+//#endregion
+
+
+//#region --- opn/open-module
+
 interface OpenOptions {
 	wait: boolean;
 	app: string | string[];
@@ -186,15 +213,23 @@ interface IOpenModule {
 	(target: string, options?: OpenOptions): Thenable<void>;
 }
 
-export class OpenNodeModuleFactory implements INodeModuleFactory {
+class OpenNodeModuleFactory implements INodeModuleFactory {
 
 	public readonly nodeModuleName: string[] = ['open', 'opn'];
 
 	private _extensionId: string | undefined;
 	private _original?: IOriginalOpen;
 	private _impl: IOpenModule;
+	private _mainThreadTelemetry: MainThreadTelemetryShape;
 
-	constructor(mainThreadWindow: MainThreadWindowShape, private _mainThreadTelemetry: MainThreadTelemetryShape, private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>) {
+	constructor(
+		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		@IExtHostRpcService rpcService: IExtHostRpcService,
+	) {
+
+		this._mainThreadTelemetry = rpcService.getProxy(MainContext.MainThreadTelemetry);
+		const mainThreadWindow = rpcService.getProxy(MainContext.MainThreadWindow);
+
 		this._impl = (target, options) => {
 			const uri: URI = URI.parse(target);
 			// If we have options use the original method.
@@ -210,15 +245,15 @@ export class OpenNodeModuleFactory implements INodeModuleFactory {
 		};
 	}
 
-	public load(request: string, parent: { filename: string; }, isMain: any, original: LoadFunction): any {
+	public load(request: string, parent: URI, isMain: any, original: LoadFunction): any {
 		// get extension id from filename and api for extension
-		const extension = this._extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
+		const extension = this._extensionPaths.findSubstr(parent.fsPath);
 		if (extension) {
 			this._extensionId = extension.identifier.value;
 			this.sendShimmingTelemetry();
 		}
 
-		this._original = original(request, parent, isMain);
+		this._original = original(request, { filename: parent.fsPath }, isMain);
 		return this._impl;
 	}
 
@@ -247,3 +282,5 @@ export class OpenNodeModuleFactory implements INodeModuleFactory {
 		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingOpenCallNoForwardClassification>('shimming.open.call.noForward', { extension: this._extensionId });
 	}
 }
+
+//#endregion

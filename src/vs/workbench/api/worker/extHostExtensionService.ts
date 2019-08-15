@@ -3,45 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createApiFactoryAndRegisterActors, IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
+import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
 import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { endsWith, startsWith } from 'vs/base/common/strings';
-import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import * as vscode from 'vscode';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
-
-class ApiInstances {
-
-	private readonly _apiInstances = new Map<string, typeof vscode>();
-
-	constructor(
-		private readonly _apiFactory: IExtensionApiFactory,
-		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
-		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
-		private readonly _configProvider: ExtHostConfigProvider,
-	) {
-		//
-	}
-
-	get(modulePath: string): typeof vscode {
-		const extension = this._extensionPaths.findSubstr(modulePath) || nullExtensionDescription;
-		const id = ExtensionIdentifier.toKey(extension.identifier);
-
-		let apiInstance = this._apiInstances.get(id);
-		if (!apiInstance) {
-			apiInstance = this._apiFactory(extension, this._extensionRegistry, this._configProvider);
-			this._apiInstances.set(id, apiInstance);
-		}
-		return apiInstance;
-	}
-}
+import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
 
 class ExportsTrap {
 
@@ -53,7 +22,7 @@ class ExportsTrap {
 	private constructor() {
 
 		const exportsProxy = new Proxy({}, {
-			set: (target: any, p: PropertyKey, value: any, receiver: any) => {
+			set: (target: any, p: PropertyKey, value: any) => {
 				// store in target
 				target[p] = value;
 				// store in named-bucket
@@ -74,7 +43,7 @@ class ExportsTrap {
 				return target[p];
 			},
 
-			set: (target: any, p: PropertyKey, value: any, receiver: any) => {
+			set: (target: any, p: PropertyKey, value: any) => {
 				// store in target
 				target[p] = value;
 
@@ -106,16 +75,35 @@ class ExportsTrap {
 	}
 }
 
+class WorkerRequireInterceptor extends RequireInterceptor {
+
+	_installInterceptor() { }
+
+	getModule(request: string, parent: URI): undefined | any {
+		for (let alternativeModuleName of this._alternatives) {
+			let alternative = alternativeModuleName(request);
+			if (alternative) {
+				request = alternative;
+				break;
+			}
+		}
+
+		if (this._factories.has(request)) {
+			return this._factories.get(request)!.load(request, parent, false, () => { throw new Error(); });
+		}
+		return undefined;
+	}
+}
+
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
-	private _apiInstances?: ApiInstances;
+	private _fakeModules: WorkerRequireInterceptor;
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
-		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		const extensionPath = await this.getExtensionPathIndex();
-		this._apiInstances = new ApiInstances(apiFactory, extensionPath, this._registry, configProvider);
+		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, this._registry);
+		await this._fakeModules.install();
 	}
 
 	protected _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
@@ -135,11 +123,15 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// FAKE require function that only works for the vscode-module
 		const moduleStack: URI[] = [];
-		patchSelf.require = (mod: string) => {
+		(<any>self).require = (mod: string) => {
+
 			const parent = moduleStack[moduleStack.length - 1];
-			if (mod === 'vscode') {
-				return this._apiInstances!.get(parent.fsPath);
+			const result = this._fakeModules.getModule(mod, parent);
+
+			if (result !== undefined) {
+				return result;
 			}
+
 			if (!startsWith(mod, '.')) {
 				throw new Error(`Cannot load module '${mod}'`);
 			}
