@@ -144,7 +144,8 @@ export class CallStackView extends ViewletPanel {
 
 						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 					}
-				}
+				},
+				expandOnlyOnTwistieClick: true
 			});
 
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
