@@ -82,36 +82,35 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 				throw new Error(`Cannot load module '${mod}'`);
 			}
 
-			const exports = Object.create(null);
-			patchSelf.module = { exports };
-			patchSelf.exports = exports;
+			const moduleExportsTrap = { exports: Object.create(null) };
+			patchSelf.module = moduleExportsTrap;
+			patchSelf.exports = moduleExportsTrap.exports;
 
 			const next = joinPath(parent, '..', ensureSuffix(mod, '.js'));
 			moduleStack.push(next);
 			importScripts(asDomUri(next).toString(true));
 			moduleStack.pop();
 
-			return exports;
+			return moduleExportsTrap.exports;
 		};
 
 		try {
 			activationTimesBuilder.codeLoadingStart();
 
-			const exports = Object.create(null);
-			patchSelf.module = { exports };
-			patchSelf.exports = exports;
+			const moduleExportsTrap = { exports: Object.create(null) };
+			patchSelf.module = moduleExportsTrap;
+			patchSelf.exports = moduleExportsTrap.exports;
 
 			module = module.with({ path: ensureSuffix(module.path, '.js') });
 			moduleStack.push(module);
 
 			importScripts(asDomUri(module).toString(true));
 			moduleStack.pop();
+			return Promise.resolve<T>(moduleExportsTrap.exports);
 
 		} finally {
 			activationTimesBuilder.codeLoadingStop();
 		}
-
-		return Promise.resolve<T>(exports);
 	}
 
 	async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
