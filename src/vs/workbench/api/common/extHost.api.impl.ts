@@ -223,11 +223,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
-			},
-			onDidExecuteCommand: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
-				checkProposedApiEnabled(extension);
-				return extHostCommands.onDidExecuteCommand(listener, thisArgs, disposables);
-			}),
+			}
 		};
 
 		// namespace: env
