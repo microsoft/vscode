@@ -146,7 +146,7 @@ trigger: none
 pr: none
 
 schedules:
-- cron: "10 7 * * Mon-Fri"
+- cron: "0 6 * * Mon-Fri"
   displayName: Mon-Fri at 8:00
   branches:
     include:
