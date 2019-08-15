@@ -203,7 +203,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	}
 
 	private getConnectionToken(str: string): string | undefined {
-		const m = str.match(/[#&]tkn=([^&]+)/);
+		const m = str.match(/[#&?]tkn=([^&]+)/);
 		return m ? m[1] : undefined;
 	}
 }
