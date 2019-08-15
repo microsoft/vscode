@@ -12,12 +12,12 @@ export interface ITelemetryData {
 	[key: string]: any;
 }
 
-export type WBActionExecutedClassification = {
+export type WorkbenchActionExecutedClassification = {
 	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
-export type WBActionExecutedEvent = {
+export type WorkbenchActionExecutedEvent = {
 	id: string;
 	from: string;
 };
@@ -64,11 +64,11 @@ export class Action extends Disposable implements IAction {
 
 	protected readonly _id: string;
 	protected _label: string;
-	protected _tooltip: string;
+	protected _tooltip: string | undefined;
 	protected _cssClass: string | undefined;
-	protected _enabled: boolean;
-	protected _checked: boolean;
-	protected _radio: boolean;
+	protected _enabled: boolean = true;
+	protected _checked: boolean = false;
+	protected _radio: boolean = false;
 	protected readonly _actionCallback?: (event?: any) => Promise<any>;
 
 	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Promise<any>) {
@@ -100,7 +100,7 @@ export class Action extends Disposable implements IAction {
 	}
 
 	get tooltip(): string {
-		return this._tooltip;
+		return this._tooltip || '';
 	}
 
 	set tooltip(value: string) {

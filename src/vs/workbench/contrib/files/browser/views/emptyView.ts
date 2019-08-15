@@ -24,15 +24,17 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
+import { isWeb } from 'vs/base/common/platform';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class EmptyView extends ViewletPanel {
 
 	static readonly ID: string = 'workbench.explorer.emptyView';
 	static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 
-	private button: Button;
-	private messageElement: HTMLElement;
-	private titleElement: HTMLElement;
+	private button!: Button;
+	private messageElement!: HTMLElement;
+	private titleElement!: HTMLElement;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -43,9 +45,10 @@ export class EmptyView extends ViewletPanel {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
-		@ILabelService private labelService: ILabelService
+		@ILabelService private labelService: ILabelService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setLabels()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.setLabels()));
 	}
@@ -123,7 +126,7 @@ export class EmptyView extends ViewletPanel {
 			}
 			this.titleElement.textContent = EmptyView.NAME;
 		} else {
-			if (this.environmentService.configuration.remoteAuthority) {
+			if (this.environmentService.configuration.remoteAuthority && !isWeb) {
 				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.configuration.remoteAuthority);
 				this.messageElement.textContent = hostLabel ? nls.localize('remoteNoFolderHelp', "Connected to {0}", hostLabel) : nls.localize('connecting', "Connecting...");
 			} else {

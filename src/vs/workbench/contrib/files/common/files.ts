@@ -114,6 +114,7 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 			colors: boolean;
 			badges: boolean;
 		};
+		incrementalNaming: 'simple' | 'smart';
 	};
 	editor: IEditorOptions;
 }

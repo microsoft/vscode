@@ -21,7 +21,7 @@ import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSep
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 
 const telemetryFrom = 'menu';
 
@@ -478,7 +478,8 @@ export class Menubar {
 					context: OpenContext.MENU,
 					cli: this.environmentService.args,
 					urisToOpen: [uriToOpen],
-					forceNewWindow: openInNewWindow
+					forceNewWindow: openInNewWindow,
+					gotoLineMode: false
 				}).length > 0;
 
 				if (!success) {
@@ -549,7 +550,7 @@ export class Menubar {
 				})];
 
 			case StateType.CheckingForUpdates:
-				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking For Updates..."), enabled: false })];
+				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking for Updates..."), enabled: false })];
 
 			case StateType.AvailableForDownload:
 				return [new MenuItem({
@@ -784,7 +785,7 @@ export class Menubar {
 	}
 
 	private reportMenuActionTelemetry(id: string): void {
-		this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id, from: telemetryFrom });
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: telemetryFrom });
 	}
 
 	private mnemonicLabel(label: string): string {

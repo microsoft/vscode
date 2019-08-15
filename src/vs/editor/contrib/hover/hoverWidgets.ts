@@ -42,6 +42,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._id = id;
 		this._editor = editor;
 		this._isVisible = false;
+		this._stoleFocus = false;
 
 		this._containerDomNode = document.createElement('div');
 		this._containerDomNode.className = 'monaco-editor-hover hidden';
@@ -72,6 +73,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._editor.addContentWidget(this);
 		this._showAtPosition = null;
 		this._showAtRange = null;
+		this._stoleFocus = false;
 	}
 
 	public getId(): string {

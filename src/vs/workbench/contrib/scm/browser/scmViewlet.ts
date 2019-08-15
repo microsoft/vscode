@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass, addClasses } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -49,6 +49,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { nextTick } from 'vs/base/common/process';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -108,26 +109,32 @@ class StatusBarActionViewItem extends ActionViewItem {
 }
 
 function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
+	let cachedDisposable: IDisposable = Disposable.None;
 	let cachedPrimary: IAction[] = [];
 
 	const updateActions = () => {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const result = { primary, secondary };
 
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, g => /^inline/.test(g));
 
 		if (equals(cachedPrimary, primary, (a, b) => a.id === b.id)) {
+			disposable.dispose();
 			return;
 		}
 
+		cachedDisposable = disposable;
 		cachedPrimary = primary;
+
 		actionBar.clear();
 		actionBar.push(primary, { icon: true, label: false });
 	};
 
 	updateActions();
-	return menu.onDidChange(updateActions);
+
+	return combinedDisposable(menu.onDidChange(updateActions), toDisposable(() => {
+		cachedDisposable.dispose();
+	}));
 }
 
 interface RepositoryTemplateData {
@@ -228,7 +235,7 @@ export class MainPanel extends ViewletPanel {
 		@IMenuService private readonly menuService: IMenuService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -239,7 +246,7 @@ export class MainPanel extends ViewletPanel {
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false
-		}) as WorkbenchList<ISCMRepository>;
+		});
 
 		this._register(renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null));
 		this._register(this.list.onSelectionChange(this.onListSelectionChange, this));
@@ -299,7 +306,7 @@ export class MainPanel extends ViewletPanel {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
+		const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
 
 		menu.dispose();
 		contextKeyService.dispose();
@@ -313,10 +320,12 @@ export class MainPanel extends ViewletPanel {
 			getActions: () => secondary,
 			getActionsContext: () => repository.provider
 		});
+
+		disposable.dispose();
 	}
 
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
-		if (e.elements.length > 0 && e.browserEvent) {
+		if (e.browserEvent && e.elements.length > 0) {
 			const scrollTop = this.list.scrollTop;
 			this.viewModel.setVisibleRepositories(e.elements);
 			this.list.scrollTop = scrollTop;
@@ -324,7 +333,7 @@ export class MainPanel extends ViewletPanel {
 	}
 
 	private onListFocusChange(e: IListEvent<ISCMRepository>): void {
-		if (e.elements.length > 0) {
+		if (e.browserEvent && e.elements.length > 0) {
 			e.elements[0].focus();
 		}
 	}
@@ -487,6 +496,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
 
 		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon, data: resource.decorations } });
+		template.actionBar.clear();
 		template.actionBar.context = resource;
 
 		const disposables = new DisposableStore();
@@ -725,7 +735,7 @@ export class RepositoryPanel extends ViewletPanel {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);
@@ -788,7 +798,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true, flexibleMaxHeight: 134 });
 		this.inputBox.setEnabled(this.isBodyVisible());
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this._register(this.inputBox);
@@ -842,7 +852,7 @@ export class RepositoryPanel extends ViewletPanel {
 			identityProvider: scmResourceIdentityProvider,
 			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
 			horizontalScrolling: false
-		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
+		});
 
 		this._register(Event.chain(this.list.onDidOpen)
 			.map(e => e.elements[0])
@@ -887,11 +897,8 @@ export class RepositoryPanel extends ViewletPanel {
 			const listHeight = height - (editorHeight + 12 /* margin */);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.list.layout(listHeight, width);
-
-			toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 		} else {
 			addClass(this.inputBoxContainer, 'hidden');
-			removeClass(this.inputBoxContainer, 'scroll');
 
 			this.listContainer.style.height = `${height}px`;
 			this.list.layout(height, width);
@@ -1096,6 +1103,9 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 	}
 
+	private readonly _onDidChangeRepositories = new Emitter<void>();
+	private readonly onDidFinishStartup = Event.once(Event.debounce(this._onDidChangeRepositories.event, () => null, 1000));
+
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1124,6 +1134,9 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 				this.onDidChangeRepositories();
 			}
 		}));
+
+		this._register(this.onDidFinishStartup(this.onAfterStartup, this));
+		this._register(this.viewsModel.onDidRemove(this.onDidHideView, this));
 	}
 
 	create(parent: HTMLElement): void {
@@ -1184,20 +1197,28 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 		if (alwaysShowProviders && repositoryCount > 0) {
 			this.viewsModel.setVisible(MainPanel.ID, true);
-		} else if (!alwaysShowProviders && repositoryCount === 1) {
-			this.viewsModel.setVisible(MainPanel.ID, false);
-		} else if (this.repositoryCount < 2 && repositoryCount >= 2) {
-			this.viewsModel.setVisible(MainPanel.ID, true);
-		} else if (this.repositoryCount >= 2 && repositoryCount === 1) {
-			this.viewsModel.setVisible(MainPanel.ID, false);
-		}
-
-		if (repositoryCount === 1) {
-			this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
 		}
 
 		toggleClass(this.el, 'empty', repositoryCount === 0);
 		this.repositoryCount = repositoryCount;
+
+		this._onDidChangeRepositories.fire();
+	}
+
+	private onAfterStartup(): void {
+		if (this.repositoryCount > 0 && this.viewDescriptors.every(d => !this.viewsModel.isVisible(d.id))) {
+			this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
+		}
+	}
+
+	private onDidHideView(): void {
+		nextTick(() => {
+			if (this.repositoryCount > 0 && this.viewDescriptors.every(d => !this.viewsModel.isVisible(d.id))) {
+				const alwaysShowProviders = this.configurationService.getValue<boolean>('scm.alwaysShowProviders') || false;
+				this.viewsModel.setVisible(MainPanel.ID, alwaysShowProviders || this.repositoryCount > 1);
+				this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
+			}
+		});
 	}
 
 	focus(): void {

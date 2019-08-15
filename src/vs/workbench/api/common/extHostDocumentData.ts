@@ -26,7 +26,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	private _proxy: MainThreadDocumentsShape;
 	private _languageId: string;
 	private _isDirty: boolean;
-	private _document: vscode.TextDocument;
+	private _document?: vscode.TextDocument;
 	private _textLines: vscode.TextLine[] = [];
 	private _isDisposed: boolean = false;
 

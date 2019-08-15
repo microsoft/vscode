@@ -15,12 +15,12 @@ export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeO
 
 export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterData, number[]> {
 
-	protected model: IndexTreeModel<T, TFilterData>;
+	protected model!: IndexTreeModel<T, TFilterData>;
 
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private rootElement: T,
 		options: IIndexTreeOptions<T, TFilterData> = {}
 	) {

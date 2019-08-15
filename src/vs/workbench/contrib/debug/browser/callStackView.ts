@@ -37,15 +37,15 @@ type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndS
 
 export class CallStackView extends ViewletPanel {
 
-	private pauseMessage: HTMLSpanElement;
-	private pauseMessageLabel: HTMLSpanElement;
+	private pauseMessage!: HTMLSpanElement;
+	private pauseMessageLabel!: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
-	private needsRefresh: boolean;
-	private ignoreSelectionChangedEvent: boolean;
-	private ignoreFocusStackFrameEvent: boolean;
+	private needsRefresh = false;
+	private ignoreSelectionChangedEvent = false;
+	private ignoreFocusStackFrameEvent = false;
 	private callStackItemType: IContextKey<string>;
-	private dataSource: CallStackDataSource;
-	private tree: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
+	private dataSource!: CallStackDataSource;
+	private tree!: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
 	private parentSessionToExpand = new Set<IDebugSession>();
 
@@ -60,7 +60,7 @@ export class CallStackView extends ViewletPanel {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
@@ -145,7 +145,7 @@ export class CallStackView extends ViewletPanel {
 						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 					}
 				}
-			}) as WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
+			});
 
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 
@@ -584,7 +584,7 @@ function isDeemphasized(frame: IStackFrame): boolean {
 }
 
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
-	deemphasizedStackFramesToShow: IStackFrame[];
+	deemphasizedStackFramesToShow: IStackFrame[] = [];
 
 	constructor(private debugService: IDebugService) { }
 
@@ -607,11 +607,9 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			return threads.length === 1 ? this.getThreadChildren(<Thread>threads[0]) : Promise.resolve(threads);
 		} else if (isDebugSession(element)) {
 			const childSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === element);
-			if (childSessions.length) {
-				return Promise.resolve(childSessions);
-			}
+			const threads: CallStackItem[] = element.getAllThreads();
 
-			return Promise.resolve(element.getAllThreads());
+			return Promise.resolve(threads.concat(childSessions));
 		} else {
 			return this.getThreadChildren(<Thread>element);
 		}

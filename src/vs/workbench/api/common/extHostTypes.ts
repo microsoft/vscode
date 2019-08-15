@@ -514,7 +514,7 @@ export class TextEdit {
 
 	protected _range: Range;
 	protected _newText: string | null;
-	protected _newEol: EndOfLine;
+	protected _newEol?: EndOfLine;
 
 	get range(): Range {
 		return this._range;
@@ -538,11 +538,11 @@ export class TextEdit {
 		this._newText = value;
 	}
 
-	get newEol(): EndOfLine {
+	get newEol(): EndOfLine | undefined {
 		return this._newEol;
 	}
 
-	set newEol(value: EndOfLine) {
+	set newEol(value: EndOfLine | undefined) {
 		if (value && typeof value !== 'number') {
 			throw illegalArgument('newEol');
 		}
@@ -550,7 +550,7 @@ export class TextEdit {
 	}
 
 	constructor(range: Range, newText: string | null) {
-		this.range = range;
+		this._range = range;
 		this._newText = newText;
 	}
 
@@ -773,6 +773,7 @@ export class SnippetString {
 
 export enum DiagnosticTag {
 	Unnecessary = 1,
+	Deprecated = 2
 }
 
 export enum DiagnosticSeverity {
@@ -797,7 +798,7 @@ export class Location {
 	}
 
 	uri: URI;
-	range: Range;
+	range!: Range;
 
 	constructor(uri: URI, rangeOrPosition: Range | Position) {
 		this.uri = uri;
@@ -860,10 +861,10 @@ export class Diagnostic {
 
 	range: Range;
 	message: string;
-	source: string;
-	code: string | number;
 	severity: DiagnosticSeverity;
-	relatedInformation: DiagnosticRelatedInformation[];
+	source?: string;
+	code?: string | number;
+	relatedInformation?: DiagnosticRelatedInformation[];
 	tags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
@@ -988,7 +989,7 @@ export class SymbolInformation {
 	}
 
 	name: string;
-	location: Location;
+	location!: Location;
 	kind: SymbolKind;
 	containerName: string | undefined;
 
@@ -1073,6 +1074,8 @@ export class CodeAction {
 	diagnostics?: Diagnostic[];
 
 	kind?: CodeActionKind;
+
+	isPreferred?: boolean;
 
 	constructor(title: string, kind?: CodeActionKind) {
 		this.title = title;
@@ -1252,8 +1255,8 @@ export class SignatureInformation {
 export class SignatureHelp {
 
 	signatures: SignatureInformation[];
-	activeSignature: number;
-	activeParameter: number;
+	activeSignature: number = 0;
+	activeParameter: number = 0;
 
 	constructor() {
 		this.signatures = [];
@@ -1309,19 +1312,19 @@ export enum CompletionItemKind {
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
-	kind: CompletionItemKind | undefined;
+	kind?: CompletionItemKind;
 	detail?: string;
 	documentation?: string | MarkdownString;
 	sortText?: string;
 	filterText?: string;
 	preselect?: boolean;
-	insertText: string | SnippetString;
+	insertText?: string | SnippetString;
 	keepWhitespace?: boolean;
-	range: Range;
+	range?: Range;
 	commitCharacters?: string[];
-	textEdit: TextEdit;
-	additionalTextEdits: TextEdit[];
-	command: vscode.Command;
+	textEdit?: TextEdit;
+	additionalTextEdits?: TextEdit[];
+	command?: vscode.Command;
 
 	constructor(label: string, kind?: CompletionItemKind) {
 		this.label = label;
@@ -1752,22 +1755,20 @@ export enum TaskScope {
 	Workspace = 2
 }
 
-export class CustomExecution implements vscode.CustomExecution {
-	private _callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>;
-
-	constructor(callback: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>) {
+export class CustomExecution2 implements vscode.CustomExecution2 {
+	private _callback: () => Thenable<vscode.Pseudoterminal>;
+	constructor(callback: () => Thenable<vscode.Pseudoterminal>) {
 		this._callback = callback;
 	}
-
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number>) {
+	public set callback(value: () => Thenable<vscode.Pseudoterminal>) {
 		this._callback = value;
 	}
 
-	public get callback(): (args: vscode.TerminalRenderer, cancellationToken: vscode.CancellationToken) => Thenable<number> {
+	public get callback(): (() => Thenable<vscode.Pseudoterminal>) {
 		return this._callback;
 	}
 }
@@ -1785,7 +1786,7 @@ export class Task implements vscode.Task2 {
 	private _definition: vscode.TaskDefinition;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;
 	private _name: string;
-	private _execution: ProcessExecution | ShellExecution | CustomExecution | undefined;
+	private _execution: ProcessExecution | ShellExecution | CustomExecution2 | undefined;
 	private _problemMatchers: string[];
 	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
@@ -1794,8 +1795,8 @@ export class Task implements vscode.Task2 {
 	private _presentationOptions: vscode.TaskPresentationOptions;
 	private _runOptions: vscode.RunOptions;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
-	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution2, problemMatchers?: string | string[]);
 	constructor(definition: vscode.TaskDefinition, arg2: string | (vscode.TaskScope.Global | vscode.TaskScope.Workspace) | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this.definition = definition;
 		let problemMatchers: string | string[];
@@ -1860,7 +1861,7 @@ export class Task implements vscode.Task2 {
 				type: Task.ShellType,
 				id: this._execution.computeId()
 			};
-		} else if (this._execution instanceof CustomExecution) {
+		} else if (this._execution instanceof CustomExecution2) {
 			this._definition = {
 				type: Task.ExtensionCallbackType,
 				id: this._execution.computeId()
@@ -1907,18 +1908,18 @@ export class Task implements vscode.Task2 {
 	}
 
 	get execution(): ProcessExecution | ShellExecution | undefined {
-		return (this._execution instanceof CustomExecution) ? undefined : this._execution;
+		return (this._execution instanceof CustomExecution2) ? undefined : this._execution;
 	}
 
 	set execution(value: ProcessExecution | ShellExecution | undefined) {
 		this.execution2 = value;
 	}
 
-	get execution2(): ProcessExecution | ShellExecution | CustomExecution | undefined {
+	get execution2(): ProcessExecution | ShellExecution | CustomExecution2 | undefined {
 		return this._execution;
 	}
 
-	set execution2(value: ProcessExecution | ShellExecution | CustomExecution | undefined) {
+	set execution2(value: ProcessExecution | ShellExecution | CustomExecution2 | undefined) {
 		if (value === null) {
 			value = undefined;
 		}

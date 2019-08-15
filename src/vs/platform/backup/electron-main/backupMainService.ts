@@ -36,7 +36,7 @@ export class BackupMainService implements IBackupMainService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.backupHome = environmentService.backupHome;
+		this.backupHome = environmentService.backupHome.fsPath;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 	}
 

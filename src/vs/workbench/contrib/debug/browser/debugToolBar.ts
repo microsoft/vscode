@@ -9,7 +9,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, IRunEvent, WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
+import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -55,10 +55,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
-	private disposeOnUpdate: IDisposable;
+	private disposeOnUpdate: IDisposable | undefined;
 
-	private isVisible: boolean;
-	private isBuilt: boolean;
+	private isVisible = false;
+	private isBuilt = false;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -126,7 +126,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.registerListeners();
 
 		this.hide();
-		this.isBuilt = false;
 	}
 
 	private registerListeners(): void {
@@ -141,7 +140,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 			// log in telemetry
 			if (this.telemetryService) {
-				this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}
 		}));
 		this._register(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this.setCoordinates()));

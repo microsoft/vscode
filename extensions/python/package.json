@@ -11,7 +11,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "python",
-			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi", ".snakefile", ".smk", ".pyi", ".ipy"],
+			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi", ".pyi", ".ipy"],
 			"aliases": [ "Python", "py" ],
 			"filenames": [ "Snakefile" ],
 			"firstLine": "^#!\\s*/.*\\bpython[0-9.-]*\\b",

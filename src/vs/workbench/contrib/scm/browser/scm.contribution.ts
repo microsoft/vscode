@@ -13,12 +13,12 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { StatusUpdater, StatusBarController } from './scmActivity';
+import { SCMStatusController } from './scmActivity';
 import { SCMViewlet } from 'vs/workbench/contrib/scm/browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ContextKeyDefinedExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -47,10 +47,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 ));
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StatusBarController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
@@ -69,10 +66,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	order: 5,
 	title: localize('scmConfigurationTitle', "SCM"),
 	type: 'object',
+	scope: ConfigurationScope.RESOURCE,
 	properties: {
 		'scm.alwaysShowProviders': {
 			type: 'boolean',
-			description: localize('alwaysShowProviders', "Controls whether to always show the Source Control Provider section."),
+			description: localize('alwaysShowProviders', "Controls whether to show the Source Control Provider section even when there's only one Provider registered."),
 			default: false
 		},
 		'scm.providers.visible': {
@@ -96,6 +94,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),
 			default: false
+		},
+		'scm.countBadge': {
+			type: 'string',
+			enum: ['all', 'focused', 'off'],
+			enumDescriptions: [
+				localize('scm.countBadge.all', "Show the sum of all Source Control Providers count badges."),
+				localize('scm.countBadge.focused', "Show the count badge of the focused Source Control Provider."),
+				localize('scm.countBadge.off', "Disable the Source Control count badge.")
+			],
+			description: localize('scm.countBadge', "Controls the Source Control count badge."),
+			default: 'all'
 		}
 	}
 });
@@ -115,7 +124,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.acceptInput',
 	description: { description: localize('scm accept', "SCM: Accept Input"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: new ContextKeyDefinedExpr('scmRepository'),
+	when: ContextKeyExpr.has('scmRepository'),
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	handler: accessor => {
 		const contextKeyService = accessor.get(IContextKeyService);

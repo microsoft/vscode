@@ -16,8 +16,8 @@ import { StorageService } from 'vs/platform/storage/node/storageService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
+import { IBackupFileService, toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
+import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
@@ -32,10 +32,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
-	_serviceBrand: any;
+	_serviceBrand!: ServiceIdentifier<IWorkspaceEditingService>;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
@@ -219,6 +220,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
 		if (this.environmentService.configuration.remoteAuthority) {
+
 			// Do not allow workspace folders with scheme different than the current remote scheme
 			const schemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
 			if (schemas.length && foldersToAdd.some(f => schemas.indexOf(f.uri.scheme) === -1)) {
@@ -285,6 +287,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (path && !await this.isValidTargetWorkspacePath(path)) {
 			return;
 		}
+
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders, remoteAuthority);
 		if (path) {
@@ -292,6 +295,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		} else {
 			path = untitledWorkspace.configPath;
 		}
+
 		return this.enterWorkspace(path);
 	}
 
@@ -299,17 +303,18 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		if (!await this.isValidTargetWorkspacePath(path)) {
 			return;
 		}
+
 		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
 		if (!workspaceIdentifier) {
 			return;
 		}
+
 		await this.saveWorkspaceAs(workspaceIdentifier, path);
 
 		return this.enterWorkspace(path);
 	}
 
 	async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
-
 		const windows = await this.windowsService.getWindows();
 
 		// Prevent overwriting a workspace that is currently opened in another window
@@ -381,30 +386,38 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		const workspace = await this.workspaceService.getWorkspaceIdentifier(path);
+
 		// Settings migration (only if we come from a folder workspace)
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			await this.migrateWorkspaceSettings(workspace);
 		}
+
 		const workspaceImpl = this.contextService as WorkspaceService;
 		await workspaceImpl.initialize(workspace);
 
-		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
-		// Stop the extension host first to give extensions most time to shutdown
-		this.extensionService.stopExtensionHost();
-
 		const result = await this.windowService.enterWorkspace(path);
 		if (result) {
+
+			// Migrate storage to new workspace
 			await this.migrateStorage(result.workspace);
+
 			// Reinitialize backup service
+			this.environmentService.configuration.backupPath = result.backupPath;
+			this.environmentService.configuration.backupWorkspaceResource = result.backupPath ? toBackupWorkspaceResource(result.backupPath, this.environmentService) : undefined;
 			if (this.backupFileService instanceof BackupFileService) {
-				this.backupFileService.initialize(result.backupPath!);
+				this.backupFileService.reinitialize();
 			}
 		}
 
+		// TODO@aeschli: workaround until restarting works
 		if (this.environmentService.configuration.remoteAuthority) {
-			this.windowService.reloadWindow(); // TODO aeschli: workaround until restarting works
-		} else {
-			this.extensionService.startExtensionHost();
+			this.windowService.reloadWindow();
+		}
+
+		// Restart the extension host: entering a workspace means a new location for
+		// storage and potentially a change in the workspace.rootPath property.
+		else {
+			this.extensionService.restartExtensionHost();
 		}
 	}
 
@@ -424,7 +437,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): Promise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const targetWorkspaceConfiguration = {};
+		const targetWorkspaceConfiguration: any = {};
 		for (const key of this.configurationService.keys().workspace) {
 			if (configurationProperties[key]) {
 				if (filter && !filter(configurationProperties[key])) {

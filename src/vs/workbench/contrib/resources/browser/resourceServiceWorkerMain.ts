@@ -3,47 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-(function () {
-	type Handler = {
-		handleFetchEvent(event: Event): Promise<Response | undefined>;
-		handleMessageEvent(event: MessageEvent): void;
-	};
+// This file is to bootstrap AMD so that we can program as usual
+// Note the fetch, install, activate event handler must be registered
+// when loading the service worker and despite AMD's async nature this
+// works. That's because the/our AMD loader uses the sync importScripts
+// statement.
 
-	const handlerPromise = new Promise<Handler>((resolve, reject) => {
-		// load loader
-		const baseUrl = './out/';
-		importScripts(baseUrl + 'vs/loader.js');
-		require.config({
-			baseUrl,
-			catchError: true
-		});
-		require(['vs/workbench/contrib/resources/browser/resourceServiceWorker'], resolve, reject);
-	});
+// trigger service worker updates
+const _tag = '52278406-3ca9-48af-a8fb-8495add5bb4e';
 
-	self.addEventListener('message', event => {
-		handlerPromise.then(handler => {
-			handler.handleMessageEvent(event);
-		});
-	});
+// loader world
+const baseUrl = '../../../../../';
+importScripts(baseUrl + 'vs/loader.js');
+require.config({
+	baseUrl,
+	catchError: true
+});
+require(['vs/workbench/contrib/resources/browser/resourceServiceWorker'],
+	() => { },
+	err => console.error(err)
+);
 
-	self.addEventListener('fetch', (event: any) => {
-		event.respondWith(handlerPromise.then(handler => {
-			return handler.handleFetchEvent(event).then(value => {
-				if (value instanceof Response) {
-					return value;
-				} else {
-					return fetch(event.request);
-				}
-			});
-		}));
-	});
-	self.addEventListener('install', event => {
-		//@ts-ignore
-		event.waitUntil(self.skipWaiting());
-	});
-
-	self.addEventListener('activate', event => {
-		//@ts-ignore
-		event.waitUntil(self.clients.claim()); // Become available to all pages
-	});
-})();

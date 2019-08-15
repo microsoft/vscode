@@ -3,30 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService, IProductConfiguration } from 'vs/platform/product/common/product';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class ProductService implements IProductService {
 
-	_serviceBrand: ServiceIdentifier<IProductService>;
+	_serviceBrand!: ServiceIdentifier<IProductService>;
 
-	get version(): string { return pkg.version; }
+	readonly productConfiguration: IProductConfiguration;
 
-	get commit(): string | undefined { return product.commit; }
+	constructor() {
+		this.productConfiguration = {
+			...product, ...{ version: pkg.version }
+		};
+	}
 
-	get nameLong(): string { return product.nameLong; }
-
-	get urlProtocol(): string { return product.urlProtocol; }
-
-	get extensionAllowedProposedApi(): string[] { return product.extensionAllowedProposedApi; }
-
-	get uiExtensions(): string[] | undefined { return product.uiExtensions; }
-
-	get enableTelemetry(): boolean { return product.enableTelemetry; }
-
-	get sendASmile(): { reportIssueUrl: string, requestFeatureUrl: string } { return product.sendASmile; }
-
-	get extensionsGallery() { return product.extensionsGallery; }
 }

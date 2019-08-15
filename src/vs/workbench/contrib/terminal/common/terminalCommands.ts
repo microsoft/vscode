@@ -48,8 +48,7 @@ export const enum TERMINAL_COMMAND_ID {
 	SCROLL_TO_TOP = 'workbench.action.terminal.scrollToTop',
 	CLEAR = 'workbench.action.terminal.clear',
 	CLEAR_SELECTION = 'workbench.action.terminal.clearSelection',
-	WORKSPACE_SHELL_ALLOW = 'workbench.action.terminal.allowWorkspaceShell',
-	WORKSPACE_SHELL_DISALLOW = 'workbench.action.terminal.disallowWorkspaceShell',
+	MANAGE_WORKSPACE_SHELL_PERMISSIONS = 'workbench.action.terminal.manageWorkspaceShellPermissions',
 	RENAME = 'workbench.action.terminal.rename',
 	FIND_WIDGET_FOCUS = 'workbench.action.terminal.focusFindWidget',
 	FIND_WIDGET_HIDE = 'workbench.action.terminal.hideFindWidget',
@@ -68,6 +67,9 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE_FIND_REGEX_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindRegexTerminalFocus',
 	TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindWholeWordTerminalFocus',
 	TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindCaseSensitiveTerminalFocus',
+	NAVIGATION_MODE_EXIT = 'workbench.action.terminal.navigationModeExit',
+	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
+	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious'
 }
 
 export function setupTerminalCommands(): void {

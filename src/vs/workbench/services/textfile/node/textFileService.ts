@@ -13,24 +13,24 @@ import { IFileStatWithMetadata, ICreateFileOptions, FileOperationError, FileOper
 import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, encodeStream, UTF8_BOM, UTF16be_BOM, UTF16le_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer } from 'vs/base/node/encoding';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, encodeStream, UTF8_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer, isUTFEncoding } from 'vs/base/node/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { VSBufferReadable, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBufferReadable } from 'vs/base/common/buffer';
 import { Readable } from 'stream';
-import { isUndefinedOrNull } from 'vs/base/common/types';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/editor/common/model';
+import { nodeReadableToString, streamToNodeReadable, nodeStreamToVSBufferReadable } from 'vs/base/node/stream';
 
 export class NodeTextFileService extends TextFileService {
 
-	private _encoding: EncodingOracle;
+	private _encoding!: EncodingOracle;
 	get encoding(): EncodingOracle {
 		if (!this._encoding) {
 			this._encoding = this._register(this.instantiationService.createInstance(EncodingOracle));
@@ -45,7 +45,7 @@ export class NodeTextFileService extends TextFileService {
 		return {
 			...bufferStream,
 			encoding: decoder.detected.encoding || UTF8,
-			value: await this.nodeReadableToString(decoder.stream)
+			value: await nodeReadableToString(decoder.stream)
 		};
 	}
 
@@ -68,7 +68,7 @@ export class NodeTextFileService extends TextFileService {
 		const bufferStream = await this.fileService.readFileStream(resource, options);
 
 		// read through encoding library
-		const decoder = await toDecodeStream(this.streamToNodeReadable(bufferStream.value), {
+		const decoder = await toDecodeStream(streamToNodeReadable(bufferStream.value), {
 			guessEncoding: (options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
 			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
 		});
@@ -106,60 +106,6 @@ export class NodeTextFileService extends TextFileService {
 		}
 
 		return ensuredOptions;
-	}
-
-	private streamToNodeReadable(stream: VSBufferReadableStream): Readable {
-		return new class extends Readable {
-			private listening = false;
-
-			_read(size?: number): void {
-				if (!this.listening) {
-					this.listening = true;
-
-					// Data
-					stream.on('data', data => {
-						try {
-							if (!this.push(data.buffer)) {
-								stream.pause(); // pause the stream if we should not push anymore
-							}
-						} catch (error) {
-							this.emit(error);
-						}
-					});
-
-					// End
-					stream.on('end', () => {
-						try {
-							this.push(null); // signal EOS
-						} catch (error) {
-							this.emit(error);
-						}
-					});
-
-					// Error
-					stream.on('error', error => this.emit(error));
-				}
-
-				// ensure the stream is flowing
-				stream.resume();
-			}
-
-			_destroy(error: Error | null, callback: (error: Error | null) => void): void {
-				stream.destroy();
-
-				callback(null);
-			}
-		};
-	}
-
-	private nodeReadableToString(stream: NodeJS.ReadableStream): Promise<string> {
-		return new Promise((resolve, reject) => {
-			let result = '';
-
-			stream.on('data', chunk => result += chunk);
-			stream.on('error', reject);
-			stream.on('end', () => resolve(result));
-		});
 	}
 
 	protected async doCreate(resource: URI, value?: string, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
@@ -238,7 +184,7 @@ export class NodeTextFileService extends TextFileService {
 
 		const encodedReadable = readable.pipe(encoder);
 
-		return this.nodeStreamToReadable(encodedReadable, encoding, addBOM);
+		return nodeStreamToVSBufferReadable(encodedReadable, addBOM && isUTFEncoding(encoding) ? { encoding } : undefined);
 	}
 
 	private snapshotToNodeReadable(snapshot: ITextSnapshot): Readable {
@@ -264,53 +210,6 @@ export class NodeTextFileService extends TextFileService {
 			},
 			encoding: UTF8 // very important, so that strings are passed around and not buffers!
 		});
-	}
-
-	private nodeStreamToReadable(stream: NodeJS.ReadWriteStream, encoding: string, addBOM: boolean): VSBufferReadable {
-		let bytesRead = 0;
-		let done = false;
-
-		return {
-			read(): VSBuffer | null {
-				if (done) {
-					return null;
-				}
-
-				const res = stream.read();
-				if (isUndefinedOrNull(res)) {
-					done = true;
-
-					// If we are instructed to add a BOM but we detect that no
-					// bytes have been read, we must ensure to return the BOM
-					// ourselves so that we comply with the contract.
-					if (bytesRead === 0 && addBOM) {
-						switch (encoding) {
-							case UTF8:
-							case UTF8_with_bom:
-								return VSBuffer.wrap(Buffer.from(UTF8_BOM));
-							case UTF16be:
-								return VSBuffer.wrap(Buffer.from(UTF16be_BOM));
-							case UTF16le:
-								return VSBuffer.wrap(Buffer.from(UTF16le_BOM));
-						}
-					}
-
-					return null;
-				}
-
-				// Handle String
-				if (typeof res === 'string') {
-					bytesRead += res.length;
-					return VSBuffer.fromString(res);
-				}
-
-				// Handle Buffer
-				else {
-					bytesRead += res.byteLength;
-					return VSBuffer.wrap(res);
-				}
-			}
-		};
 	}
 
 	private async writeElevated(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
@@ -390,7 +289,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		const defaultEncodingOverrides: IEncodingOverride[] = [];
 
 		// Global settings
-		defaultEncodingOverrides.push({ parent: this.environmentService.appSettingsHome, encoding: UTF8 });
+		defaultEncodingOverrides.push({ parent: this.environmentService.userRoamingDataHome, encoding: UTF8 });
 
 		// Workspace files
 		defaultEncodingOverrides.push({ extension: WORKSPACE_EXTENSION, encoding: UTF8 });
@@ -490,7 +389,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 			for (const override of this.encodingOverrides) {
 
 				// check if the resource is child of encoding override path
-				if (override.parent && isEqualOrParent(resource, override.parent, !isLinux /* ignorecase */)) {
+				if (override.parent && isEqualOrParent(resource, override.parent)) {
 					return override.encoding;
 				}
 

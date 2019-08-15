@@ -23,7 +23,7 @@ export interface IDataTreeViewState {
 
 export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
-	protected model: ObjectTreeModel<T, TFilterData>;
+	protected model!: ObjectTreeModel<T, TFilterData>;
 	private input: TInput | undefined;
 
 	private identityProvider: IIdentityProvider<T> | undefined;
@@ -32,7 +32,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 	constructor(
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private dataSource: IDataSource<TInput, T>,
 		options: IDataTreeOptions<T, TFilterData> = {}
 	) {

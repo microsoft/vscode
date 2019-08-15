@@ -12,6 +12,7 @@ import { tmpName } from 'tmp';
 import { IDriver, connect as connectDriver, IDisposable, IElement, Thenable } from './driver';
 import { Logger } from '../logger';
 import { ncp } from 'ncp';
+import { URI } from 'vscode-uri';
 
 const repoPath = path.join(__dirname, '../../../..');
 
@@ -128,11 +129,8 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (options.remote) {
 		// Replace workspace path with URI
-		args.shift();
-		args.push(
-			`--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri`,
-			`vscode-remote://test+test${options.workspacePath}`,
-		);
+		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
+
 		if (codePath) {
 			// running against a build: copy the test resolver extension
 			const testResolverExtPath = path.join(options.extensionsPath, 'vscode-test-resolver');

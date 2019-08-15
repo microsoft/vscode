@@ -14,6 +14,7 @@ suite('env-namespace', () => {
 		assert.equal(typeof env.appName, 'string');
 		assert.equal(typeof env.machineId, 'string');
 		assert.equal(typeof env.sessionId, 'string');
+		assert.equal(typeof env.shell, 'string');
 	});
 
 	test('env is readonly', function () {
@@ -22,6 +23,7 @@ suite('env-namespace', () => {
 		assert.throws(() => (env as any).appName = '234');
 		assert.throws(() => (env as any).machineId = '234');
 		assert.throws(() => (env as any).sessionId = '234');
+		assert.throws(() => (env as any).shell = '234');
 	});
 
 	test('env.remoteName', function () {

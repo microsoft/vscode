@@ -30,12 +30,12 @@ import { Disposable } from 'vs/base/common/lifecycle';
 export abstract class Composite extends Component implements IComposite {
 
 	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
-	get onTitleAreaUpdate(): Event<void> { return this._onTitleAreaUpdate.event; }
+	readonly onTitleAreaUpdate: Event<void> = this._onTitleAreaUpdate.event;
 
 	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
-	private _onDidFocus: Emitter<void>;
+	private _onDidFocus!: Emitter<void>;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
 			this.registerFocusTrackEvents();
@@ -50,7 +50,7 @@ export abstract class Composite extends Component implements IComposite {
 		}
 	}
 
-	private _onDidBlur: Emitter<void>;
+	private _onDidBlur!: Emitter<void>;
 	get onDidBlur(): Event<void> {
 		if (!this._onDidBlur) {
 			this.registerFocusTrackEvents();
@@ -68,10 +68,10 @@ export abstract class Composite extends Component implements IComposite {
 		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
-	protected actionRunner: IActionRunner;
+	protected actionRunner: IActionRunner | undefined;
 
 	private visible: boolean;
-	private parent: HTMLElement;
+	private parent!: HTMLElement;
 
 	constructor(
 		id: string,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, addClass } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -19,8 +19,8 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteA
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -35,14 +35,14 @@ import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { UserDataFileSystemProvider } from 'vs/workbench/services/userData/common/userDataFileSystemProvider';
-import { joinPath, dirname } from 'vs/base/common/resources';
+import { BACKUPS } from 'vs/platform/environment/common/environment';
+import { joinPath } from 'vs/base/common/resources';
+import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
-import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
 
 class CodeRendererMain extends Disposable {
-
-	private workbench: Workbench;
 
 	constructor(
 		private readonly domElement: HTMLElement,
@@ -57,38 +57,72 @@ class CodeRendererMain extends Disposable {
 		await domContentLoaded();
 		mark('willStartWorkbench');
 
+		// Base Theme
+		this.restoreBaseTheme();
+
 		// Create Workbench
-		this.workbench = new Workbench(
+		const workbench = new Workbench(
 			this.domElement,
 			services.serviceCollection,
 			services.logService
 		);
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, () => this.workbench.layout()));
+		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
 
 		// Workbench Lifecycle
-		this._register(this.workbench.onShutdown(() => this.dispose()));
+		this._register(workbench.onBeforeShutdown(event => {
+			if (services.storageService.hasPendingUpdate) {
+				console.warn('Unload prevented: pending storage update');
+				event.veto(true); // prevent data loss from pending storage update
+			}
+		}));
+		this._register(workbench.onWillShutdown(() => {
+			services.storageService.close();
+			this.saveBaseTheme();
+		}));
+		this._register(workbench.onShutdown(() => this.dispose()));
 
 		// Startup
-		this.workbench.startup();
+		workbench.startup();
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService }> {
+	private restoreBaseTheme(): void {
+		addClass(this.domElement, window.localStorage.getItem('baseTheme') || getThemeTypeSelector(DARK));
+	}
+
+	private saveBaseTheme(): void {
+		const classes = this.domElement.className;
+		const baseThemes = [DARK, LIGHT, HIGH_CONTRAST].map(baseTheme => getThemeTypeSelector(baseTheme));
+		for (const baseTheme of baseThemes) {
+			if (classes.indexOf(baseTheme) >= 0) {
+				window.localStorage.setItem('baseTheme', baseTheme);
+				break;
+			}
+		}
+	}
+
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: BrowserStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
+		// CONTRIBUTE IT VIA WORKBENCH.WEB.MAIN.TS AND registerSingleton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Log
 		const logService = new SimpleLogService();
 		serviceCollection.set(ILogService, logService);
 
+		const payload = await this.resolveWorkspaceInitializationPayload();
+
 		// Environment
-		const remoteUserDataUri = this.getRemoteUserDataUri();
-		const environmentService = new BrowserWorkbenchEnvironmentService(this.configuration, remoteUserDataUri);
+		const environmentService = new BrowserWorkbenchEnvironmentService({
+			workspaceId: payload.id,
+			remoteAuthority: this.configuration.remoteAuthority,
+			webviewEndpoint: this.configuration.webviewEndpoint,
+			connectionToken: this.configuration.connectionToken
+		});
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -100,31 +134,41 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService();
+		const signService = new SignService(environmentService.configuration.connectionToken);
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(environmentService, productService, remoteAuthorityResolverService, signService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.configuration.webSocketFactory, environmentService, productService, remoteAuthorityResolverService, signService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
+		let userDataProvider: IFileSystemProvider | undefined = this.configuration.userDataProvider;
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
 			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
 
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
+
+			if (!userDataProvider) {
+				const remoteUserDataUri = this.getRemoteUserDataUri();
+				if (remoteUserDataUri) {
+					userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, joinPath(remoteUserDataUri, BACKUPS), remoteFileSystemProvider, environmentService));
+				}
+			}
+		}
+
+		if (!userDataProvider) {
+			userDataProvider = this._register(new InMemoryUserDataProvider());
 		}
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new UserDataFileSystemProvider(dirname(environmentService.settingsResource), this.getUserDataPovider(fileService, remoteUserDataUri)));
+		fileService.registerProvider(Schemas.userData, userDataProvider);
 
-		const payload = await this.resolveWorkspaceInitializationPayload();
-
-		await Promise.all([
+		const services = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
@@ -135,9 +179,32 @@ class CodeRendererMain extends Disposable {
 
 				return service;
 			}),
+
+			this.createStorageService(payload, environmentService, fileService, logService).then(service => {
+
+				// Storage
+				serviceCollection.set(IStorageService, service);
+
+				return service;
+			})
 		]);
 
-		return { serviceCollection, logService };
+		return { serviceCollection, logService, storageService: services[1] };
+	}
+
+	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
+		const storageService = new BrowserStorageService(environmentService, fileService);
+
+		try {
+			await storageService.initialize(payload);
+
+			return storageService;
+		} catch (error) {
+			onUnexpectedError(error);
+			logService.error(error);
+
+			return storageService;
+		}
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
@@ -168,15 +235,6 @@ class CodeRendererMain extends Disposable {
 		}
 
 		return { id: 'empty-window' };
-	}
-
-	private getUserDataPovider(fileService: IFileService, remoteUserDataUri: URI | null): IUserDataProvider {
-		if (this.configuration.userDataProvider) {
-			return this.configuration.userDataProvider;
-		} else if (this.configuration.remoteAuthority && remoteUserDataUri) {
-			return this._register(new FileUserDataProvider(remoteUserDataUri, fileService));
-		}
-		return this._register(new InMemoryUserDataProvider());
 	}
 
 	private getRemoteUserDataUri(): URI | null {

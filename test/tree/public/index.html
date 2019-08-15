@@ -44,7 +44,7 @@
 
 		require.config({ baseUrl: '/static' });
 
-		require(['vs/base/browser/ui/tree/indexTree', 'vs/base/browser/ui/tree/asyncDataTree', 'vs/base/browser/ui/tree/dataTree', 'vs/base/browser/ui/tree/tree', 'vs/base/common/iterator'], ({ IndexTree }, { AsyncDataTree }, { DataTree }, { TreeVisibility }, { iter }) => {
+		require(['vs/base/browser/ui/tree/indexTree', 'vs/base/browser/ui/tree/compressedObjectTree', 'vs/base/browser/ui/tree/asyncDataTree', 'vs/base/browser/ui/tree/dataTree', 'vs/base/browser/ui/tree/tree', 'vs/base/common/iterator'], ({ IndexTree }, { CompressedObjectTree }, { AsyncDataTree }, { DataTree }, { TreeVisibility }, { iter }) => {
 			function createIndexTree(opts) {
 				opts = opts || {};
 
@@ -96,6 +96,57 @@
 				};
 
 				const tree = new IndexTree(container, delegate, [renderer], null, { ...opts, filter: treeFilter, setRowLineHeight: false });
+
+				return { tree, treeFilter };
+			}
+
+			function createCompressedObjectTree(opts) {
+				opts = opts || {};
+
+				const delegate = {
+					getHeight() { return 22; },
+					getTemplateId() { return 'template'; },
+					hasDynamicHeight() { return true; }
+				};
+
+				const renderer = {
+					templateId: 'template',
+					renderTemplate(container) { return container; },
+					renderElement(element, index, container) {
+						if (element.element.elements.length > 1) {
+							container.innerHTML = `🙈 ${element.element.elements.map(el => el.name).join('/')}`;
+						} else {
+							container.innerHTML = element.element.elements[0].name;
+						}
+					},
+					disposeElement() { },
+					disposeTemplate() { }
+				};
+
+				const treeFilter = new class {
+					constructor() {
+						this.pattern = null;
+						let timeout;
+						filter.oninput = () => {
+							clearTimeout(timeout);
+							timeout = setTimeout(() => this.updatePattern(), 300);
+						};
+					}
+					updatePattern() {
+						if (!filter.value) {
+							this.pattern = null;
+						} else {
+							this.pattern = new RegExp(filter.value, 'i');
+						}
+
+						perf('refilter', () => tree.refilter());
+					}
+					filter(el) {
+						return (this.pattern ? this.pattern.test(el) : true) ? TreeVisibility.Visible : TreeVisibility.Recurse;
+					}
+				};
+
+				const tree = new CompressedObjectTree(container, delegate, [renderer], { ...opts, filter: treeFilter, setRowLineHeight: false, collapseByDefault: true, setRowLineHeight: true });
 
 				return { tree, treeFilter };
 			}
@@ -155,7 +206,7 @@
 					getChildren(element) {
 						return new Promise((c, e) => {
 							const xhr = new XMLHttpRequest();
-							xhr.open('GET', element ? `/api/readdir?path=${element.element.path}` : '/api/readdir');
+							xhr.open('GET', element ? `/ api / readdir ? path = ${element.element.path} ` : '/api/readdir');
 							xhr.send();
 							xhr.onreadystatechange = function () {
 								if (this.readyState == 4 && this.status == 200) {
@@ -258,7 +309,7 @@
 						const errors = [];
 
 						for (let j = 1; j <= 3; j++) {
-							errors.push({ element: `error #${j}` });
+							errors.push({ element: `error #${j} ` });
 						}
 
 						files.push({ element: `file #${i}`, children: errors });
@@ -286,6 +337,23 @@
 					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
 					renderwidth.onclick = () => perf('renderwidth', () => tree.layoutWidth(Math.random()));
 					refresh.onclick = () => perf('refresh', () => tree.refresh(null, true));
+
+					break;
+				}
+				case '?compressed': {
+					const { tree, treeFilter } = createCompressedObjectTree();
+
+					expandall.onclick = () => perf('expand all', () => tree.expandAll());
+					collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
+
+					const xhr = new XMLHttpRequest();
+					xhr.open('GET', '/compressed.json');
+					xhr.send();
+					xhr.onreadystatechange = function () {
+						if (this.readyState == 4 && this.status == 200) {
+							tree.setChildren(null, JSON.parse(this.responseText));
+						}
+					};
 
 					break;
 				}

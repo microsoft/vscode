@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IRawColorInfo, WorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IRawColorInfo, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -135,7 +135,7 @@ export class ExtHostApiCommands {
 			description: 'Execute code action provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'range', description: 'Range in a text document', constraint: types.Range },
+				{ name: 'rangeOrSelection', description: 'Range in a text document. Some refactoring provider requires Selection object.', constraint: types.Range },
 				{ name: 'kind', description: '(optional) Code action kind to return code actions for', constraint: (value: any) => !value || typeof value.value === 'string' },
 			],
 			returns: 'A promise that resolves to an array of Command-instances.'
@@ -362,7 +362,7 @@ export class ExtHostApiCommands {
 			position: position && typeConverters.Position.from(position),
 			newName
 		};
-		return this._commands.executeCommand<WorkspaceEditDto>('_executeDocumentRenameProvider', args).then(value => {
+		return this._commands.executeCommand<IWorkspaceEditDto>('_executeDocumentRenameProvider', args).then(value => {
 			if (!value) {
 				return undefined;
 			}
@@ -470,20 +470,22 @@ export class ExtHostApiCommands {
 					return res;
 				}
 
-				detail: string;
-				range: vscode.Range;
-				selectionRange: vscode.Range;
-				children: vscode.DocumentSymbol[];
-				containerName: string;
+				detail!: string;
+				range!: vscode.Range;
+				selectionRange!: vscode.Range;
+				children!: vscode.DocumentSymbol[];
+				containerName!: string;
 			}
 			return value.map(MergedInfo.to);
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
+	private _executeCodeActionProvider(resource: URI, rangeOrSelection: types.Range | types.Selection, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
 		const args = {
 			resource,
-			range: typeConverters.Range.from(range),
+			rangeOrSelection: types.Selection.isSelection(rangeOrSelection)
+				? typeConverters.Selection.from(rangeOrSelection)
+				: typeConverters.Range.from(rangeOrSelection),
 			kind
 		};
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
@@ -504,6 +506,7 @@ export class ExtHostApiCommands {
 					if (codeAction.command) {
 						ret.command = this._commands.converter.fromInternal(codeAction.command);
 					}
+					ret.isPreferred = codeAction.isPreferred;
 					return ret;
 				}
 			}));

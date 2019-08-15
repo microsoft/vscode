@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService, ParsedArgs, IDebugParams, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs, IDebugParams, IExtensionHostDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
@@ -16,10 +16,11 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { URI } from 'vs/base/common/uri';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
-const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
 	const vscodePortable = process.env['VSCODE_PORTABLE'];
@@ -76,7 +77,7 @@ function getCLIPath(execPath: string, appRoot: string, isBuilt: boolean): string
 
 export class EnvironmentService implements IEnvironmentService {
 
-	_serviceBrand: any;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	get args(): ParsedArgs { return this._args; }
 
@@ -115,7 +116,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
 	@memoize
-	get settingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'settings.json'); }
+	get userRoamingDataHome(): URI { return this.appSettingsHome; }
+
+	@memoize
+	get settingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
 	get machineSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'Machine')); }
@@ -130,25 +134,22 @@ export class EnvironmentService implements IEnvironmentService {
 	get workspaceStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'workspaceStorage'); }
 
 	@memoize
-	get settingsSearchBuildId(): number | undefined { return product.settingsSearchBuildId; }
+	get keybindingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
 	@memoize
-	get settingsSearchUrl(): string | undefined { return product.settingsSearchUrl; }
+	get keyboardLayoutResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
 
 	@memoize
-	get keybindingsResource(): URI { return resources.joinPath(this.appSettingsHome, 'keybindings.json'); }
-
-	@memoize
-	get keyboardLayoutResource(): URI { return resources.joinPath(this.appSettingsHome, 'keyboardLayout.json'); }
+	get localeResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'locale.json'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
 
 	@memoize
-	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
+	get backupHome(): URI { return URI.file(path.join(this.userDataPath, BACKUPS)); }
 
 	@memoize
-	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
+	get backupWorkspacesPath(): string { return path.join(this.backupHome.fsPath, 'workspaces.json'); }
 
 	@memoize
 	get untitledWorkspacesHome(): URI { return URI.file(path.join(this.userDataPath, 'Workspaces')); }
@@ -266,15 +267,17 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get nodeCachedDataDir(): string | undefined { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }
 
+	@memoize
+	get galleryMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
+
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
 	get driverHandle(): string | undefined { return this._args['driver']; }
 	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
 
-	get webviewResourceRoot(): string {
-		return 'vscode-resource:';
-	}
+	readonly webviewResourceRoot = 'vscode-resource:{{resource}}';
+	readonly webviewCspSource = 'vscode-resource:';
 
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		if (!process.env['VSCODE_LOGS']) {

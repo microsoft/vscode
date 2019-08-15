@@ -17,6 +17,34 @@ import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/c
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+
+export const VIEWLET_ID = 'workbench.view.remote';
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
+	VIEWLET_ID,
+	true,
+	undefined,
+	{
+		getOrder: (group?: string) => {
+			if (!group) {
+				return;
+			}
+
+			let matches = /^targets@(\d+)$/.exec(group);
+			if (matches) {
+				return -1000;
+			}
+
+			matches = /^details@(\d+)$/.exec(group);
+
+			if (matches) {
+				return -500;
+			}
+
+			return;
+		}
+	}
+);
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -36,7 +64,8 @@ export class LabelContribution implements IWorkbenchContribution {
 						formatting: {
 							label: '${path}',
 							separator: remoteEnvironment.os === OperatingSystem.Windows ? '\\' : '/',
-							tildify: remoteEnvironment.os !== OperatingSystem.Windows
+							tildify: remoteEnvironment.os !== OperatingSystem.Windows,
+							normalizeDriveLetter: remoteEnvironment.os === OperatingSystem.Windows
 						}
 					});
 				}

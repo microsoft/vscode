@@ -11,18 +11,17 @@ import { URI } from 'vs/base/common/uri';
 import { IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
-import { IRequestService } from 'vs/platform/request/node/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { asText } from 'vs/base/node/request';
+import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 
 abstract class RepoInfo {
-	readonly base: string;
-	readonly owner: string;
-	readonly repo: string;
+	abstract get base(): string;
+	abstract get owner(): string;
+	abstract get repo(): string;
 
 	static fromExtension(desc: IExtensionDescription): RepoInfo | undefined {
 

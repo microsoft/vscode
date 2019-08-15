@@ -34,15 +34,15 @@ export interface IRecentFile {
 }
 
 export function isRecentWorkspace(curr: IRecent): curr is IRecentWorkspace {
-	return !!curr['workspace'];
+	return curr.hasOwnProperty('workspace');
 }
 
 export function isRecentFolder(curr: IRecent): curr is IRecentFolder {
-	return !!curr['folderUri'];
+	return curr.hasOwnProperty('folderUri');
 }
 
 export function isRecentFile(curr: IRecent): curr is IRecentFile {
-	return !!curr['fileUri'];
+	return curr.hasOwnProperty('fileUri');
 }
 
 

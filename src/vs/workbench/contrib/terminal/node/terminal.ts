@@ -108,7 +108,7 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 		useWSLexe = true;
 	}
 
-	const expectedLocations = {
+	const expectedLocations: { [key: string]: string[] } = {
 		'Command Prompt': [`${system32Path}\\cmd.exe`],
 		PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
 		'PowerShell Core': [await getShellPathFromRegistry('pwsh')],
@@ -120,10 +120,11 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
 			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 		],
-		Cygwin: [
-			`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
-			`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
-		]
+		// See #75945
+		// Cygwin: [
+		// 	`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
+		// 	`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
+		// ]
 	};
 	const promises: PromiseLike<IShellDefinition | undefined>[] = [];
 	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key])));

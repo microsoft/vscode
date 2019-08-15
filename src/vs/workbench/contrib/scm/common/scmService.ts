@@ -23,7 +23,7 @@ class SCMInput implements ISCMInput {
 	}
 
 	private _onDidChange = new Emitter<string>();
-	get onDidChange(): Event<string> { return this._onDidChange.event; }
+	readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private _placeholder = '';
 
@@ -37,7 +37,7 @@ class SCMInput implements ISCMInput {
 	}
 
 	private _onDidChangePlaceholder = new Emitter<string>();
-	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
+	readonly onDidChangePlaceholder: Event<string> = this._onDidChangePlaceholder.event;
 
 	private _visible = true;
 
@@ -51,7 +51,7 @@ class SCMInput implements ISCMInput {
 	}
 
 	private _onDidChangeVisibility = new Emitter<boolean>();
-	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
 
@@ -65,7 +65,7 @@ class SCMInput implements ISCMInput {
 	}
 
 	private _onDidChangeValidateInput = new Emitter<void>();
-	get onDidChangeValidateInput(): Event<void> { return this._onDidChangeValidateInput.event; }
+	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
 }
 
 class SCMRepository implements ISCMRepository {
@@ -118,10 +118,10 @@ export class SCMService implements ISCMService {
 	readonly onDidChangeSelectedRepositories: Event<ISCMRepository[]> = this._onDidChangeSelectedRepositories.event;
 
 	private _onDidAddProvider = new Emitter<ISCMRepository>();
-	get onDidAddRepository(): Event<ISCMRepository> { return this._onDidAddProvider.event; }
+	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
 
 	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
-	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
+	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
 
 	constructor(@ILogService private readonly logService: ILogService) { }
 

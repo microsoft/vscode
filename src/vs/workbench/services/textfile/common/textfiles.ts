@@ -468,7 +468,11 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	backup(target?: URI): Promise<void>;
 
-	isDirty(): boolean;
+	hasBackup(): boolean;
+
+	isDirty(): this is IResolvedTextFileEditorModel;
+
+	makeDirty(): void;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
 
@@ -520,7 +524,7 @@ export function stringToSnapshot(value: string): ITextSnapshot {
 }
 
 export class TextSnapshotReadable implements VSBufferReadable {
-	private preambleHandled: boolean;
+	private preambleHandled = false;
 
 	constructor(private snapshot: ITextSnapshot, private preamble?: string) { }
 

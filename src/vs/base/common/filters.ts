@@ -414,7 +414,7 @@ export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 	return res;
 }
 
-const _maxLen = 53;
+const _maxLen = 128;
 
 function initTable() {
 	const table: number[][] = [];
@@ -495,7 +495,7 @@ function isUpperCaseAtPos(pos: number, word: string, wordLow: string): boolean {
 	return word[pos] !== wordLow[pos];
 }
 
-function isPatternInWord(patternLow: string, patternPos: number, patternLen: number, wordLow: string, wordPos: number, wordLen: number): boolean {
+export function isPatternInWord(patternLow: string, patternPos: number, patternLen: number, wordLow: string, wordPos: number, wordLen: number): boolean {
 	while (patternPos < patternLen && wordPos < wordLen) {
 		if (patternLow[patternPos] === wordLow[wordPos]) {
 			patternPos += 1;

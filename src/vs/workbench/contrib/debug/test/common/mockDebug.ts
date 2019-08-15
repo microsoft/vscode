@@ -51,7 +51,9 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	public updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): void { }
+	public updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void> {
+		throw new Error('not implemented');
+	}
 
 	public enableOrDisableBreakpoints(enabled: boolean): Promise<void> {
 		throw new Error('not implemented');
@@ -153,7 +155,7 @@ export class MockSession implements IDebugSession {
 	configuration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	state = State.Stopped;
-	root: IWorkspaceFolder;
+	root!: IWorkspaceFolder;
 	capabilities: DebugProtocol.Capabilities = {};
 
 	getId(): string {
@@ -299,9 +301,9 @@ export class MockSession implements IDebugSession {
 
 export class MockRawSession {
 
-	capabilities: DebugProtocol.Capabilities;
-	disconnected: boolean;
-	sessionLengthInSeconds: number;
+	capabilities: DebugProtocol.Capabilities = {};
+	disconnected = false;
+	sessionLengthInSeconds: number = 0;
 
 	public readyForBreakpoints = true;
 	public emittedStopped = true;

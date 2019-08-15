@@ -143,7 +143,7 @@
 	max-width: 952px;
 	/* 1000 - 24*2 padding */
 	margin-left: -476px;
-	z-index: 1000;
+	z-index: 11;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container {
@@ -182,7 +182,7 @@
 .settings-editor > .settings-body .settings-toc-container {
 	width: 100%;
 	pointer-events: none;
-	z-index: 100;
+	z-index: 10;
 	position: absolute;
 }
 

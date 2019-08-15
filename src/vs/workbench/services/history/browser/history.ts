@@ -32,6 +32,7 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { coalesce } from 'vs/base/common/arrays';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -98,7 +99,7 @@ interface IRecentlyClosedFile {
 
 export class HistoryService extends Disposable implements IHistoryService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private static readonly STORAGE_KEY = 'history.entries';
 	private static readonly MAX_HISTORY_ITEMS = 200;
@@ -114,10 +115,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private stack: IStackEntry[];
 	private index: number;
 	private lastIndex: number;
-	private navigatingInStack: boolean;
-	private currentTextEditorState: TextEditorState | null;
+	private navigatingInStack = false;
+	private currentTextEditorState: TextEditorState | null = null;
 
-	private lastEditLocation: IStackEntry;
+	private lastEditLocation: IStackEntry | undefined;
 
 	private history: Array<IEditorInput | IResourceInput>;
 	private recentlyClosedFiles: IRecentlyClosedFile[];
@@ -140,7 +141,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IWindowService private readonly windowService: IWindowService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -183,6 +184,39 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// properly (fixes https://github.com/Microsoft/vscode/issues/59908)
 		if (this.editorService.activeControl) {
 			this.onActiveEditorChanged();
+		}
+
+		// Mouse back/forward support
+		const mouseBackForwardSupportListener = this._register(new DisposableStore());
+		const handleMouseBackForwardSupport = () => {
+			mouseBackForwardSupportListener.clear();
+
+			if (this.configurationService.getValue('workbench.editor.mouseBackForwardToNavigate')) {
+				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.getWorkbenchElement(), EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+			}
+		};
+
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration('workbench.editor.mouseBackForwardToNavigate')) {
+				handleMouseBackForwardSupport();
+			}
+		}));
+
+		handleMouseBackForwardSupport();
+	}
+
+	private onMouseDown(e: MouseEvent): void {
+
+		// Support to navigate in history when mouse buttons 4/5 are pressed
+		switch (e.button) {
+			case 3:
+				EventHelper.stop(e);
+				this.back();
+				break;
+			case 4:
+				EventHelper.stop(e);
+				this.forward();
+				break;
 		}
 	}
 

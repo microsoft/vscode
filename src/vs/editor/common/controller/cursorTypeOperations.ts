@@ -13,7 +13,7 @@ import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationT
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { EnterAction, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -430,14 +430,12 @@ export class TypeOperations {
 		return null;
 	}
 
-	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
+	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): boolean {
 		const autoCloseConfig = isQuote(ch) ? config.autoClosingQuotes : config.autoClosingBrackets;
 
 		if (autoCloseConfig === 'never' || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
-
-		const isEqualPair = (ch === config.autoClosingPairsClose[ch]);
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -454,12 +452,17 @@ export class TypeOperations {
 				return false;
 			}
 
-			if (isEqualPair) {
-				const lineTextBeforeCursor = lineText.substr(0, position.column - 1);
-				const chCntBefore = this._countNeedlesInHaystack(lineTextBeforeCursor, ch);
-				if (chCntBefore % 2 === 0) {
-					return false;
+			// Must over-type a closing character typed by the editor
+			let found = false;
+			for (let j = 0, lenJ = autoClosedCharacters.length; j < lenJ; j++) {
+				const autoClosedCharacter = autoClosedCharacters[j];
+				if (position.lineNumber === autoClosedCharacter.startLineNumber && position.column === autoClosedCharacter.startColumn) {
+					found = true;
+					break;
 				}
+			}
+			if (!found) {
+				return false;
 			}
 		}
 
@@ -573,7 +576,7 @@ export class TypeOperations {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			const closeCharacter = config.autoClosingPairsOpen[ch];
-			commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length);
+			commands[i] = new TypeWithAutoClosingCommand(selection, ch, closeCharacter);
 		}
 		return new EditOperationResult(EditOperationType.Typing, commands, {
 			shouldPushStackElementBefore: true,
@@ -802,7 +805,7 @@ export class TypeOperations {
 		});
 	}
 
-	public static typeWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
+	public static typeWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
 
 		if (ch === '\n') {
 			let commands: ICommand[] = [];
@@ -833,7 +836,7 @@ export class TypeOperations {
 			}
 		}
 
-		if (this._isAutoClosingCloseCharType(config, model, selections, ch)) {
+		if (this._isAutoClosingCloseCharType(config, model, selections, autoClosedCharacters, ch)) {
 			return this._runAutoClosingCloseCharType(prevEditOperationType, config, model, selections, ch);
 		}
 
@@ -921,5 +924,27 @@ export class TypeOperations {
 			commands[i] = this._enter(config, model, true, selections[i]);
 		}
 		return commands;
+	}
+}
+
+export class TypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCursorState {
+
+	private _closeCharacter: string;
+	public closeCharacterRange: Range | null;
+	public enclosingRange: Range | null;
+
+	constructor(selection: Selection, openCharacter: string, closeCharacter: string) {
+		super(selection, openCharacter + closeCharacter, 0, -closeCharacter.length);
+		this._closeCharacter = closeCharacter;
+		this.closeCharacterRange = null;
+		this.enclosingRange = null;
+	}
+
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let range = inverseEditOperations[0].range;
+		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
+		this.enclosingRange = range;
+		return super.computeCursorState(model, helper);
 	}
 }

@@ -14,7 +14,7 @@ import { ExtHostCustomersRegistry } from 'vs/workbench/api/common/extHostCustome
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { ResolvedAuthority, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
@@ -154,9 +154,13 @@ export class ExtensionHostProcessManager extends Disposable {
 	private async _measureUp(proxy: ExtHostExtensionServiceShape): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		let b = Buffer.alloc(SIZE, Math.random() % 256);
+		let buff = VSBuffer.alloc(SIZE);
+		let value = Math.ceil(Math.random() * 256);
+		for (let i = 0; i < buff.byteLength; i++) {
+			buff.writeUInt8(i, value);
+		}
 		const sw = StopWatch.create(true);
-		await proxy.$test_up(VSBuffer.wrap(b));
+		await proxy.$test_up(buff);
 		sw.stop();
 		return ExtensionHostProcessManager._convert(SIZE, sw.elapsed());
 	}
@@ -247,15 +251,17 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
 	}
 
-	public async resolveAuthority(remoteAuthority: string): Promise<ResolvedAuthority> {
+	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
 			const pieces = remoteAuthority.split(':');
 			return Promise.resolve({
-				authority: remoteAuthority,
-				host: pieces[0],
-				port: parseInt(pieces[1], 10)
+				authority: {
+					authority: remoteAuthority,
+					host: pieces[0],
+					port: parseInt(pieces[1], 10)
+				}
 			});
 		}
 		const proxy = await this._getExtensionHostProcessProxy();
@@ -285,6 +291,15 @@ export class ExtensionHostProcessManager extends Disposable {
 			return;
 		}
 		return proxy.$deltaExtensions(toAdd, toRemove);
+	}
+
+	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
+		const proxy = await this._getExtensionHostProcessProxy();
+		if (!proxy) {
+			return;
+		}
+
+		return proxy.$setRemoteEnvironment(env);
 	}
 }
 

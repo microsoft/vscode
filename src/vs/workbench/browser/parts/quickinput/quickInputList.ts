@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./quickInput';
+import 'vs/css!./media/quickInput';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -114,7 +114,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		const row2 = dom.append(rows, $('.quick-input-list-row'));
 
 		// Label
-		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true });
+		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportOcticons: true });
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
@@ -252,7 +252,7 @@ export class QuickInputList {
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false
-		} as IListOptions<ListElement>) as WorkbenchList<ListElement>;
+		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {

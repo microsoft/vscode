@@ -234,7 +234,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const changeTypeColor = getChangeTypeColor(this.themeService.getTheme(), changeType);
 		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
 
-		this._actionbarWidget.context = [this.model.modified!.uri, this.model.changes, index];
+		this._actionbarWidget!.context = [this.model.modified!.uri, this.model.changes, index];
 		this.show(position, height);
 		this.editor.focus();
 	}
@@ -255,11 +255,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		this._disposables.add(previous);
 		this._disposables.add(next);
-		this._actionbarWidget.push([previous, next], { label: false, icon: true });
+		this._actionbarWidget!.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
-		this._actionbarWidget.push(actions, { label: false, icon: true });
+		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
+		this._actionbarWidget!.push(actions, { label: false, icon: true });
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
@@ -1158,7 +1158,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	private enabled = false;
 	private models: ITextModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
-	private transientDisposables: IDisposable[] = [];
+	private readonly transientDisposables = this._register(new DisposableStore());
 	private stylesheet: HTMLStyleElement;
 
 	constructor(
@@ -1204,7 +1204,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			this.disable();
 		}
 
-		this.transientDisposables.push(this.editorService.onDidVisibleEditorsChange(() => this.onEditorsChanged()));
+		this.transientDisposables.add(this.editorService.onDidVisibleEditorsChange(() => this.onEditorsChanged()));
 		this.onEditorsChanged();
 		this.enabled = true;
 	}
@@ -1214,7 +1214,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			return;
 		}
 
-		this.transientDisposables = dispose(this.transientDisposables);
+		this.transientDisposables.clear();
 		this.models.forEach(m => this.items[m.id].dispose());
 		this.models = [];
 		this.items = Object.create(null);

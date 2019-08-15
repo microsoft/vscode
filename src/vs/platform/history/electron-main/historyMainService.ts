@@ -40,7 +40,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
-	_serviceBrand: ServiceIdentifier<IHistoryMainService>;
+	_serviceBrand!: ServiceIdentifier<IHistoryMainService>;
 
 	private _onRecentlyOpenedChange = new Emitter<void>();
 	readonly onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;
@@ -270,7 +270,7 @@ export class HistoryMainService implements IHistoryMainService {
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
 		const storedRecents = this.stateService.getItem<RecentlyOpenedStorageData>(HistoryMainService.recentlyOpenedStorageKey);
 
-		return restoreRecentlyOpened(storedRecents);
+		return restoreRecentlyOpened(storedRecents, this.logService);
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {

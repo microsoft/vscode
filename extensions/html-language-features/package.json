@@ -173,7 +173,13 @@
           "description": "%html.trace.server.desc%"
         }
       }
-    }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "*.html-data.json",
+        "url": "https://raw.githubusercontent.com/Microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
+      }
+    ]
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",

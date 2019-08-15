@@ -11,12 +11,12 @@ import { localize } from 'vs/nls';
 
 export class NotificationsStatus extends Disposable {
 
-	private notificationsCenterStatusItem: IStatusbarEntryAccessor;
+	private notificationsCenterStatusItem: IStatusbarEntryAccessor | undefined;
 	private currentNotifications = new Set<INotificationViewItem>();
 
 	private currentStatusMessage: [IStatusMessageViewItem, IDisposable] | undefined;
 
-	private isNotificationsCenterVisible: boolean;
+	private isNotificationsCenterVisible: boolean | undefined;
 
 	constructor(
 		private model: INotificationsModel,
@@ -65,7 +65,7 @@ export class NotificationsStatus extends Disposable {
 		};
 
 		if (!this.notificationsCenterStatusItem) {
-			this.notificationsCenterStatusItem = this.statusbarService.addEntry(statusProperties, 'status.notifications', localize('status.notifications', "Notifications"), StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
+			this.notificationsCenterStatusItem = this.statusbarService.addEntry(statusProperties, 'status.notifications', localize('status.notifications', "Notifications"), StatusbarAlignment.RIGHT, -Number.MAX_VALUE /* towards the far end of the right hand side */);
 		} else {
 			this.notificationsCenterStatusItem.update(statusProperties);
 		}

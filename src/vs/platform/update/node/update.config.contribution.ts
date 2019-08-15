@@ -17,7 +17,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'update.mode': {
 			type: 'string',
-			enum: ['none', 'manual', 'default'],
+			enum: ['none', 'manual', 'start', 'default'],
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
@@ -25,6 +25,7 @@ configurationRegistry.registerConfiguration({
 			enumDescriptions: [
 				localize('none', "Disable updates."),
 				localize('manual', "Disable automatic background update checks. Updates will be available if you manually check for updates."),
+				localize('start', "Check for updates only on startup. Disable automatic background update checks."),
 				localize('default', "Enable automatic update checks. Code will check for updates automatically and periodically.")
 			]
 		},

@@ -37,7 +37,7 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 			});
 		} while (name === codeProcessName);
 		const rawEnv = await readFile(`/proc/${pid}/environ`, 'utf8');
-		const env = {};
+		const env: IProcessEnvironment = {};
 		rawEnv.split('\0').forEach(e => {
 			const i = e.indexOf('=');
 			env[e.substr(0, i)] = e.substr(i + 1);

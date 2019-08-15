@@ -23,7 +23,7 @@ import { startsWith } from 'vs/base/common/strings';
 
 let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 
-const tokenGroupToScopesMap: { [setting: string]: string[] } = {
+const tokenGroupToScopesMap = {
 	comments: ['comment'],
 	strings: ['string'],
 	keywords: ['keyword - keyword.operator', 'keyword.control', 'storage', 'storage.type'],
@@ -146,10 +146,11 @@ export class ColorThemeData implements IColorTheme {
 		// Put the general customizations such as comments, strings, etc. first so that
 		// they can be overridden by specific customizations like "string.interpolated"
 		for (let tokenGroup in tokenGroupToScopesMap) {
-			let value = customTokenColors[tokenGroup];
+			const group = <keyof typeof tokenGroupToScopesMap>tokenGroup; // TS doesn't type 'tokenGroup' properly
+			let value = customTokenColors[group];
 			if (value) {
 				let settings = typeof value === 'string' ? { foreground: value } : value;
-				let scopes = tokenGroupToScopesMap[tokenGroup];
+				let scopes = tokenGroupToScopesMap[group];
 				for (let scope of scopes) {
 					this.customTokenColors.push({ scope, settings });
 				}
@@ -186,7 +187,7 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	toStorageData() {
-		let colorMapData = {};
+		let colorMapData: { [key: string]: string } = {};
 		for (let key in this.colorMap) {
 			colorMapData[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
 		}

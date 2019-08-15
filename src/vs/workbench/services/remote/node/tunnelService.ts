@@ -12,8 +12,9 @@ import product from 'vs/platform/product/node/product';
 import { connectRemoteAgentTunnel, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { nodeWebSocketFactory } from 'vs/platform/remote/node/nodeWebSocketFactory';
+import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemotePort: number): Promise<RemoteTunnel> {
 	const tunnel = new NodeRemoteTunnel(options, tunnelRemotePort);
@@ -100,13 +101,12 @@ export class TunnelService implements ITunnelService {
 		}
 
 		const options: IConnectionOptions = {
-			isBuilt: this.environmentService.isBuilt,
 			commit: product.commit,
-			webSocketFactory: nodeWebSocketFactory,
+			socketFactory: nodeSocketFactory,
 			addressProvider: {
 				getAddress: async () => {
-					const { host, port } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
-					return { host, port };
+					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
+					return { host: authority.host, port: authority.port };
 				}
 			},
 			signService: this.signService
@@ -114,3 +114,5 @@ export class TunnelService implements ITunnelService {
 		return createRemoteTunnel(options, remotePort);
 	}
 }
+
+registerSingleton(ITunnelService, TunnelService, true);

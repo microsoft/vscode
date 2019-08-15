@@ -263,13 +263,11 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	private toggleViewVisibility(viewId: string): void {
 		const visible = !this.viewsModel.isVisible(viewId);
-		/* __GDPR__
-			"views.toggleVisibility" : {
-				"viewId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"visible": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('views.toggledVisibility', { viewId, visible });
+		type ViewsToggleVisibilityClassification = {
+			viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			visible: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this.telemetryService.publicLog2<{ viewId: String, visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
 		this.viewsModel.setVisible(viewId, visible);
 	}
 
@@ -295,18 +293,18 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 					this.resizePanel(panel, size);
 				} else {
 					initialSizes = initialSizes ? initialSizes : this.computeInitialSizes();
-					this.resizePanel(panel, initialSizes[panel.id] || 200);
+					this.resizePanel(panel, initialSizes.get(panel.id) || 200);
 				}
 			}
 		}
 	}
 
-	private computeInitialSizes(): { [id: string]: number } {
-		let sizes = {};
+	private computeInitialSizes(): Map<string, number> {
+		const sizes: Map<string, number> = new Map<string, number>();
 		if (this.dimension) {
 			const totalWeight = this.viewsModel.visibleViewDescriptors.reduce((totalWeight, { weight }) => totalWeight + (weight || 20), 0);
 			for (const viewDescriptor of this.viewsModel.visibleViewDescriptors) {
-				sizes[viewDescriptor.id] = this.dimension.height * (viewDescriptor.weight || 20) / totalWeight;
+				sizes.set(viewDescriptor.id, this.dimension.height * (viewDescriptor.weight || 20) / totalWeight);
 			}
 		}
 		return sizes;

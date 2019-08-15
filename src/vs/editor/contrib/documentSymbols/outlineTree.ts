@@ -13,7 +13,7 @@ import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
-import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -38,23 +38,26 @@ export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelP
 
 
 export class OutlineIdentityProvider implements IIdentityProvider<OutlineItem> {
-	getId(element: TreeElement): { toString(): string; } {
+	getId(element: OutlineItem): { toString(): string; } {
 		return element.id;
 	}
 }
 
 export class OutlineGroupTemplate {
 	static id = 'OutlineGroupTemplate';
-
-	labelContainer: HTMLElement;
-	label: HighlightedLabel;
+	constructor(
+		readonly labelContainer: HTMLElement,
+		readonly label: HighlightedLabel,
+	) { }
 }
 
 export class OutlineElementTemplate {
 	static id = 'OutlineElementTemplate';
-	container: HTMLElement;
-	iconLabel: IconLabel;
-	decoration: HTMLElement;
+	constructor(
+		readonly container: HTMLElement,
+		readonly iconLabel: IconLabel,
+		readonly decoration: HTMLElement,
+	) { }
 }
 
 export class OutlineVirtualDelegate implements IListVirtualDelegate<OutlineItem> {
@@ -80,7 +83,7 @@ export class OutlineGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzySc
 		const labelContainer = dom.$('.outline-element-label');
 		dom.addClass(container, 'outline-element');
 		dom.append(container, labelContainer);
-		return { labelContainer, label: new HighlightedLabel(labelContainer, true) };
+		return new OutlineGroupTemplate(labelContainer, new HighlightedLabel(labelContainer, true));
 	}
 
 	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, index: number, template: OutlineGroupTemplate): void {
@@ -109,7 +112,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		const decoration = dom.$('.outline-element-decoration');
 		container.appendChild(decoration);
-		return { container, iconLabel, decoration };
+		return new OutlineElementTemplate(container, iconLabel, decoration);
 	}
 
 	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, index: number, template: OutlineElementTemplate): void {

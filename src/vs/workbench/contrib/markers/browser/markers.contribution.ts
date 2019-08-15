@@ -109,8 +109,8 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ShowProblemsPanelActio
 registerAction({
 	id: Constants.MARKER_COPY_ACTION_ID,
 	title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
-	handler(accessor) {
-		copyMarker(accessor.get(IPanelService), accessor.get(IClipboardService));
+	async handler(accessor) {
+		await copyMarker(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -127,8 +127,8 @@ registerAction({
 registerAction({
 	id: Constants.MARKER_COPY_MESSAGE_ACTION_ID,
 	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
-	handler(accessor) {
-		copyMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
+	async handler(accessor) {
+		await copyMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -139,8 +139,8 @@ registerAction({
 registerAction({
 	id: Constants.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
 	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
-	handler(accessor) {
-		copyRelatedInformationMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
+	async handler(accessor) {
+		await copyRelatedInformationMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -205,32 +205,32 @@ registerAction({
 	}
 });
 
-function copyMarker(panelService: IPanelService, clipboardService: IClipboardService) {
+async function copyMarker(panelService: IPanelService, clipboardService: IClipboardService) {
 	const activePanel = panelService.getActivePanel();
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
-			clipboardService.writeText(`${element}`);
+			await clipboardService.writeText(`${element}`);
 		}
 	}
 }
 
-function copyMessage(panelService: IPanelService, clipboardService: IClipboardService) {
+async function copyMessage(panelService: IPanelService, clipboardService: IClipboardService) {
 	const activePanel = panelService.getActivePanel();
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
-			clipboardService.writeText(element.marker.message);
+			await clipboardService.writeText(element.marker.message);
 		}
 	}
 }
 
-function copyRelatedInformationMessage(panelService: IPanelService, clipboardService: IClipboardService) {
+async function copyRelatedInformationMessage(panelService: IPanelService, clipboardService: IClipboardService) {
 	const activePanel = panelService.getActivePanel();
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof RelatedInformation) {
-			clipboardService.writeText(element.raw.message);
+			await clipboardService.writeText(element.raw.message);
 		}
 	}
 }

@@ -14,7 +14,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionViewItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { prepareActions } from 'vs/workbench/browser/actions';
-import { IAction, WBActionExecutedEvent, WBActionExecutedClassification } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -58,18 +58,18 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
-	protected toolBar: ToolBar;
+	protected toolBar!: ToolBar;
 
 	private mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
 	private mapActionsBindingToComposite = new Map<string, () => void>();
 	private activeComposite: Composite | null;
 	private lastActiveCompositeId: string;
 	private instantiatedCompositeItems: Map<string, CompositeItem>;
-	private titleLabel: ICompositeTitleLabel;
-	private progressBar: ProgressBar;
-	private contentAreaSize: Dimension;
+	private titleLabel!: ICompositeTitleLabel;
+	private progressBar!: ProgressBar;
+	private contentAreaSize: Dimension | undefined;
 	private readonly telemetryActionsListener = this._register(new MutableDisposable());
-	private currentCompositeOpenToken: string;
+	private currentCompositeOpenToken: string | undefined;
 
 	constructor(
 		private notificationService: INotificationService,
@@ -261,7 +261,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Log in telemetry
 			if (this.telemetryService) {
-				this.telemetryService.publicLog2<WBActionExecutedEvent, WBActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
 			}
 		});
 
@@ -466,6 +466,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	layout(width: number, height: number): void {
+		super.layout(width, height);
 
 		// Layout contents
 		this.contentAreaSize = super.layoutContents(width, height).contentSize;

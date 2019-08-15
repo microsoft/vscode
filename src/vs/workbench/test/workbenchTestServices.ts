@@ -474,6 +474,10 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 		return true;
 	}
 
+	getDimension(_part: Parts): Dimension {
+		return new Dimension(0, 0);
+	}
+
 	public getContainer(_part: Parts): HTMLElement {
 		return null!;
 	}
@@ -534,6 +538,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	public addClass(_clazz: string): void { }
 	public removeClass(_clazz: string): void { }
+
+	public getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
 	public getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
 
 	public toggleZenMode(): void { }
@@ -659,13 +665,14 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
+	onDidGroupIndexChange: Event<IEditorGroup> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	willRestoreEditors = false;
 
-	dimension = { width: 800, height: 600 };
+	contentDimension = { width: 800, height: 600 };
 
 	get activeGroup(): IEditorGroup {
 		return this.groups[0];
@@ -701,11 +708,11 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		throw new Error('not implemented');
 	}
 
-	getSize(_group: number | IEditorGroup): number {
-		return 100;
+	getSize(_group: number | IEditorGroup): { width: number, height: number } {
+		return { width: 100, height: 100 };
 	}
 
-	setSize(_group: number | IEditorGroup, _size: number): void { }
+	setSize(_group: number | IEditorGroup, _size: { width: number, height: number }): void { }
 
 	arrangeGroups(_arrangement: GroupsArrangement): void { }
 
@@ -755,12 +762,16 @@ export class TestEditorGroup implements IEditorGroupView {
 	disposed: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label: string;
+	index: number;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	element: HTMLElement;
 	minimumWidth: number;
 	maximumWidth: number;
 	minimumHeight: number;
 	maximumHeight: number;
+
+	isEmpty = true;
+	isMinimized = false;
 
 	onWillDispose: Event<void> = Event.None;
 	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
@@ -831,9 +842,8 @@ export class TestEditorGroup implements IEditorGroupView {
 		throw new Error('not implemented');
 	}
 
-	isEmpty(): boolean { return true; }
 	setActive(_isActive: boolean): void { }
-	setLabel(_label: string): void { }
+	notifyIndexChanged(_index: number): void { }
 	dispose(): void { }
 	toJSON(): object { return Object.create(null); }
 	layout(_width: number, _height: number): void { }
@@ -1071,6 +1081,10 @@ export class TestBackupFileService implements IBackupFileService {
 
 	public hasBackup(_resource: URI): Promise<boolean> {
 		return Promise.resolve(false);
+	}
+
+	public hasBackupSync(resource: URI, versionId?: number): boolean {
+		return false;
 	}
 
 	public loadBackupResource(resource: URI): Promise<URI | undefined> {
@@ -1467,7 +1481,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve(this.windowCount);
 	}
 
-	log(_severity: string, ..._messages: string[]): Promise<void> {
+	log(_severity: string, _args: string[]): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1587,30 +1601,6 @@ export class TestSharedProcessService implements ISharedProcessService {
 	}
 
 	registerChannel(channelName: string, channel: any): void { }
-}
-
-export class NullFileSystemProvider implements IFileSystemProvider {
-
-	capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
-
-	onDidChangeCapabilities: Event<void> = Event.None;
-	onDidChangeFile: Event<IFileChange[]> = Event.None;
-
-	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
-
-	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.disposableFactory(); }
-	stat(resource: URI): Promise<IStat> { return Promise.resolve(undefined!); }
-	mkdir(resource: URI): Promise<void> { return Promise.resolve(undefined!); }
-	readdir(resource: URI): Promise<[string, FileType][]> { return Promise.resolve(undefined!); }
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	readFile?(resource: URI): Promise<Uint8Array> { return Promise.resolve(undefined!); }
-	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	open?(resource: URI, opts: FileOpenOptions): Promise<number> { return Promise.resolve(undefined!); }
-	close?(fd: number): Promise<void> { return Promise.resolve(undefined!); }
-	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
-	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
 }
 
 export class RemoteFileSystemProvider implements IFileSystemProvider {

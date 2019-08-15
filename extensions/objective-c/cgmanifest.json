@@ -10,7 +10,7 @@
 				}
 			},
 			"license": "MIT",
-			"version": "1.0.0",
+			"version": "1.12.11",
 			"description": "The files syntaxes/objective-c.tmLanguage.json and syntaxes/objective-c++.tmLanguage.json were derived from the language package https://github.com/jeff-hykin/cpp-textmate-grammar."
 		}
 	],

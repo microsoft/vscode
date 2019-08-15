@@ -6,13 +6,13 @@
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StorageMainService, IStorageChangeEvent } from 'vs/platform/storage/node/storageMainService';
-import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/node/storage';
+import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
 import { mapToSerializable, serializableToMap, values } from 'vs/base/common/map';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { generateUuid } from 'vs/base/common/uuid';
-import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey, currentSessionDateStorageKey } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey, currentSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 
 type Key = string;
 type Value = string;
@@ -32,7 +32,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 	private static STORAGE_CHANGE_DEBOUNCE_TIME = 100;
 
 	private readonly _onDidChangeItems: Emitter<ISerializableItemsChangeEvent> = this._register(new Emitter<ISerializableItemsChangeEvent>());
-	get onDidChangeItems(): Event<ISerializableItemsChangeEvent> { return this._onDidChangeItems.event; }
+	readonly onDidChangeItems: Event<ISerializableItemsChangeEvent> = this._onDidChangeItems.event;
 
 	private whenReady: Promise<void>;
 
@@ -139,10 +139,6 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 				break;
 			}
 
-			case 'checkIntegrity': {
-				return this.storageMainService.checkIntegrity(arg);
-			}
-
 			default:
 				throw new Error(`Call not found: ${command}`);
 		}
@@ -154,7 +150,7 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	_serviceBrand: any;
 
 	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
-	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return this._onDidChangeItemsExternal.event; }
+	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent> = this._onDidChangeItemsExternal.event;
 
 	private onDidChangeItemsOnMainListener: IDisposable;
 
@@ -181,28 +177,17 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	}
 
 	updateItems(request: IUpdateRequest): Promise<void> {
-		let updateCount = 0;
 		const serializableRequest: ISerializableUpdateRequest = Object.create(null);
 
 		if (request.insert) {
 			serializableRequest.insert = mapToSerializable(request.insert);
-			updateCount += request.insert.size;
 		}
 
 		if (request.delete) {
 			serializableRequest.delete = values(request.delete);
-			updateCount += request.delete.size;
-		}
-
-		if (updateCount === 0) {
-			return Promise.resolve(); // prevent work if not needed
 		}
 
 		return this.channel.call('updateItems', serializableRequest);
-	}
-
-	checkIntegrity(full: boolean): Promise<string> {
-		return this.channel.call('checkIntegrity', full);
 	}
 
 	close(): Promise<void> {

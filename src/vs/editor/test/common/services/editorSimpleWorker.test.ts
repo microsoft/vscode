@@ -5,11 +5,12 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EditorSimpleWorkerImpl, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
+import { EditorSimpleWorker, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
+import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
 
 suite('EditorSimpleWorker', () => {
 
-	class WorkerWithModels extends EditorSimpleWorkerImpl {
+	class WorkerWithModels extends EditorSimpleWorker {
 
 		getModel(uri: string) {
 			return this._getModel(uri);
@@ -31,7 +32,7 @@ suite('EditorSimpleWorker', () => {
 	let model: ICommonModel;
 
 	setup(() => {
-		worker = new WorkerWithModels(null);
+		worker = new WorkerWithModels(<EditorWorkerHost>null!, null);
 		model = worker.addModel([
 			'This is line one', //16
 			'and this is line number two', //27

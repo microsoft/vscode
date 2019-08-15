@@ -6,6 +6,6 @@
 
 var updateGrammar = require('../../../build/npm/update-grammar');
 
-updateGrammar.update('jeff-hykin/cpp-textmate-grammar', '/syntaxes/objc.tmLanguage.json', './syntaxes/objective-c.tmLanguage.json');
-updateGrammar.update('jeff-hykin/cpp-textmate-grammar', '/syntaxes/objcpp.tmLanguage.json', './syntaxes/objective-c++.tmLanguage.json');
+updateGrammar.update('jeff-hykin/cpp-textmate-grammar', '/syntaxes/objc.tmLanguage.json', './syntaxes/objective-c.tmLanguage.json', undefined, 'master', 'source/languages/cpp');
+updateGrammar.update('jeff-hykin/cpp-textmate-grammar', '/syntaxes/objcpp.tmLanguage.json', './syntaxes/objective-c++.tmLanguage.json', undefined, 'master', 'source/languages/cpp');
 

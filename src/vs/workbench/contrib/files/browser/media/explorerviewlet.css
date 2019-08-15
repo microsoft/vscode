@@ -66,6 +66,8 @@
 
 .explorer-viewlet .panel-header .count {
 	min-width: fit-content;
+	display: flex;
+	align-items: center;
 }
 
 .explorer-viewlet .panel-header .monaco-count-badge.hidden {
@@ -102,8 +104,9 @@
 }
 
 .explorer-viewlet .monaco-count-badge {
-	padding: 1px 6px;
+	padding: 1px 6px 2px;
 	margin-left: 6px;
+	min-height: auto;
 	border-radius: 0; /* goes better when ellipsis shows up on narrow sidebar */
 }
 

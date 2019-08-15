@@ -25,9 +25,17 @@
 	border-top-style: solid;
 }
 
+.monaco-workbench.noeditorarea .part.panel.bottom .title {
+	border-top-width: 0; /* no border when editor area is hiden */
+}
+
 .monaco-workbench .part.panel.right {
 	border-left-width: 1px;
 	border-left-style: solid;
+}
+
+.monaco-workbench.noeditorarea .part.panel.right {
+	border-left-width: 0; /* no border when editor area is hiden */
 }
 
 .monaco-workbench .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
@@ -93,13 +101,15 @@
 }
 
 .monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
-	padding: 0.3em 0.5em;
-	border-radius: 1em;
+	padding: 3px 5px;
+	border-radius: 11px;
+	font-size: 11px;
+	min-width: 18px;
+	min-height: 18px;
+	line-height: 11px;
 	font-weight: normal;
 	text-align: center;
 	display: inline-block;
-	min-width: 1.6em;
-	line-height: 1em;
 	box-sizing: border-box;
 	}
 

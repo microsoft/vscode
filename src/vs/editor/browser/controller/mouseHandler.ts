@@ -49,7 +49,7 @@ export interface IPointerHandlerHelper {
 	 */
 	getLastViewCursorsRenderData(): IViewCursorRenderData[];
 
-	shouldSuppressMouseDownOnViewZone(viewZoneId: number): boolean;
+	shouldSuppressMouseDownOnViewZone(viewZoneId: string): boolean;
 	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
 
 	/**
@@ -123,7 +123,7 @@ export class MouseHandler extends ViewEventHandler {
 				e.stopPropagation();
 			}
 		};
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, 'mousewheel', onMouseWheel, true));
+		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, browser.isEdgeOrIE ? 'mousewheel' : 'wheel', onMouseWheel, true));
 
 		this._context.addEventHandler(this);
 	}

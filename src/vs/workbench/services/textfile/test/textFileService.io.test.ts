@@ -4,25 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { ITextFileService, snapshotToString, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { rimraf, RimRafMode, copy, readFile, exists } from 'vs/base/node/pfs';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileService } from 'vs/workbench/services/files/common/fileService';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { tmpdir } from 'os';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files/node/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -36,20 +31,15 @@ import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
 
 class ServiceAccessor {
 	constructor(
-		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledEditorService public untitledEditorService: IUntitledEditorService,
-		@IWindowsService public windowsService: TestWindowsService,
-		@IWorkspaceContextService public contextService: TestContextService,
-		@IModelService public modelService: ModelServiceImpl,
-		@IFileService public fileService: TestFileService
+		@IUntitledEditorService public untitledEditorService: IUntitledEditorService
 	) {
 	}
 }
 
 class TestNodeTextFileService extends NodeTextFileService {
 
-	private _testEncoding: TestEncodingOracle;
+	private _testEncoding: TestEncodingOracle | undefined;
 	get encoding(): TestEncodingOracle {
 		if (!this._testEncoding) {
 			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
@@ -247,7 +237,10 @@ suite('Files - TextFileService i/o', () => {
 	}
 
 	test('write - use encoding (cp1252)', async () => {
-		await testEncodingKeepsData(URI.file(join(testDir, 'some_cp1252.txt')), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join(isWindows ? '\r\n' : '\n'));
+		const filePath = join(testDir, 'some_cp1252.txt');
+		const contents = await readFile(filePath, 'utf8');
+		const eol = /\r\n/.test(contents) ? '\r\n' : '\n';
+		await testEncodingKeepsData(URI.file(filePath), 'cp1252', ['ObjectCount = LoadObjects("Öffentlicher Ordner");', '', 'Private = "Persönliche Information"', ''].join(eol));
 	});
 
 	test('write - use encoding (shiftjis)', async () => {

@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -47,53 +47,77 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 
-	// ---
+	// --- consumer fs, vscode.workspace.fs
 
-	async $stat(uri: UriComponents): Promise<IStat> {
-		const stat = await this._fileService.resolve(URI.revive(uri), { resolveMetadata: true });
-		return {
-			ctime: 0,
-			mtime: stat.mtime,
-			size: stat.size,
-			type: MainThreadFileSystem._getFileType(stat)
-		};
+	$stat(uri: UriComponents): Promise<IStat> {
+		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: true }).then(stat => {
+			return {
+				ctime: 0,
+				mtime: stat.mtime,
+				size: stat.size,
+				type: MainThreadFileSystem._getFileType(stat)
+			};
+		}).catch(MainThreadFileSystem._handleError);
 	}
 
-	async $readdir(uri: UriComponents): Promise<[string, FileType][]> {
-		const stat = await this._fileService.resolve(URI.revive(uri), { resolveMetadata: false });
-		if (!stat.children) {
-			throw new Error('not a folder');
-		}
-		return stat.children.map(child => [child.name, MainThreadFileSystem._getFileType(child)]);
+	$readdir(uri: UriComponents): Promise<[string, FileType][]> {
+		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: false }).then(stat => {
+			if (!stat.isDirectory) {
+				const err = new Error(stat.name);
+				err.name = FileSystemProviderErrorCode.FileNotADirectory;
+				throw err;
+			}
+			return !stat.children ? [] : stat.children.map(child => [child.name, MainThreadFileSystem._getFileType(child)]);
+		}).catch(MainThreadFileSystem._handleError);
 	}
 
 	private static _getFileType(stat: IFileStat): FileType {
 		return (stat.isDirectory ? FileType.Directory : FileType.File) + (stat.isSymbolicLink ? FileType.SymbolicLink : 0);
 	}
 
-	async $readFile(uri: UriComponents): Promise<VSBuffer> {
-		return (await this._fileService.readFile(URI.revive(uri))).value;
+	$readFile(uri: UriComponents): Promise<VSBuffer> {
+		return this._fileService.readFile(URI.revive(uri)).then(file => file.value).catch(MainThreadFileSystem._handleError);
 	}
 
-	async $writeFile(uri: UriComponents, content: VSBuffer, opts: FileWriteOptions): Promise<void> {
-		//todo@joh honor opts
-		await this._fileService.writeFile(URI.revive(uri), content, {});
+	$writeFile(uri: UriComponents, content: VSBuffer): Promise<void> {
+		return this._fileService.writeFile(URI.revive(uri), content).catch(MainThreadFileSystem._handleError);
 	}
 
-	async $rename(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
-		await this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite);
+	$rename(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+		return this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite).catch(MainThreadFileSystem._handleError);
 	}
 
-	async $copy(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
-		await this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite);
+	$copy(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+		return this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite).catch(MainThreadFileSystem._handleError);
 	}
 
-	async $mkdir(uri: UriComponents): Promise<void> {
-		await this._fileService.createFolder(URI.revive(uri));
+	$mkdir(uri: UriComponents): Promise<void> {
+		return this._fileService.createFolder(URI.revive(uri)).catch(MainThreadFileSystem._handleError);
 	}
 
-	async $delete(uri: UriComponents, opts: FileDeleteOptions): Promise<void> {
-		await this._fileService.del(URI.revive(uri), opts);
+	$delete(uri: UriComponents, opts: FileDeleteOptions): Promise<void> {
+		return this._fileService.del(URI.revive(uri), opts).catch(MainThreadFileSystem._handleError);
+	}
+
+	private static _handleError(err: any): never {
+		if (err instanceof FileOperationError) {
+			switch (err.fileOperationResult) {
+				case FileOperationResult.FILE_NOT_FOUND:
+					err.name = FileSystemProviderErrorCode.FileNotFound;
+					break;
+				case FileOperationResult.FILE_IS_DIRECTORY:
+					err.name = FileSystemProviderErrorCode.FileIsADirectory;
+					break;
+				case FileOperationResult.FILE_PERMISSION_DENIED:
+					err.name = FileSystemProviderErrorCode.NoPermissions;
+					break;
+				case FileOperationResult.FILE_MOVE_CONFLICT:
+					err.name = FileSystemProviderErrorCode.FileExists;
+					break;
+			}
+		}
+
+		throw err;
 	}
 }
 
