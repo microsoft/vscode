@@ -76,10 +76,10 @@ export function toExtensionDescription(local: ILocalExtension): IExtensionDescri
 
 const promptDownloadManually = (extension: IGalleryExtension | undefined, message: string, error: Error,
 	instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService, productService: IProductService) => {
-	if (!extension || error.name === INSTALL_ERROR_INCOMPATIBLE || error.name === INSTALL_ERROR_MALICIOUS || !productService.productConfiguration.extensionsGallery) {
+	if (!extension || error.name === INSTALL_ERROR_INCOMPATIBLE || error.name === INSTALL_ERROR_MALICIOUS || !productService.extensionsGallery) {
 		return Promise.reject(error);
 	} else {
-		const downloadUrl = `${productService.productConfiguration.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
+		const downloadUrl = `${productService.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
 		notificationService.prompt(Severity.Error, message, [{
 			label: localize('download', "Download Manually"),
 			run: () => openerService.open(URI.parse(downloadUrl)).then(() => {

@@ -14,7 +14,7 @@ import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService, IProductConfiguration } from 'vs/platform/product/common/product';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -33,7 +33,6 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
-import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
@@ -121,7 +120,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
-		const productService = new ProductService();
+		const productService = this.createProductService();
 		serviceCollection.set(IProductService, productService);
 
 		// Remote
@@ -185,6 +184,18 @@ class CodeRendererMain extends Disposable {
 		]);
 
 		return { serviceCollection, logService, storageService: services[1] };
+	}
+
+	private createProductService(): IProductService {
+		const element = document.getElementById('vscode-remote-product-configuration');
+		const productConfiguration: IProductConfiguration = {
+			...element ? JSON.parse(element.getAttribute('data-settings')!) : {
+				version: '1.38.0-unknown',
+				nameLong: 'Unknown',
+				extensionAllowedProposedApi: [],
+			}, ...{ urlProtocol: '', enableTelemetry: false }
+		};
+		return { _serviceBrand: undefined, ...productConfiguration };
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {

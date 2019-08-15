@@ -69,7 +69,7 @@ export class RemoteExtensionManagementChannelClient extends ExtensionManagementC
 		const installed = await this.getInstalled(ExtensionType.User);
 		const compatible = await this.galleryService.getCompatibleExtension(extension);
 		if (!compatible) {
-			return Promise.reject(new Error(localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extension.identifier.id, this.productService.productConfiguration.version)));
+			return Promise.reject(new Error(localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extension.identifier.id, this.productService.version)));
 		}
 		const manifest = await this.galleryService.getManifest(compatible, CancellationToken.None);
 		if (manifest) {
