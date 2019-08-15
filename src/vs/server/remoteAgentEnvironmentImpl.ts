@@ -51,6 +51,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	private readonly _logger: ILog;
 
 	constructor(
+		private readonly _connectionToken: string,
 		private readonly environmentService: IEnvironmentService,
 		private readonly logService: ILogService,
 		private readonly telemetryService: ITelemetryService
@@ -238,6 +239,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		return this.scanExtensions(language, extensionDevelopmentPath).then((extensions): IRemoteAgentEnvironmentDTO => {
 			return {
 				pid: process.pid,
+				connectionToken: this._connectionToken,
 				appRoot: URI.file(this.environmentService.appRoot),
 				appSettingsHome: this.environmentService.appSettingsHome,
 				settingsPath: this.environmentService.machineSettingsResource,

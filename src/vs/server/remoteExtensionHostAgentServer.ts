@@ -181,7 +181,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		services.set(ILocalizationsService, instantiationService.createInstance(LocalizationsService));
 
 		instantiationService.invokeFunction(accessor => {
-			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._environmentService, this._logService, accessor.get(ITelemetryService));
+			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._connectionToken, this._environmentService, this._logService, accessor.get(ITelemetryService));
 			this._socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 			const remoteFileSystemChannel = new RemoteAgentFileSystemChannel(this._logService, this._environmentService);

@@ -18,6 +18,7 @@ export interface IGetEnvironmentDataArguments {
 
 export interface IRemoteAgentEnvironmentDTO {
 	pid: number;
+	connectionToken: string;
 	appRoot: UriComponents;
 	appSettingsHome: UriComponents;
 	settingsPath: UriComponents;
