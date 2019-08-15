@@ -250,6 +250,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			// Workbench
 			try {
 				const headers: Record<string, string> = Object.create(null);
+				const parsedUrl = url.parse(req.url!, true);
 				const pathname = url.parse(req.url!).pathname;
 				let validatePath = true;
 
@@ -315,6 +316,29 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					) {
 						headers['Cache-Control'] = 'public, max-age=31536000';
 						headers['X-VSCode-Extension'] = 'true';
+					}
+				}
+
+				// Extension/Workspace resources
+				else if (pathname === '/vscode-remote2') {
+					if (parsedUrl.query['tkn'] !== this._connectionToken) {
+						res.writeHead(403, { 'Content-Type': 'text/plain' });
+						res.end(`Forbidden.`);
+						return;
+					}
+					const desiredPath = parsedUrl.query['path'];
+					if (typeof desiredPath !== 'string') {
+						res.writeHead(400, { 'Content-Type': 'text/plain' });
+						res.end(`Bad request.`);
+						return;
+					}
+					try {
+						filePath = URI.from({ scheme: Schemas.file, path: desiredPath }).fsPath;
+						validatePath = false;
+					} catch (err) {
+						res.writeHead(400, { 'Content-Type': 'text/plain' });
+						res.end(`Bad request.\n${err}`);
+						return;
 					}
 				}
 
