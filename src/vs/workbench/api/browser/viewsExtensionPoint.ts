@@ -151,7 +151,7 @@ const viewsContribution: IJSONSchema = {
 			default: []
 		},
 		'remote': {
-			description: localize('views.remote', "Contributes views to Remote container in the Activity bar"),
+			description: localize('views.remote', "Contributes views to Remote container in the Activity bar. To contribute to this container, enableProposedApi needs to be turned on"),
 			type: 'array',
 			items: nestableViewDescriptor,
 			default: []
@@ -384,6 +384,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 			forEach(value, entry => {
 				if (!this.isValidViewDescriptors(entry.value, collector)) {
+					return;
+				}
+
+				if (entry.key === 'remote' && !extension.description.enableProposedApi) {
+					collector.warn(localize('ViewContainerRequiresProposedAPI', "View container '{0}' requires 'enableProposedApi' turned on to be added to 'Remote'.", entry.key));
 					return;
 				}
 
