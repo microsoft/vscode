@@ -6,7 +6,6 @@
 import * as puppeteer from 'puppeteer';
 import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
-import { tmpdir } from 'os';
 import { mkdir } from 'fs';
 import { promisify } from 'util';
 
@@ -226,7 +225,7 @@ export function connect(headless: boolean, outPath: string, handle: string): Pro
 		const page = (await browser.pages())[0];
 		await page.setViewport({ width, height });
 		const endpointSplit = endpoint!.split('#');
-		await page.goto(`${endpointSplit[0]}?folder=${args[1]}#${endpointSplit[1]}`);
+		await page.goto(`${endpointSplit[0]}?folder=${args![1]}#${endpointSplit[1]}`);
 		const result = {
 			client: { dispose: () => teardown },
 			driver: buildDriver(browser, page)
