@@ -112,14 +112,14 @@ steps:
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
-  set -e
-  cd test/smoke
-  yarn compile
-  cd -
-  yarn smoketest --web --headless
-continueOnError: true
-displayName: Run smoke tests
-condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    set -e
+    cd test/smoke
+    yarn compile
+    cd -
+    yarn smoketest --web --headless
+  continueOnError: true
+  displayName: Run smoke tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
