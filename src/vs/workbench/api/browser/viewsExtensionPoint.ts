@@ -19,6 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
 import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
 import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
+import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
@@ -79,6 +80,7 @@ interface IUserFriendlyViewDescriptor {
 	id: string;
 	name: string;
 	when?: string;
+	group?: string;
 }
 
 const viewDescriptor: IJSONSchema = {
@@ -99,6 +101,27 @@ const viewDescriptor: IJSONSchema = {
 	}
 };
 
+const nestableViewDescriptor: IJSONSchema = {
+	type: 'object',
+	properties: {
+		id: {
+			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
+			type: 'string'
+		},
+		name: {
+			description: localize('vscode.extension.contributes.view.name', 'The human-readable name of the view. Will be shown'),
+			type: 'string'
+		},
+		when: {
+			description: localize('vscode.extension.contributes.view.when', 'Condition which must be true to show this view'),
+			type: 'string'
+		},
+		group: {
+			description: localize('vscode.extension.contributes.view.group', 'Nested group in the viewlet'),
+			type: 'string'
+		}
+	}
+};
 const viewsContribution: IJSONSchema = {
 	description: localize('vscode.extension.contributes.views', "Contributes views to the editor"),
 	type: 'object',
@@ -125,6 +148,12 @@ const viewsContribution: IJSONSchema = {
 			description: localize('views.test', "Contributes views to Test container in the Activity bar"),
 			type: 'array',
 			items: viewDescriptor,
+			default: []
+		},
+		'remote': {
+			description: localize('views.remote', "Contributes views to Remote container in the Activity bar"),
+			type: 'array',
+			items: nestableViewDescriptor,
 			default: []
 		}
 	},
@@ -376,6 +405,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						return null;
 					}
 
+					const order = ExtensionIdentifier.equals(extension.description.identifier, container.extensionId)
+						? index + 1
+						: container.orderDelegate
+							? container.orderDelegate.getOrder(item.group)
+							: undefined;
+
 					const viewDescriptor = <ICustomViewDescriptor>{
 						id: item.id,
 						name: item.name,
@@ -384,9 +419,10 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						canToggleVisibility: true,
 						collapsed: this.showCollapsed(container),
 						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name, container),
-						order: ExtensionIdentifier.equals(extension.description.identifier, container.extensionId) ? index + 1 : undefined,
+						order: order,
 						extensionId: extension.description.identifier,
-						originalContainerId: entry.key
+						originalContainerId: entry.key,
+						group: item.group
 					};
 
 					viewIds.push(viewDescriptor.id);
@@ -440,6 +476,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			case 'explorer': return this.viewContainersRegistry.get(EXPLORER);
 			case 'debug': return this.viewContainersRegistry.get(DEBUG);
 			case 'scm': return this.viewContainersRegistry.get(SCM);
+			case 'remote': return this.viewContainersRegistry.get(REMOTE);
 			default: return this.viewContainersRegistry.get(`workbench.view.extension.${value}`);
 		}
 	}
