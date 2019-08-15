@@ -40,8 +40,8 @@ import { extname } from 'vs/base/common/resources';
 import { IExeBasedExtensionTip, IProductService } from 'vs/platform/product/common/product';
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
-import { Platform, setImmediate, IProcessEnvironment } from 'vs/base/common/platform';
-import { platform } from 'vs/base/common/process';
+import { Platform, setImmediate } from 'vs/base/common/platform';
+import { platform, env as processEnv } from 'vs/base/common/process';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
@@ -66,7 +66,7 @@ function caseInsensitiveGet<T>(obj: { [key: string]: T }, key: string): T | unde
 	return undefined;
 }
 
-export abstract class BaseExtensionTipsService extends Disposable implements IExtensionTipsService {
+export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
 	_serviceBrand: any;
 
@@ -116,8 +116,8 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 			return;
 		}
 
-		if (this.productService.productConfiguration.extensionsGallery && this.productService.productConfiguration.extensionsGallery.recommendationsUrl) {
-			this._extensionsRecommendationsUrl = this.productService.productConfiguration.extensionsGallery.recommendationsUrl;
+		if (this.productService.extensionsGallery && this.productService.extensionsGallery.recommendationsUrl) {
+			this._extensionsRecommendationsUrl = this.productService.extensionsGallery.recommendationsUrl;
 		}
 
 		this.sessionSeed = +new Date();
@@ -243,7 +243,7 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 	}
 
 	getKeymapRecommendations(): IExtensionRecommendation[] {
-		return (this.productService.productConfiguration.keymapExtensionTips || [])
+		return (this.productService.keymapExtensionTips || [])
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId))
 			.map(extensionId => (<IExtensionRecommendation>{ extensionId, sources: ['application'] }));
 	}
@@ -600,10 +600,10 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 		return Object.keys(this._fileBasedRecommendations)
 			.sort((a, b) => {
 				if (this._fileBasedRecommendations[a].recommendedTime === this._fileBasedRecommendations[b].recommendedTime) {
-					if (!this.productService.productConfiguration.extensionImportantTips || caseInsensitiveGet(this.productService.productConfiguration.extensionImportantTips, a)) {
+					if (!this.productService.extensionImportantTips || caseInsensitiveGet(this.productService.extensionImportantTips, a)) {
 						return -1;
 					}
-					if (caseInsensitiveGet(this.productService.productConfiguration.extensionImportantTips, b)) {
+					if (caseInsensitiveGet(this.productService.extensionImportantTips, b)) {
 						return 1;
 					}
 				}
@@ -614,11 +614,11 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 	}
 
 	/**
-	 * Parse all file based recommendations from this.productService.productConfiguration.extensionTips
-	 * Retire existing recommendations if they are older than a week or are not part of this.productService.productConfiguration.extensionTips anymore
+	 * Parse all file based recommendations from this.productService.extensionTips
+	 * Retire existing recommendations if they are older than a week or are not part of this.productService.extensionTips anymore
 	 */
 	private fetchFileBasedRecommendations() {
-		const extensionTips = this.productService.productConfiguration.extensionTips;
+		const extensionTips = this.productService.extensionTips;
 		if (!extensionTips) {
 			return;
 		}
@@ -635,7 +635,7 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 			}
 		});
 
-		forEach(this.productService.productConfiguration.extensionImportantTips, entry => {
+		forEach(this.productService.extensionImportantTips, entry => {
 			let { key: id, value } = entry;
 			const { pattern } = value;
 			let ids = this._availableRecommendations[pattern];
@@ -697,7 +697,7 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 				let { key: pattern, value: ids } = entry;
 				if (match(pattern, model.uri.toString())) {
 					for (let id of ids) {
-						if (caseInsensitiveGet(this.productService.productConfiguration.extensionImportantTips, id)) {
+						if (caseInsensitiveGet(this.productService.extensionImportantTips, id)) {
 							recommendationsToSuggest.push(id);
 						}
 						const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
@@ -751,7 +751,7 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 		}
 
 		const id = recommendationsToSuggest[0];
-		const entry = caseInsensitiveGet(this.productService.productConfiguration.extensionImportantTips, id);
+		const entry = caseInsensitiveGet(this.productService.extensionImportantTips, id);
 		if (!entry) {
 			return false;
 		}
@@ -981,7 +981,7 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 	}
 
 	/**
-	 * If user has any of the tools listed in this.productService.productConfiguration.exeBasedExtensionTips, fetch corresponding recommendations
+	 * If user has any of the tools listed in this.productService.exeBasedExtensionTips, fetch corresponding recommendations
 	 */
 	private async fetchExecutableRecommendations(important: boolean): Promise<void> {
 		if (Platform.Web) {
@@ -1007,7 +1007,7 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 
 		const promises: Promise<void>[] = [];
 		// Loop through recommended extensions
-		forEach(this.productService.productConfiguration.exeBasedExtensionTips, entry => {
+		forEach(this.productService.exeBasedExtensionTips, entry => {
 			if (typeof entry.value !== 'object' || !Array.isArray(entry.value['recommendations'])) {
 				return;
 			}
@@ -1020,7 +1020,6 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 				if (!windowsPath || typeof windowsPath !== 'string') {
 					return;
 				}
-				const processEnv = this.getProcessEnvironment();
 				windowsPath = windowsPath.replace('%USERPROFILE%', processEnv['USERPROFILE']!)
 					.replace('%ProgramFiles(x86)%', processEnv['ProgramFiles(x86)']!)
 					.replace('%ProgramFiles%', processEnv['ProgramFiles']!)
@@ -1144,16 +1143,6 @@ export abstract class BaseExtensionTipsService extends Disposable implements IEx
 
 	private isExtensionAllowedToBeRecommended(id: string): boolean {
 		return this._allIgnoredRecommendations.indexOf(id.toLowerCase()) === -1;
-	}
-
-	protected abstract getProcessEnvironment(): IProcessEnvironment;
-}
-
-
-export class ExtensionTipsService extends BaseExtensionTipsService implements IExtensionTipsService {
-
-	protected getProcessEnvironment(): IProcessEnvironment {
-		return {};
 	}
 
 }

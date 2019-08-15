@@ -175,7 +175,7 @@ export class DebugSession implements IDebugSession {
 
 					return this.raw!.initialize({
 						clientID: 'vscode',
-						clientName: this.productService.productConfiguration.nameLong,
+						clientName: this.productService.nameLong,
 						adapterID: this.configuration.type,
 						pathFormat: 'path',
 						linesStartAt1: true,

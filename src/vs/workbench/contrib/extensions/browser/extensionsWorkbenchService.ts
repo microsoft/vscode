@@ -114,11 +114,11 @@ class Extension implements IExtension {
 	}
 
 	get url(): string | undefined {
-		if (!this.productService.productConfiguration.extensionsGallery || !this.gallery) {
+		if (!this.productService.extensionsGallery || !this.gallery) {
 			return undefined;
 		}
 
-		return `${this.productService.productConfiguration.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
+		return `${this.productService.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
 	}
 
 	get iconUrl(): string {
@@ -615,7 +615,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			text = text.replace(extensionRegex, (m, ext) => {
 
 				// Get curated keywords
-				const lookup = this.productService.productConfiguration.extensionKeywords || {};
+				const lookup = this.productService.extensionKeywords || {};
 				const keywords = lookup[ext] || [];
 
 				// Get mode name
@@ -1022,7 +1022,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	get allowedBadgeProviders(): string[] {
 		if (!this._extensionAllowedBadgeProviders) {
-			this._extensionAllowedBadgeProviders = (this.productService.productConfiguration.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
+			this._extensionAllowedBadgeProviders = (this.productService.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
 		}
 		return this._extensionAllowedBadgeProviders;
 	}

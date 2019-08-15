@@ -327,7 +327,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		if (MainThreadWebviews.standardSupportedLinkSchemes.has(link.scheme)) {
 			return true;
 		}
-		if (this._productService.productConfiguration.urlProtocol === link.scheme) {
+		if (this._productService.urlProtocol === link.scheme) {
 			return true;
 		}
 		return !!webview.webview.contentOptions.enableCommandUris && link.scheme === 'command';

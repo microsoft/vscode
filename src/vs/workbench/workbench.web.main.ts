@@ -87,9 +87,6 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 import 'vs/workbench/contrib/webview/browser/webviewService';
 import 'vs/workbench/contrib/webview/browser/webviewEditorService';
 
-// Extensions Management
-import 'vs/workbench/contrib/extensions/browser/extensions.web.contribution';
-
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminalNativeService';
 import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';

@@ -84,6 +84,8 @@ import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/n
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { NodeTextFileService } from 'vs/workbench/services/textfile/node/textFileService';
 import { Schemas } from 'vs/base/common/network';
+import { IProductService } from 'vs/platform/product/common/product';
+import product from 'vs/platform/product/node/product';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -1631,3 +1633,5 @@ export class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	private toFileResource(resource: URI): URI { return resource.with({ scheme: Schemas.file, authority: '' }); }
 }
+
+export const productService: IProductService = { _serviceBrand: undefined, ...product };

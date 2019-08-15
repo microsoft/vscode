@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IProductService = createDecorator<IProductService>('productService');
 
-export interface IProductService {
+export interface IProductService extends Readonly<IProductConfiguration> {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
-	readonly productConfiguration: IProductConfiguration;
 }
 
 export interface IProductConfiguration {
-	readonly version: string;
+	version: string;
 	nameShort: string;
 	nameLong: string;
 	readonly applicationName: string;
