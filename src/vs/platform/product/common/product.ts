@@ -89,6 +89,7 @@ export interface IProductConfiguration {
 	readonly logUploaderUrl: string;
 	readonly portable?: string;
 	readonly uiExtensions?: readonly string[];
+	readonly msftInternalDomains?: string[];
 }
 
 export interface IExeBasedExtensionTip {
