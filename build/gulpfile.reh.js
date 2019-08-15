@@ -132,6 +132,7 @@ const serverWithWebEntryPoints = [
 	// Include workbench web
 	buildfile.workbenchWeb,
 	buildfile.serviceWorker,
+	buildfile.workerExtensionHost,
 	buildfile.keyboardMaps,
 	buildfile.base
 ];
