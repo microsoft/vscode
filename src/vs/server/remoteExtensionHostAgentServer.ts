@@ -421,7 +421,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const webRootFile = getPathFromAmdModule(require, 'vs/code/browser/workbench/workbench.html');
 			if (typeof address !== 'string' && fs.existsSync(webRootFile)) {
 				// ships the web ui!
-				console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/#tkn=${this._connectionToken}`);
+				console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/?tkn=${this._connectionToken}`);
 			}
 		});
 
