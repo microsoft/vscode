@@ -35,23 +35,25 @@ class ToggleBreakpointAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
-		if (editor.hasModel() && editor.getSelections()) {
+		if (editor.hasModel()) {
 			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
 			const canSet = debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel());
 			// Does not account for multi line selections, Set to remove multiple cursor on the same line
 			const lineNumbers = [...new Set(editor.getSelections().map(s => s.getPosition().lineNumber))];
+
 			return Promise.all(lineNumbers.map(line => {
 				const bps = debugService.getModel().getBreakpoints({ lineNumber: line, uri: modelUri });
 				if (bps.length) {
 					return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
 				} else if (canSet) {
 					return (debugService.addBreakpoints(modelUri, [{ lineNumber: line }], 'debugEditorActions.toggleBreakpointAction'));
-				} else { //Line where a breakpoint cant be set
+				} else {
 					return Promise.resolve([]);
 				}
 			}));
 		}
+
 		return Promise.resolve();
 	}
 }
