@@ -41,7 +41,7 @@ import { extname } from 'vs/base/common/resources';
 import { IExeBasedExtensionTip, IProductService } from 'vs/platform/product/common/product';
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
-import { Platform } from 'vs/base/common/platform';
+import { Platform, setImmediate } from 'vs/base/common/platform';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
