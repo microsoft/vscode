@@ -18,6 +18,7 @@ export interface IGetEnvironmentDataArguments {
 
 export interface IRemoteAgentEnvironmentDTO {
 	pid: number;
+	connectionToken: string;
 	appRoot: UriComponents;
 	appSettingsHome: UriComponents;
 	settingsPath: UriComponents;
@@ -45,6 +46,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 		return {
 			pid: data.pid,
+			connectionToken: data.connectionToken,
 			appRoot: URI.revive(data.appRoot),
 			appSettingsHome: URI.revive(data.appSettingsHome),
 			settingsPath: URI.revive(data.settingsPath),
