@@ -939,8 +939,8 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		explorerService.setEditable(newStat, {
 			validationMessage: value => validateFileName(newStat, value),
 			onFinish: (value, success) => {
-				folder.removeChild(newStat);
 				explorerService.setEditable(newStat, null);
+				folder.removeChild(newStat);
 				if (success) {
 					onSuccess(value);
 				} else {
