@@ -30,6 +30,7 @@ import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { ProductService } from 'vs/platform/product/node/productService';
 
 const textMmimeType = {
 	'.html': 'text/html',
@@ -141,7 +142,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 							driver: this._environmentService.driverHandle === 'web' ? true : undefined,
 						})))
 						.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
-						.replace('{{PRODUCT_CONFIGURATION}}', escapeAttribute(JSON.stringify(product)))
+						.replace('{{PRODUCT_CONFIGURATION}}', escapeAttribute(JSON.stringify(new ProductService().productConfiguration)))
 						.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(this._environmentService.webUserDataHome))));
 
 					res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
