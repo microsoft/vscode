@@ -31,7 +31,7 @@ import { WindowsService } from 'vs/platform/windows/electron-browser/windowsServ
 import { MainProcessService, IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
+import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/node/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';

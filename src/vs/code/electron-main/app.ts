@@ -47,7 +47,7 @@ import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
-import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IssueChannel } from 'vs/platform/issue/node/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';

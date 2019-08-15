@@ -66,7 +66,7 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateService } from 'vs/platform/update/electron-browser/updateService';
-import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IssueService } from 'vs/platform/issue/electron-browser/issueService';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-browser/workspacesService';
