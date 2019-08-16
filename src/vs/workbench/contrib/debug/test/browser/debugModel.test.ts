@@ -23,7 +23,7 @@ suite('Debug - Model', () => {
 	let rawSession: MockRawSession;
 
 	setup(() => {
-		model = new DebugModel([], true, [], [], [], <any>{ isDirty: (e: any) => false });
+		model = new DebugModel([], true, [], [], [], [], <any>{ isDirty: (e: any) => false });
 		rawSession = new MockRawSession();
 	});
 
