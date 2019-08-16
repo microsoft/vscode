@@ -259,7 +259,7 @@ function startServer() {
 		console.log(data.toString());
 
 		// Bring up web URL when we detect the server is ready
-		const webUIAvailableURLRegEx = new RegExp(`Web UI available at (http://localhost:${PORT}/?tkn=.+)`);
+		const webUIAvailableURLRegEx = new RegExp(`Web UI available at (http://localhost:${PORT}/\\?tkn=.+)`);
 		if (!launched && BROWSER !== 'none') {
 			const matches = webUIAvailableURLRegEx.exec(data.toString());
 			if (matches && matches[1]) {
