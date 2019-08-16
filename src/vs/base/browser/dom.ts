@@ -15,7 +15,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import * as platform from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
+import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -1193,14 +1193,14 @@ export function asDomUri(uri: URI): URI {
 	if (!uri) {
 		return uri;
 	}
-	if (!platform.isWeb) {
-		//todo@joh remove this once we have sw in electron going
-		return uri;
-	}
 	if (Schemas.vscodeRemote === uri.scheme) {
-		// rewrite vscode-remote-uris to uris of the window location
-		// so that they can be intercepted by the service worker
-		return _location.with({ path: '/vscode-remote', query: JSON.stringify(uri) });
+		if (platform.isWeb) {
+			// rewrite vscode-remote-uris to uris of the window location
+			// so that they can be intercepted by the service worker
+			return _location.with({ path: '/vscode-remote', query: JSON.stringify(uri) });
+		} else {
+			return RemoteAuthorities.rewrite(uri.authority, uri.path);
+		}
 	}
 	return uri;
 }

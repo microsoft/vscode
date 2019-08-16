@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
+
 export namespace Schemas {
 
 	/**
@@ -62,12 +64,25 @@ class RemoteAuthoritiesImpl {
 	}
 
 	public set(authority: string, host: string, port: number): void {
-		this._hosts[authority] = host;
+		this._hosts[authority] = (host === 'localhost' ? '127.0.0.1' : host);
 		this._ports[authority] = port;
 	}
 
 	public setConnectionToken(authority: string, connectionToken: string): void {
 		this._connectionTokens[authority] = connectionToken;
+	}
+
+	public rewrite(authority: string, path: string): URI {
+		const host = this._hosts[authority];
+		const port = this._ports[authority];
+		const connectionToken = this._connectionTokens[authority];
+		const scheme = (host === '127.0.0.1' ? Schemas.http : Schemas.vscodeRemote);
+		return URI.from({
+			scheme: scheme,
+			authority: `${host}:${port}`,
+			path: `/vscode-remote2`,
+			query: `path=${encodeURIComponent(path)}&tkn=${encodeURIComponent(connectionToken)}`
+		});
 	}
 }
 
