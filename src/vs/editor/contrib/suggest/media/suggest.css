@@ -40,8 +40,16 @@
 	float: left;
 }
 
-.monaco-editor .suggest-widget.docs-side > .details:not(.code-markdown-details) {
+.monaco-editor .suggest-widget.docs-side > .details {
+	max-width: 330px;
+}
+
+.monaco-editor .suggest-widget.docs-side > .details.large-markdown-details {
 	max-width: 800px;
+}
+
+.monaco-editor .suggest-widget.docs-side > .details.code-markdown-details {
+	max-width: 2000px;
 }
 
 .monaco-editor .suggest-widget.docs-side > .details .docs:not(.code-markdown-docs) {

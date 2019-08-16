@@ -16,6 +16,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext, CompletionItem } from './suggest';
@@ -249,6 +250,7 @@ class SuggestionDetails {
 		private readonly editor: ICodeEditor,
 		private readonly markdownRenderer: MarkdownRenderer,
 		private readonly triggerKeybindingLabel: string,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		this.disposables = new DisposableStore();
 
@@ -276,9 +278,13 @@ class SuggestionDetails {
 			.on(this.configureFont, this, this.disposables);
 
 		markdownRenderer.onDidRenderCodeBlock(() => {
+			const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
 			this.scrollbar.scanDomNode();
-			addClass(this.el, 'code-markdown-details');
-			addClass(this.docs, 'code-markdown-docs');
+			if (largeDetail) {
+				removeClass(this.el, 'large-markdown-details');
+				addClass(this.el, 'code-markdown-details');
+				addClass(this.docs, 'code-markdown-docs');
+			}
 		}, this, this.disposables);
 	}
 
@@ -314,12 +320,17 @@ class SuggestionDetails {
 			return;
 		}
 		removeClass(this.el, 'no-docs');
+		removeClass(this.el, 'large-markdown-details');
 		removeClass(this.el, 'code-markdown-details');
 		removeClass(this.docs, 'code-markdown-docs');
 		if (typeof documentation === 'string') {
 			removeClass(this.docs, 'markdown-docs');
 			this.docs.textContent = documentation;
 		} else {
+			const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
+			if (largeDetail) {
+				addClass(this.el, 'large-markdown-details');
+			}
 			addClass(this.docs, 'markdown-docs');
 			this.docs.innerHTML = '';
 			const renderedContents = this.markdownRenderer.render(documentation);
@@ -483,6 +494,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		@IModeService modeService: IModeService,
 		@IOpenerService openerService: IOpenerService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
 		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
@@ -967,7 +979,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		removeClass(this.element, 'docs-side');
 		removeClass(this.element, 'docs-below');
 		this.editor.layoutContentWidget(this);
-		const largeDetail = this.editor.getConfiguration().contribInfo.suggest.largeDetail;
+		const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
 		if (largeDetail) {
 			this.element.style.width = null;
 			this.listElement.style.width = null;
@@ -1043,7 +1055,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		show(this.details.element);
 
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
-		const largeDetail = this.editor.getConfiguration().contribInfo.suggest.largeDetail;
+		const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
 		if (largeDetail) {
 			const widgetY = getDomNodePagePosition(this.element).top;
 
@@ -1166,7 +1178,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const widgetCoords = getDomNodePagePosition(this.element);
 		const widgetX = widgetCoords.left;
 		const widgetY = widgetCoords.top;
-		const largeDetail = this.editor.getConfiguration().contribInfo.suggest.largeDetail;
+		const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
 
 		// Fixes #27649
 		// Check if the Y changed to the top of the cursor and keep the widget flagged to prefer top
@@ -1225,7 +1237,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			removeClass(this.element, 'docs-below');
 			return;
 		}
-		const largeDetail = this.editor.getConfiguration().contribInfo.suggest.largeDetail;
+		const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
 
 		if (largeDetail) {
 			const detailWidth = this.getDetailWidth();
