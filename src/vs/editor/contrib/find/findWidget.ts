@@ -1043,8 +1043,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					this._prevBtn.focus();
 				} else if (this._nextBtn.isEnabled()) {
 					this._nextBtn.focus();
-				} else if (this._toggleSelectionFind.domNode.tabIndex >= 0) {
-					this._toggleSelectionFind.domNode.focus();
+				} else if (this._toggleSelectionFind.isEnabled()) {
+					this._toggleSelectionFind.focus();
 				} else if (this._closeBtn.isEnabled()) {
 					this._closeBtn.focus();
 				}
@@ -1209,6 +1209,10 @@ class SimpleCheckbox extends Widget {
 		return this._domNode;
 	}
 
+	public isEnabled(): boolean {
+		return (this._domNode.tabIndex >= 0);
+	}
+
 	public get checked(): boolean {
 		return this._checkbox.checked;
 	}
@@ -1218,7 +1222,7 @@ class SimpleCheckbox extends Widget {
 	}
 
 	public focus(): void {
-		this._checkbox.focus();
+		this._domNode.focus();
 	}
 
 	private enable(): void {
