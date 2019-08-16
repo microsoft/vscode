@@ -131,7 +131,7 @@ class Extension implements IExtension {
 
 	private get localIconUrl(): string | null {
 		if (this.local && this.local.manifest.icon) {
-			return asDomUri(resources.joinPath(this.local.location, this.local.manifest.icon)).toString();
+			return asDomUri(resources.joinPath(this.local.location, this.local.manifest.icon)).toString(true);
 		}
 		return null;
 	}

@@ -1204,3 +1204,10 @@ export function asDomUri(uri: URI): URI {
 	}
 	return uri;
 }
+
+/**
+ * returns url('...')
+ */
+export function asCSSUrl(uri: URI): string {
+	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
+}
