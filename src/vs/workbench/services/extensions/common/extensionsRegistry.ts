@@ -61,9 +61,7 @@ export interface IExtensionPointUser<T> {
 	collector: ExtensionMessageCollector;
 }
 
-export interface IExtensionPointHandler<T> {
-	(extensions: IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>): void;
-}
+export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;
 
 export interface IExtensionPoint<T> {
 	name: string;
