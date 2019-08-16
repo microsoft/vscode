@@ -71,7 +71,7 @@ export interface IExtensionPoint<T> {
 
 export class ExtensionPointUserDelta<T> {
 
-	private static _toSet<T>(arr: IExtensionPointUser<T>[]): Set<string> {
+	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): Set<string> {
 		const result = new Set<string>();
 		for (let i = 0, len = arr.length; i < len; i++) {
 			result.add(ExtensionIdentifier.toKey(arr[i].description.identifier));
@@ -79,7 +79,7 @@ export class ExtensionPointUserDelta<T> {
 		return result;
 	}
 
-	public static compute<T>(previous: IExtensionPointUser<T>[] | null, current: IExtensionPointUser<T>[]): ExtensionPointUserDelta<T> {
+	public static compute<T>(previous: readonly IExtensionPointUser<T>[] | null, current: readonly IExtensionPointUser<T>[]): ExtensionPointUserDelta<T> {
 		if (!previous || !previous.length) {
 			return new ExtensionPointUserDelta<T>(current, []);
 		}
@@ -97,8 +97,8 @@ export class ExtensionPointUserDelta<T> {
 	}
 
 	constructor(
-		public readonly added: IExtensionPointUser<T>[],
-		public readonly removed: IExtensionPointUser<T>[],
+		public readonly added: readonly IExtensionPointUser<T>[],
+		public readonly removed: readonly IExtensionPointUser<T>[],
 	) { }
 }
 
