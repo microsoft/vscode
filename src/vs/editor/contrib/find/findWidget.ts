@@ -888,7 +888,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					return { content: e.message };
 				}
 			},
-			flexibleHeight: true
+			flexibleHeight: true,
+			flexibleMaxHeight: 118
 		}, this._contextKeyService, true));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
@@ -1014,7 +1015,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			ariaLabel: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
 			history: [],
-			flexibleHeight: true
+			flexibleHeight: true,
+			flexibleMaxHeight: 118
 		}, this._contextKeyService));
 
 

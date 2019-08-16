@@ -120,6 +120,12 @@
 	width: 100%;
 }
 
+.monaco-editor .find-widget .monaco-findInput .monaco-scrollable-element .scrollbar.vertical,
+.monaco-editor .find-widget .replace-input .monaco-scrollable-element .scrollbar.vertical {
+	/* Hide vertical scrollbar */
+	opacity: 0;
+}
+
 .monaco-editor .find-widget .matchesCount {
 	display: flex;
 	display: -webkit-flex;

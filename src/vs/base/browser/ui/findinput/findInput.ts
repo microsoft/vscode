@@ -24,6 +24,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 	readonly validation?: IInputValidator;
 	readonly label: string;
 	readonly flexibleHeight?: boolean;
+	readonly flexibleMaxHeight?: number;
 
 	readonly appendCaseSensitiveLabel?: string;
 	readonly appendWholeWordsLabel?: string;
@@ -119,6 +120,7 @@ export class FindInput extends Widget {
 		const appendRegexLabel = options.appendRegexLabel || '';
 		const history = options.history || [];
 		const flexibleHeight = !!options.flexibleHeight;
+		const flexibleMaxHeight = options.flexibleMaxHeight;
 
 		this.domNode = document.createElement('div');
 		dom.addClass(this.domNode, 'monaco-findInput');
@@ -142,7 +144,8 @@ export class FindInput extends Widget {
 			inputValidationErrorForeground: this.inputValidationErrorForeground,
 			inputValidationErrorBorder: this.inputValidationErrorBorder,
 			history,
-			flexibleHeight
+			flexibleHeight,
+			flexibleMaxHeight
 		}));
 
 		this.regex = this._register(new RegexCheckbox({
