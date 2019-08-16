@@ -12,7 +12,7 @@ import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } fr
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, ILocalizedString, IMenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 
 namespace schema {
 
@@ -329,7 +329,7 @@ namespace schema {
 	};
 }
 
-let _commandRegistrations: IDisposable[] = [];
+const _commandRegistrations = new DisposableStore();
 
 export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
@@ -338,7 +338,7 @@ export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<
 
 commandsExtensionPoint.setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, disposables: IDisposable[]) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, disposables: DisposableStore) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
@@ -368,16 +368,16 @@ commandsExtensionPoint.setHandler(extensions => {
 			precondition: ContextKeyExpr.deserialize(enablement),
 			iconLocation: absoluteIcon
 		});
-		disposables.push(registration);
+		disposables.add(registration);
 	}
 
 	// remove all previous command registrations
-	_commandRegistrations = dispose(_commandRegistrations);
+	_commandRegistrations.clear();
 
-	for (let extension of extensions) {
+	for (const extension of extensions) {
 		const { value } = extension;
 		if (Array.isArray<schema.IUserFriendlyCommand>(value)) {
-			for (let command of value) {
+			for (const command of value) {
 				handleCommand(command, extension, _commandRegistrations);
 			}
 		} else {
