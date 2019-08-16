@@ -52,6 +52,10 @@ export interface IView {
 	setVisible?(visible: boolean): void;
 }
 
+export interface ISerializableView extends IView {
+	toJSON(): object;
+}
+
 interface ISashEvent {
 	sash: Sash;
 	start: number;
@@ -117,12 +121,11 @@ abstract class ViewItem {
 		if (typeof size === 'number') {
 			this._size = size;
 			this._cachedVisibleSize = undefined;
+			dom.addClass(container, 'visible');
 		} else {
 			this._size = 0;
 			this._cachedVisibleSize = size.cachedVisibleSize;
 		}
-
-		dom.addClass(container, 'visible');
 	}
 
 	layout(_orthogonalSize: number | undefined): void {
@@ -197,6 +200,22 @@ export namespace Sizing {
 	export function Split(index: number): SplitSizing { return { type: 'split', index }; }
 	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
 }
+
+export interface ISerializedSplitView {
+	views: ISerializedView[];
+	orientation: Orientation;
+}
+
+export interface ISerializedView {
+	data: any;
+	size: number;
+	visible?: boolean;
+}
+
+export interface IViewDeserializer<T extends ISerializableView> {
+	fromJSON(json: any): T;
+}
+
 
 export class SplitView extends Disposable {
 
@@ -285,7 +304,7 @@ export class SplitView extends Disposable {
 		}
 	}
 
-	addView(view: IView, size: number | Sizing, index = this.viewItems.length): void {
+	addView(view: IView, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
 		if (this.state !== State.Idle) {
 			throw new Error('Cant modify splitview');
 		}
@@ -376,7 +395,10 @@ export class SplitView extends Disposable {
 			highPriorityIndexes = [size.index];
 		}
 
-		this.relayout([index], highPriorityIndexes);
+		if (!skipLayout) {
+			this.relayout([index], highPriorityIndexes);
+		}
+
 		this.state = State.Idle;
 
 		if (typeof size !== 'number' && size.type === 'distribute') {
@@ -496,6 +518,28 @@ export class SplitView extends Disposable {
 
 		this.distributeEmptySpace();
 		this.layoutViews();
+	}
+
+	static deserialize<T extends ISerializableView>(container: HTMLElement, json: ISerializedSplitView, deserializer: IViewDeserializer<T>, options: ISplitViewOptions = {}): SplitView {
+		if (typeof json.orientation !== 'number') {
+			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
+		}
+
+		const orientation = json.orientation;
+
+		const result = new SplitView(container, { ...options, orientation });
+		if (!json.views || !json.views.length) {
+			throw new Error('Invalid JSON: \'views\' property must contain at least one view');
+		}
+
+		json.views.forEach((serializedView, index) => {
+			const sizing = serializedView.visible ? serializedView.size : { type: 'invisible', cachedVisibleSize: serializedView.size } as InvisibleSizing;
+
+			const view = deserializer.fromJSON(serializedView.data);
+			result.addView(view, sizing, index, true);
+		});
+
+		return result;
 	}
 
 	private saveProportions(): void {
