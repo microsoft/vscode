@@ -2167,6 +2167,24 @@ export class FunctionBreakpoint extends Breakpoint {
 }
 
 @es5ClassCompat
+export class DataBreakpoint extends Breakpoint {
+	readonly label: string;
+	readonly dataId: string;
+	readonly canPersist: boolean;
+
+	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
+		if (!dataId) {
+			throw illegalArgument('dataId');
+		}
+		this.label = label;
+		this.dataId = dataId;
+		this.canPersist = canPersist;
+	}
+}
+
+
+@es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
 	readonly command: string;
 	readonly args: string[];

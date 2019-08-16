@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equal } from 'assert';
-import { FileStorageDatabase } from 'vs/platform/storage/common/storage';
+import { FileStorageDatabase } from 'vs/platform/storage/browser/storageService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
@@ -49,7 +49,7 @@ suite('Storage', () => {
 	});
 
 	test('File Based Storage', async () => {
-		let storage = new Storage(new FileStorageDatabase(URI.file(join(testDir, 'storage.json')), fileService));
+		let storage = new Storage(new FileStorageDatabase(URI.file(join(testDir, 'storage.json')), false, fileService));
 
 		await storage.init();
 
@@ -63,7 +63,7 @@ suite('Storage', () => {
 
 		await storage.close();
 
-		storage = new Storage(new FileStorageDatabase(URI.file(join(testDir, 'storage.json')), fileService));
+		storage = new Storage(new FileStorageDatabase(URI.file(join(testDir, 'storage.json')), false, fileService));
 
 		await storage.init();
 
@@ -81,7 +81,7 @@ suite('Storage', () => {
 
 		await storage.close();
 
-		storage = new Storage(new FileStorageDatabase(URI.file(join(testDir, 'storage.json')), fileService));
+		storage = new Storage(new FileStorageDatabase(URI.file(join(testDir, 'storage.json')), false, fileService));
 
 		await storage.init();
 

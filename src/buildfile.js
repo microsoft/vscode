@@ -26,7 +26,7 @@ exports.serviceWorker = [{
 exports.workerExtensionHost = [{
 	name: 'vs/workbench/services/extensions/worker/extensionHostWorker',
 	// include: [],
-	prepend: ['vs/loader.js'],
+	prepend: ['vs/loader.js', 'vs/nls.js'],
 	append: ['vs/workbench/services/extensions/worker/extensionHostWorkerMain'],
 	dest: 'vs/workbench/services/extensions/worker/extensionHostWorkerMain.js'
 }];

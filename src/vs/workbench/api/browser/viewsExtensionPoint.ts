@@ -37,7 +37,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { createCSSRule, asDomUri } from 'vs/base/browser/dom';
+import { createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -151,7 +151,7 @@ const viewsContribution: IJSONSchema = {
 			default: []
 		},
 		'remote': {
-			description: localize('views.remote', "Contributes views to Remote container in the Activity bar"),
+			description: localize('views.remote', "Contributes views to Remote container in the Activity bar. To contribute to this container, enableProposedApi needs to be turned on"),
 			type: 'array',
 			items: nestableViewDescriptor,
 			default: []
@@ -356,7 +356,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 			// Generate CSS to show the icon in the activity bar
 			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${cssClass}`;
-			createCSSRule(iconClass, `-webkit-mask: url('${asDomUri(icon)}') no-repeat 50% 50%; -webkit-mask-size: 24px;`);
+			createCSSRule(iconClass, `-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%; -webkit-mask-size: 24px;`);
 		}
 
 		return viewContainer;
@@ -384,6 +384,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 			forEach(value, entry => {
 				if (!this.isValidViewDescriptors(entry.value, collector)) {
+					return;
+				}
+
+				if (entry.key === 'remote' && !extension.description.enableProposedApi) {
+					collector.warn(localize('ViewContainerRequiresProposedAPI', "View container '{0}' requires 'enableProposedApi' turned on to be added to 'Remote'.", entry.key));
 					return;
 				}
 

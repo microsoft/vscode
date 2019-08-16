@@ -90,7 +90,6 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 		const webview = this._webviewService.createWebview('' + handle, {
 			enableFindWidget: false,
-			allowSvgs: false,
 			extension: { id: extensionId, location: URI.revive(extensionLocation) }
 		}, {
 				allowScripts: options.enableScripts,

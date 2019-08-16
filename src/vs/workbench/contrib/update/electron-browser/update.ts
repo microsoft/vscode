@@ -19,7 +19,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver-umd';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService, INotificationHandle, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ReleaseNotesManager } from './releaseNotesEditor';
@@ -162,32 +162,8 @@ export class ProductContribution implements IWorkbenchContribution {
 	}
 }
 
-class NeverShowAgain {
-
-	private readonly key: string;
-
-	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, (notification: INotificationHandle) => {
-
-		// Hide notification
-		notification.close();
-
-		this.storageService.store(this.key, true, StorageScope.GLOBAL);
-
-		return Promise.resolve(true);
-	});
-
-	constructor(key: string, @IStorageService private readonly storageService: IStorageService) {
-		this.key = `neverShowAgain:${key}`;
-	}
-
-	shouldShow(): boolean {
-		return !this.storageService.getBoolean(this.key, StorageScope.GLOBAL, false);
-	}
-}
-
 export class Win3264BitContribution implements IWorkbenchContribution {
 
-	private static readonly KEY = 'update/win32-64bits';
 	private static readonly URL = 'https://code.visualstudio.com/updates/v1_15#_windows-64-bit';
 	private static readonly INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
 
@@ -200,28 +176,18 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const neverShowAgain = new NeverShowAgain(Win3264BitContribution.KEY, storageService);
-
-		if (!neverShowAgain.shouldShow()) {
-			return;
-		}
-
 		const url = product.quality === 'insider'
 			? Win3264BitContribution.INSIDER_URL
 			: Win3264BitContribution.URL;
 
-		const handle = notificationService.prompt(
+		notificationService.prompt(
 			severity.Info,
 			nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available! Click [here]({1}) to learn more.", product.nameShort, url),
-			[{
-				label: nls.localize('neveragain', "Don't Show Again"),
-				isSecondary: true,
-				run: () => {
-					neverShowAgain.action.run(handle);
-					neverShowAgain.action.dispose();
-				}
-			}],
-			{ sticky: true }
+			[],
+			{
+				sticky: true,
+				neverShowAgain: { id: 'neverShowAgain:update/win32-64bits', isSecondary: true }
+			}
 		);
 	}
 }
@@ -396,23 +362,13 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		// windows fast updates (target === system)
-		const neverShowAgain = new NeverShowAgain('update/win32-fast-updates', this.storageService);
-
-		if (!neverShowAgain.shouldShow()) {
-			return;
-		}
-
-		const handle = this.notificationService.prompt(
+		this.notificationService.prompt(
 			severity.Info,
 			nls.localize('updateInstalling', "{0} {1} is being installed in the background; we'll let you know when it's done.", product.nameLong, update.productVersion),
-			[{
-				label: nls.localize('neveragain', "Don't Show Again"),
-				isSecondary: true,
-				run: () => {
-					neverShowAgain.action.run(handle);
-					neverShowAgain.action.dispose();
-				}
-			}]
+			[],
+			{
+				neverShowAgain: { id: 'neverShowAgain:update/win32-fast-updates', isSecondary: true }
+			}
 		);
 	}
 

@@ -37,6 +37,19 @@ export interface INotificationProperties {
 	neverShowAgain?: INeverShowAgainOptions;
 }
 
+export enum NeverShowAgainScope {
+
+	/**
+	 * Will never show this notification on the current workspace again.
+	 */
+	WORKSPACE,
+
+	/**
+	 * Will never show this notification on any workspace again.
+	 */
+	GLOBAL
+}
+
 export interface INeverShowAgainOptions {
 
 	/**
@@ -49,6 +62,12 @@ export interface INeverShowAgainOptions {
 	 * make it a secondary action instead.
 	 */
 	isSecondary?: boolean;
+
+	/**
+	 * Wether to persist the choice in the current workspace or for all workspaces. By
+	 * default it will be persisted for all workspaces.
+	 */
+	scope?: NeverShowAgainScope;
 }
 
 export interface INotification extends INotificationProperties {
