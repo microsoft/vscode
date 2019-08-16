@@ -360,7 +360,7 @@
 			]
 		},
 		"wsl": {
-			"friendlyName": "Remote WSL",
+			"friendlyName": "Remote - WSL",
 			"windowsPath": "%WINDIR%\\system32\\wsl.exe",
 			"exeFriendlyName": "Windows Linux Subsystem (WSL)",
 			"important": true,
