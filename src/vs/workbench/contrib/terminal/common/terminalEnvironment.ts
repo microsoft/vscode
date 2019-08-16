@@ -144,18 +144,20 @@ export function getCwd(
 			try {
 				customCwd = configurationResolverService.resolve(lastActiveWorkspace, customCwd);
 			} catch (e) {
-				// There was an issue resolving a variable, just use the unresolved customCwd which
-				// which will fail, and log the error in the console.
+				// There was an issue resolving a variable, log the error in the console and
+				// fallback to the default.
 				if (logService) {
 					logService.error('Could not resolve terminal.integrated.cwd', e);
 				}
-				return customCwd;
+				customCwd = undefined;
 			}
 		}
-		if (path.isAbsolute(customCwd)) {
-			cwd = customCwd;
-		} else if (root) {
-			cwd = path.join(root.fsPath, customCwd);
+		if (customCwd) {
+			if (path.isAbsolute(customCwd)) {
+				cwd = customCwd;
+			} else if (root) {
+				cwd = path.join(root.fsPath, customCwd);
+			}
 		}
 	}
 
