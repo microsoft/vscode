@@ -33,7 +33,7 @@ function isDirectory(path: string): Promise<boolean> {
 	});
 }
 
-enum UpdateImportsOnFileMoveSetting {
+const enum UpdateImportsOnFileMoveSetting {
 	Prompt = 'prompt',
 	Always = 'always',
 	Never = 'never',
@@ -127,7 +127,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		newResource: vscode.Uri,
 		newDocument: vscode.TextDocument
 	): Promise<boolean> {
-		enum Choice {
+		const enum Choice {
 			None = 0,
 			Accept = 1,
 			Reject = 2,
