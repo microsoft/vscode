@@ -312,6 +312,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				}
 			}
 		}
+		if ((e.isRevealed || e.isReplaceRevealed) && (this._state.isRevealed || this._state.isReplaceRevealed)) {
+			this._tryUpdateHeight();
+		}
+
 		if (e.isRegex) {
 			this._findInput.setRegex(this._state.isRegex);
 		}
@@ -663,7 +667,25 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _tryUpdateHeight() {
+		let totalheight = 0;
 
+		// find input margin top
+		totalheight += 4;
+
+		// find input height
+		totalheight += this._findInput.inputBox.height + 2 /** input box border */;
+
+		if (this._isReplaceVisible) {
+			// replace input margin
+			totalheight += 4;
+
+			totalheight += this._replaceInputBox.height + 2 /** input box border */;
+		}
+
+		// margin bottom
+		totalheight += 4;
+
+		this._domNode.style.height = `${totalheight}px`;
 	}
 
 	// ----- Public
@@ -901,7 +923,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 		}));
 		this._register(this._findInput.inputBox.onDidHeightChange((e) => {
-			console.log(e);
+			this._tryUpdateHeight();
 		}));
 		if (platform.isLinux) {
 			this._register(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
@@ -932,13 +954,16 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		let findPart = document.createElement('div');
 		findPart.className = 'find-part';
 		findPart.appendChild(this._findInput.domNode);
-		findPart.appendChild(this._matchesCount);
-		findPart.appendChild(this._prevBtn.domNode);
-		findPart.appendChild(this._nextBtn.domNode);
+		const actionsContainer = document.createElement('div');
+		actionsContainer.className = 'find-actions';
+		findPart.appendChild(actionsContainer);
+		actionsContainer.appendChild(this._matchesCount);
+		actionsContainer.appendChild(this._prevBtn.domNode);
+		actionsContainer.appendChild(this._nextBtn.domNode);
 
 		// Toggle selection button
 		this._toggleSelectionFind = this._register(new SimpleCheckbox({
-			parent: findPart,
+			parent: actionsContainer,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			onChange: () => {
 				if (this._toggleSelectionFind.checked) {
@@ -978,7 +1003,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 		}));
 
-		findPart.appendChild(this._closeBtn.domNode);
+		actionsContainer.appendChild(this._closeBtn.domNode);
 
 		// Replace input
 		let replaceInput = document.createElement('div');
@@ -995,6 +1020,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
 		this._register(this._replaceInputBox.onDidChange(() => {
 			this._state.change({ replaceString: this._replaceInputBox.value }, false);
+		}));
+		this._register(this._replaceInputBox.onDidHeightChange((e) => {
+			this._tryUpdateHeight();
 		}));
 
 		this._preserveCase = this._register(new Checkbox({
@@ -1059,8 +1087,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		let replacePart = document.createElement('div');
 		replacePart.className = 'replace-part';
 		replacePart.appendChild(replaceInput);
-		replacePart.appendChild(this._replaceBtn.domNode);
-		replacePart.appendChild(this._replaceAllBtn.domNode);
+
+		const replaceActionsContainer = document.createElement('div');
+		replaceActionsContainer.className = 'replace-actions';
+		replacePart.appendChild(replaceActionsContainer);
+
+		replaceActionsContainer.appendChild(this._replaceBtn.domNode);
+		replaceActionsContainer.appendChild(this._replaceAllBtn.domNode);
 
 		// Toggle replace button
 		this._toggleReplaceBtn = this._register(new SimpleButton({
@@ -1113,6 +1146,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				return;
 			}
 			this._domNode.style.width = `${width}px`;
+			this._findInput.inputBox.width = inputBoxWidth;
 			if (this._isReplaceVisible) {
 				this._replaceInputBox.width = inputBoxWidth;
 			}
