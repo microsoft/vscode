@@ -40,7 +40,7 @@ enum UpdateImportsOnFileMoveSetting {
 }
 
 class UpdateImportsOnFileRenameHandler extends Disposable {
-	public static minVersion = API.v300;
+	public static readonly minVersion = API.v300;
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
