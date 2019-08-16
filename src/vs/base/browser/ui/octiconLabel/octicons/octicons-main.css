@@ -1,6 +1,3 @@
-@import 'octicons.css';
-@import 'octicons2.css';
-
 body[data-octicons-update="enabled"] {
     --version: octicons2;
 }
