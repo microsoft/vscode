@@ -167,11 +167,13 @@ export class CodeApplication extends Disposable {
 			event.preventDefault();
 		});
 		app.on('remote-get-current-web-contents', event => {
-			// The driver needs access to web contents
-			if (!this.environmentService.args.driver) {
-				this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
-				event.preventDefault();
+			if (this.environmentService.args.driver) {
+				return; // the driver needs access to web contents
 			}
+
+			this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
+
+			event.preventDefault();
 		});
 		app.on('web-contents-created', (_event: Electron.Event, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
