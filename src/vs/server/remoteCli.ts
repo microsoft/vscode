@@ -302,7 +302,8 @@ function translatePath(input: string, mapFileUri: (input: string) => string, fol
 	let url = pathToURI(input);
 	let mappedUri = mapFileUri(url.href);
 	try {
-		let stat = _fs.lstatSync(input);
+		let stat = _fs.lstatSync(_fs.realpathSync(input));
+
 		if (stat.isFile()) {
 			fileURIS.push(mappedUri);
 		} else {
