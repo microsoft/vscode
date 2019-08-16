@@ -3,104 +3,166 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createApiFactoryAndRegisterActors, IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
+import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
 import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { endsWith } from 'vs/base/common/strings';
-import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import * as vscode from 'vscode';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { isWeb } from 'vs/base/common/platform';
+import { endsWith, startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
+import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
 
-class ApiInstances {
+class ExportsTrap {
 
-	private readonly _apiInstances = new Map<string, typeof vscode>();
+	static readonly Instance = new ExportsTrap();
 
-	constructor(
-		private readonly _apiFactory: IExtensionApiFactory,
-		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
-		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
-		private readonly _configProvider: ExtHostConfigProvider,
-	) {
-		//
+	private readonly _names: string[] = [];
+	private readonly _exports = new Map<string, any>();
+
+	private constructor() {
+
+		const exportsProxy = new Proxy({}, {
+			set: (target: any, p: PropertyKey, value: any) => {
+				// store in target
+				target[p] = value;
+				// store in named-bucket
+				const name = this._names[this._names.length - 1];
+				this._exports.get(name)![p] = value;
+				return true;
+			}
+		});
+
+
+		const moduleProxy = new Proxy({}, {
+
+			get: (target: any, p: PropertyKey) => {
+				if (p === 'exports') {
+					return exportsProxy;
+				}
+
+				return target[p];
+			},
+
+			set: (target: any, p: PropertyKey, value: any) => {
+				// store in target
+				target[p] = value;
+
+				// override bucket
+				if (p === 'exports') {
+					const name = this._names[this._names.length - 1];
+					this._exports.set(name, value);
+				}
+				return true;
+			}
+		});
+
+		(<any>self).exports = exportsProxy;
+		(<any>self).module = moduleProxy;
 	}
 
-	get(modulePath: string): typeof vscode {
-		const extension = this._extensionPaths.findSubstr(modulePath) || nullExtensionDescription;
-		const id = ExtensionIdentifier.toKey(extension.identifier);
+	add(name: string) {
+		this._exports.set(name, Object.create(null));
+		this._names.push(name);
 
-		let apiInstance = this._apiInstances.get(id);
-		if (!apiInstance) {
-			apiInstance = this._apiFactory(extension, this._extensionRegistry, this._configProvider);
-			this._apiInstances.set(id, apiInstance);
+		return {
+			claim: () => {
+				const result = this._exports.get(name);
+				this._exports.delete(name);
+				this._names.pop();
+				return result;
+			}
+		};
+	}
+}
+
+class WorkerRequireInterceptor extends RequireInterceptor {
+
+	_installInterceptor() { }
+
+	getModule(request: string, parent: URI): undefined | any {
+		for (let alternativeModuleName of this._alternatives) {
+			let alternative = alternativeModuleName(request);
+			if (alternative) {
+				request = alternative;
+				break;
+			}
 		}
-		return apiInstance;
+
+		if (this._factories.has(request)) {
+			return this._factories.get(request)!.load(request, parent, false, () => { throw new Error(); });
+		}
+		return undefined;
 	}
 }
 
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
-	private _apiInstances?: ApiInstances;
+	private _fakeModules: WorkerRequireInterceptor;
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
-		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		const extensionPath = await this.getExtensionPathIndex();
-		this._apiInstances = new ApiInstances(apiFactory, extensionPath, this._registry, configProvider);
+		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, this._registry);
+		await this._fakeModules.install();
 	}
 
-	protected _loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 
-		// make sure modulePath ends with `.js`
-		const suffix = '.js';
-		modulePath = endsWith(modulePath, suffix) ? modulePath : modulePath + suffix;
-
-		interface FakeCommonJSSelf {
-			module?: object;
-			exports?: object;
-			require?: (module: string) => any;
-			window?: object;
-			__dirname: never;
-			__filename: never;
-		}
-
-		// FAKE commonjs world that only collects exports
-		const patchSelf: FakeCommonJSSelf = <any>self;
-		const module = { exports: {} };
-		patchSelf.module = module;
-		patchSelf.exports = module.exports;
-		patchSelf.window = self; // <- that's improper but might help extensions that aren't authored correctly
+		(<any>self).window = self; // <- that's improper but might help extensions that aren't authored correctly
 
 		// FAKE require function that only works for the vscode-module
-		patchSelf.require = (module: string) => {
-			if (module !== 'vscode') {
-				throw new Error(`Cannot load module '${module}'`);
+		const moduleStack: URI[] = [];
+		(<any>self).require = (mod: string) => {
+
+			const parent = moduleStack[moduleStack.length - 1];
+			const result = this._fakeModules.getModule(mod, parent);
+
+			if (result !== undefined) {
+				return result;
 			}
-			return this._apiInstances!.get(modulePath);
+
+			if (!startsWith(mod, '.')) {
+				throw new Error(`Cannot load module '${mod}'`);
+			}
+
+			const next = joinPath(parent, '..', ensureSuffix(mod, '.js'));
+			moduleStack.push(next);
+			const trap = ExportsTrap.Instance.add(next.toString());
+			importScripts(asDomUri(next).toString(true));
+			moduleStack.pop();
+
+			return trap.claim();
 		};
 
 		try {
-			// todo@joh this is a copy of `dom.ts#asDomUri`
-			// build url of the things we resolve
-			const url = isWeb
-				? URI.parse(window.location.href).with({ path: '/vscode-remote', query: JSON.stringify(URI.file(modulePath)) }).toString(true)
-				: modulePath;
-
 			activationTimesBuilder.codeLoadingStart();
-			importScripts(url);
+			module = module.with({ path: ensureSuffix(module.path, '.js') });
+			moduleStack.push(module);
+			const trap = ExportsTrap.Instance.add(module.toString());
+			importScripts(asDomUri(module).toString(true));
+			moduleStack.pop();
+			return Promise.resolve<T>(trap.claim());
+
 		} finally {
 			activationTimesBuilder.codeLoadingStop();
 		}
-
-		return Promise.resolve(module.exports as T);
 	}
 
-	async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
+	async $setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> {
 		throw new Error('Not supported');
 	}
+}
+
+// todo@joh this is a copy of `dom.ts#asDomUri`
+function asDomUri(uri: URI): URI {
+	if (Schemas.vscodeRemote === uri.scheme) {
+		// rewrite vscode-remote-uris to uris of the window location
+		// so that they can be intercepted by the service worker
+		return URI.parse(window.location.href).with({ path: '/vscode-remote', query: JSON.stringify(uri) });
+	}
+	return uri;
+}
+
+function ensureSuffix(path: string, suffix: string): string {
+	return endsWith(path, suffix) ? path : path + suffix;
 }

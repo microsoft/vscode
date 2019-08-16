@@ -51,7 +51,7 @@ const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 export class ViewZoneDelegate implements IViewZone {
 
 	public domNode: HTMLElement;
-	public id: number = 0; // A valid zone id should be greater than 0
+	public id: string = ''; // A valid zone id should be greater than 0
 	public afterLineNumber: number;
 	public afterColumn: number;
 	public heightInLines: number;
@@ -192,9 +192,6 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	public dispose(): void {
-
-		this._disposables.dispose();
-
 		if (this._overlayWidget) {
 			this.editor.removeOverlayWidget(this._overlayWidget);
 			this._overlayWidget = null;
@@ -211,6 +208,8 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		this.editor.deltaDecorations(this._positionMarkerId, []);
 		this._positionMarkerId = [];
+
+		this._disposables.dispose();
 	}
 
 	public create(): void {

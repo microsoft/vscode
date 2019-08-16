@@ -309,11 +309,6 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		extensionDescription.id = `${extensionDescription.publisher}.${extensionDescription.name}`;
 		extensionDescription.identifier = new ExtensionIdentifier(extensionDescription.id);
 
-		// main := absolutePath(`main`)
-		if (extensionDescription.main) {
-			extensionDescription.main = path.join(this._absoluteFolderPath, extensionDescription.main);
-		}
-
 		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);
 
 		return extensionDescription;

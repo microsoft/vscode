@@ -8,6 +8,8 @@ import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
 import { IFileSystemProvider } from 'vs/platform/files/common/files';
 import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
+import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 export interface IWorkbenchConstructionOptions {
 
@@ -53,6 +55,16 @@ export interface IWorkbenchConstructionOptions {
 	 * Experimental: Whether to enable the smoke test driver.
 	 */
 	driver?: boolean;
+
+	/**
+	 * Experimental: The credentials provider to store and retrieve secrets.
+	 */
+	credentialsProvider?: ICredentialsProvider;
+
+	/**
+	 * Experimental: Add static extensions that cannot be uninstalled but only be disabled.
+	 */
+	staticExtensions?: { packageJSON: IExtensionManifest, extensionLocation: UriComponents }[];
 }
 
 /**

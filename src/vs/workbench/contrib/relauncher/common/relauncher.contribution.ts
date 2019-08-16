@@ -159,7 +159,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWindowService windowSevice: IWindowService,
+		@IWindowService windowService: IWindowService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
@@ -170,7 +170,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			}
 
 			if (environmentService.configuration.remoteAuthority) {
-				windowSevice.reloadWindow(); // TODO@aeschli, workaround
+				windowService.reloadWindow(); // TODO@aeschli, workaround
 			} else {
 				extensionService.restartExtensionHost();
 			}

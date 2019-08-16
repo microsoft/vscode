@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import { originalFSPath } from 'vs/base/common/resources';
+import { originalFSPath, joinPath } from 'vs/base/common/resources';
 import { Barrier } from 'vs/base/common/async';
 import { dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -332,14 +332,14 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
 		return Promise.all<any>([
-			this._loadCommonJSModule(extensionDescription.main, activationTimesBuilder),
+			this._loadCommonJSModule(joinPath(extensionDescription.extensionLocation, extensionDescription.main), activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription)
 		]).then(values => {
 			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, <IExtensionModule>values[0], <IExtensionContext>values[1], activationTimesBuilder);
 		});
 	}
 
-	protected abstract _loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
+	protected abstract _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
 
 	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
 
@@ -536,7 +536,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		let testRunner: ITestRunner | INewTestRunner | undefined;
 		let requireError: Error | undefined;
 		try {
-			testRunner = await this._loadCommonJSModule(extensionTestsPath, new ExtensionActivationTimesBuilder(false));
+			testRunner = await this._loadCommonJSModule(URI.file(extensionTestsPath), new ExtensionActivationTimesBuilder(false));
 		} catch (error) {
 			requireError = error;
 		}

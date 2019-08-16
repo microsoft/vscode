@@ -77,6 +77,9 @@ new Book("The Martian", "Andy Weir");
 
 /**
  * Represents a book.
+ *
+ * @param {string} title Title of the book
+ * @param {string} author Who wrote the book
  */
 function Book(title, author) {
 	this.title = title;
@@ -84,7 +87,7 @@ function Book(title, author) {
 }
 ```
 
-> **JSDoc Tip:** The example above also showcased another way to get IntelliSense hints by using `JSDoc` comments.  You can try this out by invoking the `Book` function and seeing the enhanced context in the IntelliSense menu for the function as well as parameters.
+> **JSDoc Tip:** VS Code's IntelliSense uses JSDoc comments to provide richer suggestions. The types and documentation from JSDoc comments show up when you hover over a reference to `Book` or in IntelliSense when you create a new instance of `Book`.
 
 
 ### Refactoring via Extraction

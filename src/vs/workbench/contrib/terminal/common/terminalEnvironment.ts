@@ -144,18 +144,20 @@ export function getCwd(
 			try {
 				customCwd = configurationResolverService.resolve(lastActiveWorkspace, customCwd);
 			} catch (e) {
-				// There was an issue resolving a variable, just use the unresolved customCwd which
-				// which will fail, and log the error in the console.
+				// There was an issue resolving a variable, log the error in the console and
+				// fallback to the default.
 				if (logService) {
 					logService.error('Could not resolve terminal.integrated.cwd', e);
 				}
-				return customCwd;
+				customCwd = undefined;
 			}
 		}
-		if (path.isAbsolute(customCwd)) {
-			cwd = customCwd;
-		} else if (root) {
-			cwd = path.join(root.fsPath, customCwd);
+		if (customCwd) {
+			if (path.isAbsolute(customCwd)) {
+				cwd = customCwd;
+			} else if (root) {
+				cwd = path.join(root.fsPath, customCwd);
+			}
 		}
 	}
 
@@ -208,33 +210,33 @@ export function getDefaultShell(
 	if (!maybeExecutable) {
 		maybeExecutable = getShellSetting(fetchSetting, isWorkspaceShellAllowed, 'shell', platformOverride);
 	}
-	maybeExecutable = maybeExecutable || defaultShell;
+	let executable: string = maybeExecutable || defaultShell;
 
 	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 	// safe to assume that this was used by accident as Sysnative does not
 	// exist and will break the terminal in non-WoW64 environments.
 	if ((platformOverride === platform.Platform.Windows) && !isWoW64 && windir) {
 		const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
-		if (maybeExecutable && maybeExecutable.toLowerCase().indexOf(sysnativePath) === 0) {
-			maybeExecutable = path.join(windir, 'System32', maybeExecutable.substr(sysnativePath.length + 1));
+		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
+			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length + 1));
 		}
 	}
 
 	// Convert / to \ on Windows for convenience
-	if (maybeExecutable && platformOverride === platform.Platform.Windows) {
-		maybeExecutable = maybeExecutable.replace(/\//g, '\\');
+	if (executable && platformOverride === platform.Platform.Windows) {
+		executable = executable.replace(/\//g, '\\');
 	}
 
 	if (configurationResolverService) {
 		try {
-			maybeExecutable = configurationResolverService.resolve(lastActiveWorkspace, maybeExecutable);
+			executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
 		} catch (e) {
 			logService.error(`Could not resolve shell`, e);
-			maybeExecutable = maybeExecutable;
+			executable = executable;
 		}
 	}
 
-	return maybeExecutable;
+	return executable;
 }
 
 export function getDefaultShellArgs(

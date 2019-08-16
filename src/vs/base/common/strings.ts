@@ -729,3 +729,18 @@ export function getNLines(str: string, n = 1): string {
 		str.substr(0, idx) :
 		str;
 }
+
+/**
+ * Produces 'a'-'z', followed by 'A'-'Z'... followed by 'a'-'z', etc.
+ */
+export function singleLetterHash(n: number): string {
+	const LETTERS_CNT = (CharCode.Z - CharCode.A + 1);
+
+	n = n % (2 * LETTERS_CNT);
+
+	if (n < LETTERS_CNT) {
+		return String.fromCharCode(CharCode.a + n);
+	}
+
+	return String.fromCharCode(CharCode.A + n - LETTERS_CNT);
+}

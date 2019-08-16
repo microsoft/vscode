@@ -1,0 +1,92 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .activitybar>.content .monaco-action-bar .action-label.remote {
+	-webkit-mask: url('remote-activity-bar.svg') no-repeat 50% 50%;
+}
+
+.remote-help-content .monaco-list .monaco-list-row .remote-help-tree-node-item {
+	display: flex;
+	height: 22px;
+	line-height: 22px;
+	flex: 1;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	flex-wrap: nowrap;
+}
+
+.remote-help-content .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon {
+	background-size: 16px;
+	background-position: left center;
+	background-repeat: no-repeat;
+	padding-right: 6px;
+	width: 16px;
+	height: 22px;
+	-webkit-font-smoothing: antialiased;
+}
+
+.remote-help-content .monaco-list .monaco-list-row .monaco-tl-twistie {
+	width: 0px !important;
+}
+
+.vs .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.getStarted {
+	background-image: url('help-getting-started-light.svg')
+}
+
+.vs .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.documentation {
+	background-image: url('help-documentation-light.svg')
+}
+
+.vs .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.feedback {
+	background-image: url('help-feedback-light.svg')
+}
+
+.vs .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issues {
+	background-image: url('help-review-issues-light.svg')
+}
+
+.vs .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issueReporter {
+	background-image: url('help-report-issue-light.svg')
+}
+
+.vs-dark .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.getStarted {
+	background-image: url('help-getting-started-dark.svg')
+}
+
+.vs-dark .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.documentation {
+	background-image: url('help-documentation-dark.svg')
+}
+
+.vs-dark .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.feedback {
+	background-image: url('help-feedback-dark.svg')
+}
+
+.vs-dark .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issues {
+	background-image: url('help-review-issues-dark.svg')
+}
+
+.vs-dark .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issueReporter {
+	background-image: url('help-report-issue-dark.svg')
+}
+
+.hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.getStarted {
+	background-image: url('help-getting-started-hc.svg')
+}
+
+.hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.documentation {
+	background-image: url('help-documentation-hc.svg')
+}
+
+.hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.feedback {
+	background-image: url('help-feedback-hc.svg')
+}
+
+.hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issues {
+	background-image: url('help-review-issues-hc.svg')
+}
+
+.hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issueReporter {
+	background-image: url('help-report-issue-hc.svg')
+}

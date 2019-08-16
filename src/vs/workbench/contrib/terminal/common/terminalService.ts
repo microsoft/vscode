@@ -479,22 +479,28 @@ export abstract class TerminalService implements ITerminalService {
 		return terminalIndex;
 	}
 
-	public setWorkspaceShellAllowed(isAllowed: boolean): void {
-		this.configHelper.setWorkspaceShellAllowed(isAllowed);
+	public async manageWorkspaceShellPermissions(): Promise<void> {
+		const allowItem: IQuickPickItem = { label: nls.localize('workbench.action.terminal.allowWorkspaceShell', "Allow Workspace Shell Configuration") };
+		const disallowItem: IQuickPickItem = { label: nls.localize('workbench.action.terminal.disallowWorkspaceShell', "Disallow Workspace Shell Configuration") };
+		const value = await this._quickInputService.pick([allowItem, disallowItem], { canPickMany: false });
+		if (!value) {
+			return;
+		}
+		this.configHelper.setWorkspaceShellAllowed(value === allowItem);
 	}
 
-	protected _showTerminalCloseConfirmation(): Promise<boolean> {
-		let message;
+	protected async _showTerminalCloseConfirmation(): Promise<boolean> {
+		let message: string;
 		if (this.terminalInstances.length === 1) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
 		} else {
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
-
-		return this._dialogService.confirm({
+		const res = await this._dialogService.confirm({
 			message,
 			type: 'warning',
-		}).then(res => !res.confirmed);
+		});
+		return !res.confirmed;
 	}
 
 	protected _showNotEnoughSpaceToast(): void {

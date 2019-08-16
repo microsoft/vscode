@@ -471,7 +471,7 @@ export class GlobalCompareResourcesAction extends Action {
 						override: this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						}).then(() => null)
+						}).then(() => undefined)
 					};
 				}
 

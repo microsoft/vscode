@@ -21,7 +21,7 @@ class EditorWebviewZone implements IViewZone {
 	readonly afterColumn: number;
 	readonly heightInLines: number;
 
-	private _id?: number;
+	private _id?: string;
 	// suppressMouseDown?: boolean | undefined;
 	// heightInPx?: number | undefined;
 	// minWidthInPx?: number | undefined;
@@ -90,7 +90,6 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 		const webview = this._webviewService.createWebview('' + handle, {
 			enableFindWidget: false,
-			allowSvgs: false,
 			extension: { id: extensionId, location: URI.revive(extensionLocation) }
 		}, {
 				allowScripts: options.enableScripts,

@@ -16,6 +16,7 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { env as processEnv } from 'vs/base/common/process';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -356,6 +357,20 @@ export class RawDebugSession {
 		return Promise.reject(new Error('setFunctionBreakpoints not supported'));
 	}
 
+	dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<DebugProtocol.DataBreakpointInfoResponse> {
+		if (this.capabilities.supportsDataBreakpoints) {
+			return this.send<DebugProtocol.DataBreakpointInfoResponse>('dataBreakpointInfo', args);
+		}
+		return Promise.reject(new Error('dataBreakpointInfo not supported'));
+	}
+
+	setDataBreakpoints(args: DebugProtocol.SetDataBreakpointsArguments): Promise<DebugProtocol.SetDataBreakpointsResponse> {
+		if (this.capabilities.supportsDataBreakpoints) {
+			return this.send<DebugProtocol.SetDataBreakpointsResponse>('setDataBreakpoints', args);
+		}
+		return Promise.reject(new Error('setDataBreakpoints not supported'));
+	}
+
 	setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): Promise<DebugProtocol.SetExceptionBreakpointsResponse> {
 		return this.send<DebugProtocol.SetExceptionBreakpointsResponse>('setExceptionBreakpoints', args);
 	}
@@ -594,10 +609,7 @@ export class RawDebugSession {
 		let env: IProcessEnvironment = {};
 		if (vscodeArgs.env) {
 			// merge environment variables into a copy of the process.env
-			if (typeof process === 'object' && process.env) {
-				env = objects.mixin(env, process.env);
-			}
-			env = objects.mixin(env, vscodeArgs.env);
+			env = objects.mixin(processEnv, vscodeArgs.env);
 			// and delete some if necessary
 			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
 		}

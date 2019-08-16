@@ -279,7 +279,7 @@ export interface ITerminalService {
 	selectDefaultWindowsShell(): Promise<void>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	setWorkspaceShellAllowed(isAllowed: boolean): void;
+	manageWorkspaceShellPermissions(): void;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to the terminal.

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
@@ -38,21 +37,18 @@ const hostUtil = new class implements IHostUtils {
 
 //todo@joh do not allow extensions to call postMessage and other globals...
 
-class ExtensionWorker implements IRequestHandler {
-
-	// worker-contract
-	readonly _requestHandlerBrand: any;
-	readonly onmessage: (data: any) => any;
+class ExtensionWorker {
 
 	// protocol
 	readonly protocol: IMessagePassingProtocol;
 
-	constructor(postMessage: (message: any, transfer?: Transferable[]) => any) {
+	constructor() {
 
 		let emitter = new Emitter<VSBuffer>();
 		let terminating = false;
 
-		this.onmessage = data => {
+		onmessage = event => {
+			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
 				return;
@@ -98,8 +94,8 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-export function create(postMessage: (message: any, transfer?: Transferable[]) => any): IRequestHandler {
-	const res = new ExtensionWorker(postMessage);
+(function create(): void {
+	const res = new ExtensionWorker();
 
 	connectToRenderer(res.protocol).then(data => {
 
@@ -112,6 +108,4 @@ export function create(postMessage: (message: any, transfer?: Transferable[]) =>
 
 		onTerminate = () => extHostMain.terminate();
 	});
-
-	return res;
-}
+})();

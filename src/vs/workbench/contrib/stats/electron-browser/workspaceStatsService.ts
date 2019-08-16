@@ -8,9 +8,8 @@ import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/c
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope, INeverShowAgainOptions } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -18,12 +17,9 @@ import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspa
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { joinPath } from 'vs/base/common/resources';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-
-export type Tags = { [index: string]: boolean | number | string | undefined };
-
-const DISABLE_WORKSPACE_PROMPT_KEY = 'workspaces.dontPromptToOpen';
+import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
+import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
 
 const ModulesToLookFor = [
 	// Packages that suggest a node server
@@ -93,20 +89,6 @@ const PyModulesToLookFor = [
 	'botframework-connector'
 ];
 
-export const IWorkspaceStatsService = createDecorator<IWorkspaceStatsService>('workspaceStatsService');
-
-export interface IWorkspaceStatsService {
-	_serviceBrand: any;
-	getTags(): Promise<Tags>;
-
-	/**
-	 * Returns an id for the workspace, different from the id returned by the context service. A hash based
-	 * on the folder uri or workspace configuration, not time-based, and undefined for empty workspaces.
-	 */
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined;
-}
-
-
 export class WorkspaceStatsService implements IWorkspaceStatsService {
 	_serviceBrand: any;
 	private _tags: Tags;
@@ -118,7 +100,6 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		@IWindowService private readonly windowService: IWindowService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IStorageService private readonly storageService: IStorageService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
@@ -150,6 +131,20 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		}
 
 		return workspaceId;
+	}
+
+	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit: boolean = false): Promise<string[]> {
+		const path = workspaceUri.path;
+		const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+		return this.fileService.exists(uri).then(exists => {
+			if (!exists) {
+				return [];
+			}
+			return this.textFileService.read(uri, { acceptTextOnly: true }).then(
+				content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
+				err => [] // ignore missing or binary file
+			);
+		});
 	}
 
 	/* __GDPR__FRAGMENT__
@@ -450,15 +445,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 	}
 
 	private doHandleWorkspaceFiles(folder: URI, workspaces: string[]): void {
-		if (this.storageService.getBoolean(DISABLE_WORKSPACE_PROMPT_KEY, StorageScope.WORKSPACE)) {
-			return; // prompt disabled by user
-		}
-
-		const doNotShowAgain: IPromptChoice = {
-			label: localize('never again', "Don't Show Again"),
-			isSecondary: true,
-			run: () => this.storageService.store(DISABLE_WORKSPACE_PROMPT_KEY, true, StorageScope.WORKSPACE)
-		};
+		const neverShowAgain: INeverShowAgainOptions = { id: 'workspaces.dontPromptToOpen', scope: NeverShowAgainScope.WORKSPACE, isSecondary: true };
 
 		// Prompt to open one workspace
 		if (workspaces.length === 1) {
@@ -467,7 +454,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
 				run: () => this.windowService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
-			}, doNotShowAgain]);
+			}], { neverShowAgain });
 		}
 
 		// Prompt to select a workspace from many
@@ -483,7 +470,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 							}
 						});
 				}
-			}, doNotShowAgain]);
+			}], { neverShowAgain });
 		}
 	}
 
