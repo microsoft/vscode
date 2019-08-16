@@ -208,33 +208,33 @@ export function getDefaultShell(
 	if (!maybeExecutable) {
 		maybeExecutable = getShellSetting(fetchSetting, isWorkspaceShellAllowed, 'shell', platformOverride);
 	}
-	maybeExecutable = maybeExecutable || defaultShell;
+	let executable: string = maybeExecutable || defaultShell;
 
 	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 	// safe to assume that this was used by accident as Sysnative does not
 	// exist and will break the terminal in non-WoW64 environments.
 	if ((platformOverride === platform.Platform.Windows) && !isWoW64 && windir) {
 		const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
-		if (maybeExecutable && maybeExecutable.toLowerCase().indexOf(sysnativePath) === 0) {
-			maybeExecutable = path.join(windir, 'System32', maybeExecutable.substr(sysnativePath.length + 1));
+		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
+			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length + 1));
 		}
 	}
 
 	// Convert / to \ on Windows for convenience
-	if (maybeExecutable && platformOverride === platform.Platform.Windows) {
-		maybeExecutable = maybeExecutable.replace(/\//g, '\\');
+	if (executable && platformOverride === platform.Platform.Windows) {
+		executable = executable.replace(/\//g, '\\');
 	}
 
 	if (configurationResolverService) {
 		try {
-			maybeExecutable = configurationResolverService.resolve(lastActiveWorkspace, maybeExecutable);
+			executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
 		} catch (e) {
 			logService.error(`Could not resolve shell`, e);
-			maybeExecutable = maybeExecutable;
+			executable = executable;
 		}
 	}
 
-	return maybeExecutable;
+	return executable;
 }
 
 export function getDefaultShellArgs(
