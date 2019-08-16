@@ -1044,7 +1044,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				} else if (this._nextBtn.isEnabled()) {
 					this._nextBtn.focus();
 				} else if (this._toggleSelectionFind.domNode.tabIndex >= 0) {
-					this._toggleSelectionFind.focus();
+					this._toggleSelectionFind.domNode.focus();
 				} else if (this._closeBtn.isEnabled()) {
 					this._closeBtn.focus();
 				}
