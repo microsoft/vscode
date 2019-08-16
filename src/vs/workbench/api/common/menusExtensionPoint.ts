@@ -338,7 +338,7 @@ export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<
 
 commandsExtensionPoint.setHandler(extensions => {
 
-	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>, disposables: DisposableStore) {
+	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
@@ -368,7 +368,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			precondition: ContextKeyExpr.deserialize(enablement),
 			iconLocation: absoluteIcon
 		});
-		disposables.add(registration);
+		_commandRegistrations.add(registration);
 	}
 
 	// remove all previous command registrations
@@ -376,12 +376,12 @@ commandsExtensionPoint.setHandler(extensions => {
 
 	for (const extension of extensions) {
 		const { value } = extension;
-		if (Array.isArray<schema.IUserFriendlyCommand>(value)) {
+		if (Array.isArray(value)) {
 			for (const command of value) {
-				handleCommand(command, extension, _commandRegistrations);
+				handleCommand(command, extension);
 			}
 		} else {
-			handleCommand(value, extension, _commandRegistrations);
+			handleCommand(value, extension);
 		}
 	}
 });
