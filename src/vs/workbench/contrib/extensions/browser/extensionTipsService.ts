@@ -40,7 +40,7 @@ import { extname } from 'vs/base/common/resources';
 import { IExeBasedExtensionTip, IProductService } from 'vs/platform/product/common/product';
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
-import { Platform, setImmediate } from 'vs/base/common/platform';
+import { setImmediate, isWeb } from 'vs/base/common/platform';
 import { platform, env as processEnv } from 'vs/base/common/process';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -984,7 +984,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 * If user has any of the tools listed in this.productService.exeBasedExtensionTips, fetch corresponding recommendations
 	 */
 	private async fetchExecutableRecommendations(important: boolean): Promise<void> {
-		if (Platform.Web) {
+		if (isWeb) {
 			return;
 		}
 
