@@ -892,6 +892,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				}
 			}
 		}));
+		this._register(this._findInput.onRegexKeyDown((e) => {
+			if (e.equals(KeyCode.Tab)) {
+				if (this._isReplaceVisible) {
+					this._preserveCase.focus();
+					e.preventDefault();
+				}
+			}
+		}));
 		this._register(this._findInput.inputBox.onDidHeightChange((e) => {
 			console.log(e);
 		}));
@@ -1001,6 +1009,22 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._replaceInputBox.focus();
 			}
 		}));
+		this._register(this._preserveCase.onKeyDown((e) => {
+			if (e.equals(KeyCode.Tab)) {
+				if (this._prevBtn.isEnabled()) {
+					this._prevBtn.focus();
+				} else if (this._nextBtn.isEnabled()) {
+					this._nextBtn.focus();
+				} else if (this._toggleSelectionFind.domNode.tabIndex >= 0) {
+					this._toggleSelectionFind.focus();
+				} else if (this._closeBtn.isEnabled()) {
+					this._closeBtn.focus();
+				}
+
+				e.preventDefault();
+			}
+		}
+		));
 
 		// Replace one button
 		this._replaceBtn = this._register(new SimpleButton({
