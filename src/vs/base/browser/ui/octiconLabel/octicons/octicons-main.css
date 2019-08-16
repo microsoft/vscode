@@ -7,7 +7,7 @@ body {
 }
 
 .octicon, .mega-octicon {
-    font-family: var(--version);
+    font-family: var(--version) !important;
 }
 
 body[data-octicons-update="enabled"] .monaco-workbench .part.statusbar > .items-container > .statusbar-item span.octicon {
