@@ -244,7 +244,6 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 	private createWebiew(id: string, extension: { location: URI; id: ExtensionIdentifier; } | undefined, options: WebviewInputOptions) {
 		return this._webviewService.createWebviewEditorOverlay(id, {
-			allowSvgs: true,
 			extension: extension,
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden

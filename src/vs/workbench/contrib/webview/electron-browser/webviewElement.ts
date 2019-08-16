@@ -9,7 +9,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
-import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -134,51 +133,6 @@ class WebviewPortMappingProvider extends Disposable {
 			const redirect = await this._manager.getRedirect(details.url);
 			return redirect ? { redirectURL: redirect } : undefined;
 		});
-	}
-}
-
-class SvgBlocker extends Disposable {
-
-	private readonly _onDidBlockSvg = this._register(new Emitter<void>());
-	public readonly onDidBlockSvg = this._onDidBlockSvg.event;
-
-	constructor(
-		session: WebviewSession,
-		private readonly _options: WebviewContentOptions,
-	) {
-		super();
-
-		session.onBeforeRequest(async (details) => {
-			if (details.url.indexOf('.svg') > 0) {
-				const uri = URI.parse(details.url);
-				if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg') && !this.isAllowedSvg(uri)) {
-					this._onDidBlockSvg.fire();
-					return { cancel: true };
-				}
-			}
-
-			return undefined;
-		});
-
-		session.onHeadersReceived((details) => {
-			const headers: any = details.responseHeaders;
-			const contentType: string[] = headers['content-type'] || headers['Content-Type'];
-			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
-				const uri = URI.parse(details.url);
-				if (uri && !this.isAllowedSvg(uri)) {
-					this._onDidBlockSvg.fire();
-					return { cancel: true };
-				}
-			}
-			return undefined;
-		});
-	}
-
-	private isAllowedSvg(uri: URI): boolean {
-		if (this._options.svgWhiteList) {
-			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
-		}
-		return false;
 	}
 }
 
@@ -334,11 +288,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 			() => (this.content.options.portMapping || []),
 			tunnelService,
 		));
-
-		if (!this._options.allowSvgs) {
-			const svgBlocker = this._register(new SvgBlocker(session, this.content.options));
-			svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
-		}
 
 		this._register(new WebviewKeyboardHandler(this._webview));
 
@@ -582,12 +531,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 
 	public sendMessage(data: any): void {
 		this._send('message', data);
-	}
-
-	private onDidBlockSvg() {
-		this.sendMessage({
-			name: 'vscode-did-block-svg'
-		});
 	}
 
 	private style(theme: ITheme): void {
