@@ -64,9 +64,7 @@ const REPLACE_INPUT_AREA_WIDTH = FIND_INPUT_AREA_WIDTH;
 let MAX_MATCHES_COUNT_WIDTH = 69;
 let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Results */ + 23 /** Button */ * 4 + 2/** sash */;
 
-const FIND_INPUT_AREA_HEIGHT = 34; // The height of Find Widget when Replace Input is not visible.
-const FIND_REPLACE_AREA_HEIGHT = 64; // The height of Find Widget when Replace Input is  visible.
-
+const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
 
 export class FindWidgetViewZone implements IViewZone {
 	public readonly afterLineNumber: number;
@@ -110,6 +108,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _contextKeyService: IContextKeyService;
 
 	private _domNode!: HTMLElement;
+	private _cachedHeight: number | null;
 	private _findInput!: FindInput;
 	private _replaceInputBox!: HistoryInputBox;
 
@@ -313,7 +312,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 		}
 		if ((e.isRevealed || e.isReplaceRevealed) && (this._state.isRevealed || this._state.isReplaceRevealed)) {
-			this._tryUpdateHeight();
+			if (this._tryUpdateHeight()) {
+				this._showViewZone();
+			}
 		}
 
 		if (e.isRegex) {
@@ -532,12 +533,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 
 		this._codeEditor.changeViewZones((accessor) => {
-			if (this._state.isReplaceRevealed) {
-				viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
-			} else {
-				viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
-			}
-
+			viewZone.heightInPx = this._getHeight();
 			this._viewZoneId = accessor.addZone(viewZone);
 			// scroll top adjust to make sure the editor doesn't scroll when adding viewzone at the beginning.
 			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + viewZone.heightInPx);
@@ -545,30 +541,47 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _showViewZone(adjustScroll: boolean = true) {
-		const viewZone = this._viewZone;
-		if (!this._isVisible || !viewZone) {
+		if (!this._isVisible) {
 			return;
 		}
 
+		const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+
+		if (!addExtraSpaceOnTop) {
+			return;
+		}
+
+		if (this._viewZone === undefined) {
+			this._viewZone = new FindWidgetViewZone(0);
+		}
+
+		const viewZone = this._viewZone;
+
 		this._codeEditor.changeViewZones((accessor) => {
-			let scrollAdjustment = FIND_INPUT_AREA_HEIGHT;
-
 			if (this._viewZoneId !== undefined) {
-				if (this._state.isReplaceRevealed) {
-					viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
-					scrollAdjustment = FIND_REPLACE_AREA_HEIGHT - FIND_INPUT_AREA_HEIGHT;
-				} else {
-					viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
-					scrollAdjustment = FIND_INPUT_AREA_HEIGHT - FIND_REPLACE_AREA_HEIGHT;
+				// the view zone already exists, we need to update the height
+				const newHeight = this._getHeight();
+				if (newHeight === viewZone.heightInPx) {
+					return;
 				}
-				accessor.removeZone(this._viewZoneId);
-			} else {
-				viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
-			}
-			this._viewZoneId = accessor.addZone(viewZone);
 
-			if (adjustScroll) {
-				this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+				let scrollAdjustment = newHeight - viewZone.heightInPx;
+				viewZone.heightInPx = newHeight;
+				accessor.layoutZone(this._viewZoneId);
+
+				if (adjustScroll) {
+					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+				}
+
+				return;
+			} else {
+				const scrollAdjustment = this._getHeight();
+				viewZone.heightInPx = scrollAdjustment;
+				this._viewZoneId = accessor.addZone(viewZone);
+
+				if (adjustScroll) {
+					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+				}
 			}
 		});
 	}
@@ -667,7 +680,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 	}
 
-	private _tryUpdateHeight() {
+	private _getHeight(): number {
 		let totalheight = 0;
 
 		// find input margin top
@@ -685,8 +698,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		// margin bottom
 		totalheight += 4;
+		return totalheight;
+	}
 
-		this._domNode.style.height = `${totalheight}px`;
+	private _tryUpdateHeight(): boolean {
+		const totalHeight = this._getHeight();
+		if (this._cachedHeight !== null && this._cachedHeight === totalHeight) {
+			return false;
+		}
+
+		this._cachedHeight = totalHeight;
+		this._domNode.style.height = `${totalHeight}px`;
+
+		return true;
 	}
 
 	// ----- Public
@@ -925,7 +949,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 		}));
 		this._register(this._findInput.inputBox.onDidHeightChange((e) => {
-			this._tryUpdateHeight();
+			if (this._tryUpdateHeight()) {
+				this._showViewZone();
+			}
 		}));
 		if (platform.isLinux) {
 			this._register(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
@@ -1025,7 +1051,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._state.change({ replaceString: this._replaceInputBox.value }, false);
 		}));
 		this._register(this._replaceInputBox.onDidHeightChange((e) => {
-			this._tryUpdateHeight();
+			if (this._isReplaceVisible && this._tryUpdateHeight()) {
+				this._showViewZone();
+			}
 		}));
 
 		this._preserveCase = this._register(new Checkbox({
@@ -1153,6 +1181,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (this._isReplaceVisible) {
 				this._replaceInputBox.width = inputBoxWidth;
 			}
+
+			this._findInput.inputBox.layout();
+			this._tryUpdateHeight();
 		}));
 	}
 
