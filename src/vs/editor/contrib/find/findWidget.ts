@@ -635,7 +635,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (widgetWidth > FIND_WIDGET_INITIAL_WIDTH) {
 				// as the widget is resized by users, we may need to change the max width of the widget as the editor width changes.
 				this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
-				this._replaceInputBox.inputElement.style.width = `${dom.getTotalWidth(this._findInput.inputBox.inputElement)}px`;
+				this._replaceInputBox.width = dom.getTotalWidth(this._findInput.inputBox.inputElement);
 				return;
 			}
 		}
@@ -659,9 +659,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 
 		if (this._resized) {
-			let findInputWidth = dom.getTotalWidth(this._findInput.inputBox.inputElement);
+			this._findInput.inputBox.layout();
+			let findInputWidth = this._findInput.inputBox.width;
 			if (findInputWidth > 0) {
-				this._replaceInputBox.inputElement.style.width = `${findInputWidth}px`;
+				this._replaceInputBox.width = findInputWidth;
 			}
 		}
 	}
