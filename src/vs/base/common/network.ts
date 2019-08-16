@@ -49,3 +49,26 @@ export namespace Schemas {
 
 	export const userData: string = 'vscode-userdata';
 }
+
+class RemoteAuthoritiesImpl {
+	private readonly _hosts: { [authority: string]: string; };
+	private readonly _ports: { [authority: string]: number; };
+	private readonly _connectionTokens: { [authority: string]: string; };
+
+	constructor() {
+		this._hosts = Object.create(null);
+		this._ports = Object.create(null);
+		this._connectionTokens = Object.create(null);
+	}
+
+	public set(authority: string, host: string, port: number): void {
+		this._hosts[authority] = host;
+		this._ports[authority] = port;
+	}
+
+	public setConnectionToken(authority: string, connectionToken: string): void {
+		this._connectionTokens[authority] = connectionToken;
+	}
+}
+
+export const RemoteAuthorities = new RemoteAuthoritiesImpl();
