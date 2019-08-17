@@ -38,7 +38,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileKind } from 'vs/platform/files/common/files';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import * as marked from 'vs/base/common/marked/marked';
+import { MarkdownString, IMarkdownString } from 'vs/base/common/htmlContent';
 
 const expandSuggestionDocsByDefault = false;
 
@@ -243,6 +244,8 @@ class SuggestionDetails {
 	private readonly disposables: DisposableStore;
 	private renderDisposeable?: IDisposable;
 	private borderWidth: number = 1;
+	width?: number;
+	readonly defaultWidth = 500;
 
 	constructor(
 		container: HTMLElement,
@@ -326,6 +329,7 @@ class SuggestionDetails {
 		if (typeof documentation === 'string') {
 			removeClass(this.docs, 'markdown-docs');
 			this.docs.textContent = documentation;
+			this.width = this.defaultWidth;
 		} else {
 			const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
 			if (largeDetail) {
@@ -336,6 +340,7 @@ class SuggestionDetails {
 			const renderedContents = this.markdownRenderer.render(documentation);
 			this.renderDisposeable = renderedContents;
 			this.docs.appendChild(renderedContents.element);
+			this.width = this.calcWidth(documentation);
 		}
 
 		// --- details
@@ -366,6 +371,24 @@ class SuggestionDetails {
 			'{0}{1}',
 			detail || '',
 			documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
+	}
+
+	calcWidth(documentation: IMarkdownString | undefined): number {
+		if (!documentation) {
+			return this.defaultWidth;
+		}
+		const configuration = this.editor.getConfiguration();
+		const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
+		const tokens = marked.lexer(documentation.value);
+		const sizes = tokens.map((tok) => {
+			switch (tok.type) {
+				case 'code':
+					return Math.max(...tok.text.split('\n').map(line => line.length * fontSize));
+				default:
+					return this.defaultWidth;
+			}
+		});
+		return Math.max(...sizes);
 	}
 
 	getAriaLabel() {
@@ -1025,7 +1048,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		return (this.getEditorWidth() + editorLeft - this.listWidth - cursorX) * 0.9;
 	}
 
-	private getDetailWidth(): number | null {
+	private getDetailWidth(): number {
+		const maxWidth = this.getDetailMaxWidth() || 330;
+		const width = this.details.width || this.details.defaultWidth;
+		return Math.min(maxWidth, width);
+	}
+
+	private getDetailMaxWidth(): number | null {
 		const editorWidth = this.getEditorWidth();
 		const leftDetailWidth = this.getLeftDetailWidth();
 		const rightDetailWidth = this.getRightDetailWidth();
@@ -1055,6 +1084,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		show(this.details.element);
 
 		this.details.element.style.maxHeight = this.maxWidgetHeight + 'px';
+		if (loading) {
+			this.details.renderLoading();
+		} else {
+			this.details.renderItem(this.list.getFocusedElements()[0], this.explainMode);
+		}
 		const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
 		if (largeDetail) {
 			const widgetY = getDomNodePagePosition(this.element).top;
@@ -1068,12 +1102,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 					this.details.element.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height - widgetY, this.maxWidgetHeight)}px`;
 				}
 			}
-		}
-
-		if (loading) {
-			this.details.renderLoading();
-		} else {
-			this.details.renderItem(this.list.getFocusedElements()[0], this.explainMode);
 		}
 
 		// Reset margin-top that was set as Fix for #26416
