@@ -135,20 +135,6 @@ const eslintFilter = [
 	'!**/test/**'
 ];
 
-const tslintFilter = [
-	'src/**/*.ts',
-	'test/**/*.ts',
-	'extensions/**/*.ts',
-	'!**/fixtures/**',
-	'!**/typings/**',
-	'!**/node_modules/**',
-	'!extensions/typescript/test/colorize-fixtures/**',
-	'!extensions/vscode-api-tests/testWorkspace/**',
-	'!extensions/vscode-api-tests/testWorkspace2/**',
-	'!extensions/**/*.test.ts',
-	'!extensions/html-language-features/server/lib/jquery.d.ts'
-];
-
 const tslintBaseFilter = [
 	'!**/fixtures/**',
 	'!**/typings/**',
@@ -172,6 +158,13 @@ const tslintExtensionsFilter = [
 	'extensions/**/*.ts',
 	'!src/**/*.ts',
 	'!test/**/*.ts',
+	...tslintBaseFilter
+];
+
+const tslintHygieneFilter = [
+	'src/**/*.ts',
+	'test/**/*.ts',
+	'extensions/**/*.ts',
 	...tslintBaseFilter
 ];
 
@@ -317,7 +310,7 @@ function hygiene(some) {
 		.pipe(copyrights);
 
 	const typescript = result
-		.pipe(filter(tslintFilter))
+		.pipe(filter(tslintHygieneFilter))
 		.pipe(formatting)
 		.pipe(tsl);
 
