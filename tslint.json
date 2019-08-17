@@ -624,26 +624,32 @@
 				"restrictions": "**/vs/**"
 			}
 		],
-		"no-unsafe-globals": [
+		"no-nodejs-globals": [
 			true,
 			{
 				"target": "**/vs/base/common/{path,process,platform}.ts",
-				"unsafe": []
+				"allowed": [
+					"process"
+				]
+			},
+			{
+				"target": "**/vs/**/test/{common,browser}/**",
+				"allowed": [
+					"process",
+					"Buffer",
+					"__filename",
+					"__dirname"
+				]
+			},
+			{
+				"target": "**/vs/workbench/api/common/extHostExtensionService.ts",
+				"allowed": [
+					"global"
+				]
 			},
 			{
 				"target": "**/vs/**/{common,browser}/**",
-				"unsafe": [
-					// https://nodejs.org/api/globals.html#globals_global_objects
-					"Buffer",
-					"process",
-					"__filename",
-					"__dirname",
-					"clearImmediate",
-					"exports",
-					"global",
-					"module",
-					"setImmediate"
-				]
+				"allowed": [ /* none */]
 			}
 		],
 		"duplicate-imports": true,
