@@ -89,7 +89,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}, async (err) => {
 			if (err && err.code === 'ENOENT') {
 				let cwd = shellLaunchConfig.cwd instanceof URI ? shellLaunchConfig.cwd.path : shellLaunchConfig.cwd!;
-				const executable = await findExecutable(shellLaunchConfig.executable!, cwd);
+				// Try to get path
+				const envPaths: string[] | undefined = (shellLaunchConfig.env && shellLaunchConfig.env.PATH) ? shellLaunchConfig.env.PATH.split(path.delimiter) : undefined;
+				const executable = await findExecutable(shellLaunchConfig.executable!, cwd, envPaths);
 				if (!executable) {
 					return Promise.reject(SHELL_PATH_INVALID_EXIT_CODE);
 				}

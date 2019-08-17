@@ -5,6 +5,7 @@
 
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { env as processEnv } from 'vs/base/common/process';
 import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -195,7 +196,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
 		if (!shellLaunchConfig.executable) {
-			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs();
+			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs(false);
 			shellLaunchConfig.executable = defaultConfig.shell;
 			shellLaunchConfig.args = defaultConfig.args;
 		} else {
@@ -225,7 +226,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
 		this._configHelper.showRecommendations(shellLaunchConfig);
-		const baseEnv = this._configHelper.config.inheritEnv ? process.env as platform.IProcessEnvironment : await this._terminalInstanceService.getMainProcessParentEnv();
+		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.setLocaleVariables, baseEnv);
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;

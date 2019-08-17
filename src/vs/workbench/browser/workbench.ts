@@ -50,11 +50,11 @@ export class Workbench extends Layout {
 	private readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
 	readonly onBeforeShutdown: Event<BeforeShutdownEvent> = this._onBeforeShutdown.event;
 
-	private readonly _onShutdown = this._register(new Emitter<void>());
-	readonly onShutdown: Event<void> = this._onShutdown.event;
-
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	readonly onWillShutdown: Event<WillShutdownEvent> = this._onWillShutdown.event;
+
+	private readonly _onShutdown = this._register(new Emitter<void>());
+	readonly onShutdown: Event<void> = this._onShutdown.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -185,7 +185,7 @@ export class Workbench extends Layout {
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
+		// CONTRIBUTE IT VIA WORKBENCH.DESKTOP.MAIN.TS AND registerSingleton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services

@@ -188,6 +188,11 @@
 				return;
 			}
 
+			// Prevent middle clicks opening a broken link in the browser
+			if (event.button == 1) {
+				event.preventDefault();
+			}
+
 			let baseElement = event.view.document.getElementsByTagName('base')[0];
 			/** @type {any} */
 			let node = event.target;
@@ -279,6 +284,12 @@
 			newDocument.head.prepend(defaultStyles);
 
 			applyStyles(newDocument, newDocument.body);
+
+			// Check for CSP
+			const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
+			if (!csp) {
+				host.postMessage('no-csp-found');
+			}
 
 			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
 			// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
@@ -443,7 +454,7 @@
 					});
 
 					// Bubble out link clicks
-					newFrame.contentWindow.addEventListener('click', handleInnerClick);
+					newFrame.contentWindow.addEventListener('mousedown', handleInnerClick);
 
 					if (host.onIframeLoaded) {
 						host.onIframeLoaded(newFrame);

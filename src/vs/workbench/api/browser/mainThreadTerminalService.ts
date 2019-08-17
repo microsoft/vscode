@@ -335,7 +335,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onRequestDefaultShellAndArgs(request: IDefaultShellAndArgsRequest): void {
 		if (this._isPrimaryExtHost()) {
-			this._proxy.$requestDefaultShellAndArgs().then(e => request(e.shell, e.args));
+			this._proxy.$requestDefaultShellAndArgs(request.useAutomationShell).then(e => request.callback(e.shell, e.args));
 		}
 	}
 

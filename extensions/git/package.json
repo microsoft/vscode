@@ -1354,6 +1354,15 @@
           "scope": "resource",
           "default": false,
           "description": "%config.supportCancellation%"
+        },
+        "git.branchSortOrder": {
+          "type": "string",
+          "enum": [
+            "committerdate",
+            "alphabetically"
+          ],
+          "default": "committerdate",
+          "description": "%config.branchSortOrder%"
         }
       }
     },

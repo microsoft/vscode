@@ -3605,17 +3605,17 @@ declare namespace monaco.editor {
 		 * @param zone Zone to create
 		 * @return A unique identifier to the view zone.
 		 */
-		addZone(zone: IViewZone): number;
+		addZone(zone: IViewZone): string;
 		/**
 		 * Remove a zone
 		 * @param id A unique identifier to the view zone, as returned by the `addZone` call.
 		 */
-		removeZone(id: number): void;
+		removeZone(id: string): void;
 		/**
 		 * Change a zone's position.
 		 * The editor will rescan the `afterLineNumber` and `afterColumn` properties of a view zone.
 		 */
-		layoutZone(id: number): void;
+		layoutZone(id: string): void;
 	}
 
 	/**
@@ -4054,7 +4054,7 @@ declare namespace monaco.editor {
 		 * @param edits The edits to execute.
 		 * @param endCursorState Cursor state after the edits were applied.
 		 */
-		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
+		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 		/**
 		 * Execute multiple (concomitant) commands on the editor.
 		 * @param source The source of the call.
@@ -4454,6 +4454,16 @@ declare namespace monaco.languages {
 	 * Register a folding range provider
 	 */
 	export function registerFoldingRangeProvider(languageId: string, provider: FoldingRangeProvider): IDisposable;
+
+	/**
+	 * Register a declaration provider
+	 */
+	export function registerDeclarationProvider(languageId: string, provider: DeclarationProvider): IDisposable;
+
+	/**
+	 * Register a selection range provider
+	 */
+	export function registerSelectionRangeProvider(languageId: string, provider: SelectionRangeProvider): IDisposable;
 
 	/**
 	 * Contains additional diagnostic information about the context in which

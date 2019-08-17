@@ -14,7 +14,8 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
 import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
+import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
+import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -135,20 +136,6 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 	});
 }
 
-export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, textFileService: ITextFileService, stripEndingDotGit: boolean = false): Promise<string[]> {
-	const path = workspaceUri.path;
-	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-	return fileService.exists(uri).then(exists => {
-		if (!exists) {
-			return [];
-		}
-		return textFileService.read(uri, { acceptTextOnly: true }).then(
-			content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
-			err => [] // ignore missing or binary file
-		);
-	});
-}
-
 export class WorkspaceStats implements IWorkbenchContribution {
 
 	constructor(
@@ -175,10 +162,20 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportProxyStats();
 
 		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
-		diagnosticsChannel.call('reportWorkspaceStats', this.contextService.getWorkspace());
+		diagnosticsChannel.call('reportWorkspaceStats', this.getWorkspaceInformation());
 	}
 
-
+	private getWorkspaceInformation(): IWorkspaceInformation {
+		const workspace = this.contextService.getWorkspace();
+		const state = this.contextService.getWorkbenchState();
+		const id = this.workspaceStatsService.getTelemetryWorkspaceId(workspace, state);
+		return {
+			id: workspace.id,
+			telemetryId: id,
+			folders: workspace.folders,
+			configuration: workspace.configuration
+		};
+	}
 
 	private reportWorkspaceTags(tags: Tags): void {
 		/* __GDPR__
@@ -219,7 +216,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private reportRemotes(workspaceUris: URI[]): void {
 		Promise.all<string[]>(workspaceUris.map(workspaceUri => {
-			return getHashedRemotesFromUri(workspaceUri, this.fileService, this.textFileService, true);
+			return this.workspaceStatsService.getHashedRemotesFromUri(workspaceUri, true);
 		})).then(hashedRemotes => {
 			/* __GDPR__
 					"workspace.hashedRemotes" : {

@@ -4664,6 +4664,56 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #78527 - does not close quote on odd count', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'std::cout << \'"\' << entryMap'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 29, 1, 29)]);
+
+			cursorCommand(cursor, H.Type, { text: '[' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap[]');
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap[""]');
+
+			cursorCommand(cursor, H.Type, { text: 'a' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+
+			cursorCommand(cursor, H.Type, { text: ']' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+		});
+		mode.dispose();
+	});
+
+	test('issue #78975 - Parentheses swallowing does not work when parentheses are inserted by autocomplete', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'<div id'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 8, 1, 8)]);
+
+			cursor.executeEdits('snippet', [{ range: new Range(1, 6, 1, 8), text: 'id=""' }], () => [new Selection(1, 10, 1, 10)]);
+			assert.strictEqual(model.getLineContent(1), '<div id=""');
+
+			cursorCommand(cursor, H.Type, { text: 'a' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '<div id="a"');
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '<div id="a"');
+		});
+		mode.dispose();
+	});
+
 	test('issue #15825: accents on mac US intl keyboard', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({

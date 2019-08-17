@@ -27,13 +27,16 @@
 	height: calc(100% - 38px);
 }
 
-.extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item > .octicon {
-	font-size: 12px;
-	line-height: 1;
-	margin-right: 10px;
+.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar {
+	margin-right: 4px;
 }
 
-.extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item.disabled  {
+.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item > .action-label.icon.octicon {
+	vertical-align: middle;
+	line-height: 22px;
+}
+
+.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item.disabled  {
 	display: none;
 }
 
@@ -44,7 +47,7 @@
 }
 
 .extensions-viewlet > .extensions .panel-header {
-	padding-right: 28px;
+	padding-right: 6px;
 }
 
 .extensions-viewlet > .extensions .panel-header > .title {
@@ -59,6 +62,10 @@
 
 .extensions-viewlet > .extensions .message-container .message {
 	padding-left: 5px;
+}
+
+.extensions-viewlet > .extensions .message-container .severity-icon {
+	flex-shrink: 0;
 }
 
 .extensions-viewlet > .extensions .monaco-list-row > .bookmark {

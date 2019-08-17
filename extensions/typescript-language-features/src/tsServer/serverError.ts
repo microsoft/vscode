@@ -40,7 +40,16 @@ export class TypeScriptServerError extends Error {
 		if (errorText) {
 			const errorPrefix = 'Error processing request. ';
 			if (errorText.startsWith(errorPrefix)) {
-				const prefixFreeErrorText = errorText.substr(errorPrefix.length);
+				let prefixFreeErrorText = errorText.substr(errorPrefix.length);
+
+				// Prior to https://github.com/microsoft/TypeScript/pull/32785, this error
+				// returned and excessively long and detailed list of paths.  Since server-side
+				// filtering doesn't have sufficient granularity to drop these specific
+				// messages, we sanitize them here.
+				if (prefixFreeErrorText.indexOf('Could not find sourceFile') >= 0) {
+					prefixFreeErrorText = prefixFreeErrorText.replace(/ in \[[^\]]*\]/g, '');
+				}
+
 				const newlineIndex = prefixFreeErrorText.indexOf('\n');
 				if (newlineIndex >= 0) {
 					// Newline expected between message and stack.

@@ -618,7 +618,7 @@ export class MouseController<T> implements IDisposable {
 		}
 	}
 
-	private onDoubleClick(e: IListMouseEvent<T>): void {
+	protected onDoubleClick(e: IListMouseEvent<T>): void {
 		if (isInputElement(e.browserEvent.target as HTMLElement)) {
 			return;
 		}

@@ -470,7 +470,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// We also want to trigger auto save if it is enabled to simulate the exact same behaviour
 		// you would get if manually making the model dirty (fixes https://github.com/Microsoft/vscode/issues/16977)
 		if (fromBackup) {
-			this.makeDirty();
+			this.doMakeDirty();
 			if (this.autoSaveAfterMilliesEnabled) {
 				this.doAutoSave(this.versionId);
 			}
@@ -549,7 +549,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.logService.trace('onModelContentChanged() - model content changed and marked as dirty', this.resource);
 
 		// Mark as dirty
-		this.makeDirty();
+		this.doMakeDirty();
 
 		// Start auto save process unless we are in conflict resolution mode and unless it is disabled
 		if (this.autoSaveAfterMilliesEnabled) {
@@ -564,7 +564,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	private makeDirty(): void {
+	makeDirty(): void {
+		if (!this.isResolved()) {
+			return; // only resolved models can be marked dirty
+		}
+
+		this.doMakeDirty();
+	}
+
+	private doMakeDirty(): void {
 
 		// Track dirty state and version id
 		const wasDirty = this.dirty;
@@ -913,7 +921,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		TextFileEditorModel.saveErrorHandler.onSaveError(error, this);
 	}
 
-	isDirty(): boolean {
+	isDirty(): this is IResolvedTextFileEditorModel {
 		return this.dirty;
 	}
 

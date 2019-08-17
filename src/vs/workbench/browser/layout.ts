@@ -46,6 +46,9 @@ enum Settings {
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
+
+	// TODO @misolori update this when finished
+	OCTICONS_UPDATE_ENABLED = 'workbench.octiconsUpdate.enabled',
 }
 
 enum Storage {
@@ -173,6 +176,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			wasSideBarVisible: false,
 			wasPanelVisible: false,
 			transitionDisposables: new DisposableStore()
+		},
+
+		// TODO @misolori update this when finished
+		octiconsUpdate: {
+			enabled: false
 		}
 	};
 
@@ -314,6 +322,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 
+		// TODO @misolori update this when finished
+		const newOcticonsUpdate = this.configurationService.getValue<boolean>(Settings.OCTICONS_UPDATE_ENABLED);
+		this.setOcticonsUpdate(newOcticonsUpdate);
+
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -425,6 +437,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Zen mode enablement
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
+
+		// TODO @misolori update this when finished
+		this.state.octiconsUpdate.enabled = this.configurationService.getValue<boolean>(Settings.OCTICONS_UPDATE_ENABLED);
+		this.setOcticonsUpdate(this.state.octiconsUpdate.enabled);
 
 	}
 
@@ -727,6 +743,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.workbenchGrid.layout();
 			}
 		}
+	}
+
+	// TODO @misolori update this when finished
+	private setOcticonsUpdate(enabled: boolean): void {
+		this.state.octiconsUpdate.enabled = enabled;
+
+		// Update DOM
+		if (enabled) {
+			document.body.dataset.octiconsUpdate = 'enabled';
+		} else {
+			document.body.dataset.octiconsUpdate = '';
+		}
+
 	}
 
 	protected createWorkbenchLayout(instantiationService: IInstantiationService): void {
@@ -1177,10 +1206,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private createGridDescriptor(): ISerializedGrid {
-		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, 600);
-		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, 400);
-		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, 300);
-		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, 300);
+		const workbenchDimensions = getClientArea(this.parent);
+		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, workbenchDimensions.width);
+		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, workbenchDimensions.height);
+		// At some point, we will not fall back to old keys from legacy layout, but for now, let's migrate the keys
+		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, this.storageService.getNumber('workbench.sidebar.width', StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300))!);
+		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(this.state.panel.position === Position.BOTTOM ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, workbenchDimensions.height / 3));
 
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;

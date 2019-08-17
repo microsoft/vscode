@@ -55,8 +55,7 @@ export class OpenerService implements IOpenerService {
 
 		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https) || equalsIgnoreCase(scheme, Schemas.mailto)) {
 			// open http or default mail application
-			dom.windowOpenNoOpener(encodeURI(resource.toString(true)));
-			return Promise.resolve(true);
+			return this.openExternal(resource);
 
 		} else if (equalsIgnoreCase(scheme, Schemas.command)) {
 			// run command or bail out if command isn't known
@@ -99,5 +98,11 @@ export class OpenerService implements IOpenerService {
 				options && options.openToSide
 			).then(() => true);
 		}
+	}
+
+	openExternal(resource: URI): Promise<boolean> {
+		dom.windowOpenNoOpener(encodeURI(resource.toString(true)));
+
+		return Promise.resolve(true);
 	}
 }

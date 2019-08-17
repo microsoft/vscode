@@ -1455,7 +1455,7 @@ export class SearchView extends ViewletPanel {
 		this.openSettings('.exclude');
 	}
 
-	private openSettings(query: string): Promise<IEditor | null> {
+	private openSettings(query: string): Promise<IEditor | undefined> {
 		const options: ISettingsEditorOptions = { query };
 		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
 			this.preferencesService.openWorkspaceSettings(undefined, options) :

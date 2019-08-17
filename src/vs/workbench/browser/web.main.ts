@@ -14,7 +14,7 @@ import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService, IProductConfiguration } from 'vs/platform/product/common/product';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -33,16 +33,15 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { hash } from 'vs/base/common/hash';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
-import { ProductService } from 'vs/platform/product/browser/productService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestService } from 'vs/workbench/services/request/browser/requestService';
 import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
+import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
+import { StaticExtensionsService, IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 
 class CodeRendererMain extends Disposable {
 
@@ -85,6 +84,11 @@ class CodeRendererMain extends Disposable {
 		}));
 		this._register(workbench.onShutdown(() => this.dispose()));
 
+		// Driver
+		if (this.configuration.driver) {
+			registerWindowDriver().then(d => this._register(d));
+		}
+
 		// Startup
 		workbench.startup();
 	}
@@ -109,7 +113,7 @@ class CodeRendererMain extends Disposable {
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
+		// CONTRIBUTE IT VIA WORKBENCH.WEB.MAIN.TS AND registerSingleton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Log
@@ -119,16 +123,11 @@ class CodeRendererMain extends Disposable {
 		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		// Environment
-		const environmentService = new BrowserWorkbenchEnvironmentService({
-			workspaceId: payload.id,
-			remoteAuthority: this.configuration.remoteAuthority,
-			webviewEndpoint: this.configuration.webviewEndpoint,
-			connectionToken: this.configuration.connectionToken
-		});
+		const environmentService = new BrowserWorkbenchEnvironmentService(payload.id, this.configuration);
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
-		const productService = new ProductService();
+		const productService = this.createProductService();
 		serviceCollection.set(IProductService, productService);
 
 		// Remote
@@ -146,6 +145,10 @@ class CodeRendererMain extends Disposable {
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
+
+		// Static Extensions
+		const staticExtensions = new StaticExtensionsService(this.configuration.staticExtensions || []);
+		serviceCollection.set(IStaticExtensionsService, staticExtensions);
 
 		let userDataProvider: IFileSystemProvider | undefined = this.configuration.userDataProvider;
 		const connection = remoteAgentService.getConnection();
@@ -170,7 +173,7 @@ class CodeRendererMain extends Disposable {
 		// User Data Provider
 		fileService.registerProvider(Schemas.userData, userDataProvider);
 
-		const [configurationService, storageService] = await Promise.all([
+		const services = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
@@ -191,10 +194,19 @@ class CodeRendererMain extends Disposable {
 			})
 		]);
 
-		// Request Service
-		serviceCollection.set(IRequestService, new RequestService(this.configuration.requestHandler, remoteAgentService, configurationService, logService));
+		return { serviceCollection, logService, storageService: services[1] };
+	}
 
-		return { serviceCollection, logService, storageService };
+	private createProductService(): IProductService {
+		const element = document.getElementById('vscode-remote-product-configuration');
+		const productConfiguration: IProductConfiguration = {
+			...element ? JSON.parse(element.getAttribute('data-settings')!) : {
+				version: '1.38.0-unknown',
+				nameLong: 'Unknown',
+				extensionAllowedProposedApi: [],
+			}, ...{ urlProtocol: '', enableTelemetry: false }
+		};
+		return { _serviceBrand: undefined, ...productConfiguration };
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {

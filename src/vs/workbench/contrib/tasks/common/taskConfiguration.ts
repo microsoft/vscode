@@ -681,7 +681,7 @@ export namespace RunOptions {
 	}
 }
 
-class ParseContext {
+interface ParseContext {
 	workspaceFolder: IWorkspaceFolder;
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;

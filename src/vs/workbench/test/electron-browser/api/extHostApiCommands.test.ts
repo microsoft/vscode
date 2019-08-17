@@ -181,7 +181,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(nullExtensionDescription, {
-			provideWorkspaceSymbols(query): vscode.SymbolInformation[] {
+			provideWorkspaceSymbols(): vscode.SymbolInformation[] {
 				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar')) as vscode.SymbolInformation];
 			}
 		}));
@@ -312,7 +312,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('reference search, back and forth', function () {
 
 		disposables.push(extHost.registerReferenceProvider(nullExtensionDescription, defaultSelector, <vscode.ReferenceProvider>{
-			provideReferences(doc: any) {
+			provideReferences() {
 				return [
 					new types.Location(URI.parse('some:uri/path'), new types.Range(0, 1, 0, 5))
 				];
@@ -388,7 +388,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	test('Suggest, back and forth', function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
-			provideCompletionItems(doc, pos): any {
+			provideCompletionItems(): any {
 				let a = new types.CompletionItem('item1');
 				let b = new types.CompletionItem('item2');
 				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
@@ -631,6 +631,61 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('vscode.executeCodeActionProvider passes Range to provider although Selection is passed in #77997', function () {
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, rangeOrSelection],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+				}];
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
+				assert.equal(value.length, 1);
+				const [first] = value;
+				assert.ok(first.command);
+				assert.ok(first.command!.arguments![1] instanceof types.Selection);
+				assert.ok(first.command!.arguments![1].isEqual(selection));
+			});
+		});
+	});
+
+	test('vscode.executeCodeActionProvider results seem to be missing their `isPreferred` property #78098', function () {
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, rangeOrSelection],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+					isPreferred: true
+				}];
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
+				assert.equal(value.length, 1);
+				const [first] = value;
+				assert.equal(first.isPreferred, true);
+			});
+		});
+	});
+
 	// --- code lens
 
 	test('CodeLens, back and forth', function () {
@@ -724,7 +779,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideDocumentColors(): vscode.ColorInformation[] {
 				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
 			},
-			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+			provideColorPresentations(): vscode.ColorPresentation[] {
 				const cp = new types.ColorPresentation('#ABC');
 				cp.textEdit = types.TextEdit.replace(new types.Range(1, 0, 1, 20), '#ABC');
 				cp.additionalTextEdits = [types.TextEdit.insert(new types.Position(2, 20), '*')];

@@ -15,6 +15,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { RevivedWebviewEditorInput, WebviewEditorInput } from './webviewEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -243,7 +244,6 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 	private createWebiew(id: string, extension: { location: URI; id: ExtensionIdentifier; } | undefined, options: WebviewInputOptions) {
 		return this._webviewService.createWebviewEditorOverlay(id, {
-			allowSvgs: true,
 			extension: extension,
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
@@ -264,3 +264,5 @@ export class WebviewEditorService implements IWebviewEditorService {
 		return rootPaths;
 	}
 }
+
+registerSingleton(IWebviewEditorService, WebviewEditorService, true);

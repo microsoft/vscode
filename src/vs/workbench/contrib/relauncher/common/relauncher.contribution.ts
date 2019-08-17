@@ -23,7 +23,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
 	telemetry: { enableCrashReporter: boolean };
-	keyboard: { touchbar: { enabled: boolean } };
 	workbench: { list: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
 	debug: { console: { wordWrap: boolean } };
 }
@@ -36,7 +35,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private clickThroughInactive: boolean;
 	private updateMode: string;
 	private enableCrashReporter: boolean;
-	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
 	private useGridLayout: boolean;
 	private debugConsoleWordWrap: boolean;
@@ -112,12 +110,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				this.enableCrashReporter = config.telemetry.enableCrashReporter;
 				changed = true;
 			}
-
-			// macOS: Touchbar config
-			if (isMacintosh && config.keyboard && config.keyboard.touchbar && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
-				this.touchbarEnabled = config.keyboard.touchbar.enabled;
-				changed = true;
-			}
 		}
 
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
@@ -167,7 +159,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWindowService windowSevice: IWindowService,
+		@IWindowService windowService: IWindowService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
@@ -178,7 +170,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			}
 
 			if (environmentService.configuration.remoteAuthority) {
-				windowSevice.reloadWindow(); // TODO@aeschli, workaround
+				windowService.reloadWindow(); // TODO@aeschli, workaround
 			} else {
 				extensionService.restartExtensionHost();
 			}

@@ -11,7 +11,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { Terminal as XTermTerminal } from 'xterm';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
@@ -254,7 +254,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		return r;
 	}
 
-	private readonly NO_RECOMMENDATIONS_KEY = 'terminalConfigHelper/launchRecommendationsIgnore';
 	private recommendationsShown = false;
 
 	public async showRecommendations(shellLaunchConfig: IShellLaunchConfig): Promise<void> {
@@ -264,10 +263,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		this.recommendationsShown = true;
 
 		if (platform.isWindows && shellLaunchConfig.executable && basename(shellLaunchConfig.executable).toLowerCase() === 'wsl.exe') {
-			if (this._storageService.getBoolean(this.NO_RECOMMENDATIONS_KEY, StorageScope.WORKSPACE, false)) {
-				return;
-			}
-
 			if (! await this.isExtensionInstalled('ms-vscode-remote.remote-wsl')) {
 				this._notificationService.prompt(
 					Severity.Info,
@@ -276,16 +271,10 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 						"Check out the 'Visual Studio Code Remote - WSL' extension for a great development experience in WSL. Click [here]({0}) to learn more.",
 						'https://go.microsoft.com/fwlink/?linkid=2097212'
 					),
-					[
-						{
-							label: nls.localize('doNotShowAgain', "Don't Show Again"),
-							run: () => {
-								this._storageService.store(this.NO_RECOMMENDATIONS_KEY, true, StorageScope.WORKSPACE);
-							}
-						}
-					],
+					[],
 					{
-						sticky: true
+						sticky: true,
+						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.WORKSPACE }
 					}
 				);
 			}

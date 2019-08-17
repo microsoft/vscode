@@ -144,7 +144,8 @@ export class CallStackView extends ViewletPanel {
 
 						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 					}
-				}
+				},
+				expandOnlyOnTwistieClick: true
 			});
 
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
@@ -576,7 +577,7 @@ function isDebugModel(obj: any): obj is IDebugModel {
 }
 
 function isDebugSession(obj: any): obj is IDebugSession {
-	return typeof obj.getAllThreads === 'function';
+	return obj && typeof obj.getAllThreads === 'function';
 }
 
 function isDeemphasized(frame: IStackFrame): boolean {
@@ -607,11 +608,13 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			return threads.length === 1 ? this.getThreadChildren(<Thread>threads[0]) : Promise.resolve(threads);
 		} else if (isDebugSession(element)) {
 			const childSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === element);
-			if (childSessions.length) {
-				return Promise.resolve(childSessions);
+			const threads: CallStackItem[] = element.getAllThreads();
+			if (threads.length === 1 && childSessions.length === 0) {
+				// Do not show thread when there is only one to be compact.
+				return this.getThreadChildren(<Thread>threads[0]);
 			}
 
-			return Promise.resolve(element.getAllThreads());
+			return Promise.resolve(threads.concat(childSessions));
 		} else {
 			return this.getThreadChildren(<Thread>element);
 		}

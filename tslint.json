@@ -371,7 +371,7 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/workbench.main.ts",
+				"target": "**/vs/workbench/workbench.desktop.main.ts",
 				"restrictions": [
 					"**"
 				]
@@ -389,6 +389,14 @@
 					"**/vs/workbench/common/**",
 					"**/vs/workbench/services/*/common/**",
 					"**/vs/workbench/contrib/*/common/**"
+				]
+			},
+			{
+				"target": "**/vs/workbench/api/worker/**",
+				"restrictions": [
+					"vscode",
+					"vs/nls",
+					"**/vs/**/{common,worker}/**"
 				]
 			},
 			{
@@ -428,6 +436,7 @@
 					"**/vs/base/**/common/**",
 					"**/vs/platform/**/common/**",
 					"**/vs/editor/common/**",
+					"**/vs/workbench/workbench.web.api",
 					"**/vs/workbench/common/**",
 					"**/vs/workbench/services/**/common/**",
 					"**/vs/workbench/api/**/common/**",
@@ -435,18 +444,33 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/services/**/worker/**",
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/**/common/**",
+					"**/vs/platform/**/common/**",
+					"**/vs/editor/common/**",
+					"**/vs/workbench/**/common/**",
+					"**/vs/workbench/**/worker/**",
+					"**/vs/workbench/services/**/common/**",
+					"vscode"
+				]
+			},
+			{
 				"target": "**/vs/workbench/services/**/browser/**",
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser}/**",
+					"**/vs/base/**/{common,browser,worker}/**",
 					"**/vs/platform/**/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
 					"**/vs/workbench/workbench.web.api",
 					"**/vs/workbench/{common,browser}/**",
+					"**/vs/workbench/api/{common,browser}/**",
 					"**/vs/workbench/services/**/{common,browser}/**",
 					"vscode-textmate",
-					"onigasm-umd"
+					"onigasm-umd",
+					"@microsoft/applicationinsights-web"
 				]
 			},
 			{
@@ -467,7 +491,7 @@
 				"restrictions": [
 					"vs/nls",
 					"vs/css!./**/*",
-					"**/vs/base/**/{common,browser,node,electron-browser}/**",
+					"**/vs/base/**/{common,browser,worker,node,electron-browser}/**",
 					"**/vs/platform/**/{common,browser,node,electron-browser}/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",

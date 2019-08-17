@@ -31,7 +31,7 @@ import { WindowsService } from 'vs/platform/windows/electron-browser/windowsServ
 import { MainProcessService, IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
+import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/node/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
@@ -39,7 +39,7 @@ import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 const MAX_URL_LENGTH = 2045;

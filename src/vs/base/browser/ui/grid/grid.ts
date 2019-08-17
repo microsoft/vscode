@@ -7,7 +7,7 @@ import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
-import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize, ILayoutController, LayoutController } from './gridview';
+import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize, LayoutController, IGridViewOptions } from './gridview';
 import { Event } from 'vs/base/common/event';
 import { InvisibleSizing } from 'vs/base/browser/ui/splitview/splitview';
 
@@ -193,11 +193,8 @@ export namespace Sizing {
 
 export interface IGridStyles extends IGridViewStyles { }
 
-export interface IGridOptions {
-	readonly styles?: IGridStyles;
-	readonly proportionalLayout?: boolean;
+export interface IGridOptions extends IGridViewOptions {
 	readonly firstViewVisibleCachedSize?: number;
-	readonly layoutController?: ILayoutController;
 }
 
 export class Grid<T extends IView = IView> extends Disposable {

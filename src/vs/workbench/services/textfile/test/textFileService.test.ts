@@ -272,8 +272,16 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('move - dirty file', async function () {
-		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target.txt'), 'utf8', undefined);
+		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'));
+	});
+
+	test('move - dirty file (target exists and is dirty)', async function () {
+		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true);
+	});
+
+	async function testMove(source: URI, target: URI, targetDirty?: boolean): Promise<void> {
+		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
+		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(sourceModel.getResource(), sourceModel);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(targetModel.getResource(), targetModel);
 
@@ -283,11 +291,22 @@ suite('Files - TextFileService', () => {
 		sourceModel.textEditorModel!.setValue('foo');
 		assert.ok(service.isDirty(sourceModel.getResource()));
 
+		if (targetDirty) {
+			await targetModel.load();
+			targetModel.textEditorModel!.setValue('bar');
+			assert.ok(service.isDirty(targetModel.getResource()));
+		}
+
 		await service.move(sourceModel.getResource(), targetModel.getResource(), true);
+
+		assert.equal(targetModel.textEditorModel!.getValue(), 'foo');
+
 		assert.ok(!service.isDirty(sourceModel.getResource()));
+		assert.ok(service.isDirty(targetModel.getResource()));
+
 		sourceModel.dispose();
 		targetModel.dispose();
-	});
+	}
 
 	suite('Hot Exit', () => {
 		suite('"onExit" setting', () => {

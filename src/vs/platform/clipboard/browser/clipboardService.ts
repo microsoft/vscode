@@ -15,10 +15,18 @@ export class BrowserClipboardService implements IClipboardService {
 	private _internalResourcesClipboard: URI[] | undefined;
 
 	async writeText(text: string, type?: string): Promise<void> {
+		if (type) {
+			return; // TODO@sbatten
+		}
+
 		return navigator.clipboard.writeText(text);
 	}
 
 	async readText(type?: string): Promise<string> {
+		if (type) {
+			return ''; // TODO@sbatten
+		}
+
 		return navigator.clipboard.readText();
 	}
 

@@ -74,23 +74,17 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this._onModelsReverted;
 	}
 
-	private mapResourceToDisposeListener: ResourceMap<IDisposable>;
-	private mapResourceToStateChangeListener: ResourceMap<IDisposable>;
-	private mapResourceToModelContentChangeListener: ResourceMap<IDisposable>;
-	private mapResourceToModel: ResourceMap<ITextFileEditorModel>;
-	private mapResourceToPendingModelLoaders: ResourceMap<Promise<ITextFileEditorModel>>;
+	private mapResourceToDisposeListener = new ResourceMap<IDisposable>();
+	private mapResourceToStateChangeListener = new ResourceMap<IDisposable>();
+	private mapResourceToModelContentChangeListener = new ResourceMap<IDisposable>();
+	private mapResourceToModel = new ResourceMap<ITextFileEditorModel>();
+	private mapResourceToPendingModelLoaders = new ResourceMap<Promise<ITextFileEditorModel>>();
 
 	constructor(
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
-
-		this.mapResourceToModel = new ResourceMap<ITextFileEditorModel>();
-		this.mapResourceToDisposeListener = new ResourceMap<IDisposable>();
-		this.mapResourceToStateChangeListener = new ResourceMap<IDisposable>();
-		this.mapResourceToModelContentChangeListener = new ResourceMap<IDisposable>();
-		this.mapResourceToPendingModelLoaders = new ResourceMap<Promise<ITextFileEditorModel>>();
 
 		this.registerListeners();
 	}

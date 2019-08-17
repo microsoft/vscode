@@ -59,7 +59,13 @@ export const enum GroupsArrangement {
 	/**
 	 * Size all groups evenly.
 	 */
-	EVEN
+	EVEN,
+
+	/**
+	 * Will behave like MINIMIZE_OTHERS if the active
+	 * group is not already maximized and EVEN otherwise
+	 */
+	TOGGLE
 }
 
 export interface GroupLayoutArgument {
@@ -175,6 +181,11 @@ export interface IEditorGroupsService {
 	 * An event for when the group container is layed out.
 	 */
 	readonly onDidLayout: Event<IDimension>;
+
+	/**
+	 * An event for when the index of a group changes.
+	 */
+	readonly onDidGroupIndexChange: Event<IEditorGroup>;
 
 	/**
 	 * The size of the editor groups area.

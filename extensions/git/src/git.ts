@@ -801,7 +801,7 @@ export class Repository {
 			const elements = await this.lsfiles(path);
 
 			if (elements.length === 0) {
-				throw new GitError({ message: 'Error running ls-files' });
+				throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 			}
 
 			const { mode, object } = elements[0];
@@ -814,7 +814,7 @@ export class Repository {
 		const elements = await this.lstree(treeish, path);
 
 		if (elements.length === 0) {
-			throw new GitError({ message: 'Error running ls-files' });
+			throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 		}
 
 		const { mode, object, size } = elements[0];
@@ -1128,15 +1128,21 @@ export class Repository {
 		}
 
 		let mode: string;
+		let add: string = '';
 
 		try {
 			const details = await this.getObjectDetails('HEAD', path);
 			mode = details.mode;
 		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.UnknownPath) {
+				throw err;
+			}
+
 			mode = '100644';
+			add = '--add';
 		}
 
-		await this.run(['update-index', '--cacheinfo', mode, hash, path]);
+		await this.run(['update-index', add, '--cacheinfo', mode, hash, path]);
 	}
 
 	async checkout(treeish: string, paths: string[], opts: { track?: boolean } = Object.create(null)): Promise<void> {
@@ -1618,8 +1624,14 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(): Promise<Ref[]> {
-		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)', '--sort', '-committerdate']);
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate' }): Promise<Ref[]> {
+		const args = ['for-each-ref', '--format', '%(refname) %(objectname)'];
+
+		if (opts && opts.sort && opts.sort !== 'alphabetically') {
+			args.push('--sort', opts.sort);
+		}
+
+		const result = await this.run(args);
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;

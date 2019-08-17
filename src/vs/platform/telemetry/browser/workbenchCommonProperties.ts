@@ -12,6 +12,7 @@ export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
 
 import * as Platform from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
+import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export async function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string | undefined, version: string | undefined, machineId: string, remoteAuthority?: string): Promise<{ [name: string]: string | undefined }> {
 	const result: { [name: string]: string | undefined; } = Object.create(null);
@@ -69,18 +70,3 @@ export async function resolveWorkbenchCommonProperties(storageService: IStorageS
 	return result;
 }
 
-function cleanRemoteAuthority(remoteAuthority?: string): string {
-	if (!remoteAuthority) {
-		return 'none';
-	}
-
-	let ret = 'other';
-	// Whitelisted remote authorities
-	['ssh-remote', 'dev-container', 'wsl'].forEach((res: string) => {
-		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
-			ret = res;
-		}
-	});
-
-	return ret;
-}

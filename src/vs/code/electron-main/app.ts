@@ -7,7 +7,7 @@ import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, p
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager, IURIToOpen } from 'vs/platform/windows/common/windows';
-import { WindowsChannel } from 'vs/platform/windows/node/windowsIpc';
+import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
@@ -39,7 +39,6 @@ import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
 import { IWorkspacesMainService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
@@ -47,14 +46,13 @@ import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
-import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IssueChannel } from 'vs/platform/issue/node/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { connectRemoteAgentManagement, ManagementPersistentConnection, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
@@ -65,8 +63,6 @@ import { homedir } from 'os';
 import { join, sep } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
-import { ResolvedAuthority } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
@@ -76,13 +72,9 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { statSync } from 'fs';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -103,8 +95,7 @@ export class CodeApplication extends Disposable {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateService private readonly stateService: IStateService,
-		@ISignService private readonly signService: ISignService
+		@IStateService private readonly stateService: IStateService
 	) {
 		super();
 
@@ -167,11 +158,13 @@ export class CodeApplication extends Disposable {
 			event.preventDefault();
 		});
 		app.on('remote-get-current-web-contents', event => {
-			// The driver needs access to web contents
-			if (!this.environmentService.args.driver) {
-				this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
-				event.preventDefault();
+			if (this.environmentService.args.driver) {
+				return; // the driver needs access to web contents
 			}
+
+			this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
+
+			event.preventDefault();
 		});
 		app.on('web-contents-created', (_event: Electron.Event, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
@@ -695,112 +688,11 @@ export class CodeApplication extends Disposable {
 	}
 
 	private handleRemoteAuthorities(): void {
-		const connectionPool: Map<string, ActiveConnection> = new Map<string, ActiveConnection>();
-
-		class ActiveConnection {
-			private readonly _authority: string;
-			private readonly _connection: Promise<ManagementPersistentConnection>;
-			private readonly _disposeRunner: RunOnceScheduler;
-
-			constructor(authority: string, host: string, port: number, signService: ISignService) {
-				this._authority = authority;
-
-				const options: IConnectionOptions = {
-					commit: product.commit,
-					socketFactory: nodeSocketFactory,
-					addressProvider: {
-						getAddress: () => {
-							return Promise.resolve({ host, port });
-						}
-					},
-					signService
-				};
-
-				this._connection = connectRemoteAgentManagement(options, authority, `main`);
-				this._disposeRunner = new RunOnceScheduler(() => this.dispose(), 5000);
-			}
-
-			dispose(): void {
-				this._disposeRunner.dispose();
-				connectionPool.delete(this._authority);
-				this._connection.then(connection => connection.dispose());
-			}
-
-			async getClient(): Promise<Client<RemoteAgentConnectionContext>> {
-				this._disposeRunner.schedule();
-				const connection = await this._connection;
-
-				return connection.client;
-			}
-		}
-
-		const resolvedAuthorities = new Map<string, ResolvedAuthority>();
-		ipc.on('vscode:remoteAuthorityResolved', (event: Electron.Event, data: ResolvedAuthority) => {
-			this.logService.info('Received resolved authority', data.authority);
-
-			resolvedAuthorities.set(data.authority, data);
-
-			// Make sure to close and remove any existing connections
-			if (connectionPool.has(data.authority)) {
-				connectionPool.get(data.authority)!.dispose();
-			}
-		});
-
-		const resolveAuthority = (authority: string): ResolvedAuthority | null => {
-			this.logService.info('Resolving authority', authority);
-
-			if (authority.indexOf('+') >= 0) {
-				if (resolvedAuthorities.has(authority)) {
-					return withUndefinedAsNull(resolvedAuthorities.get(authority));
-				}
-
-				this.logService.info('Didnot find resolved authority for', authority);
-
-				return null;
-			} else {
-				const [host, strPort] = authority.split(':');
-				const port = parseInt(strPort, 10);
-
-				return { authority, host, port };
-			}
-		};
-
-		protocol.registerBufferProtocol(Schemas.vscodeRemote, async (request, callback) => {
-			if (request.method !== 'GET') {
-				return callback(undefined);
-			}
-
-			const uri = URI.parse(request.url);
-
-			let activeConnection: ActiveConnection | undefined;
-			if (connectionPool.has(uri.authority)) {
-				activeConnection = connectionPool.get(uri.authority);
-			} else {
-				const resolvedAuthority = resolveAuthority(uri.authority);
-				if (!resolvedAuthority) {
-					callback(undefined);
-					return;
-				}
-
-				activeConnection = new ActiveConnection(uri.authority, resolvedAuthority.host, resolvedAuthority.port, this.signService);
-				connectionPool.set(uri.authority, activeConnection);
-			}
-
-			try {
-				const rawClient = await activeConnection!.getClient();
-				if (connectionPool.has(uri.authority)) { // not disposed in the meantime
-					const channel = rawClient.getChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-
-					// TODO@alex don't use call directly, wrap it around a `RemoteExtensionsFileSystemProvider`
-					const fileContents = await channel.call<VSBuffer>('readFile', [uri]);
-					callback(<Buffer>fileContents.buffer);
-				} else {
-					callback(undefined);
-				}
-			} catch (err) {
-				onUnexpectedError(err);
-				callback(undefined);
-			}
+		protocol.registerHttpProtocol(Schemas.vscodeRemote, (request, callback) => {
+			callback({
+				url: request.url.replace(/^vscode-remote:/, 'http:'),
+				method: request.method
+			});
 		});
 	}
 }

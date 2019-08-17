@@ -565,22 +565,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: onDidExecuteCommand
-
-	export interface CommandExecutionEvent {
-		command: string;
-		arguments: any[];
-	}
-
-	export namespace commands {
-		/**
-		 * An event that is emitted when a [command](#Command) is executed.
-		 */
-		export const onDidExecuteCommand: Event<CommandExecutionEvent>;
-	}
-
-	//#endregion
-
 	//#region Joh: decorations
 
 	//todo@joh -> make class
@@ -1012,7 +996,7 @@ declare module 'vscode' {
 		/**
 		 * An optional human-readable message that will be rendered in the view.
 		 */
-		message?: string | MarkdownString;
+		message?: string;
 
 	}
 
@@ -1045,6 +1029,15 @@ declare module 'vscode' {
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
+	}
+
+	export interface TreeViewOptions2<T> extends TreeViewOptions<T> {
+		/**
+		 * Whether the tree supports multi-select. When the tree supports multi-select and a command is executed from the tree,
+		 * the first argument to the command is the tree item that the command was executed on and the second argument is an
+		 * array containing the other selected tree items.
+		 */
+		canSelectMany?: boolean;
 	}
 	//#endregion
 
@@ -1168,11 +1161,11 @@ declare module 'vscode' {
 		/**
 		 * Content security policy source for webview resources.
 		 *
-		 * This is origin used in a content security policy rule:
+		 * This is the origin that should be used in a content security policy rule:
 		 *
 		 * ```
 		 * img-src https: ${webview.cspSource} ...;
-		 * ````
+		 * ```
 		 */
 		readonly cspSource: string;
 	}

@@ -110,21 +110,6 @@ export function createTextBuffer(value: string | model.ITextBufferFactory, defau
 
 let MODEL_ID = 0;
 
-/**
- * Produces 'a'-'z', followed by 'A'-'Z'... followed by 'a'-'z', etc.
- */
-function singleLetter(result: number): string {
-	const LETTERS_CNT = (CharCode.Z - CharCode.A + 1);
-
-	result = result % (2 * LETTERS_CNT);
-
-	if (result < LETTERS_CNT) {
-		return String.fromCharCode(CharCode.a + result);
-	}
-
-	return String.fromCharCode(CharCode.A + result - LETTERS_CNT);
-}
-
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
 
@@ -343,7 +328,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			}
 		});
 
-		this._instanceId = singleLetter(MODEL_ID);
+		this._instanceId = strings.singleLetterHash(MODEL_ID);
 		this._lastDecorationId = 0;
 		this._decorations = Object.create(null);
 		this._decorationsTree = new DecorationsTrees();

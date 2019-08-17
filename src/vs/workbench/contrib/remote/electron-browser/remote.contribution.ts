@@ -27,7 +27,7 @@ import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer as ipc } from 'electron';
-import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService, IProgress, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -85,7 +85,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 				group: '6_close',
 				command: {
 					id: CLOSE_REMOTE_COMMAND_ID,
-					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "C&&lose Remote Connection")
+					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "Close Re&&mote Connection")
 				},
 				order: 3.5
 			});

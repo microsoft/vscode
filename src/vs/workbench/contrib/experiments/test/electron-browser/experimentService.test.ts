@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ExperimentActionType, ExperimentState, IExperiment } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { ExperimentService } from 'vs/workbench/contrib/experiments/electron-browser/experimentService';
+import { ExperimentActionType, ExperimentState, IExperiment, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';

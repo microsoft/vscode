@@ -15,7 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer } from 'vs/editor/common/model';
 import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
@@ -429,6 +429,31 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	// ------ auxiliary handling logic
 
+	private _pushAutoClosedAction(autoClosedCharactersRanges: Range[], autoClosedEnclosingRanges: Range[]): void {
+		let autoClosedCharactersDeltaDecorations: IModelDeltaDecoration[] = [];
+		let autoClosedEnclosingDeltaDecorations: IModelDeltaDecoration[] = [];
+
+		for (let i = 0, len = autoClosedCharactersRanges.length; i < len; i++) {
+			autoClosedCharactersDeltaDecorations.push({
+				range: autoClosedCharactersRanges[i],
+				options: {
+					inlineClassName: 'auto-closed-character',
+					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+				}
+			});
+			autoClosedEnclosingDeltaDecorations.push({
+				range: autoClosedEnclosingRanges[i],
+				options: {
+					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+				}
+			});
+		}
+
+		const autoClosedCharactersDecorations = this._model.deltaDecorations([], autoClosedCharactersDeltaDecorations);
+		const autoClosedEnclosingDecorations = this._model.deltaDecorations([], autoClosedEnclosingDeltaDecorations);
+		this._autoClosedActions.push(new AutoClosedAction(this._model, autoClosedCharactersDecorations, autoClosedEnclosingDecorations));
+	}
+
 	private _executeEditOperation(opResult: EditOperationResult | null): void {
 
 		if (!opResult) {
@@ -446,32 +471,19 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this._interpretCommandResult(result);
 
 			// Check for auto-closing closed characters
-			let autoClosedCharactersRanges: IModelDeltaDecoration[] = [];
-			let autoClosedEnclosingRanges: IModelDeltaDecoration[] = [];
+			let autoClosedCharactersRanges: Range[] = [];
+			let autoClosedEnclosingRanges: Range[] = [];
 
 			for (let i = 0; i < opResult.commands.length; i++) {
 				const command = opResult.commands[i];
 				if (command instanceof TypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange) {
-					autoClosedCharactersRanges.push({
-						range: command.closeCharacterRange,
-						options: {
-							inlineClassName: 'auto-closed-character',
-							stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-						}
-					});
-					autoClosedEnclosingRanges.push({
-						range: command.enclosingRange,
-						options: {
-							stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-						}
-					});
+					autoClosedCharactersRanges.push(command.closeCharacterRange);
+					autoClosedEnclosingRanges.push(command.enclosingRange);
 				}
 			}
 
 			if (autoClosedCharactersRanges.length > 0) {
-				const autoClosedCharactersDecorations = this._model.deltaDecorations([], autoClosedCharactersRanges);
-				const autoClosedEnclosingDecorations = this._model.deltaDecorations([], autoClosedEnclosingRanges);
-				this._autoClosedActions.push(new AutoClosedAction(this._model, autoClosedCharactersDecorations, autoClosedEnclosingDecorations));
+				this._pushAutoClosedAction(autoClosedCharactersRanges, autoClosedEnclosingRanges);
 			}
 
 			this._prevEditOperationType = opResult.type;
@@ -562,6 +574,75 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- handlers beyond this point
+
+	private _findAutoClosingPairs(edits: IIdentifiedSingleEditOperation[]): [number, number][] | null {
+		if (!edits.length) {
+			return null;
+		}
+
+		let indices: [number, number][] = [];
+		for (let i = 0, len = edits.length; i < len; i++) {
+			const edit = edits[i];
+			if (!edit.text || edit.text.indexOf('\n') >= 0) {
+				return null;
+			}
+
+			const m = edit.text.match(/([)\]}>'"`])([^)\]}>'"`]*)$/);
+			if (!m) {
+				return null;
+			}
+			const closeChar = m[1];
+
+			const openChar = this.context.config.autoClosingPairsClose[closeChar];
+			if (!openChar) {
+				return null;
+			}
+
+			const closeCharIndex = edit.text.length - m[2].length - 1;
+			const openCharIndex = edit.text.lastIndexOf(openChar, closeCharIndex - 1);
+			if (openCharIndex === -1) {
+				return null;
+			}
+
+			indices.push([openCharIndex, closeCharIndex]);
+		}
+
+		return indices;
+	}
+
+	public executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): void {
+		let autoClosingIndices: [number, number][] | null = null;
+		if (source === 'snippet') {
+			autoClosingIndices = this._findAutoClosingPairs(edits);
+		}
+
+		if (autoClosingIndices) {
+			edits[0]._isTracked = true;
+		}
+		let autoClosedCharactersRanges: Range[] = [];
+		let autoClosedEnclosingRanges: Range[] = [];
+		const selections = this._model.pushEditOperations(this.getSelections(), edits, (undoEdits) => {
+			if (autoClosingIndices) {
+				for (let i = 0, len = autoClosingIndices.length; i < len; i++) {
+					const [openCharInnerIndex, closeCharInnerIndex] = autoClosingIndices[i];
+					const undoEdit = undoEdits[i];
+					const lineNumber = undoEdit.range.startLineNumber;
+					const openCharIndex = undoEdit.range.startColumn - 1 + openCharInnerIndex;
+					const closeCharIndex = undoEdit.range.startColumn - 1 + closeCharInnerIndex;
+
+					autoClosedCharactersRanges.push(new Range(lineNumber, closeCharIndex + 1, lineNumber, closeCharIndex + 2));
+					autoClosedEnclosingRanges.push(new Range(lineNumber, openCharIndex + 1, lineNumber, closeCharIndex + 2));
+				}
+			}
+			return cursorStateComputer(undoEdits);
+		});
+		if (selections) {
+			this.setSelections(source, selections);
+		}
+		if (autoClosedCharactersRanges.length > 0) {
+			this._pushAutoClosedAction(autoClosedCharactersRanges, autoClosedEnclosingRanges);
+		}
+	}
 
 	public trigger(source: string, handlerId: string, payload: any): void {
 		const H = editorCommon.Handler;

@@ -22,7 +22,7 @@ export class RemoteExtensionsInstaller extends Disposable implements IWorkbenchC
 	) {
 		super();
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const installLocalExtensionsInRemoteAction = instantiationService.createInstance(InstallLocalExtensionsInRemoteAction);
+			const installLocalExtensionsInRemoteAction = instantiationService.createInstance(InstallLocalExtensionsInRemoteAction, true);
 			CommandsRegistry.registerCommand('workbench.extensions.installLocalExtensions', () => installLocalExtensionsInRemoteAction.run());
 			let disposable = Disposable.None;
 			const appendMenuItem = () => {
