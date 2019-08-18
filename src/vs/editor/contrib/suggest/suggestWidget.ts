@@ -778,6 +778,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				break;
 			case State.Empty:
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
+				this.messageElement.style.width = `${this.maxWidgetHeight}px`;
 				hide(this.listElement, this.details.element);
 				show(this.messageElement);
 				removeClass(this.element, 'docs-side');
