@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 
 
@@ -426,6 +426,19 @@ suite('URI', () => {
 		assert.equal(uri.toString(true), input);
 	});
 
+	test('Unable to open \'%A0.txt\': URI malformed #76506', function () {
+
+		let uri = URI.file('/foo/%A0.txt');
+		let uri2 = URI.parse(uri.toString());
+		assert.equal(uri.scheme, uri2.scheme);
+		assert.equal(uri.path, uri2.path);
+
+		uri = URI.file('/foo/%2e.txt');
+		uri2 = URI.parse(uri.toString());
+		assert.equal(uri.scheme, uri2.scheme);
+		assert.equal(uri.path, uri2.path);
+	});
+
 	test('URI - (de)serialize', function () {
 
 		const values = [
@@ -441,7 +454,7 @@ suite('URI', () => {
 		// let c = 100000;
 		// while (c-- > 0) {
 		for (let value of values) {
-			let data = value.toJSON();
+			let data = value.toJSON() as UriComponents;
 			let clone = URI.revive(data);
 
 			assert.equal(clone.scheme, value.scheme);

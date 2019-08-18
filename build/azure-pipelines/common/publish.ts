@@ -64,7 +64,7 @@ interface Asset {
 	platform: string;
 	type: string;
 	url: string;
-	mooncakeUrl: string;
+	mooncakeUrl?: string;
 	hash: string;
 	sha256hash: string;
 	size: number;
@@ -151,13 +151,6 @@ async function publish(commit: string, quality: string, platform: string, type: 
 
 	const queuedBy = process.env['BUILD_QUEUEDBY']!;
 	const sourceBranch = process.env['BUILD_SOURCEBRANCH']!;
-	const isReleased = (
-		// Insiders: nightly build from master
-		(quality === 'insider' && /^master$|^refs\/heads\/master$/.test(sourceBranch) && /Project Collection Service Accounts|Microsoft.VisualStudio.Services.TFS/.test(queuedBy)) ||
-
-		// Exploration: any build from electron-4.0.x branch
-		(quality === 'exploration' && /^electron-4.0.x$|^refs\/heads\/electron-4.0.x$/.test(sourceBranch))
-	);
 
 	console.log('Publishing...');
 	console.log('Quality:', quality);
@@ -167,7 +160,6 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	console.log('Version:', version);
 	console.log('Commit:', commit);
 	console.log('Is Update:', isUpdate);
-	console.log('Is Released:', isReleased);
 	console.log('File:', file);
 
 	const stat = await new Promise<fs.Stats>((c, e) => fs.stat(file, (err, stat) => err ? e(err) : c(stat)));
@@ -187,40 +179,18 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	const blobService = azure.createBlobService(storageAccount, process.env['AZURE_STORAGE_ACCESS_KEY_2']!)
 		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
-	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY']!, `${storageAccount}.blob.core.chinacloudapi.cn`)
-		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
+	await assertContainer(blobService, quality);
 
-	// mooncake is fussy and far away, this is needed!
-	mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+	const blobExists = await doesAssetExist(blobService, quality, blobName);
 
-	await Promise.all([
-		assertContainer(blobService, quality),
-		assertContainer(mooncakeBlobService, quality)
-	]);
-
-	const [blobExists, moooncakeBlobExists] = await Promise.all([
-		doesAssetExist(blobService, quality, blobName),
-		doesAssetExist(mooncakeBlobService, quality, blobName)
-	]);
-
-	const promises: Array<Promise<void>> = [];
-
-	if (!blobExists) {
-		promises.push(uploadBlob(blobService, quality, blobName, file));
-	}
-
-	if (!moooncakeBlobExists) {
-		promises.push(uploadBlob(mooncakeBlobService, quality, blobName, file));
-	}
-
-	if (promises.length === 0) {
+	if (blobExists) {
 		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 		return;
 	}
 
 	console.log('Uploading blobs to Azure storage...');
 
-	await Promise.all(promises);
+	await uploadBlob(blobService, quality, blobName, file);
 
 	console.log('Blobs successfully uploaded.');
 
@@ -232,7 +202,6 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		platform: platform,
 		type: type,
 		url: `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`,
-		mooncakeUrl: `${process.env['MOONCAKE_CDN_URL']}/${quality}/${blobName}`,
 		hash: sha1hash,
 		sha256hash,
 		size
@@ -249,7 +218,7 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		id: commit,
 		timestamp: (new Date()).getTime(),
 		version,
-		isReleased: config.frozen ? false : isReleased,
+		isReleased: false,
 		sourceBranch,
 		queuedBy,
 		assets: [] as Array<Asset>,
@@ -268,11 +237,6 @@ async function publish(commit: string, quality: string, platform: string, type: 
 }
 
 function main(): void {
-	if (process.env['VSCODE_BUILD_SKIP_PUBLISH']) {
-		console.warn('Skipping publish due to VSCODE_BUILD_SKIP_PUBLISH');
-		return;
-	}
-
 	const commit = process.env['BUILD_SOURCEVERSION'];
 
 	if (!commit) {

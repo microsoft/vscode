@@ -4,7 +4,7 @@
         {
             type: 'comment',
             name: 'question',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'updateLabels',
             addLabel: '*question'
         },
@@ -52,9 +52,15 @@
             comment: "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
         },
         {
+            type: 'label',
+            name: '*english-please',
+            action: 'close',
+            comment: "This issue is being closed because its description is not in English, that makes it hard for us to work on it. Please open a new issue with an English description. You might find [Bing Translator](https://www.bing.com/translator) useful."
+        },
+        {
             type: 'comment',
             name: 'duplicate',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'updateLabels',
             addLabel: '*duplicate'
         },
@@ -68,7 +74,7 @@
         {
             type: 'comment',
             name: 'confirm',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'updateLabels',
             addLabel: 'confirmed',
             removeLabel: 'confirmation-pending'
@@ -84,14 +90,14 @@
         {
             type: 'comment',
             name: 'findDuplicates',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'comment',
             comment: "Potential duplicates:\n${potentialDuplicates}"
         },
         {
             type: 'comment',
             name: 'needsMoreInfo',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'updateLabels',
             addLabel: 'needs more info',
             comment: "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"
@@ -99,7 +105,7 @@
         {
             type: 'comment',
             name: 'a11ymas',
-            allowUsers: ['AccessibilityTestingTeam-TCS'],
+            allowUsers: ['AccessibilityTestingTeam-TCS', 'dixitsonali95', 'Mohini78', 'ChitrarupaSharma', 'mspatil110', 'umasarath52', 'v-umnaik'],
             action: 'updateLabels',
             addLabel: 'a11ymas'
         },

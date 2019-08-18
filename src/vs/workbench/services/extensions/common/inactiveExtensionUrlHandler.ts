@@ -5,10 +5,12 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { EnablementState, IExtensionEnablementService, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -18,10 +20,15 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
 const URL_TO_HANDLE = 'extensionUrlHandler.urlToHandle';
+const CONFIRMED_EXTENSIONS_CONFIGURATION_KEY = 'extensions.confirmedUriHandlerExtensionIds';
+const CONFIRMED_EXTENSIONS_STORAGE_KEY = 'extensionUrlHandler.confirmedExtensions';
 
 function isExtensionId(value: string): boolean {
 	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
@@ -44,7 +51,7 @@ export interface IExtensionUrlHandler {
  *
  * It also makes sure the user confirms opening URLs directed towards extensions.
  */
-export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
+class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	readonly _serviceBrand: any;
 
@@ -61,7 +68,8 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
@@ -70,10 +78,13 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			this.handleURL(URI.revive(JSON.parse(urlToHandleValue)), true);
 		}
 
-		this.disposable = combinedDisposable([
+		this.disposable = combinedDisposable(
 			urlService.registerHandler(this),
 			toDisposable(() => clearInterval(interval))
-		]);
+		);
+
+		const cache = ExtensionUrlBootstrapHandler.cache;
+		setTimeout(() => cache.forEach(uri => this.handleURL(uri)));
 	}
 
 	async handleURL(uri: URI, confirmed?: boolean): Promise<boolean> {
@@ -91,6 +102,11 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		if (!confirmed) {
+			const confirmedExtensionIds = this.getConfirmedExtensionIds();
+			confirmed = confirmedExtensionIds.has(ExtensionIdentifier.toKey(extensionId));
+		}
+
+		if (!confirmed) {
 			let uriString = uri.toString();
 
 			if (uriString.length > 40) {
@@ -99,6 +115,9 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 			const result = await this.dialogService.confirm({
 				message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
+				checkbox: {
+					label: localize('rememberConfirmUrl', "Don't ask again for this extension."),
+				},
 				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uriString}`,
 				primaryButton: localize('open', "&&Open"),
 				type: 'question'
@@ -106,6 +125,10 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 			if (!result.confirmed) {
 				return true;
+			}
+
+			if (result.checkboxChecked) {
+				this.addConfirmedExtensionIdToStorage(extensionId);
 			}
 		}
 
@@ -190,7 +213,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					return;
 				}
 
-				await this.extensionEnablementService.setEnablement([extension], EnablementState.Enabled);
+				await this.extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
 				await this.reloadAndHandle(uri);
 			}
 		}
@@ -266,6 +289,47 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		this.uriBuffer = uriBuffer;
 	}
 
+	private getConfirmedExtensionIds(): Set<string> {
+		const ids = [
+			...this.getConfirmedExtensionIdsFromStorage(),
+			...this.getConfirmedExtensionIdsFromConfiguration(),
+		].map(extensionId => ExtensionIdentifier.toKey(extensionId));
+
+		return new Set(ids);
+	}
+
+	private getConfirmedExtensionIdsFromConfiguration(): Array<string> {
+		const confirmedExtensionIds = this.configurationService.getValue<Array<string>>(CONFIRMED_EXTENSIONS_CONFIGURATION_KEY);
+
+		if (!Array.isArray(confirmedExtensionIds)) {
+			return [];
+		}
+
+		return confirmedExtensionIds;
+	}
+
+	private getConfirmedExtensionIdsFromStorage(): Array<string> {
+		const confirmedExtensionIdsJson = this.storageService.get(CONFIRMED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
+
+		try {
+			return JSON.parse(confirmedExtensionIdsJson);
+		} catch (err) {
+			return [];
+		}
+	}
+
+	private addConfirmedExtensionIdToStorage(extensionId: string): void {
+		const existingConfirmedExtensionIds = this.getConfirmedExtensionIdsFromStorage();
+		this.storageService.store(
+			CONFIRMED_EXTENSIONS_STORAGE_KEY,
+			JSON.stringify([
+				...existingConfirmedExtensionIds,
+				ExtensionIdentifier.toKey(extensionId),
+			]),
+			StorageScope.GLOBAL,
+		);
+	}
+
 	dispose(): void {
 		this.disposable.dispose();
 		this.extensionHandlers.clear();
@@ -274,3 +338,33 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 }
 
 registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
+
+/**
+ * This class handles URLs before `ExtensionUrlHandler` is instantiated.
+ * More info: https://github.com/microsoft/vscode/issues/73101
+ */
+class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandler {
+
+	private static _cache: URI[] = [];
+	private static disposable: IDisposable;
+
+	static get cache(): URI[] {
+		ExtensionUrlBootstrapHandler.disposable.dispose();
+
+		const result = ExtensionUrlBootstrapHandler._cache;
+		ExtensionUrlBootstrapHandler._cache = [];
+		return result;
+	}
+
+	constructor(@IURLService urlService: IURLService) {
+		ExtensionUrlBootstrapHandler.disposable = urlService.registerHandler(this);
+	}
+
+	handleURL(uri: URI): Promise<boolean> {
+		ExtensionUrlBootstrapHandler._cache.push(uri);
+		return Promise.resolve(true);
+	}
+}
+
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(ExtensionUrlBootstrapHandler, LifecyclePhase.Ready);

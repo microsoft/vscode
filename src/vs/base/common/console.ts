@@ -79,7 +79,7 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string | undefined): ISt
 				uri: URI.file(matches[1]),
 				line: Number(matches[2]),
 				column: Number(matches[3])
-			} as IStackFrame;
+			};
 		}
 	}
 
@@ -131,7 +131,10 @@ export function log(entry: IRemoteConsoleLog, label: string): void {
 	}
 
 	// Log it
-	console[entry.severity].apply(console, consoleArgs);
+	if (typeof (console as any)[entry.severity] !== 'function') {
+		throw new Error('Unknown console method');
+	}
+	(console as any)[entry.severity].apply(console, consoleArgs);
 }
 
 function color(color: string): string {

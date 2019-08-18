@@ -13,7 +13,7 @@ import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, a
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { Viewlet, ViewletRegistry, Extensions } from 'vs/workbench/browser/viewlet';
@@ -26,9 +26,9 @@ import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/brow
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IView } from 'vs/workbench/common/views';
+import { IView, FocusedViewContext } from 'vs/workbench/common/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -41,23 +41,26 @@ export interface IViewletPanelOptions extends IPanelOptions {
 	actionRunner?: IActionRunner;
 	id: string;
 	title: string;
+	showActionsAlways?: boolean;
 }
 
 export abstract class ViewletPanel extends Panel implements IView {
 
 	private static AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
 
-	private _onDidFocus = new Emitter<void>();
+	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private _onDidBlur = new Emitter<void>();
+	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
-	private _onDidChangeBodyVisibility = new Emitter<boolean>();
+	private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
 
-	protected _onDidChangeTitleArea = new Emitter<void>();
+	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
+
+	private focusedViewContextKey: IContextKey<string>;
 
 	private _isVisible: boolean = false;
 	readonly id: string;
@@ -65,21 +68,24 @@ export abstract class ViewletPanel extends Panel implements IView {
 
 	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar;
+	private readonly showActionsAlways: boolean = false;
 	private headerContainer: HTMLElement;
+	private titleContainer: HTMLElement;
 
 	constructor(
 		options: IViewletPanelOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(options);
 
 		this.id = options.id;
 		this.title = options.title;
 		this.actionRunner = options.actionRunner;
-
-		this.disposables.push(this._onDidFocus, this._onDidBlur, this._onDidChangeBodyVisibility, this._onDidChangeTitleArea);
+		this.showActionsAlways = !!options.showActionsAlways;
+		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 	}
 
 	setVisible(visible: boolean): void {
@@ -113,9 +119,15 @@ export abstract class ViewletPanel extends Panel implements IView {
 		super.render();
 
 		const focusTracker = trackFocus(this.element);
-		this.disposables.push(focusTracker);
-		this.disposables.push(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
-		this.disposables.push(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
+		this._register(focusTracker);
+		this._register(focusTracker.onDidFocus(() => {
+			this.focusedViewContextKey.set(this.id);
+			this._onDidFocus.fire();
+		}));
+		this._register(focusTracker.onDidBlur(() => {
+			this.focusedViewContextKey.reset();
+			this._onDidBlur.fire();
+		}));
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -124,24 +136,30 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
+		toggleClass(actions, 'show', this.showActionsAlways);
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: action => this.getActionItem(action),
+			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
-			getKeyBinding: action => withNullAsUndefined(this.keybindingService.lookupKeybinding(action.id)),
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			actionRunner: this.actionRunner
 		});
 
-		this.disposables.push(this.toolbar);
+		this._register(this.toolbar);
 		this.setActions();
 
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPanel.AlwaysShowActionsConfig));
-		onDidRelevantConfigurationChange(this.updateActionsVisibility, this, this.disposables);
+		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		append(container, $('h3.title', undefined, title));
+		this.titleContainer = append(container, $('h3.title', undefined, title));
+	}
+
+	protected updateTitle(title: string): void {
+		this.titleContainer.textContent = title;
+		this._onDidChangeTitleArea.fire();
 	}
 
 	focus(): void {
@@ -174,7 +192,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		return undefined;
 	}
 
@@ -260,7 +278,8 @@ export class PanelViewlet extends Viewlet {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 
 		if (this.isSingleView()) {
-			title = `${title}: ${this.panelItems[0].panel.title}`;
+			const panelItemTitle = this.panelItems[0].panel.title;
+			title = panelItemTitle ? `${title}: ${panelItemTitle}` : title;
 		}
 
 		return title;
@@ -282,12 +301,12 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (this.isSingleView()) {
-			return this.panelItems[0].panel.getActionItem(action);
+			return this.panelItems[0].panel.getActionViewItem(action);
 		}
 
-		return super.getActionItem(action);
+		return super.getActionViewItem(action);
 	}
 
 	focus(): void {
@@ -330,18 +349,17 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	private addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
-		const disposables: IDisposable[] = [];
-		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel, null, disposables);
+		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel);
 		const onDidChangeTitleArea = panel.onDidChangeTitleArea(() => {
 			if (this.isSingleView()) {
 				this.updateTitleArea();
 			}
-		}, null, disposables);
+		});
 		const onDidChange = panel.onDidChange(() => {
 			if (panel === this.lastFocusedPanel && !panel.isExpanded()) {
 				this.lastFocusedPanel = undefined;
 			}
-		}, null, disposables);
+		});
 
 		const panelStyler = attachStyler<IPanelColors>(this.themeService, {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
@@ -349,7 +367,7 @@ export class PanelViewlet extends Viewlet {
 			headerBorder: SIDE_BAR_SECTION_HEADER_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, panel);
-		const disposable = combinedDisposable([onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange]);
+		const disposable = combinedDisposable(onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
 		this.panelItems.splice(index, 0, panelItem);

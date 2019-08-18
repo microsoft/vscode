@@ -269,6 +269,11 @@ export interface IEditorOptions {
 	 */
 	lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 	/**
+	 * Controls the minimal number of visible leading and trailing lines surrounding the cursor.
+	 * Defaults to 0.
+	*/
+	cursorSurroundingLines?: number;
+	/**
 	 * Render last line number when the file ends with a newline.
 	 * Defaults to true.
 	*/
@@ -664,7 +669,7 @@ export interface IEditorOptions {
 	 * Enable rendering of whitespace.
 	 * Defaults to none.
 	 */
-	renderWhitespace?: 'none' | 'boundary' | 'all';
+	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'all';
 	/**
 	 * Enable rendering of control characters.
 	 * Defaults to false.
@@ -982,6 +987,7 @@ export interface InternalEditorViewOptions {
 	readonly ariaLabel: string;
 	readonly renderLineNumbers: RenderLineNumbersType;
 	readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
+	readonly cursorSurroundingLines: number;
 	readonly renderFinalNewline: boolean;
 	readonly selectOnLineNumbers: boolean;
 	readonly glyphMargin: boolean;
@@ -999,7 +1005,7 @@ export interface InternalEditorViewOptions {
 	readonly scrollBeyondLastColumn: number;
 	readonly smoothScrolling: boolean;
 	readonly stopRenderingLineAfter: number;
-	readonly renderWhitespace: 'none' | 'boundary' | 'all';
+	readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'all';
 	readonly renderControlCharacters: boolean;
 	readonly fontLigatures: boolean;
 	readonly renderIndentGuides: boolean;
@@ -1290,6 +1296,7 @@ export class InternalEditorOptions {
 			&& a.ariaLabel === b.ariaLabel
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
+			&& a.cursorSurroundingLines === b.cursorSurroundingLines
 			&& a.renderFinalNewline === b.renderFinalNewline
 			&& a.selectOnLineNumbers === b.selectOnLineNumbers
 			&& a.glyphMargin === b.glyphMargin
@@ -1952,7 +1959,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _santizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
+	private static _sanitizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
 		const gotoOpts = opts.gotoLocation || {};
 		return {
 			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(gotoOpts.multiple, defaults.multiple, ['peek', 'gotoAndPeek', 'goto'])
@@ -2017,7 +2024,7 @@ export class EditorOptionsValidator {
 			} else if (<any>renderWhitespace === false) {
 				renderWhitespace = 'none';
 			}
-			renderWhitespace = _stringSet<'none' | 'boundary' | 'all'>(renderWhitespace, defaults.renderWhitespace, ['none', 'boundary', 'all']);
+			renderWhitespace = _stringSet<'none' | 'boundary' | 'selection' | 'all'>(renderWhitespace, defaults.renderWhitespace, ['none', 'boundary', 'selection', 'all']);
 		}
 
 		let renderLineHighlight = opts.renderLineHighlight;
@@ -2049,6 +2056,7 @@ export class EditorOptionsValidator {
 			disableMonospaceOptimizations: disableMonospaceOptimizations,
 			rulers: rulers,
 			ariaLabel: _string(opts.ariaLabel, defaults.ariaLabel),
+			cursorSurroundingLines: _clampedInt(opts.cursorSurroundingLines, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			renderLineNumbers: renderLineNumbers,
 			renderCustomLineNumbers: renderCustomLineNumbers,
 			renderFinalNewline: _boolean(opts.renderFinalNewline, defaults.renderFinalNewline),
@@ -2111,7 +2119,7 @@ export class EditorOptionsValidator {
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
 			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
-			gotoLocation: this._santizeGotoLocationOpts(opts, defaults.gotoLocation),
+			gotoLocation: this._sanitizeGotoLocationOpts(opts, defaults.gotoLocation),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens),
@@ -2172,6 +2180,7 @@ export class InternalEditorOptionsFactory {
 				ariaLabel: (accessibilityIsOff ? nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.") : opts.viewInfo.ariaLabel),
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
+				cursorSurroundingLines: opts.viewInfo.cursorSurroundingLines,
 				renderFinalNewline: opts.viewInfo.renderFinalNewline,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
@@ -2191,7 +2200,7 @@ export class InternalEditorOptionsFactory {
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
 				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
-				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
+				fontLigatures: opts.viewInfo.fontLigatures,
 				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
 				highlightActiveIndentGuide: opts.viewInfo.highlightActiveIndentGuide,
 				renderLineHighlight: opts.viewInfo.renderLineHighlight,
@@ -2636,6 +2645,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
+		cursorSurroundingLines: 0,
 		renderFinalNewline: true,
 		selectOnLineNumbers: true,
 		glyphMargin: true,

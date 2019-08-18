@@ -24,6 +24,7 @@ import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
+import { flatten } from './utils/arrays';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -68,7 +69,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this._disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this._disposables);
 
-		const allModeIds = this.getAllModeIds(descriptions);
+		const allModeIds = this.getAllModeIds(descriptions, pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
 			workspaceState,
 			version => this.versionStatus.onDidChangeTypeScriptVersion(version),
@@ -138,11 +139,11 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.configurationChanged();
 	}
 
-	private getAllModeIds(descriptions: LanguageDescription[]) {
-		const allModeIds: string[] = [];
-		for (const description of descriptions) {
-			allModeIds.push(...description.modeIds);
-		}
+	private getAllModeIds(descriptions: LanguageDescription[], pluginManager: PluginManager) {
+		const allModeIds = flatten([
+			...descriptions.map(x => x.modeIds),
+			...pluginManager.plugins.map(x => x.languages)
+		]);
 		return allModeIds;
 	}
 
@@ -224,7 +225,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			}
 
 			language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), body.diagnostics.map(tsDiag => {
-				const diagnostic = new vscode.Diagnostic(typeConverters.Range.fromTextSpan(tsDiag), body.diagnostics[0].text);
+				const range = tsDiag.start && tsDiag.end ? typeConverters.Range.fromTextSpan(tsDiag) : new vscode.Range(0, 0, 0, 1);
+				const diagnostic = new vscode.Diagnostic(range, body.diagnostics[0].text, this.getDiagnosticSeverity(tsDiag));
 				diagnostic.source = language.diagnosticSource;
 				return diagnostic;
 			}));
@@ -241,8 +243,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any } {
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
-		const converted = new vscode.Diagnostic(range, text);
-		converted.severity = this.getDiagnosticSeverity(diagnostic);
+		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));
 		converted.source = diagnostic.source || source;
 		if (diagnostic.code) {
 			converted.code = diagnostic.code;

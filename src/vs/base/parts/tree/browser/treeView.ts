@@ -121,15 +121,15 @@ export class ViewItem implements IViewItem {
 	public top: number;
 	public height: number;
 	public width: number = 0;
-	public onDragStart: (e: DragEvent) => void;
+	public onDragStart!: (e: DragEvent) => void;
 
-	public needsRender: boolean;
-	public uri: string | null;
+	public needsRender: boolean = false;
+	public uri: string | null = null;
 	public unbindDragStart: Lifecycle.IDisposable = Lifecycle.Disposable.None;
 	public loadingTimer: any;
 
 	public _styles: any;
-	private _draggable: boolean;
+	private _draggable: boolean = false;
 
 	constructor(context: IViewContext, model: Model.Item) {
 		this.context = context;
@@ -174,7 +174,7 @@ export class ViewItem implements IViewItem {
 		return (this.row && this.row.element)!;
 	}
 
-	private _templateId: string;
+	private _templateId: string | undefined;
 	private get templateId(): string {
 		return this._templateId || (this._templateId = (this.context.renderer!.getTemplateId && this.context.renderer!.getTemplateId(this.context.tree, this.model.getElement())));
 	}
@@ -415,8 +415,8 @@ export class TreeView extends HeightMap {
 	private treeStyler: _.ITreeStyler;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
-	private msGesture: MSGesture;
-	private lastPointerType: string;
+	private msGesture: MSGesture | undefined;
+	private lastPointerType: string = '';
 	private lastClickTimeStamp: number = 0;
 
 	private horizontalScrolling: boolean;
@@ -425,14 +425,14 @@ export class TreeView extends HeightMap {
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 
-	private inputItem: ViewItem;
+	private inputItem!: ViewItem;
 	private items: { [id: string]: ViewItem; };
 
 	private isRefreshing = false;
 	private refreshingPreviousChildrenIds: { [id: string]: string[] } = {};
 	private currentDragAndDropData: IDragAndDropData | null = null;
 	private currentDropElement: any;
-	private currentDropElementReaction: _.IDragOverReaction;
+	private currentDropElementReaction!: _.IDragOverReaction;
 	private currentDropTarget: ViewItem | null = null;
 	private shouldInvalidateDropReaction: boolean;
 	private currentDropTargets: ViewItem[] | null = null;
@@ -443,17 +443,17 @@ export class TreeView extends HeightMap {
 
 	private didJustPressContextMenuKey: boolean;
 
-	private highlightedItemWasDraggable: boolean;
+	private highlightedItemWasDraggable: boolean = false;
 	private onHiddenScrollTop: number | null = null;
 
 	private readonly _onDOMFocus = new Emitter<void>();
-	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
+	readonly onDOMFocus: Event<void> = this._onDOMFocus.event;
 
 	private readonly _onDOMBlur = new Emitter<void>();
-	get onDOMBlur(): Event<void> { return this._onDOMBlur.event; }
+	readonly onDOMBlur: Event<void> = this._onDOMBlur.event;
 
 	private readonly _onDidScroll = new Emitter<void>();
-	get onDidScroll(): Event<void> { return this._onDidScroll.event; }
+	readonly onDidScroll: Event<void> = this._onDidScroll.event;
 
 	constructor(context: _.ITreeContext, container: HTMLElement) {
 		super();
@@ -633,7 +633,7 @@ export class TreeView extends HeightMap {
 	private setupMSGesture(): void {
 		if ((<any>window).MSGesture) {
 			this.msGesture = new MSGesture();
-			setTimeout(() => this.msGesture.target = this.wrapper, 100); // TODO@joh, TODO@IETeam
+			setTimeout(() => this.msGesture!.target = this.wrapper, 100); // TODO@joh, TODO@IETeam
 		}
 	}
 

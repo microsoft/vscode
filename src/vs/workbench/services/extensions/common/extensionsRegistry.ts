@@ -12,8 +12,8 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { values } from 'vs/base/common/map';
 
-const hasOwnProperty = Object.hasOwnProperty;
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 export type ExtensionKind = 'workspace' | 'ui' | undefined;
 
@@ -61,9 +61,7 @@ export interface IExtensionPointUser<T> {
 	collector: ExtensionMessageCollector;
 }
 
-export interface IExtensionPointHandler<T> {
-	(extensions: IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>): void;
-}
+export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;
 
 export interface IExtensionPoint<T> {
 	name: string;
@@ -73,7 +71,7 @@ export interface IExtensionPoint<T> {
 
 export class ExtensionPointUserDelta<T> {
 
-	private static _toSet<T>(arr: IExtensionPointUser<T>[]): Set<string> {
+	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): Set<string> {
 		const result = new Set<string>();
 		for (let i = 0, len = arr.length; i < len; i++) {
 			result.add(ExtensionIdentifier.toKey(arr[i].description.identifier));
@@ -81,7 +79,7 @@ export class ExtensionPointUserDelta<T> {
 		return result;
 	}
 
-	public static compute<T>(previous: IExtensionPointUser<T>[] | null, current: IExtensionPointUser<T>[]): ExtensionPointUserDelta<T> {
+	public static compute<T>(previous: readonly IExtensionPointUser<T>[] | null, current: readonly IExtensionPointUser<T>[]): ExtensionPointUserDelta<T> {
 		if (!previous || !previous.length) {
 			return new ExtensionPointUserDelta<T>(current, []);
 		}
@@ -99,8 +97,8 @@ export class ExtensionPointUserDelta<T> {
 	}
 
 	constructor(
-		public readonly added: IExtensionPointUser<T>[],
-		public readonly removed: IExtensionPointUser<T>[],
+		public readonly added: readonly IExtensionPointUser<T>[],
+		public readonly removed: readonly IExtensionPointUser<T>[],
 	) { }
 }
 
@@ -206,7 +204,7 @@ export const schema = {
 			type: 'object',
 			properties: {
 				// extensions will fill in
-			},
+			} as { [key: string]: any },
 			default: {}
 		},
 		preview: {
@@ -341,6 +339,19 @@ export const schema = {
 				pattern: EXTENSION_IDENTIFIER_PATTERN
 			}
 		},
+		extensionKind: {
+			description: nls.localize('extensionKind', "Define the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote."),
+			type: 'string',
+			enum: [
+				'ui',
+				'workspace'
+			],
+			enumDescriptions: [
+				nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+				nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+			],
+			default: 'workspace'
+		},
 		scripts: {
 			type: 'object',
 			properties: {
@@ -370,18 +381,14 @@ export interface IExtensionPointDescriptor {
 
 export class ExtensionsRegistryImpl {
 
-	private _extensionPoints: { [extPoint: string]: ExtensionPoint<any>; };
-
-	constructor() {
-		this._extensionPoints = {};
-	}
+	private readonly _extensionPoints = new Map<string, ExtensionPoint<any>>();
 
 	public registerExtensionPoint<T>(desc: IExtensionPointDescriptor): IExtensionPoint<T> {
-		if (hasOwnProperty.call(this._extensionPoints, desc.extensionPoint)) {
+		if (this._extensionPoints.has(desc.extensionPoint)) {
 			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
 		}
-		let result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
-		this._extensionPoints[desc.extensionPoint] = result;
+		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
+		this._extensionPoints.set(desc.extensionPoint, result);
 
 		schema.properties['contributes'].properties[desc.extensionPoint] = desc.jsonSchema;
 		schemaRegistry.registerSchema(schemaId, schema);
@@ -390,11 +397,7 @@ export class ExtensionsRegistryImpl {
 	}
 
 	public getExtensionPoints(): ExtensionPoint<any>[] {
-		return Object.keys(this._extensionPoints).map(point => this._extensionPoints[point]);
-	}
-
-	public getExtensionPointsMap(): { [extPoint: string]: ExtensionPoint<any>; } {
-		return this._extensionPoints;
+		return values(this._extensionPoints);
 	}
 }
 

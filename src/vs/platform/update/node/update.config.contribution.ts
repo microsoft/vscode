@@ -6,6 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
+import { isWindows } from 'vs/base/common/platform';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -16,7 +17,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'update.mode': {
 			type: 'string',
-			enum: ['none', 'manual', 'default'],
+			enum: ['none', 'manual', 'start', 'default'],
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
@@ -24,6 +25,7 @@ configurationRegistry.registerConfiguration({
 			enumDescriptions: [
 				localize('none', "Disable updates."),
 				localize('manual', "Disable automatic background update checks. Updates will be available if you manually check for updates."),
+				localize('start', "Check for updates only on startup. Disable automatic background update checks."),
 				localize('default', "Enable automatic update checks. Code will check for updates automatically and periodically.")
 			]
 		},
@@ -38,12 +40,14 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('enableWindowsBackgroundUpdates', "Enables Windows background updates. The updates are fetched from a Microsoft online service."),
-			tags: ['usesOnlineServices']
+			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates on Windows"),
+			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code Versions in the background on Windows"),
+			included: isWindows
 		},
 		'update.showReleaseNotes': {
 			type: 'boolean',
 			default: true,
+			scope: ConfigurationScope.APPLICATION,
 			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices']
 		}

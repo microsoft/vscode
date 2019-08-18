@@ -199,27 +199,28 @@
 }
 
 .monaco-editor .settings-group-title-widget .title-container .expand-collapse-icon {
-	background: url(expanded.svg) 50% 50% no-repeat;
+	background: url("tree-expanded-light.svg") 50% 50% no-repeat;
+	margin-right: 2px;
 	width: 16px;
 	height: 100%;
 }
 
 .monaco-editor.vs-dark .settings-group-title-widget .title-container .expand-collapse-icon,
 .monaco-editor.hc-black .settings-group-title-widget .title-container .expand-collapse-icon {
-	background: url(expanded-dark.svg) 50% 50% no-repeat;
+	background: url("tree-expanded-dark.svg") 50% 50% no-repeat;
 }
 
 .monaco-editor .settings-group-title-widget .title-container.collapsed .expand-collapse-icon {
-	background: url(collapsed.svg) 50% 50% no-repeat;
+	background: url("tree-collapsed-light.svg") 50% 50% no-repeat;
 }
 
 .monaco-editor.vs-dark .settings-group-title-widget .title-container.collapsed .expand-collapse-icon,
 .monaco-editor.hc-black .settings-group-title-widget .title-container.collapsed .expand-collapse-icon {
-	background: url(collapsed-dark.svg) 50% 50% no-repeat;
+	background: url("tree-collapsed-dark.svg") 50% 50% no-repeat;
 }
 
 .monaco-editor .edit-preferences-widget {
-	background: url('edit.svg') center center no-repeat;
+	background: url('edit-light.svg') center center no-repeat;
 	transform: rotate(-90deg);
 	width:16px;
 	height: 16px;
@@ -233,16 +234,7 @@
 
 .monaco-editor.hc-black .edit-preferences-widget,
 .monaco-editor.vs-dark .edit-preferences-widget {
-	background: url('edit_inverse.svg') center center no-repeat;
-}
-
-.monaco-editor .unsupportedWorkbenhSettingInfo:before {
-	content:" ";
-	display:inline-block;
-	height:1em;
-	width:1em;
-	background: url(info.svg) 50% 50% no-repeat;
-	background-size: 0.9em;
+	background: url('edit-dark.svg') center center no-repeat;
 }
 
 .monaco-editor .dim-configuration {
@@ -253,14 +245,4 @@
 	padding: 10px;
 	border-radius: 5px;
 	cursor: pointer;
-}
-
-.title-actions .action-item .icon.collapseAll,
-.editor-actions .action-item .icon.collapseAll {
-	background: url('collapseAll.svg') center center no-repeat;
-}
-
-.vs-dark .title-actions .action-item .icon.collapseAll,
-.vs-dark .editor-actions .action-item .icon.collapseAll {
-	background: url('collapseAll_inverse.svg') center center no-repeat;
 }

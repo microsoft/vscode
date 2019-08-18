@@ -16,7 +16,7 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { renderExpressionValue, replaceWhitespace } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -41,17 +41,16 @@ export class DebugHoverWidget implements IContentWidget {
 	allowEditorOverflow = true;
 
 	private _isVisible: boolean;
-	private domNode: HTMLElement;
-	private tree: AsyncDataTree<IExpression, IExpression, any>;
+	private domNode!: HTMLElement;
+	private tree!: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position | null;
 	private highlightDecorations: string[];
-	private complexValueContainer: HTMLElement;
-	private complexValueTitle: HTMLElement;
-	private valueContainer: HTMLElement;
-	private treeContainer: HTMLElement;
+	private complexValueContainer!: HTMLElement;
+	private complexValueTitle!: HTMLElement;
+	private valueContainer!: HTMLElement;
+	private treeContainer!: HTMLElement;
 	private toDispose: lifecycle.IDisposable[];
-	private scrollbar: DomScrollableElement;
-	private dataSource: DebugHoverDataSource;
+	private scrollbar!: DomScrollableElement;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -72,15 +71,15 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
-		this.dataSource = new DebugHoverDataSource();
+		const dataSource = new DebugHoverDataSource();
 
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
-			this.dataSource, {
+			dataSource, {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
 				mouseSupport: false,
 				horizontalScrolling: true
-			}) as any as AsyncDataTree<IExpression, IExpression, any>;
+			});
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
@@ -120,6 +119,10 @@ export class DebugHoverWidget implements IContentWidget {
 				this.editor.applyFontInfo(this.domNode);
 			}
 		}));
+	}
+
+	isHovered(): boolean {
+		return this.domNode.matches(':hover');
 	}
 
 	isVisible(): boolean {
@@ -237,7 +240,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueContainer.hidden = false;
 
 		return this.tree.setInput(expression).then(() => {
-			this.complexValueTitle.textContent = expression.value;
+			this.complexValueTitle.textContent = replaceWhitespace(expression.value);
 			this.complexValueTitle.title = expression.value;
 			this.layoutTreeAndContainer();
 			this.editor.layoutContentWidget(this);
@@ -250,7 +253,8 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private layoutTreeAndContainer(): void {
-		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.contentHeight);
+		const scrollBarHeight = 8;
+		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
 		this.tree.layout(treeHeight, 324);
 	}

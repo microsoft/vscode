@@ -31,7 +31,7 @@ class QueueProtocol implements IMessagePassingProtocol {
 	});
 
 	readonly onMessage = this._onMessage.event;
-	other: QueueProtocol;
+	other!: QueueProtocol;
 
 	send(buffer: VSBuffer): void {
 		this.other.receive(buffer);

@@ -18,6 +18,7 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { DefaultSettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -121,7 +122,7 @@ class ToggleWordWrapAction extends EditorAction {
 			id: TOGGLE_WORD_WRAP_ID,
 			label: nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
 			alias: 'View: Toggle Word Wrap',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.Alt | KeyCode.KEY_Z,
@@ -131,6 +132,10 @@ class ToggleWordWrapAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (editor.getContribution(DefaultSettingsEditorContribution.ID)) {
+			// in the settings editor...
+			return;
+		}
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -201,6 +206,10 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		}));
 
 		const ensureWordWrapSettings = () => {
+			if (this.editor.getContribution(DefaultSettingsEditorContribution.ID)) {
+				// in the settings editor...
+				return;
+			}
 			// Ensure correct word wrap settings
 			const newModel = this.editor.getModel();
 			if (!newModel) {
@@ -267,7 +276,7 @@ function canToggleWordWrap(uri: URI): boolean {
 	if (!uri) {
 		return false;
 	}
-	return (uri.scheme !== 'output' && uri.scheme !== 'vscode');
+	return (uri.scheme !== 'output');
 }
 
 
@@ -279,7 +288,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/WordWrap_16x.svg')) }
+		iconLocation: {
+			dark: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-dark.svg')),
+			light: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-light.svg'))
+		}
 	},
 	group: 'navigation',
 	order: 1,
@@ -293,7 +305,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/WordWrap_16x.svg')) }
+		iconLocation: {
+			dark: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-dark.svg')),
+			light: URI.parse(require.toUrl('vs/workbench/contrib/codeEditor/browser/word-wrap-light.svg'))
+		}
 	},
 	group: 'navigation',
 	order: 1,

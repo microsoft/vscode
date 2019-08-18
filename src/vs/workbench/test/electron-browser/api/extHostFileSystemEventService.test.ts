@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ExtHostFileSystemEventService } from 'vs/workbench/api/node/extHostFileSystemEventService';
+import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
 import { IMainContext } from 'vs/workbench/api/common/extHost.protocol';
 
 suite('ExtHostFileSystemEventService', () => {

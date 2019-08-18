@@ -102,7 +102,7 @@ class InspectTMScopes extends EditorAction {
 			id: 'editor.action.inspectTMScopes',
 			label: nls.localize('inspectTMScopes', "Developer: Inspect TM Scopes"),
 			alias: 'Developer: Inspect TM Scopes',
-			precondition: null
+			precondition: undefined
 		});
 	}
 

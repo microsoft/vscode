@@ -7,7 +7,7 @@ import 'vs/css!./accessibility';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { renderFormattedText } from 'vs/base/browser/htmlContentRenderer';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -27,7 +27,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
@@ -282,7 +282,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			id: 'editor.action.showAccessibilityHelp',
 			label: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"),
 			alias: 'Show Accessibility Help',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Alt | KeyCode.F1,
@@ -319,6 +319,11 @@ registerThemingParticipant((theme, collector) => {
 	const widgetBackground = theme.getColor(editorWidgetBackground);
 	if (widgetBackground) {
 		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
+	}
+
+	const widgetForeground = theme.getColor(editorWidgetForeground);
+	if (widgetBackground) {
+		collector.addRule(`.monaco-editor .accessibilityHelpWidget { color: ${widgetForeground}; }`);
 	}
 
 	const widgetShadowColor = theme.getColor(widgetShadow);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
@@ -13,12 +13,12 @@ export interface ParsedArgs {
 	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
+	telemetry?: boolean;
 	status?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
 	add?: boolean;
-	gitCredential?: string;
 	goto?: boolean;
 	'new-window'?: boolean;
 	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
@@ -28,7 +28,6 @@ export interface ParsedArgs {
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
-	'prof-modules'?: string;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -39,6 +38,7 @@ export interface ParsedArgs {
 	'builtin-extensions-dir'?: string;
 	extensionDevelopmentPath?: string | string[]; // one or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
+	'extension-development-confirm-save'?: boolean;
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
@@ -48,8 +48,10 @@ export interface ParsedArgs {
 	'disable-extension'?: string | string[];
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
+	'category'?: string;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
+	'locate-extension'?: string | string[];
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
@@ -65,11 +67,21 @@ export interface ParsedArgs {
 	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
-	'upload-logs'?: string;
 	'driver'?: string;
 	'driver-verbose'?: boolean;
 	remote?: string;
-	'nodeless'?: boolean; // TODO@ben revisit electron5 nodeless support
+	'disable-user-env-probe'?: boolean;
+	'enable-remote-auto-shutdown'?: boolean;
+	'disable-inspect'?: boolean;
+	'force'?: boolean;
+	'gitCredential'?: string;
+	// node flags
+	'js-flags'?: boolean;
+	'disable-gpu'?: boolean;
+	'nolazy'?: boolean;
+
+	// Web flags
+	'web-user-data-dir'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -83,8 +95,11 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
 }
 
+export const BACKUPS = 'Backups';
+
 export interface IEnvironmentService {
-	_serviceBrand: any;
+
+	_serviceBrand: ServiceIdentifier<any>;
 
 	args: ParsedArgs;
 
@@ -97,17 +112,22 @@ export interface IEnvironmentService {
 
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
+	appSettingsHome: URI;
 
-	settingsSearchBuildId?: number;
-	settingsSearchUrl?: string;
+	// user roaming data
+	userRoamingDataHome: URI;
+	settingsResource: URI;
+	keybindingsResource: URI;
+	keyboardLayoutResource: URI;
+	localeResource: URI;
+
+	machineSettingsHome: URI;
+	machineSettingsResource: URI;
 
 	globalStorageHome: string;
 	workspaceStorageHome: string;
 
-	backupHome: string;
+	backupHome: URI;
 	backupWorkspacesPath: string;
 
 	untitledWorkspacesHome: URI;
@@ -115,8 +135,8 @@ export interface IEnvironmentService {
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
-	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI | URI[];
+	extensionsPath?: string;
+	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -149,4 +169,10 @@ export interface IEnvironmentService {
 
 	driverHandle?: string;
 	driverVerbose: boolean;
+
+	webviewEndpoint?: string;
+	readonly webviewResourceRoot: string;
+	readonly webviewCspSource: string;
+
+	readonly galleryMachineIdResource?: URI;
 }

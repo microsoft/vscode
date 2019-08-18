@@ -29,6 +29,21 @@ export module Iterator {
 		return _empty;
 	}
 
+	export function single<T>(value: T): Iterator<T> {
+		let done = false;
+
+		return {
+			next(): IteratorResult<T> {
+				if (done) {
+					return FIN;
+				}
+
+				done = true;
+				return { done: false, value };
+			}
+		};
+	}
+
 	export function fromArray<T>(array: T[], index = 0, length = array.length): Iterator<T> {
 		return {
 			next(): IteratorResult<T> {
@@ -86,10 +101,46 @@ export module Iterator {
 		}
 	}
 
-	export function collect<T>(iterator: Iterator<T>): T[] {
+	export function collect<T>(iterator: Iterator<T>, atMost: number = Number.POSITIVE_INFINITY): T[] {
 		const result: T[] = [];
-		forEach(iterator, value => result.push(value));
+
+		if (atMost === 0) {
+			return result;
+		}
+
+		let i = 0;
+
+		for (let next = iterator.next(); !next.done; next = iterator.next()) {
+			result.push(next.value);
+
+			if (++i >= atMost) {
+				break;
+			}
+		}
+
 		return result;
+	}
+
+	export function concat<T>(...iterators: Iterator<T>[]): Iterator<T> {
+		let i = 0;
+
+		return {
+			next() {
+				if (i >= iterators.length) {
+					return FIN;
+				}
+
+				const iterator = iterators[i];
+				const result = iterator.next();
+
+				if (result.done) {
+					i++;
+					return this.next();
+				}
+
+				return result;
+			}
+		};
 	}
 }
 

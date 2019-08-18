@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/a595d8ba2ae9ce8864435d33db2afa0fe68b1487",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/05ccfa3db6edbd357390431f9e316adb38ba41d8",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1987,8 +1987,29 @@
 					"name": "comment.block.html"
 				},
 				{
-					"begin": "(^|\\G)\\s*(?=<(script|style|pre)(\\s|$|>)(?!.*?</(script|style|pre)>))",
-					"end": "(?=.*</(script|style|pre)>)",
+					"begin": "(?i)(^|\\G)\\s*(?=<(script|style|pre)(\\s|$|>)(?!.*?</(script|style|pre)>))",
+					"end": "(?i)(.*)((</)(script|style|pre)(>))",
+					"endCaptures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "text.html.basic"
+								}
+							]
+						},
+						"2": {
+							"name": "meta.tag.structure.$4.end.html"
+						},
+						"3": {
+							"name": "punctuation.definition.tag.begin.html"
+						},
+						"4": {
+							"name": "entity.name.tag.html"
+						},
+						"5": {
+							"name": "punctuation.definition.tag.end.html"
+						}
+					},
 					"patterns": [
 						{
 							"begin": "(\\s*|$)",
@@ -1997,12 +2018,12 @@
 									"include": "text.html.basic"
 								}
 							],
-							"while": "^(?!.*</(script|style|pre)>)"
+							"while": "(?i)^(?!.*</(script|style|pre)>)"
 						}
 					]
 				},
 				{
-					"begin": "(^|\\G)\\s*(?=</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(\\s|$|/?>))",
+					"begin": "(?i)(^|\\G)\\s*(?=</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(\\s|$|/?>))",
 					"patterns": [
 						{
 							"include": "text.html.basic"
@@ -2275,7 +2296,7 @@
 		},
 		"bracket": {
 			"comment": "Markdown will convert this for us. We match it so that the HTML grammar will not mark it up as invalid.",
-			"match": "<(?![a-z/?\\$!])",
+			"match": "<(?![a-zA-Z/?\\$!])",
 			"name": "meta.other.valid-bracket.markdown"
 		},
 		"escape": {

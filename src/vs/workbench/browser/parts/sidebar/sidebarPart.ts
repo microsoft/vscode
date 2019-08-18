@@ -30,12 +30,12 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { LayoutPriority } from 'vs/base/browser/ui/grid/gridview';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
@@ -46,15 +46,35 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
-	readonly snapSize: number = 50;
 	readonly priority: LayoutPriority = LayoutPriority.Low;
+
+	readonly snap = true;
+
+	get preferredWidth(): number | undefined {
+		const viewlet = this.getActiveViewlet();
+
+		if (!viewlet) {
+			return;
+		}
+
+		const width = viewlet.getOptimalWidth();
+
+		if (typeof width !== 'number') {
+			return;
+		}
+
+		return Math.max(width, 300);
+	}
 
 	//#endregion
 
 	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
 
+	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
+	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
+
 	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
-	get onDidViewletDeregister(): Event<ViewletDescriptor> { return this._onDidViewletDeregister.event; }
+	readonly onDidViewletDeregister: Event<ViewletDescriptor> = this._onDidViewletDeregister.event;
 
 	get onDidViewletOpen(): Event<IViewlet> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite); }
 	get onDidViewletClose(): Event<IViewlet> { return this.onDidCompositeClose.event as Event<IViewlet>; }
@@ -62,7 +82,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	private viewletRegistry: ViewletRegistry;
 	private sideBarFocusContextKey: IContextKey<boolean>;
 	private activeViewletContextKey: IContextKey<string>;
-	private blockOpeningViewlet: boolean;
+	private blockOpeningViewlet = false;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -119,7 +139,8 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 		// Viewlet deregister
 		this._register(this.registry.onDidDeregister(async (viewletDescriptor: ViewletDescriptor) => {
-			if (this.getActiveViewlet().getId() === viewletDescriptor.id) {
+			const activeViewlet = this.getActiveViewlet();
+			if (!activeViewlet || activeViewlet.getId() === viewletDescriptor.id) {
 				await this.openViewlet(this.getDefaultViewletId());
 			}
 
@@ -177,7 +198,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	// Viewlet service
 
-	getActiveViewlet(): IViewlet {
+	getActiveViewlet(): IViewlet | null {
 		return <IViewlet>this.getActiveComposite();
 	}
 
@@ -189,19 +210,18 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		this.hideActiveComposite();
 	}
 
-	openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null> {
+	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null> {
 		if (typeof id === 'string' && this.getViewlet(id)) {
-			return Promise.resolve(this.doOpenViewlet(id, focus));
+			return this.doOpenViewlet(id, focus);
 		}
 
-		return this.extensionService.whenInstalledExtensionsRegistered()
-			.then(() => {
-				if (typeof id === 'string' && this.getViewlet(id)) {
-					return this.doOpenViewlet(id, focus);
-				}
+		await this.extensionService.whenInstalledExtensionsRegistered();
 
-				return null;
-			});
+		if (typeof id === 'string' && this.getViewlet(id)) {
+			return this.doOpenViewlet(id, focus);
+		}
+
+		return null;
 	}
 
 	getViewlets(): ViewletDescriptor[] {
@@ -248,11 +268,15 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
 					getActions: () => contextMenuActions,
-					getActionItem: action => this.actionItemProvider(action as Action),
+					getActionViewItem: action => this.actionViewItemProvider(action as Action),
 					actionRunner: activeViewlet.getActionRunner()
 				});
 			}
 		}
+	}
+
+	setVisible(visible: boolean): void {
+		this._onDidVisibilityChange.fire(visible);
 	}
 
 	toJSON(): object {

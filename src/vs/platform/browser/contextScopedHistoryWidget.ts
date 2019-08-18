@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextKeyService, ContextKeyDefinedExpr, ContextKeyExpr, ContextKeyAndExpr, ContextKeyEqualsExpr, RawContextKey, IContextKey, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
@@ -66,7 +66,7 @@ export class ContextScopedFindInput extends FindInput {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'history.showPrevious',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(new ContextKeyDefinedExpr(HistoryNavigationWidgetContext), new ContextKeyEqualsExpr(HistoryNavigationEnablementContext, true)),
+	when: ContextKeyExpr.and(ContextKeyExpr.has(HistoryNavigationWidgetContext), ContextKeyExpr.equals(HistoryNavigationEnablementContext, true)),
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
 	handler: (accessor, arg2) => {
@@ -81,7 +81,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'history.showNext',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: new ContextKeyAndExpr([new ContextKeyDefinedExpr(HistoryNavigationWidgetContext), new ContextKeyEqualsExpr(HistoryNavigationEnablementContext, true)]),
+	when: ContextKeyExpr.and(ContextKeyExpr.has(HistoryNavigationWidgetContext), ContextKeyExpr.equals(HistoryNavigationEnablementContext, true)),
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],
 	handler: (accessor, arg2) => {

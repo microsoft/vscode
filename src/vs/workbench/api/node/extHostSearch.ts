@@ -15,11 +15,10 @@ import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrep
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
 import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import * as vscode from 'vscode';
-import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
-
-export interface ISchemeTransformer {
-	transformOutgoing(scheme: string): string;
-}
+import { ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 export class ExtHostSearch implements ExtHostSearchShape {
 
@@ -35,16 +34,30 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	private _fileSearchManager: FileSearchManager;
 
-	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer | null, private _logService: ILogService, private _pfs = pfs) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
+	protected _pfs: typeof pfs = pfs; // allow extending for tests
+
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@IURITransformerService private _uriTransformer: IURITransformerService,
+		@ILogService private _logService: ILogService,
+	) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadSearch);
 		this._fileSearchManager = new FileSearchManager();
+
+		if (initData.remote.isRemote && initData.remote.authority) {
+			this._registerEHSearchProviders();
+		}
+	}
+
+	private _registerEHSearchProviders(): void {
+		const outputChannel = new OutputChannel(this._logService);
+		this.registerTextSearchProvider('file', new RipgrepSearchProvider(outputChannel));
+		this.registerInternalFileSearchProvider('file', new SearchService());
 	}
 
 	private _transformScheme(scheme: string): string {
-		if (this._schemeTransformer) {
-			return this._schemeTransformer.transformOutgoing(scheme);
-		}
-		return scheme;
+		return this._uriTransformer.transformOutgoingScheme(scheme);
 	}
 
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable {
@@ -149,12 +162,6 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		const engine = new TextSearchManager(query, provider, this._pfs);
 		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
 	}
-}
-
-export function registerEHSearchProviders(extHostSearch: ExtHostSearch, logService: ILogService): void {
-	const outputChannel = new OutputChannel(logService);
-	extHostSearch.registerTextSearchProvider('file', new RipgrepSearchProvider(outputChannel));
-	extHostSearch.registerInternalFileSearchProvider('file', new SearchService());
 }
 
 function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : IFileQuery {

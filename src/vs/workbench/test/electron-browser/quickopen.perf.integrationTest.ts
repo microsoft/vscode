@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as minimist from 'minimist';
+import * as minimist from 'vscode-minimist';
 import * as path from 'vs/base/common/path';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
@@ -26,9 +26,10 @@ import { Extensions, IQuickOpenRegistry } from 'vs/workbench/browser/quickopen';
 import 'vs/workbench/contrib/search/browser/search.contribution'; // load contributions
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TestContextService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 namespace Timer {
 	export interface ITimerEvent {
@@ -78,7 +79,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)]
+			[ISearchService, createSyncDescriptor(LocalSearchService)]
 		));
 
 		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
@@ -164,9 +165,16 @@ class TestTelemetryService implements ITelemetryService {
 
 	public events: any[] = [];
 
+	public setEnabled(value: boolean): void {
+	}
+
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		this.events.push({ name: eventName, data: data });
 		return Promise.resolve(undefined);
+	}
+
+	public publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as any);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {

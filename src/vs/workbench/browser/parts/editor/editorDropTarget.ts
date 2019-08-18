@@ -88,10 +88,10 @@ class DropOverlay extends Themable {
 
 		// Overlay contrast border (if any)
 		const activeContrastBorderColor = this.getColor(activeContrastBorder);
-		this.overlay.style.outlineColor = activeContrastBorderColor;
-		this.overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : null;
-		this.overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : null;
-		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : null;
+		this.overlay.style.outlineColor = activeContrastBorderColor || '';
+		this.overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : '';
+		this.overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : '';
+		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
 	}
 
 	private registerListeners(): void {
@@ -409,7 +409,7 @@ class DropOverlay extends Themable {
 	}
 
 	private getOverlayOffsetHeight(): number {
-		if (!this.groupView.isEmpty() && this.accessor.partOptions.showTabs) {
+		if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
 			return EDITOR_TITLE_HEIGHT; // show overlay below title if group shows tabs
 		}
 

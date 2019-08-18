@@ -4,6 +4,7 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
@@ -23,7 +24,6 @@
           ".bowerrc",
           ".jshintrc",
           ".jscsrc",
-          ".eslintrc",
           ".swcrc",
           ".webmanifest",
           ".js.map",
@@ -48,7 +48,10 @@
         "extensions": [
           ".hintrc",
           ".babelrc",
-          ".jsonc"
+          ".jsonc",
+          ".eslintrc",
+          ".eslintrc.json",
+          "tslint.json"
         ],
         "configuration": "./language-configuration.json"
       }

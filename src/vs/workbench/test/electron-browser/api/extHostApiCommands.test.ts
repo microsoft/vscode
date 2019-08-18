@@ -7,24 +7,22 @@ import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
-import { IHeapService, NullHeapService } from 'vs/workbench/services/heap/common/heap';
-import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
+import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
-import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
+import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import 'vs/workbench/contrib/search/browser/search.contribution';
@@ -67,14 +65,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		{
 			let instantiationService = new TestInstantiationService();
 			rpcProtocol = new TestRPCProtocol();
-			instantiationService.stub(IHeapService, NullHeapService);
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
 				executeCommand(id: string, args: any): any {
-					if (!CommandsRegistry.getCommands()[id]) {
+					const command = CommandsRegistry.getCommands().get(id);
+					if (!command) {
 						return Promise.reject(new Error(id + ' NOT known'));
 					}
-					let { handler } = CommandsRegistry.getCommands()[id];
+					const { handler } = command;
 					return Promise.resolve(instantiationService.invokeFunction(handler, args));
 				}
 			});
@@ -109,9 +107,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		const heapService = new ExtHostHeapService();
-
-		commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		commands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
@@ -119,7 +115,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics, new NullLogService());
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -185,7 +181,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(nullExtensionDescription, {
-			provideWorkspaceSymbols(query): vscode.SymbolInformation[] {
+			provideWorkspaceSymbols(): vscode.SymbolInformation[] {
 				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar')) as vscode.SymbolInformation];
 			}
 		}));
@@ -316,7 +312,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('reference search, back and forth', function () {
 
 		disposables.push(extHost.registerReferenceProvider(nullExtensionDescription, defaultSelector, <vscode.ReferenceProvider>{
-			provideReferences(doc: any) {
+			provideReferences() {
 				return [
 					new types.Location(URI.parse('some:uri/path'), new types.Range(0, 1, 0, 5))
 				];
@@ -392,7 +388,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	test('Suggest, back and forth', function () {
 		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
-			provideCompletionItems(doc, pos): any {
+			provideCompletionItems(): any {
 				let a = new types.CompletionItem('item1');
 				let b = new types.CompletionItem('item2');
 				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
@@ -635,6 +631,61 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('vscode.executeCodeActionProvider passes Range to provider although Selection is passed in #77997', function () {
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, rangeOrSelection],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+				}];
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
+				assert.equal(value.length, 1);
+				const [first] = value;
+				assert.ok(first.command);
+				assert.ok(first.command!.arguments![1] instanceof types.Selection);
+				assert.ok(first.command!.arguments![1].isEqual(selection));
+			});
+		});
+	});
+
+	test('vscode.executeCodeActionProvider results seem to be missing their `isPreferred` property #78098', function () {
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, rangeOrSelection],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+					isPreferred: true
+				}];
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
+				assert.equal(value.length, 1);
+				const [first] = value;
+				assert.equal(first.isPreferred, true);
+			});
+		});
+	});
+
 	// --- code lens
 
 	test('CodeLens, back and forth', function () {
@@ -728,7 +779,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideDocumentColors(): vscode.ColorInformation[] {
 				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
 			},
-			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+			provideColorPresentations(): vscode.ColorPresentation[] {
 				const cp = new types.ColorPresentation('#ABC');
 				cp.textEdit = types.TextEdit.replace(new types.Range(1, 0, 1, 20), '#ABC');
 				cp.additionalTextEdits = [types.TextEdit.insert(new types.Position(2, 20), '*')];
@@ -801,9 +852,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await commands.executeCommand<vscode.SelectionRange[][]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
 		assert.equal(value.length, 1);
-		assert.ok(value[0].length >= 2);
+		assert.ok(value[0].parent);
 	});
 
 });

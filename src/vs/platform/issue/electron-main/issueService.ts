@@ -6,26 +6,26 @@
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/node/issue';
 import { BrowserWindow, ipcMain, screen, Event, dialog } from 'electron';
 import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
-import { PerformanceInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
+import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
-import { ProcessItem } from 'vs/base/common/processes';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
-	_issueWindow: BrowserWindow | null;
-	_issueParentWindow: BrowserWindow | null;
-	_processExplorerWindow: BrowserWindow | null;
-	_processExplorerParentWindow: BrowserWindow | null;
+	_issueWindow: BrowserWindow | null = null;
+	_issueParentWindow: BrowserWindow | null = null;
+	_processExplorerWindow: BrowserWindow | null = null;
+	_processExplorerParentWindow: BrowserWindow | null = null;
 
 	constructor(
 		private machineId: string,
@@ -40,20 +40,60 @@ export class IssueService implements IIssueService {
 	}
 
 	private registerListeners(): void {
-		ipcMain.on('vscode:issueSystemInfoRequest', (event: Event) => {
-			this.diagnosticsService.getSystemInfo(this.launchService).then(msg => {
-				event.sender.send('vscode:issueSystemInfoResponse', msg);
-			});
+		ipcMain.on('vscode:issueSystemInfoRequest', async (event: Event) => {
+			Promise.all([this.launchService.getMainProcessInfo(), this.launchService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })])
+				.then(result => {
+					const [info, remoteData] = result;
+					this.diagnosticsService.getSystemInfo(info, remoteData).then(msg => {
+						event.sender.send('vscode:issueSystemInfoResponse', msg);
+					});
+				});
 		});
 
 		ipcMain.on('vscode:listProcesses', async (event: Event) => {
-			const mainPid = await this.launchService.getMainProcessId();
-			const rootProcess = await listProcesses(mainPid);
-			const remoteProcesses = (await this.launchService.getRemoteDiagnostics({ includeProcesses: true }))
-				.map(data => data.processes)
-				.filter((x): x is ProcessItem => !!x);
+			const processes = [];
 
-			event.sender.send('vscode:listProcessesResponse', [rootProcess, ...remoteProcesses]);
+			try {
+				const mainPid = await this.launchService.getMainProcessId();
+				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(mainPid) });
+				(await this.launchService.getRemoteDiagnostics({ includeProcesses: true }))
+					.forEach(data => {
+						if (isRemoteDiagnosticError(data)) {
+							processes.push({
+								name: data.hostName,
+								rootProcess: data
+							});
+						} else {
+							if (data.processes) {
+								processes.push({
+									name: data.hostName,
+									rootProcess: data.processes
+								});
+							}
+						}
+					});
+			} catch (e) {
+				this.logService.error(`Listing processes failed: ${e}`);
+			}
+
+			event.sender.send('vscode:listProcessesResponse', processes);
+		});
+
+		ipcMain.on('vscode:issueReporterClipboard', (event: Event) => {
+			const messageOptions = {
+				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub. Would you like to write the information to the clipboard so that it can be pasted?"),
+				type: 'warning',
+				buttons: [
+					localize('yes', "Yes"),
+					localize('cancel', "Cancel")
+				]
+			};
+
+			if (this._issueWindow) {
+				dialog.showMessageBox(this._issueWindow, messageOptions, response => {
+					event.sender.send('vscode:issueReporterClipboardResponse', response === 0);
+				});
+			}
 		});
 
 		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Event) => {
@@ -198,15 +238,8 @@ export class IssueService implements IIssueService {
 						data
 					};
 
-					const environment = parseArgs(process.argv);
-					const config = objects.assign(environment, windowConfiguration);
-					for (let key in config) {
-						if (config[key] === undefined || config[key] === null || config[key] === '') {
-							delete config[key]; // only send over properties that have a true value
-						}
-					}
-
-					this._processExplorerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/processExplorer/processExplorer.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
+					this._processExplorerWindow.loadURL(
+						toLauchUrl('vs/code/electron-browser/processExplorer/processExplorer.html', windowConfiguration));
 
 					this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
 
@@ -226,8 +259,12 @@ export class IssueService implements IIssueService {
 		});
 	}
 
-	public getSystemStatus(): Promise<string> {
-		return this.diagnosticsService.getDiagnostics(this.launchService);
+	public async getSystemStatus(): Promise<string> {
+		return Promise.all([this.launchService.getMainProcessInfo(), this.launchService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })])
+			.then(result => {
+				const [info, remoteData] = result;
+				return this.diagnosticsService.getDiagnostics(info, remoteData);
+			});
 	}
 
 	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
@@ -299,14 +336,18 @@ export class IssueService implements IIssueService {
 	}
 
 	private getPerformanceInfo(): Promise<PerformanceInfo> {
-		return new Promise((resolve, reject) => {
-			this.diagnosticsService.getPerformanceInfo(this.launchService)
-				.then(diagnosticInfo => {
-					resolve(diagnosticInfo);
-				})
-				.catch(err => {
-					this.logService.warn('issueService#getPerformanceInfo ', err.message);
-					reject(err);
+		return new Promise(async (resolve, reject) => {
+			Promise.all([this.launchService.getMainProcessInfo(), this.launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })])
+				.then(result => {
+					const [info, remoteData] = result;
+					this.diagnosticsService.getPerformanceInfo(info, remoteData)
+						.then(diagnosticInfo => {
+							resolve(diagnosticInfo);
+						})
+						.catch(err => {
+							this.logService.warn('issueService#getPerformanceInfo ', err.message);
+							reject(err);
+						});
 				});
 		});
 	}
@@ -326,14 +367,19 @@ export class IssueService implements IIssueService {
 			features
 		};
 
-		const environment = parseArgs(process.argv);
-		const config = objects.assign(environment, windowConfiguration);
-		for (let key in config) {
-			if (config[key] === undefined || config[key] === null || config[key] === '') {
-				delete config[key]; // only send over properties that have a true value
-			}
-		}
-
-		return `${require.toUrl('vs/code/electron-browser/issue/issueReporter.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		return toLauchUrl('vs/code/electron-browser/issue/issueReporter.html', windowConfiguration);
 	}
+}
+
+function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
+	const environment = parseArgs(process.argv);
+	const config = objects.assign(environment, windowConfiguration);
+	for (const keyValue of Object.keys(config)) {
+		const key = keyValue as keyof typeof config;
+		if (config[key] === undefined || config[key] === null || config[key] === '') {
+			delete config[key]; // only send over properties that have a true value
+		}
+	}
+
+	return `${require.toUrl(pathToHtml)}?config=${encodeURIComponent(JSON.stringify(config))}`;
 }

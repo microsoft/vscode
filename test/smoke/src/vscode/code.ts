@@ -6,9 +6,14 @@
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as os from 'os';
+import * as fs from 'fs';
+import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
-import { IDriver, connect as connectDriver, IDisposable, IElement, Thenable } from './driver';
+import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable } from './driver';
+import { connect as connectPuppeteerDriver, launch } from './puppeteerDriver';
 import { Logger } from '../logger';
+import { ncp } from 'ncp';
+import { URI } from 'vscode-uri';
 
 const repoPath = path.join(__dirname, '../../../..');
 
@@ -58,7 +63,7 @@ function getBuildOutPath(root: string): string {
 	}
 }
 
-async function connect(child: cp.ChildProcess, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
+async function connect(connectDriver: typeof connectElectronDriver, child: cp.ChildProcess | undefined, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
 	let errCount = 0;
 
 	while (true) {
@@ -67,7 +72,9 @@ async function connect(child: cp.ChildProcess, outPath: string, handlePath: stri
 			return new Code(client, driver, logger);
 		} catch (err) {
 			if (++errCount > 50) {
-				child.kill();
+				if (child) {
+					child.kill();
+				}
 				throw err;
 			}
 
@@ -90,6 +97,12 @@ export interface SpawnOptions {
 	verbose?: boolean;
 	extraArgs?: string[];
 	log?: string;
+	/** Run in the test resolver */
+	remote?: boolean;
+	/** Run in the web */
+	web?: boolean;
+	/** Run in headless mode (only applies when web is true) */
+	headless?: boolean;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -120,6 +133,26 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--driver', handle
 	];
 
+	const env = process.env;
+
+	if (options.remote) {
+		// Replace workspace path with URI
+		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
+
+		if (codePath) {
+			// running against a build: copy the test resolver extension
+			const testResolverExtPath = path.join(options.extensionsPath, 'vscode-test-resolver');
+			if (!fs.existsSync(testResolverExtPath)) {
+				const orig = path.join(repoPath, 'extensions', 'vscode-test-resolver');
+				await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
+			}
+		}
+		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
+		const remoteDataDir = `${options.userDataDir}-server`;
+		mkdirp.sync(remoteDataDir);
+		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
+	}
+
 	if (!codePath) {
 		args.unshift(repoPath);
 	}
@@ -136,14 +169,20 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		args.push(...options.extraArgs);
 	}
 
-	const spawnOptions: cp.SpawnOptions = {};
+	let child: cp.ChildProcess | undefined;
+	let connectDriver: typeof connectElectronDriver;
 
-	const child = cp.spawn(electronPath, args, spawnOptions);
-
-	instances.add(child);
-	child.once('exit', () => instances.delete(child));
-
-	return connect(child, outPath, handle, options.logger);
+	if (options.web) {
+		await launch(args);
+		connectDriver = connectPuppeteerDriver.bind(connectPuppeteerDriver, !!options.headless);
+	} else {
+		const spawnOptions: cp.SpawnOptions = { env };
+		child = cp.spawn(electronPath, args, spawnOptions);
+		instances.add(child);
+		child.once('exit', () => instances.delete(child!));
+		connectDriver = connectElectronDriver;
+	}
+	return connect(connectDriver, child, outPath, handle, options.logger);
 }
 
 async function poll<T>(

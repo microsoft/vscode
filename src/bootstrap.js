@@ -20,6 +20,38 @@ process.on('SIGPIPE', () => {
 
 //#endregion
 
+//#region Add support for redirecting the loading of node modules
+exports.injectNodeModuleLookupPath = function (injectPath) {
+	if (!injectPath) {
+		throw new Error('Missing injectPath');
+	}
+
+	// @ts-ignore
+	const Module = require('module');
+	const path = require('path');
+
+	const nodeModulesPath = path.join(__dirname, '../node_modules');
+
+	// @ts-ignore
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+
+	// @ts-ignore
+	Module._resolveLookupPaths = function (moduleName, parent, newReturn) {
+		const result = originalResolveLookupPaths(moduleName, parent, newReturn);
+
+		const paths = newReturn ? result : result[1];
+		for (let i = 0, len = paths.length; i < len; i++) {
+			if (paths[i] === nodeModulesPath) {
+				paths.splice(i, 0, injectPath);
+				break;
+			}
+		}
+
+		return result;
+	};
+};
+//#endregion
+
 //#region Add support for using node_modules.asar
 /**
  * @param {string=} nodeModulesPath

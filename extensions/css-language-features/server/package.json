@@ -9,15 +9,15 @@
   },
   "main": "./out/cssServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^4.0.2-next.2",
-    "vscode-languageserver": "^5.3.0-next.2"
+    "vscode-css-languageservice": "^4.0.3-next.3",
+    "vscode-languageserver": "^5.3.0-next.8"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",
-    "@types/node": "^10.12.21",
-    "glob": "^7.1.2",
-    "mocha": "^5.2.0",
-    "mocha-junit-reporter": "^1.17.0",
+    "@types/node": "^10.14.8",
+    "glob": "^7.1.4",
+    "mocha": "^6.1.4",
+    "mocha-junit-reporter": "^1.23.0",
     "mocha-multi-reporters": "^1.1.7"
   },
   "scripts": {

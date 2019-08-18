@@ -153,4 +153,26 @@ suite('Replace Pattern test', () => {
 		let actual = replacePattern.buildReplaceString(matches);
 		assert.equal(actual, 'a{}');
 	});
+
+	test('preserve case', () => {
+		let replacePattern = parseReplaceString('Def');
+		let actual = replacePattern.buildReplaceString(['abc'], true);
+		assert.equal(actual, 'def');
+		actual = replacePattern.buildReplaceString(['Abc'], true);
+		assert.equal(actual, 'Def');
+		actual = replacePattern.buildReplaceString(['ABC'], true);
+		assert.equal(actual, 'DEF');
+
+		actual = replacePattern.buildReplaceString(['abc', 'Abc'], true);
+		assert.equal(actual, 'def');
+		actual = replacePattern.buildReplaceString(['Abc', 'abc'], true);
+		assert.equal(actual, 'Def');
+		actual = replacePattern.buildReplaceString(['ABC', 'abc'], true);
+		assert.equal(actual, 'DEF');
+
+		actual = replacePattern.buildReplaceString(['AbC'], true);
+		assert.equal(actual, 'Def');
+		actual = replacePattern.buildReplaceString(['aBC'], true);
+		assert.equal(actual, 'Def');
+	});
 });

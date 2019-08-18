@@ -6,43 +6,114 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as encoding from 'vs/base/node/encoding';
-import { readExactlyByFile } from 'vs/base/node/stream';
 import { Readable } from 'stream';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
+export async function detectEncodingByBOM(file: string): Promise<string | null> {
+	try {
+		const { buffer, bytesRead } = await readExactlyByFile(file, 3);
+
+		return encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
+	} catch (error) {
+		return null; // ignore errors (like file not found)
+	}
+}
+
+interface ReadResult {
+	buffer: Buffer | null;
+	bytesRead: number;
+}
+
+function readExactlyByFile(file: string, totalBytes: number): Promise<ReadResult> {
+	return new Promise<ReadResult>((resolve, reject) => {
+		fs.open(file, 'r', null, (err, fd) => {
+			if (err) {
+				return reject(err);
+			}
+
+			function end(err: Error | null, resultBuffer: Buffer | null, bytesRead: number): void {
+				fs.close(fd, closeError => {
+					if (closeError) {
+						return reject(closeError);
+					}
+
+					if (err && (<any>err).code === 'EISDIR') {
+						return reject(err); // we want to bubble this error up (file is actually a folder)
+					}
+
+					return resolve({ buffer: resultBuffer, bytesRead });
+				});
+			}
+
+			const buffer = Buffer.allocUnsafe(totalBytes);
+			let offset = 0;
+
+			function readChunk(): void {
+				fs.read(fd, buffer, offset, totalBytes - offset, null, (err, bytesRead) => {
+					if (err) {
+						return end(err, null, 0);
+					}
+
+					if (bytesRead === 0) {
+						return end(null, buffer, offset);
+					}
+
+					offset += bytesRead;
+
+					if (offset === totalBytes) {
+						return end(null, buffer, offset);
+					}
+
+					return readChunk();
+				});
+			}
+
+			readChunk();
+		});
+	});
+}
+
 suite('Encoding', () => {
+
+	test('detectBOM does not return error for non existing file', async () => {
+		const file = getPathFromAmdModule(require, './fixtures/not-exist.css');
+
+		const detectedEncoding = await detectEncodingByBOM(file);
+		assert.equal(detectedEncoding, null);
+	});
+
 	test('detectBOM UTF-8', async () => {
 		const file = getPathFromAmdModule(require, './fixtures/some_utf8.css');
 
-		const detectedEncoding = await encoding.detectEncodingByBOM(file);
+		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.equal(detectedEncoding, 'utf8');
 	});
 
 	test('detectBOM UTF-16 LE', async () => {
 		const file = getPathFromAmdModule(require, './fixtures/some_utf16le.css');
 
-		const detectedEncoding = await encoding.detectEncodingByBOM(file);
+		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.equal(detectedEncoding, 'utf16le');
 	});
 
 	test('detectBOM UTF-16 BE', async () => {
 		const file = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
 
-		const detectedEncoding = await encoding.detectEncodingByBOM(file);
+		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.equal(detectedEncoding, 'utf16be');
 	});
 
 	test('detectBOM ANSI', async function () {
 		const file = getPathFromAmdModule(require, './fixtures/some_ansi.css');
 
-		const detectedEncoding = await encoding.detectEncodingByBOM(file);
+		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.equal(detectedEncoding, null);
 	});
 
 	test('detectBOM ANSI', async function () {
 		const file = getPathFromAmdModule(require, './fixtures/empty.txt');
 
-		const detectedEncoding = await encoding.detectEncodingByBOM(file);
+		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.equal(detectedEncoding, null);
 	});
 
@@ -169,7 +240,7 @@ suite('Encoding', () => {
 			}
 		});
 
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4 });
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: detected => detected || encoding.UTF8 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -189,7 +260,7 @@ suite('Encoding', () => {
 			}
 		});
 
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64 });
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: detected => detected || encoding.UTF8 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -206,7 +277,7 @@ suite('Encoding', () => {
 			}
 		});
 
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 512 });
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 512, guessEncoding: false, overwriteEncoding: detected => detected || encoding.UTF8 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -221,7 +292,7 @@ suite('Encoding', () => {
 		let path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
 		let source = fs.createReadStream(path);
 
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64 });
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: detected => detected || encoding.UTF8 });
 
 		assert.equal(detected.encoding, 'utf16be');
 		assert.equal(detected.seemsBinary, false);
@@ -236,7 +307,7 @@ suite('Encoding', () => {
 
 		let path = getPathFromAmdModule(require, './fixtures/empty.txt');
 		let source = fs.createReadStream(path);
-		let { detected, stream } = await encoding.toDecodeStream(source, {});
+		let { detected, stream } = await encoding.toDecodeStream(source, { guessEncoding: false, overwriteEncoding: detected => detected || encoding.UTF8 });
 
 		let expected = await readAndDecodeFromDisk(path, detected.encoding);
 		let actual = await readAllAsString(stream);

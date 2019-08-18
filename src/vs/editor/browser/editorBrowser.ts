@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursors } from 'vs/editor/common/controller/cursorCommon';
@@ -13,7 +13,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer } from 'vs/editor/common/model';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
@@ -83,17 +83,17 @@ export interface IViewZoneChangeAccessor {
 	 * @param zone Zone to create
 	 * @return A unique identifier to the view zone.
 	 */
-	addZone(zone: IViewZone): number;
+	addZone(zone: IViewZone): string;
 	/**
 	 * Remove a zone
 	 * @param id A unique identifier to the view zone, as returned by the `addZone` call.
 	 */
-	removeZone(id: number): void;
+	removeZone(id: string): void;
 	/**
 	 * Change a zone's position.
 	 * The editor will rescan the `afterLineNumber` and `afterColumn` properties of a view zone.
 	 */
-	layoutZone(id: number): void;
+	layoutZone(id: string): void;
 }
 
 /**
@@ -399,7 +399,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onWillType(listener: (text: string) => void): IDisposable;
 	/**
-	 * An event emitted before interpreting typed characters (on the keyboard).
+	 * An event emitted after interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */
@@ -461,6 +461,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	onMouseLeave(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+	/**
+	 * An event emitted on a "mousewheel"
+	 * @event
+	 * @internal
+	 */
+	onMouseWheel(listener: (e: IMouseWheelEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "keyup".
 	 * @event
@@ -606,7 +612,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param edits The edits to execute.
 	 * @param endCursorState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
+	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 
 	/**
 	 * Execute multiple (concomitant) commands on the editor.

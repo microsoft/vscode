@@ -7,11 +7,11 @@ import 'vs/css!vs/workbench/contrib/debug/browser/media/repl';
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
 import * as errors from 'vs/base/common/errors';
-import { IAction, IActionItem, Action } from 'vs/base/common/actions';
+import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import severity from 'vs/base/common/severity';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
@@ -39,7 +39,7 @@ import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/wor
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { FocusSessionActionItem } from 'vs/workbench/contrib/debug/browser/debugActionItems';
+import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
 import { first } from 'vs/base/common/arrays';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -62,7 +62,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { VariablesRenderer, variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
 
 const $ = dom.$;
 
@@ -76,6 +76,7 @@ interface IPrivateReplService {
 	getVisibleContent(): string;
 	selectSession(session?: IDebugSession): void;
 	clearRepl(): void;
+	focusRepl(): void;
 }
 
 function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
@@ -91,18 +92,18 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private history: HistoryNavigator<string>;
-	private tree: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
-	private replDelegate: ReplDelegate;
-	private container: HTMLElement;
-	private replInput: CodeEditorWidget;
-	private replInputContainer: HTMLElement;
-	private dimension: dom.Dimension;
+	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
+	private replDelegate!: ReplDelegate;
+	private container!: HTMLElement;
+	private replInput!: CodeEditorWidget;
+	private replInputContainer!: HTMLElement;
+	private dimension!: dom.Dimension;
 	private replInputHeight: number;
-	private model: ITextModel;
-	private historyNavigationEnablement: IContextKey<boolean>;
-	private scopedInstantiationService: IInstantiationService;
-	private replElementsChangeListener: IDisposable;
-	private styleElement: HTMLStyleElement;
+	private model!: ITextModel;
+	private historyNavigationEnablement!: IContextKey<boolean>;
+	private scopedInstantiationService!: IInstantiationService;
+	private replElementsChangeListener: IDisposable | undefined;
+	private styleElement: HTMLStyleElement | undefined;
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
@@ -133,15 +134,16 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			}
 			this.selectSession();
 		}));
-		this._register(this.debugService.onWillNewSession(() => {
+		this._register(this.debugService.onWillNewSession(newSession => {
 			// Need to listen to output events for sessions which are not yet fully initialised
 			const input = this.tree.getInput();
 			if (!input || input.state === State.Inactive) {
-				this.selectSession();
+				this.selectSession(newSession);
 			}
 			this.updateTitleArea();
 		}));
 		this._register(this.themeService.onThemeChange(() => {
+			this.refreshReplElements(false);
 			if (this.isVisible()) {
 				this.updateInputDecoration();
 			}
@@ -179,6 +181,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	showNextValue(): void {
 		this.navigateHistory(false);
+	}
+
+	focusRepl(): void {
+		this.tree.domFocus();
 	}
 
 	private onDidFontChange(): void {
@@ -268,6 +274,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			revealLastElement(this.tree);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
+			variableSetEmitter.fire();
 			const shouldRelayout = this.replInputHeight > Repl.REPL_INPUT_INITIAL_HEIGHT;
 			this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 			if (shouldRelayout) {
@@ -282,7 +289,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
 		const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
 			node.children.forEach(child => {
-				text += child.element.toString() + lineDelimiter;
+				text += child.element.toString().trimRight() + lineDelimiter;
 				if (!child.collapsed && child.children.length) {
 					traverseAndAppend(child);
 				}
@@ -296,9 +303,13 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	layout(dimension: dom.Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
+			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight, dimension.width);
+			if (lastElementVisible) {
+				revealLastElement(this.tree);
+			}
 		}
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
@@ -309,9 +320,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInput.focus();
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === SelectReplAction.ID) {
-			return this.instantiationService.createInstance(SelectReplActionItem, this.selectReplAction);
+			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction);
 		}
 
 		return undefined;
@@ -365,23 +376,40 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.createReplInput(this.container);
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, this.replDelegate, [
-			this.instantiationService.createInstance(VariablesRenderer),
-			this.instantiationService.createInstance(ReplSimpleElementsRenderer),
-			new ReplExpressionsRenderer(),
-			new ReplRawObjectsRenderer()
-		], new ReplDataSource(), {
+		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
+		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
+		this.tree = this.instantiationService.createInstance(
+			WorkbenchAsyncDataTree,
+			treeContainer,
+			this.replDelegate,
+			[
+				this.instantiationService.createInstance(VariablesRenderer),
+				this.instantiationService.createInstance(ReplSimpleElementsRenderer),
+				new ReplExpressionsRenderer(),
+				new ReplRawObjectsRenderer()
+			],
+			// https://github.com/microsoft/TypeScript/issues/32526
+			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
+			{
 				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
-				horizontalScrolling: false,
+				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
-				supportDynamicHeights: true
-			}) as WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
-
-		this.toDispose.push(this.tree.onContextMenu(e => this.onContextMenu(e)));
+				supportDynamicHeights: wordWrap
+			});
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		let lastSelectedString: string;
+		this._register(this.tree.onMouseClick(() => {
+			const selection = window.getSelection();
+			if (!selection || selection.type !== 'Range' || lastSelectedString === selection.toString()) {
+				// only focus the input if the user is not currently selecting.
+				this.replInput.focus();
+			}
+			lastSelectedString = selection ? selection.toString() : '';
+		}));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
 		this.styleElement = dom.createStyleSheet(this.container);
@@ -451,16 +479,16 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
-		actions.push(new Action('debug.replCopy', nls.localize('copy', "Copy"), undefined, true, () => {
+		actions.push(new Action('debug.replCopy', nls.localize('copy', "Copy"), undefined, true, async () => {
 			const nativeSelection = window.getSelection();
 			if (nativeSelection) {
-				this.clipboardService.writeText(nativeSelection.toString());
+				await this.clipboardService.writeText(nativeSelection.toString());
 			}
 			return Promise.resolve();
 		}));
-		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, () => {
-			this.clipboardService.writeText(this.getVisibleContent());
-			return Promise.resolve(undefined);
+		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, async () => {
+			await this.clipboardService.writeText(this.getVisibleContent());
+			return Promise.resolve();
 		}));
 		actions.push(new Action('debug.collapseRepl', nls.localize('collapse', "Collapse All"), undefined, true, () => {
 			this.tree.collapseAll();
@@ -532,6 +560,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		if (this.replElementsChangeListener) {
 			this.replElementsChangeListener.dispose();
 		}
+		this.refreshScheduler.dispose();
 		super.dispose();
 	}
 }
@@ -606,7 +635,8 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, Fuz
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService
 	) { }
 
 	get templateId(): string {
@@ -649,7 +679,7 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, Fuz
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector);
+		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService);
 		templateData.value.appendChild(result);
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
@@ -718,13 +748,39 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 	constructor(private configurationService: IConfigurationService) { }
 
 	getHeight(element: IReplElement): number {
+		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
+
 		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
-		const fontSize = this.configurationService.getValue<IDebugConfiguration>('debug').console.fontSize;
-		if (element instanceof Expression && element.hasChildren) {
-			return Math.ceil(2 * 1.4 * fontSize);
+		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+		const fontSize = config.console.fontSize;
+		const rowHeight = Math.ceil(1.4 * fontSize);
+		const wordWrap = config.console.wordWrap;
+		if (!wordWrap) {
+			return element instanceof Expression ? 2 * rowHeight : rowHeight;
 		}
 
-		return Math.ceil(1.4 * fontSize);
+		// In order to keep scroll position we need to give a good approximation to the tree
+		// For every 150 characters increase the number of lines needed
+		if (element instanceof Expression) {
+			let { name, value } = element;
+			let nameRows = countNumberOfLines(name) + Math.floor(name.length / 150);
+
+			if (element.hasChildren) {
+				return (nameRows + 1) * rowHeight;
+			}
+
+			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+			return rowHeight * (nameRows + valueRows);
+		}
+
+		if (element instanceof SimpleReplElement) {
+			let value = element.value;
+			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+
+			return valueRows * rowHeight;
+		}
+
+		return rowHeight;
 	}
 
 	getTemplateId(element: IReplElement): string {
@@ -818,6 +874,28 @@ class AcceptReplInputAction extends EditorAction {
 	}
 }
 
+class FilterReplAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'repl.action.filter',
+			label: nls.localize('repl.action.filter', "REPL Focus Content to Filter"),
+			alias: 'REPL Filter',
+			precondition: CONTEXT_IN_DEBUG_REPL,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
+		SuggestController.get(editor).acceptSelectedSuggestion();
+		accessor.get(IPrivateReplService).focusRepl();
+	}
+}
+
 class ReplCopyAllAction extends EditorAction {
 
 	constructor() {
@@ -831,14 +909,15 @@ class ReplCopyAllAction extends EditorAction {
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		clipboardService.writeText(accessor.get(IPrivateReplService).getVisibleContent());
+		return clipboardService.writeText(accessor.get(IPrivateReplService).getVisibleContent());
 	}
 }
 
 registerEditorAction(AcceptReplInputAction);
 registerEditorAction(ReplCopyAllAction);
+registerEditorAction(FilterReplAction);
 
-class SelectReplActionItem extends FocusSessionActionItem {
+class SelectReplActionViewItem extends FocusSessionActionViewItem {
 
 	protected getActionContext(_: string, index: number): any {
 		return this.debugService.getModel().getSessions(true)[index];

@@ -443,11 +443,11 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
 
 	// Split editor (if it can be split)
-	let editorToCopy: IEditorInput | null;
+	let editorToCopy: IEditorInput | undefined;
 	if (context && typeof context.editorIndex === 'number') {
 		editorToCopy = sourceGroup.getEditor(context.editorIndex);
 	} else {
-		editorToCopy = sourceGroup.activeEditor;
+		editorToCopy = types.withNullAsUndefined(sourceGroup.activeEditor);
 	}
 
 	if (editorToCopy && (editorToCopy as EditorInput).supportsSplitEditor()) {
@@ -670,19 +670,17 @@ function registerCloseEditorCommands() {
 		}
 	});
 
-	CommandsRegistry.registerCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, (accessor: ServicesAccessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+	CommandsRegistry.registerCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, async (accessor: ServicesAccessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 		if (group) {
-			return group.closeAllEditors().then(() => {
-				if (group.count === 0 && editorGroupService.getGroup(group.id) /* could be gone by now */) {
-					editorGroupService.removeGroup(group); // only remove group if it is now empty
-				}
-			});
-		}
+			await group.closeAllEditors();
 
-		return undefined;
+			if (group.count === 0 && editorGroupService.getGroup(group.id) /* could be gone by now */) {
+				editorGroupService.removeGroup(group); // only remove group if it is now empty
+			}
+		}
 	});
 }
 

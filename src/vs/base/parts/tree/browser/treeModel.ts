@@ -159,7 +159,7 @@ export class ItemRegistry {
 	public register(item: Item): void {
 		Assert.ok(!this.isRegistered(item.id), 'item already registered: ' + item.id);
 
-		const disposable = combinedDisposable([
+		const disposable = combinedDisposable(
 			this._onDidRevealItem.add(item.onDidReveal),
 			this._onExpandItem.add(item.onExpand),
 			this._onDidExpandItem.add(item.onDidExpand),
@@ -171,7 +171,7 @@ export class ItemRegistry {
 			this._onRefreshItemChildren.add(item.onRefreshChildren),
 			this._onDidRefreshItemChildren.add(item.onDidRefreshChildren),
 			this._onDidDisposeItem.add(item.onDidDispose)
-		]);
+		);
 
 		this.items[item.id] = { item, disposable };
 	}
@@ -862,10 +862,10 @@ export interface IRefreshEvent extends IBaseEvent {
 export class TreeModel {
 
 	private context: _.ITreeContext;
-	private lock: Lock;
+	private lock!: Lock;
 	private input: Item | null;
-	private registry: ItemRegistry;
-	private registryDisposable: IDisposable;
+	private registry!: ItemRegistry;
+	private registryDisposable!: IDisposable;
 	private traitsToItems: ITraitMap;
 
 	private _onSetInput = new Emitter<IInputEvent>();

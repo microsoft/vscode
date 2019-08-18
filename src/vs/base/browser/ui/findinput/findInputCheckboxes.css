@@ -4,28 +4,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 .vs .monaco-custom-checkbox.monaco-case-sensitive {
-	background: url('case-sensitive.svg') center center no-repeat;
+	background: url('case-sensitive-light.svg') center center no-repeat;
 }
-.hc-black .monaco-custom-checkbox.monaco-case-sensitive,
-.hc-black .monaco-custom-checkbox.monaco-case-sensitive:hover,
+
 .vs-dark .monaco-custom-checkbox.monaco-case-sensitive {
 	background: url('case-sensitive-dark.svg') center center no-repeat;
 }
 
-.vs .monaco-custom-checkbox.monaco-whole-word {
-	background: url('whole-word.svg') center center no-repeat;
+.hc-black .monaco-custom-checkbox.monaco-case-sensitive,
+.hc-black .monaco-custom-checkbox.monaco-case-sensitive:hover {
+	background: url('case-sensitive-hc.svg') center center no-repeat;
 }
-.hc-black .monaco-custom-checkbox.monaco-whole-word,
-.hc-black .monaco-custom-checkbox.monaco-whole-word:hover,
+
+.vs .monaco-custom-checkbox.monaco-preserve-case {
+	background: url('preserve-case-light.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-custom-checkbox.monaco-preserve-case {
+	background: url('preserve-case-dark.svg') center center no-repeat;
+}
+
+.hc-black .monaco-custom-checkbox.monaco-preserve-case,
+.hc-black .monaco-custom-checkbox.monaco-preserve-case:hover {
+	background: url('preserve-case-hc.svg') center center no-repeat;
+}
+
+.vs .monaco-custom-checkbox.monaco-whole-word {
+	background: url('whole-word-light.svg') center center no-repeat;
+}
+
 .vs-dark .monaco-custom-checkbox.monaco-whole-word {
 	background: url('whole-word-dark.svg') center center no-repeat;
 }
 
-.vs .monaco-custom-checkbox.monaco-regex {
-	background: url('regex.svg') center center no-repeat;
+.hc-black .monaco-custom-checkbox.monaco-whole-word,
+.hc-black .monaco-custom-checkbox.monaco-whole-word:hover {
+	background: url('whole-word-hc.svg') center center no-repeat;
 }
-.hc-black .monaco-custom-checkbox.monaco-regex,
-.hc-black .monaco-custom-checkbox.monaco-regex:hover,
+
+.vs .monaco-custom-checkbox.monaco-regex {
+	background: url('regex-light.svg') center center no-repeat;
+}
+
 .vs-dark .monaco-custom-checkbox.monaco-regex {
 	background: url('regex-dark.svg') center center no-repeat;
+}
+
+.hc-black .monaco-custom-checkbox.monaco-regex,
+.hc-black .monaco-custom-checkbox.monaco-regex:hover {
+	background: url('regex-hc.svg') center center no-repeat;
 }

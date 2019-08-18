@@ -15,7 +15,6 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { HotExitConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
@@ -38,7 +37,7 @@ class ServiceAccessor {
 
 class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 
-	public value: boolean | Promise<boolean>;
+	public value: boolean | Promise<boolean> | undefined;
 	public reason = ShutdownReason.CLOSE;
 
 	veto(value: boolean | Promise<boolean>): void {
@@ -66,8 +65,8 @@ suite('Files - TextFileService', () => {
 		accessor.untitledEditorService.revertAll();
 	});
 
-	test('confirm onWillShutdown - no veto', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+	test('confirm onWillShutdown - no veto', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const event = new BeforeShutdownEventImpl();
@@ -77,253 +76,237 @@ suite('Files - TextFileService', () => {
 		if (typeof veto === 'boolean') {
 			assert.ok(!veto);
 		} else {
-			veto.then(veto => {
-				assert.ok(!veto);
-			});
+			assert.ok(!(await veto));
 		}
 	});
 
-	test('confirm onWillShutdown - veto if user cancels', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+	test('confirm onWillShutdown - veto if user cancels', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
 		service.setConfirmResult(ConfirmResult.CANCEL);
 
-		return model.load().then(() => {
-			model.textEditorModel!.setValue('foo');
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+		assert.equal(service.getDirty().length, 1);
 
-			assert.equal(service.getDirty().length, 1);
-
-			const event = new BeforeShutdownEventImpl();
-			accessor.lifecycleService.fireWillShutdown(event);
-
-			assert.ok(event.value);
-		});
+		const event = new BeforeShutdownEventImpl();
+		accessor.lifecycleService.fireWillShutdown(event);
+		assert.ok(event.value);
 	});
 
-	test('confirm onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+	test('confirm onWillShutdown - no veto and backups cleaned up if user does not want to save (hot.exit: off)', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
 		service.setConfirmResult(ConfirmResult.DONT_SAVE);
 		service.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
-		return model.load().then(() => {
-			model.textEditorModel!.setValue('foo');
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+		assert.equal(service.getDirty().length, 1);
+		const event = new BeforeShutdownEventImpl();
+		accessor.lifecycleService.fireWillShutdown(event);
 
-			assert.equal(service.getDirty().length, 1);
+		let veto = event.value;
+		if (typeof veto === 'boolean') {
+			assert.ok(service.cleanupBackupsBeforeShutdownCalled);
+			assert.ok(!veto);
+			return;
+		}
 
-			const event = new BeforeShutdownEventImpl();
-			accessor.lifecycleService.fireWillShutdown(event);
-
-			const veto = event.value;
-			if (typeof veto === 'boolean') {
-				assert.ok(service.cleanupBackupsBeforeShutdownCalled);
-				assert.ok(!veto);
-
-				return undefined;
-			} else {
-				return veto.then(veto => {
-					assert.ok(service.cleanupBackupsBeforeShutdownCalled);
-					assert.ok(!veto);
-				});
-			}
-		});
+		veto = await veto;
+		assert.ok(service.cleanupBackupsBeforeShutdownCalled);
+		assert.ok(!veto);
 	});
 
-	test('confirm onWillShutdown - save (hot.exit: off)', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+	test('confirm onWillShutdown - save (hot.exit: off)', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
 		service.setConfirmResult(ConfirmResult.SAVE);
 		service.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
-		return model.load().then(() => {
-			model.textEditorModel!.setValue('foo');
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+		assert.equal(service.getDirty().length, 1);
+		const event = new BeforeShutdownEventImpl();
+		accessor.lifecycleService.fireWillShutdown(event);
 
-			assert.equal(service.getDirty().length, 1);
-
-			const event = new BeforeShutdownEventImpl();
-			accessor.lifecycleService.fireWillShutdown(event);
-
-			return (<Promise<boolean>>event.value).then(veto => {
-				assert.ok(!veto);
-				assert.ok(!model.isDirty());
-			});
-		});
+		const veto = await (<Promise<boolean>>event.value);
+		assert.ok(!veto);
+		assert.ok(!model.isDirty());
 	});
 
-	test('isDirty/getDirty - files and untitled', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
-
-		const service = accessor.textFileService;
-		return model.load().then(() => {
-			assert.ok(!service.isDirty(model.getResource()));
-			model.textEditorModel!.setValue('foo');
-
-			assert.ok(service.isDirty(model.getResource()));
-			assert.equal(service.getDirty().length, 1);
-			assert.equal(service.getDirty([model.getResource()])[0].toString(), model.getResource().toString());
-
-			const untitled = accessor.untitledEditorService.createOrGet();
-			return untitled.resolve().then((model: UntitledEditorModel) => {
-				assert.ok(!service.isDirty(untitled.getResource()));
-				assert.equal(service.getDirty().length, 1);
-				model.textEditorModel!.setValue('changed');
-
-				assert.ok(service.isDirty(untitled.getResource()));
-				assert.equal(service.getDirty().length, 2);
-				assert.equal(service.getDirty([untitled.getResource()])[0].toString(), untitled.getResource().toString());
-			});
-		});
-	});
-
-	test('save - file', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+	test('isDirty/getDirty - files and untitled', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
 
-		return model.load().then(() => {
-			model.textEditorModel!.setValue('foo');
+		await model.load();
 
-			assert.ok(service.isDirty(model.getResource()));
+		assert.ok(!service.isDirty(model.getResource()));
+		model.textEditorModel!.setValue('foo');
 
-			return service.save(model.getResource()).then(res => {
-				assert.ok(res);
-				assert.ok(!service.isDirty(model.getResource()));
-			});
-		});
+		assert.ok(service.isDirty(model.getResource()));
+		assert.equal(service.getDirty().length, 1);
+		assert.equal(service.getDirty([model.getResource()])[0].toString(), model.getResource().toString());
+
+		const untitled = accessor.untitledEditorService.createOrGet();
+		const untitledModel = await untitled.resolve();
+
+		assert.ok(!service.isDirty(untitled.getResource()));
+		assert.equal(service.getDirty().length, 1);
+		untitledModel.textEditorModel!.setValue('changed');
+
+		assert.ok(service.isDirty(untitled.getResource()));
+		assert.equal(service.getDirty().length, 2);
+		assert.equal(service.getDirty([untitled.getResource()])[0].toString(), untitled.getResource().toString());
 	});
 
-	test('save - UNC path', function () {
+	test('save - file', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
+		const service = accessor.textFileService;
+
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+		assert.ok(service.isDirty(model.getResource()));
+
+		const res = await service.save(model.getResource());
+		assert.ok(res);
+		assert.ok(!service.isDirty(model.getResource()));
+	});
+
+	test('save - UNC path', async function () {
 		const untitledUncUri = URI.from({ scheme: 'untitled', authority: 'server', path: '/share/path/file.txt' });
-		model = instantiationService.createInstance(TextFileEditorModel, untitledUncUri, 'utf8');
+		model = instantiationService.createInstance(TextFileEditorModel, untitledUncUri, 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const mockedFileUri = untitledUncUri.with({ scheme: Schemas.file });
-		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8');
+		const mockedEditorInput = instantiationService.createInstance(TextFileEditorModel, mockedFileUri, 'utf8', undefined);
 		const loadOrCreateStub = sinon.stub(accessor.textFileService.models, 'loadOrCreate', () => Promise.resolve(mockedEditorInput));
 
 		sinon.stub(accessor.untitledEditorService, 'exists', () => true);
 		sinon.stub(accessor.untitledEditorService, 'hasAssociatedFilePath', () => true);
 		sinon.stub(accessor.modelService, 'updateModel', () => { });
 
-		return model.load().then(() => {
-			model.textEditorModel!.setValue('foo');
+		await model.load();
+		model.textEditorModel!.setValue('foo');
 
-			return accessor.textFileService.saveAll(true).then(res => {
-				assert.ok(loadOrCreateStub.calledOnce);
-				assert.equal(res.results.length, 1);
-				assert.ok(res.results[0].success);
-
-				assert.equal(res.results[0].target!.scheme, Schemas.file);
-				assert.equal(res.results[0].target!.authority, untitledUncUri.authority);
-				assert.equal(res.results[0].target!.path, untitledUncUri.path);
-			});
-		});
+		const res = await accessor.textFileService.saveAll(true);
+		assert.ok(loadOrCreateStub.calledOnce);
+		assert.equal(res.results.length, 1);
+		assert.ok(res.results[0].success);
+		assert.equal(res.results[0].target!.scheme, Schemas.file);
+		assert.equal(res.results[0].target!.authority, untitledUncUri.authority);
+		assert.equal(res.results[0].target!.path, untitledUncUri.path);
 	});
 
-	test('saveAll - file', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+	test('saveAll - file', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
 
-		return model.load().then(() => {
-			model.textEditorModel!.setValue('foo');
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+		assert.ok(service.isDirty(model.getResource()));
 
-			assert.ok(service.isDirty(model.getResource()));
-
-			return service.saveAll([model.getResource()]).then(res => {
-				assert.ok(res);
-				assert.ok(!service.isDirty(model.getResource()));
-				assert.equal(res.results.length, 1);
-				assert.equal(res.results[0].source.toString(), model.getResource().toString());
-			});
-		});
+		const res = await service.saveAll([model.getResource()]);
+		assert.ok(res);
+		assert.ok(!service.isDirty(model.getResource()));
+		assert.equal(res.results.length, 1);
+		assert.equal(res.results[0].source.toString(), model.getResource().toString());
 	});
 
-	test('saveAs - file', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+	test('saveAs - file', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
 		service.setPromptPath(model.getResource());
 
-		return model.load().then(() => {
-			model.textEditorModel!.setValue('foo');
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+		assert.ok(service.isDirty(model.getResource()));
 
-			assert.ok(service.isDirty(model.getResource()));
-
-			return service.saveAs(model.getResource()).then(res => {
-				assert.equal(res!.toString(), model.getResource().toString());
-				assert.ok(!service.isDirty(model.getResource()));
-			});
-		});
+		const res = await service.saveAs(model.getResource());
+		assert.equal(res!.toString(), model.getResource().toString());
+		assert.ok(!service.isDirty(model.getResource()));
 	});
 
-	test('revert - file', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+	test('revert - file', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
 		service.setPromptPath(model.getResource());
 
-		return model.load().then(() => {
-			model!.textEditorModel!.setValue('foo');
+		await model.load();
+		model!.textEditorModel!.setValue('foo');
+		assert.ok(service.isDirty(model.getResource()));
 
-			assert.ok(service.isDirty(model.getResource()));
-
-			return service.revert(model.getResource()).then(res => {
-				assert.ok(res);
-				assert.ok(!service.isDirty(model.getResource()));
-			});
-		});
+		const res = await service.revert(model.getResource());
+		assert.ok(res);
+		assert.ok(!service.isDirty(model.getResource()));
 	});
 
-	test('delete - dirty file', function () {
-		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+	test('delete - dirty file', async function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
 
-		return model.load().then(() => {
-			model!.textEditorModel!.setValue('foo');
+		await model.load();
+		model!.textEditorModel!.setValue('foo');
+		assert.ok(service.isDirty(model.getResource()));
 
-			assert.ok(service.isDirty(model.getResource()));
-
-			return service.delete(model.getResource()).then(() => {
-				assert.ok(!service.isDirty(model.getResource()));
-			});
-		});
+		await service.delete(model.getResource());
+		assert.ok(!service.isDirty(model.getResource()));
 	});
 
-	test('move - dirty file', function () {
-		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
-		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target.txt'), 'utf8');
+	test('move - dirty file', async function () {
+		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'));
+	});
+
+	test('move - dirty file (target exists and is dirty)', async function () {
+		await testMove(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true);
+	});
+
+	async function testMove(source: URI, target: URI, targetDirty?: boolean): Promise<void> {
+		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
+		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(sourceModel.getResource(), sourceModel);
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(targetModel.getResource(), targetModel);
 
 		const service = accessor.textFileService;
 
-		return sourceModel.load().then(() => {
-			sourceModel.textEditorModel!.setValue('foo');
+		await sourceModel.load();
+		sourceModel.textEditorModel!.setValue('foo');
+		assert.ok(service.isDirty(sourceModel.getResource()));
 
-			assert.ok(service.isDirty(sourceModel.getResource()));
+		if (targetDirty) {
+			await targetModel.load();
+			targetModel.textEditorModel!.setValue('bar');
+			assert.ok(service.isDirty(targetModel.getResource()));
+		}
 
-			return service.move(sourceModel.getResource(), targetModel.getResource(), true).then(() => {
-				assert.ok(!service.isDirty(sourceModel.getResource()));
+		await service.move(sourceModel.getResource(), targetModel.getResource(), true);
 
-				sourceModel.dispose();
-				targetModel.dispose();
-			});
-		});
-	});
+		assert.equal(targetModel.textEditorModel!.getValue(), 'foo');
+
+		assert.ok(!service.isDirty(sourceModel.getResource()));
+		assert.ok(service.isDirty(targetModel.getResource()));
+
+		sourceModel.dispose();
+		targetModel.dispose();
+	}
 
 	suite('Hot Exit', () => {
 		suite('"onExit" setting', () => {
@@ -428,8 +411,8 @@ suite('Files - TextFileService', () => {
 			});
 		});
 
-		function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: true, shouldVeto: boolean): Promise<void> {
-			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: true, shouldVeto: boolean): Promise<void> {
+			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 			(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 			const service = accessor.textFileService;
@@ -446,21 +429,16 @@ suite('Files - TextFileService', () => {
 			// Set cancel to force a veto if hot exit does not trigger
 			service.setConfirmResult(ConfirmResult.CANCEL);
 
-			return model.load().then(() => {
-				model.textEditorModel!.setValue('foo');
+			await model.load();
+			model.textEditorModel!.setValue('foo');
+			assert.equal(service.getDirty().length, 1);
+			const event = new BeforeShutdownEventImpl();
+			event.reason = shutdownReason;
+			accessor.lifecycleService.fireWillShutdown(event);
 
-				assert.equal(service.getDirty().length, 1);
-
-				const event = new BeforeShutdownEventImpl();
-				event.reason = shutdownReason;
-				accessor.lifecycleService.fireWillShutdown(event);
-
-				return (<Promise<boolean>>event.value).then(veto => {
-					// When hot exit is set, backups should never be cleaned since the confirm result is cancel
-					assert.ok(!service.cleanupBackupsBeforeShutdownCalled);
-					assert.equal(veto, shouldVeto);
-				});
-			});
+			const veto = await (<Promise<boolean>>event.value);
+			assert.ok(!service.cleanupBackupsBeforeShutdownCalled); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
+			assert.equal(veto, shouldVeto);
 		}
 	});
 });

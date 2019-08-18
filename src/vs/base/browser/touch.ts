@@ -69,7 +69,7 @@ export class Gesture extends Disposable {
 	private static INSTANCE: Gesture;
 	private static HOLD_DELAY = 700;
 
-	private dispatched: boolean;
+	private dispatched = false;
 	private targets: HTMLElement[];
 	private handle: IDisposable | null;
 
@@ -214,10 +214,10 @@ export class Gesture extends Disposable {
 		}
 	}
 
-	private newGestureEvent(type: string, intialTarget?: EventTarget): GestureEvent {
+	private newGestureEvent(type: string, initialTarget?: EventTarget): GestureEvent {
 		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
 		event.initEvent(type, false, true);
-		event.initialTarget = intialTarget;
+		event.initialTarget = initialTarget;
 		return event;
 	}
 

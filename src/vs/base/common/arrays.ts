@@ -293,12 +293,9 @@ function topStep<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, re
 }
 
 /**
- * @returns a new array with all falsy values removed. The original array IS NOT modified.
+ * @returns New array with all falsy values removed. The original array IS NOT modified.
  */
-export function coalesce<T>(array: Array<T | undefined | null>): T[] {
-	if (!array) {
-		return array;
-	}
+export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
 	return <T[]>array.filter(e => !!e);
 }
 
@@ -306,9 +303,6 @@ export function coalesce<T>(array: Array<T | undefined | null>): T[] {
  * Remove all falsey values from `array`. The original array IS modified.
  */
 export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
-	if (!array) {
-		return;
-	}
 	let to = 0;
 	for (let i = 0; i < array.length; i++) {
 		if (!!array[i]) {
@@ -336,7 +330,9 @@ export function isFalsyOrEmpty(obj: any): boolean {
 /**
  * @returns True if the provided object is an array and has at least one element.
  */
-export function isNonEmptyArray<T>(obj: ReadonlyArray<T> | undefined | null): obj is Array<T> {
+export function isNonEmptyArray<T>(obj: T[] | undefined | null): obj is T[];
+export function isNonEmptyArray<T>(obj: readonly T[] | undefined | null): obj is readonly T[];
+export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): obj is T[] | readonly T[] {
 	return Array.isArray(obj) && obj.length > 0;
 }
 

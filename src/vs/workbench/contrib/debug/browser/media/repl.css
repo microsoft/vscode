@@ -13,6 +13,9 @@
 
 .repl .repl-tree .monaco-tl-contents {
 	user-select: text;
+}
+
+.repl .repl-tree.word-wrap .monaco-tl-contents {
 	/* Wrap words but also do not trim whitespace #6275 */
 	word-wrap: break-word;
 	white-space: pre-wrap;
@@ -85,12 +88,15 @@
 
 /* Actions */
 .debug-action.clear-repl {
-	background: url('clear-repl.svg') center center no-repeat;
+	background: url('clear-light.svg') center center no-repeat;
 }
 
-.vs-dark .debug-action.clear-repl,
+.vs-dark .debug-action.clear-repl {
+	background: url('clear-dark.svg') center center no-repeat;
+}
+
 .hc-black .debug-action.clear-repl {
-	background: url('clear-repl-inverse.svg') center center no-repeat;
+	background: url('clear-hc.svg') center center no-repeat;
 }
 
 /* Output coloring  and styling */
@@ -126,61 +132,6 @@
 .monaco-workbench .repl .repl-tree .output.expression .code-bold	{ font-weight: bold; }
 .monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
 .monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline; }
-
-/* Regular and bright color codes are currently treated the same. */
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-30, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-90	{ color: gray; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-31, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-91	{ color: #BE1717; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-32, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-92	{ color: #338A2F; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-33, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-93	{ color: #BEB817; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-34, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-94	{ color: darkblue; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-35, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-95	{ color: darkmagenta; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-36, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-96	{ color: darkcyan; }
-.monaco-workbench .repl .repl-tree .output.expression .code-foreground-37, .monaco-workbench .repl .repl-tree .output.expression .code-foreground-97	{ color: #BDBDBD; }
-
-.monaco-workbench .repl .repl-tree .output.expression .code-background-40, .monaco-workbench .repl .repl-tree .output.expression .code-background-100 { background-color: gray; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-41, .monaco-workbench .repl .repl-tree .output.expression .code-background-101 { background-color: #BE1717; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-42, .monaco-workbench .repl .repl-tree .output.expression .code-background-102 { background-color: #338A2F; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-43, .monaco-workbench .repl .repl-tree .output.expression .code-background-103 { background-color: #BEB817; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-44, .monaco-workbench .repl .repl-tree .output.expression .code-background-104 { background-color: darkblue; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-45, .monaco-workbench .repl .repl-tree .output.expression .code-background-105 { background-color: darkmagenta; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-46, .monaco-workbench .repl .repl-tree .output.expression .code-background-106 { background-color: darkcyan; }
-.monaco-workbench .repl .repl-tree .output.expression .code-background-47, .monaco-workbench .repl .repl-tree .output.expression .code-background-107 { background-color: #BDBDBD; }
-
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-30, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-90  { color: #A0A0A0; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-31, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-91  { color: #A74747; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-32, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-92  { color: #348F34; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-33, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-93  { color: #5F4C29; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-34, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-94  { color: #6286BB; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-35, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-95  { color: #914191; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-36, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-96  { color: #218D8D; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-37, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-foreground-97  { color: #707070; }
-
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-40, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-100 { background-color: #A0A0A0; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-41, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-101 { background-color: #A74747; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-42, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-102 { background-color: #348F34; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-43, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-103 { background-color: #5F4C29; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-44, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-104 { background-color: #6286BB; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-45, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-105 { background-color: #914191; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-46, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-106 { background-color: #218D8D; }
-.vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-47, .vs-dark .monaco-workbench .repl .repl-tree .output.expression .code-background-107 { background-color: #707070; }
-
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-30, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-90	{ color: gray; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-31, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-91	{ color: #A74747; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-32, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-92	{ color: #348F34; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-33, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-93	{ color: #5F4C29; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-34, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-94	{ color: #6286BB; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-35, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-95	{ color: #914191; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-36, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-96	{ color: #218D8D; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-37, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-foreground-97	{ color: #707070; }
-
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-40, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-100 { background-color: gray; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-41, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-101 { background-color: #A74747; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-42, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-102 { background-color: #348F34; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-43, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-103 { background-color: #5F4C29; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-44, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-104 { background-color: #6286BB; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-45, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-105 { background-color: #914191; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-46, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-106 { background-color: #218D8D; }
-.hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-47, .hc-black .monaco-workbench .repl .repl-tree .output.expression .code-background-107 { background-color: #707070; }
 
 /* Links */
 .monaco-workbench .repl .repl-tree .output.expression a {

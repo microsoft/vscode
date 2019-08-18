@@ -39,6 +39,7 @@ export interface IRelatedInformation {
 
 export const enum MarkerTag {
 	Unnecessary = 1,
+	Deprecated = 2
 }
 
 export enum MarkerSeverity {
@@ -69,6 +70,15 @@ export namespace MarkerSeverity {
 			case Severity.Warning: return MarkerSeverity.Warning;
 			case Severity.Info: return MarkerSeverity.Info;
 			case Severity.Ignore: return MarkerSeverity.Hint;
+		}
+	}
+
+	export function toSeverity(severity: MarkerSeverity): Severity {
+		switch (severity) {
+			case MarkerSeverity.Error: return Severity.Error;
+			case MarkerSeverity.Warning: return Severity.Warning;
+			case MarkerSeverity.Info: return Severity.Info;
+			case MarkerSeverity.Hint: return Severity.Ignore;
 		}
 	}
 }
@@ -119,6 +129,10 @@ export interface MarkerStatistics {
 export namespace IMarkerData {
 	const emptyString = '';
 	export function makeKey(markerData: IMarkerData): string {
+		return makeKeyOptionalMessage(markerData, true);
+	}
+
+	export function makeKeyOptionalMessage(markerData: IMarkerData, useMessage: boolean): string {
 		let result: string[] = [emptyString];
 		if (markerData.source) {
 			result.push(markerData.source.replace('¦', '\¦'));
@@ -135,7 +149,10 @@ export namespace IMarkerData {
 		} else {
 			result.push(emptyString);
 		}
-		if (markerData.message) {
+
+		// Modifed to not include the message as part of the marker key to work around
+		// https://github.com/microsoft/vscode/issues/77475
+		if (markerData.message && useMessage) {
 			result.push(markerData.message.replace('¦', '\¦'));
 		} else {
 			result.push(emptyString);

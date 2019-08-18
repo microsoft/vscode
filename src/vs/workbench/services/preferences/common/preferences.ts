@@ -10,7 +10,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -25,6 +25,7 @@ export enum SettingValueType {
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',
+	ArrayOfString = 'array-of-string',
 	Exclude = 'exclude',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
@@ -61,10 +62,12 @@ export interface ISetting {
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
+	arrayItemType?: string;
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;
 	tags?: string[];
+	extensionInfo?: IConfigurationExtensionInfo;
 	validator?: (value: any) => string | null;
 }
 
@@ -195,18 +198,18 @@ export interface IPreferencesService {
 	getFolderSettingsResource(resource: URI): URI | null;
 
 	resolveModel(uri: URI): Promise<ITextModel | null>;
-	createPreferencesEditorModel<T>(uri: URI): Promise<IPreferencesEditorModel<T>>;
+	createPreferencesEditorModel<T>(uri: URI): Promise<IPreferencesEditorModel<T> | null>;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
-	openRawDefaultSettings(): Promise<IEditor | null>;
-	openSettings(jsonEditor?: boolean): Promise<IEditor | null>;
-	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
-	openRemoteSettings(): Promise<IEditor | null>;
-	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
-	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | null>;
+	openRawDefaultSettings(): Promise<IEditor | undefined>;
+	openSettings(jsonEditor: boolean | undefined, query: string | undefined): Promise<IEditor | undefined>;
+	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
+	openRemoteSettings(): Promise<IEditor | undefined>;
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
 	openGlobalKeybindingSettings(textual: boolean): Promise<void>;
-	openDefaultKeybindingsFile(): Promise<IEditor | null>;
+	openDefaultKeybindingsFile(): Promise<IEditor | undefined>;
 
 	configureSettingsForLanguage(language: string | null): void;
 }
@@ -214,6 +217,7 @@ export interface IPreferencesService {
 export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {
 	switch (target) {
 		case ConfigurationTarget.USER:
+		case ConfigurationTarget.USER_LOCAL:
 			return localize('userSettingsTarget', "User Settings");
 		case ConfigurationTarget.WORKSPACE:
 			return localize('workspaceSettingsTarget', "Workspace Settings");

@@ -29,7 +29,7 @@ export interface IBreadcrumbsService {
 
 export class BreadcrumbsService implements IBreadcrumbsService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
 
@@ -55,8 +55,8 @@ registerSingleton(IBreadcrumbsService, BreadcrumbsService, true);
 
 export abstract class BreadcrumbsConfig<T> {
 
-	name: string;
-	onDidChange: Event<void>;
+	abstract get name(): string;
+	abstract get onDidChange(): Event<void>;
 
 	abstract getValue(overrides?: IConfigurationOverrides): T;
 	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Promise<void>;
@@ -71,7 +71,7 @@ export abstract class BreadcrumbsConfig<T> {
 	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
 	static SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
-	static FilterOnType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.filterOnType');
+	static Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
 
 	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
@@ -122,7 +122,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'breadcrumbs.enabled': {
 			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
 			type: 'boolean',
-			default: false
+			default: true
 		},
 		// 'breadcrumbs.useQuickPick': {
 		// 	description: localize('useQuickPick', "Use quick pick instead of breadcrumb-pickers."),
@@ -162,11 +162,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
 			]
 		},
-		// 'breadcrumbs.filterOnType': {
-		// 	description: localize('filterOnType', "Controls whether the breadcrumb picker filters or highlights when typing."),
-		// 	type: 'boolean',
-		// 	default: false
-		// },
+		'breadcrumbs.icons': {
+			description: localize('icons', "Render breadcrumb items with icons."),
+			type: 'boolean',
+			default: true
+		}
 	}
 });
 

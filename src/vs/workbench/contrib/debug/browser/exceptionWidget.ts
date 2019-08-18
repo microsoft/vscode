@@ -35,12 +35,12 @@ export class ExceptionWidget extends ZoneWidget {
 		this._backgroundColor = Color.white;
 
 		this._applyTheme(themeService.getTheme());
-		this._disposables.push(themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._disposables.add(themeService.onThemeChange(this._applyTheme.bind(this)));
 
 		this.create();
 		const onDidLayoutChangeScheduler = new RunOnceScheduler(() => this._doLayout(undefined, undefined), 50);
-		this._disposables.push(this.editor.onDidLayoutChange(() => onDidLayoutChangeScheduler.schedule()));
-		this._disposables.push(onDidLayoutChangeScheduler);
+		this._disposables.add(this.editor.onDidLayoutChange(() => onDidLayoutChangeScheduler.schedule()));
+		this._disposables.add(onDidLayoutChangeScheduler);
 	}
 
 	private _applyTheme(theme: ITheme): void {
@@ -63,8 +63,8 @@ export class ExceptionWidget extends ZoneWidget {
 		this.setCssClass('exception-widget');
 		// Set the font size and line height to the one from the editor configuration.
 		const fontInfo = this.editor.getConfiguration().fontInfo;
-		this.container.style.fontSize = `${fontInfo.fontSize}px`;
-		this.container.style.lineHeight = `${fontInfo.lineHeight}px`;
+		container.style.fontSize = `${fontInfo.fontSize}px`;
+		container.style.lineHeight = `${fontInfo.lineHeight}px`;
 
 		let title = $('.title');
 		title.textContent = this.exceptionInfo.id ? nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id) : nls.localize('exceptionThrown', 'Exception has occurred.');
@@ -87,11 +87,11 @@ export class ExceptionWidget extends ZoneWidget {
 
 	protected _doLayout(_heightInPixel: number | undefined, _widthInPixel: number | undefined): void {
 		// Reload the height with respect to the exception text content and relayout it to match the line count.
-		this.container.style.height = 'initial';
+		this.container!.style.height = 'initial';
 
 		const lineHeight = this.editor.getConfiguration().lineHeight;
 		const arrowHeight = Math.round(lineHeight / 3);
-		const computedLinesNumber = Math.ceil((this.container.offsetHeight + arrowHeight) / lineHeight);
+		const computedLinesNumber = Math.ceil((this.container!.offsetHeight + arrowHeight) / lineHeight);
 
 		this._relayout(computedLinesNumber);
 	}

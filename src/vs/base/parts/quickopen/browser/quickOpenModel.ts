@@ -36,11 +36,11 @@ let IDS = 0;
 export class QuickOpenItemAccessorClass implements IItemAccessor<QuickOpenEntry> {
 
 	getItemLabel(entry: QuickOpenEntry): string | null {
-		return entry.getLabel();
+		return types.withUndefinedAsNull(entry.getLabel());
 	}
 
 	getItemDescription(entry: QuickOpenEntry): string | null {
-		return entry.getDescription();
+		return types.withUndefinedAsNull(entry.getDescription());
 	}
 
 	getItemPath(entry: QuickOpenEntry): string | undefined {
@@ -57,7 +57,7 @@ export class QuickOpenEntry {
 	private labelHighlights: IHighlight[];
 	private descriptionHighlights?: IHighlight[];
 	private detailHighlights?: IHighlight[];
-	private hidden: boolean;
+	private hidden: boolean | undefined;
 
 	constructor(highlights: IHighlight[] = []) {
 		this.id = (IDS++).toString();
@@ -75,15 +75,15 @@ export class QuickOpenEntry {
 	/**
 	 * The label of the entry to identify it from others in the list
 	 */
-	getLabel(): string | null {
-		return null;
+	getLabel(): string | undefined {
+		return undefined;
 	}
 
 	/**
 	 * The options for the label to use for this entry
 	 */
-	getLabelOptions(): IIconLabelValueOptions | null {
-		return null;
+	getLabelOptions(): IIconLabelValueOptions | undefined {
+		return undefined;
 	}
 
 	/**
@@ -97,58 +97,58 @@ export class QuickOpenEntry {
 	/**
 	 * Detail information about the entry that is optional and can be shown below the label
 	 */
-	getDetail(): string | null {
-		return null;
+	getDetail(): string | undefined {
+		return undefined;
 	}
 
 	/**
 	 * The icon of the entry to identify it from others in the list
 	 */
-	getIcon(): string | null {
-		return null;
+	getIcon(): string | undefined {
+		return undefined;
 	}
 
 	/**
 	 * A secondary description that is optional and can be shown right to the label
 	 */
-	getDescription(): string | null {
-		return null;
+	getDescription(): string | undefined {
+		return undefined;
 	}
 
 	/**
 	 * A tooltip to show when hovering over the entry.
 	 */
-	getTooltip(): string | null {
-		return null;
+	getTooltip(): string | undefined {
+		return undefined;
 	}
 
 	/**
 	 * A tooltip to show when hovering over the description portion of the entry.
 	 */
-	getDescriptionTooltip(): string | null {
-		return null;
+	getDescriptionTooltip(): string | undefined {
+		return undefined;
 	}
 
 	/**
 	 * An optional keybinding to show for an entry.
 	 */
-	getKeybinding(): ResolvedKeybinding | null {
-		return null;
+	getKeybinding(): ResolvedKeybinding | undefined {
+		return undefined;
 	}
 
 	/**
 	 * A resource for this entry. Resource URIs can be used to compare different kinds of entries and group
 	 * them together.
 	 */
-	getResource(): URI | null {
-		return null;
+	getResource(): URI | undefined {
+		return undefined;
 	}
 
 	/**
 	 * Allows to reuse the same model while filtering. Hidden entries will not show up in the viewer.
 	 */
 	isHidden(): boolean {
-		return this.hidden;
+		return !!this.hidden;
 	}
 
 	/**
@@ -229,11 +229,11 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		this.withBorder = showBorder;
 	}
 
-	getLabel(): string | null {
+	getLabel(): string | undefined {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
 
-	getLabelOptions(): IIconLabelValueOptions | null {
+	getLabelOptions(): IIconLabelValueOptions | undefined {
 		return this.entry ? this.entry.getLabelOptions() : super.getLabelOptions();
 	}
 
@@ -241,19 +241,19 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getAriaLabel() : super.getAriaLabel();
 	}
 
-	getDetail(): string | null {
+	getDetail(): string | undefined {
 		return this.entry ? this.entry.getDetail() : super.getDetail();
 	}
 
-	getResource(): URI | null {
+	getResource(): URI | undefined {
 		return this.entry ? this.entry.getResource() : super.getResource();
 	}
 
-	getIcon(): string | null {
+	getIcon(): string | undefined {
 		return this.entry ? this.entry.getIcon() : super.getIcon();
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		return this.entry ? this.entry.getDescription() : super.getDescription();
 	}
 
@@ -352,7 +352,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		row1.appendChild(icon);
 
 		// Label
-		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true });
+		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportOcticons: true });
 
 		// Keybinding
 		const keybindingContainer = document.createElement('span');
@@ -459,13 +459,13 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			// Label
 			const options: IIconLabelValueOptions = entry.getLabelOptions() || Object.create(null);
 			options.matches = labelHighlights || [];
-			options.title = types.withNullAsUndefined(entry.getTooltip());
-			options.descriptionTitle = entry.getDescriptionTooltip() || types.withNullAsUndefined(entry.getDescription()); // tooltip over description because it could overflow
+			options.title = entry.getTooltip();
+			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
-			data.label.setLabel(types.withNullAsUndefined(entry.getLabel()), types.withNullAsUndefined(entry.getDescription()), options);
+			data.label.setLabel(types.withNullAsUndefined(entry.getLabel()), entry.getDescription(), options);
 
 			// Meta
-			data.detail.set(types.withNullAsUndefined(entry.getDetail()), detailHighlights);
+			data.detail.set(entry.getDetail(), detailHighlights);
 
 			// Keybinding
 			data.keybinding.set(entry.getKeybinding()!);
@@ -556,7 +556,7 @@ export class QuickOpenModel implements
 	}
 
 	getLabel(entry: QuickOpenEntry): string | null {
-		return entry.getLabel();
+		return types.withUndefinedAsNull(entry.getLabel());
 	}
 
 	getAriaLabel(entry: QuickOpenEntry): string {

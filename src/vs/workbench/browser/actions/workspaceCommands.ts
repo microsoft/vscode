@@ -54,30 +54,28 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: ADD_ROOT_FOLDER_COMMAND_ID,
-	handler: (accessor) => {
+	handler: async (accessor) => {
 		const viewletService = accessor.get(IViewletService);
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const dialogsService = accessor.get(IFileDialogService);
-		return dialogsService.showOpenDialog({
+		const folders = await dialogsService.showOpenDialog({
 			openLabel: mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
 			title: nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
 			canSelectFolders: true,
 			canSelectMany: true,
 			defaultUri: dialogsService.defaultFolderPath()
-		}).then((folders): Promise<any> | null => {
-			if (!folders || !folders.length) {
-				return null;
-			}
-
-			// Add and show Files Explorer viewlet
-			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: resources.removeTrailingPathSeparator(folder) })))
-				.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
-				.then(() => undefined);
 		});
+
+		if (!folders || !folders.length) {
+			return;
+		}
+
+		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: resources.removeTrailingPathSeparator(folder) })));
+		await viewletService.openViewlet(viewletService.getDefaultViewletId(), true);
 	}
 });
 
-CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
+CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
 	const quickInputService = accessor.get(IQuickInputService);
 	const labelService = accessor.get(ILabelService);
 	const contextService = accessor.get(IWorkspaceContextService);
@@ -86,7 +84,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 
 	const folders = contextService.getWorkspace().folders;
 	if (!folders.length) {
-		return undefined;
+		return;
 	}
 
 	const folderPicks: IQuickPickItem[] = folders.map(folder => {
@@ -113,12 +111,11 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 	}
 
 	const token: CancellationToken = (args ? args[1] : undefined) || CancellationToken.None;
+	const pick = await quickInputService.pick(folderPicks, options, token);
 
-	return quickInputService.pick(folderPicks, options, token).then(pick => {
-		if (!pick) {
-			return undefined;
-		}
-
+	if (pick) {
 		return folders[folderPicks.indexOf(pick)];
-	});
+	}
+
+	return;
 });

@@ -10,6 +10,7 @@ import { Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbenc
 import { isUndefinedOrNull, isObject } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { endsWith } from 'vs/base/common/strings';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
@@ -39,8 +40,13 @@ export class ReplModel {
 		}
 
 		if (typeof data === 'string') {
-			const element = new SimpleReplElement(`topReplElement:${topReplElementCounter++}`, data.trimRight(), sev, source);
-			this.addReplElement(element);
+			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
+			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !endsWith(previousElement.value, '\n') && !endsWith(previousElement.value, '\r\n')) {
+				previousElement.value += data;
+			} else {
+				const element = new SimpleReplElement(`topReplElement:${topReplElementCounter++}`, data, sev, source);
+				this.addReplElement(element);
+			}
 		} else {
 			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
 			(<any>data).severity = sev;

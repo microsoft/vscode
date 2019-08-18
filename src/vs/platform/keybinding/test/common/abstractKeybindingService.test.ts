@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { KeyChord, KeyCode, KeyMod, Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -14,9 +13,9 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { INotification, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
-import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { INotification, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 function createContext(ctx: any) {
 	return {
@@ -35,10 +34,9 @@ suite('AbstractKeybindingService', () => {
 			resolver: KeybindingResolver,
 			contextKeyService: IContextKeyService,
 			commandService: ICommandService,
-			notificationService: INotificationService,
-			statusService?: IStatusbarService
+			notificationService: INotificationService
 		) {
-			super(contextKeyService, commandService, NullTelemetryService, notificationService, statusService);
+			super(contextKeyService, commandService, NullTelemetryService, notificationService);
 			this._resolver = resolver;
 		}
 
@@ -85,6 +83,10 @@ suite('AbstractKeybindingService', () => {
 		public _dumpDebugInfo(): string {
 			return '';
 		}
+
+		public _dumpDebugInfoJSON(): string {
+			return '';
+		}
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;
@@ -119,6 +121,7 @@ suite('AbstractKeybindingService', () => {
 			let commandService: ICommandService = {
 				_serviceBrand: undefined,
 				onWillExecuteCommand: () => ({ dispose: () => { } }),
+				onDidExecuteCommand: () => ({ dispose: () => { } }),
 				executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 					executeCommandCalls.push({
 						commandId: commandId,
@@ -129,7 +132,7 @@ suite('AbstractKeybindingService', () => {
 			};
 
 			let notificationService: INotificationService = {
-				_serviceBrand: undefined,
+				_serviceBrand: {} as ServiceIdentifier<INotificationService>,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
 					return new NoOpNotification();
@@ -148,13 +151,8 @@ suite('AbstractKeybindingService', () => {
 				},
 				prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
 					throw new Error('not implemented');
-				}
-			};
-
-			let statusbarService: IStatusbarService = {
-				_serviceBrand: undefined,
-				addEntry: undefined!,
-				setStatusMessage: (message: string, autoDisposeAfter?: number, delayBy?: number): IDisposable => {
+				},
+				status(message: string, options?: IStatusMessageOptions) {
 					statusMessageCalls!.push(message);
 					return {
 						dispose: () => {
@@ -166,7 +164,7 @@ suite('AbstractKeybindingService', () => {
 
 			let resolver = new KeybindingResolver(items, []);
 
-			return new TestKeybindingService(resolver, contextKeyService, commandService, notificationService, statusbarService);
+			return new TestKeybindingService(resolver, contextKeyService, commandService, notificationService);
 		};
 	});
 
@@ -180,7 +178,7 @@ suite('AbstractKeybindingService', () => {
 	});
 
 	function kbItem(keybinding: number, command: string, when?: ContextKeyExpr): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS) : null);
+		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS) : undefined);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
 			command,

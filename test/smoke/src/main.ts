@@ -50,7 +50,10 @@ const opts = minimist(args, {
 		'log'
 	],
 	boolean: [
-		'verbose'
+		'verbose',
+		'remote',
+		'web',
+		'headless'
 	],
 	default: {
 		verbose: false
@@ -131,7 +134,7 @@ if (testCodePath) {
 	process.env.VSCODE_CLI = '1';
 }
 
-if (!fs.existsSync(electronPath || '')) {
+if (!opts.web && !fs.existsSync(electronPath || '')) {
 	fail(`Can't find Code at ${electronPath}.`);
 }
 
@@ -155,7 +158,12 @@ async function setupRepository(): Promise<void> {
 		console.log('*** Copying test project repository:', opts['test-repo']);
 		rimraf.sync(workspacePath);
 		// not platform friendly
-		cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+		if (process.platform === 'win32') {
+			cp.execSync(`xcopy /E "${opts['test-repo']}" "${workspacePath}"\\*`);
+		} else {
+			cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+		}
+
 	} else {
 		if (!fs.existsSync(workspacePath)) {
 			console.log('*** Cloning test project repository...');
@@ -204,7 +212,10 @@ function createOptions(): ApplicationOptions {
 		logger: new MultiLogger(loggers),
 		verbose: opts.verbose,
 		log,
-		screenshotsPath
+		screenshotsPath,
+		remote: opts.remote,
+		web: opts.web,
+		headless: opts.headless
 	};
 }
 
@@ -227,12 +238,14 @@ after(async function () {
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-setupDataMigrationTests(stableCodePath, testDataPath);
+if (!opts.web) {
+	setupDataMigrationTests(stableCodePath, testDataPath);
+}
 
 describe('Running Code', () => {
 	before(async function () {
 		const app = new Application(this.defaultOptions);
-		await app!.start();
+		await app!.start(opts.web ? false : undefined);
 		this.app = app;
 	});
 
@@ -261,19 +274,21 @@ describe('Running Code', () => {
 		});
 	}
 
-	setupDataLossTests();
+	if (!opts.web) { setupDataLossTests(); }
 	setupDataExplorerTests();
-	setupDataPreferencesTests();
+	if (!opts.web) { setupDataPreferencesTests(); }
 	setupDataSearchTests();
 	setupDataCSSTests();
 	setupDataEditorTests();
-	setupDataDebugTests();
+	if (!opts.web) { setupDataDebugTests(); }
 	setupDataGitTests();
 	setupDataStatusbarTests();
 	setupDataExtensionTests();
 	setupTerminalTests();
-	setupDataMultirootTests();
+	if (!opts.web) { setupDataMultirootTests(); }
 	setupDataLocalizationTests();
 });
 
-setupLaunchTests();
+if (!opts.web) {
+	setupLaunchTests();
+}

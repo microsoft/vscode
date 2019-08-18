@@ -19,7 +19,7 @@ export class LinkDetector {
 		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
 		// group 3: line number, matched by (:(\d+))
 		// group 4: column number, matched by ((?::(\d+))?)
-		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
+		// e.g.: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
 		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]+:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?\.[a-zA-Z]+[0-9]*):(\d+)(?::(\d+))?/g
 	];
 

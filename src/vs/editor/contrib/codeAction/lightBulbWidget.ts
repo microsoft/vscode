@@ -5,67 +5,90 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IPosition } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionsState } from './codeActionModel';
+import * as nls from 'vs/nls';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+
+namespace LightBulbState {
+
+	export const enum Type {
+		Hidden,
+		Showing,
+	}
+
+	export const Hidden = new class { readonly type = Type.Hidden; };
+
+	export class Showing {
+		readonly type = Type.Showing;
+
+		constructor(
+			public readonly actions: CodeActionSet,
+			public readonly editorPosition: IPosition,
+			public readonly widgetPosition: IContentWidgetPosition,
+		) { }
+	}
+
+	export type State = typeof Hidden | Showing;
+}
+
 
 export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private static readonly _posPref = [ContentWidgetPositionPreference.EXACT];
 
 	private readonly _domNode: HTMLDivElement;
-	private readonly _editor: ICodeEditor;
 
-	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; state: CodeActionsState.Triggered }>());
+	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; actions: CodeActionSet }>());
 	public readonly onClick = this._onClick.event;
 
-	private _position: IContentWidgetPosition | null;
-	private _state: CodeActionsState.State = CodeActionsState.Empty;
-	private _futureFixes = new CancellationTokenSource();
+	private _state: LightBulbState.State = LightBulbState.Hidden;
 
-	constructor(editor: ICodeEditor) {
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _quickFixActionId: string,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	) {
 		super();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'lightbulb-glyph';
 
-		this._editor = editor;
 		this._editor.addContentWidget(this);
 
-		this._register(this._editor.onDidChangeModel(_ => this._futureFixes.cancel()));
-		this._register(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
 		this._register(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
 			const editorModel = this._editor.getModel();
-			if (this._state.type !== CodeActionsState.Type.Triggered || !editorModel || this._state.position.lineNumber >= editorModel.getLineCount()) {
-				this._futureFixes.cancel();
+			if (this._state.type !== LightBulbState.Type.Showing || !editorModel || this._state.editorPosition.lineNumber >= editorModel.getLineCount()) {
+				this.hide();
 			}
 		}));
-		this._register(dom.addStandardDisposableListener(this._domNode, 'click', e => {
-			if (this._state.type !== CodeActionsState.Type.Triggered) {
+		this._register(dom.addStandardDisposableListener(this._domNode, 'mousedown', e => {
+			if (this._state.type !== LightBulbState.Type.Showing) {
 				return;
 			}
 
 			// Make sure that focus / cursor location is not lost when clicking widget icon
 			this._editor.focus();
+			e.preventDefault();
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);
 			const { lineHeight } = this._editor.getConfiguration();
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this._position && this._position.position !== null && this._position.position.lineNumber < this._state.position.lineNumber) {
+			if (this._state.widgetPosition.position !== null && this._state.widgetPosition.position.lineNumber < this._state.editorPosition.lineNumber) {
 				pad += lineHeight;
 			}
 
 			this._onClick.fire({
 				x: e.posx,
 				y: top + height + pad,
-				state: this._state
+				actions: this._state.actions
 			});
 		}));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
@@ -87,6 +110,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				this.hide();
 			}
 		}));
+
+		this._updateLightBulbTitle();
+		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
 	}
 
 	dispose(): void {
@@ -103,60 +129,23 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-		return this._position;
+		return this._state.type === LightBulbState.Type.Showing ? this._state.widgetPosition : null;
 	}
 
-	tryShow(newState: CodeActionsState.State) {
-
-		if (newState.type !== CodeActionsState.Type.Triggered || this._position && (!newState.position || this._position.position && this._position.position.lineNumber !== newState.position.lineNumber)) {
-			// hide when getting a 'hide'-request or when currently
-			// showing on another line
-			this.hide();
-		} else if (this._futureFixes) {
-			// cancel pending show request in any case
-			this._futureFixes.cancel();
+	public update(actions: CodeActionSet, atPosition: IPosition) {
+		if (actions.actions.length <= 0) {
+			return this.hide();
 		}
 
-		this._futureFixes = new CancellationTokenSource();
-		const { token } = this._futureFixes;
-		this._state = newState;
-
-		if (this._state.type === CodeActionsState.Empty.type) {
-			return;
-		}
-
-		const selection = this._state.rangeOrSelection;
-		this._state.actions.then(fixes => {
-			if (!token.isCancellationRequested && fixes.actions.length > 0 && selection) {
-				this._show(fixes);
-			} else {
-				this.hide();
-			}
-		}).catch(() => {
-			this.hide();
-		});
-	}
-
-	set title(value: string) {
-		this._domNode.title = value;
-	}
-
-	get title(): string {
-		return this._domNode.title;
-	}
-
-	private _show(codeActions: CodeActionSet): void {
 		const config = this._editor.getConfiguration();
 		if (!config.contribInfo.lightbulbEnabled) {
-			return;
+			return this.hide();
 		}
-		if (this._state.type !== CodeActionsState.Type.Triggered) {
-			return;
-		}
-		const { lineNumber, column } = this._state.position;
+
+		const { lineNumber, column } = atPosition;
 		const model = this._editor.getModel();
 		if (!model) {
-			return;
+			return this.hide();
 		}
 
 		const tabSize = model.getOptions().tabSize;
@@ -176,23 +165,35 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			} else if (column * config.fontInfo.spaceWidth < 22) {
 				// cannot show lightbulb above/below and showing
 				// it inline would overlay the cursor...
-				this.hide();
-				return;
+				return this.hide();
 			}
 		}
 
-		this._position = {
+		this._state = new LightBulbState.Showing(actions, atPosition, {
 			position: { lineNumber: effectiveLineNumber, column: 1 },
 			preference: LightBulbWidget._posPref
-		};
-		dom.toggleClass(this._domNode, 'autofixable', codeActions.hasAutoFix);
+		});
+		dom.toggleClass(this._domNode, 'autofixable', actions.hasAutoFix);
 		this._editor.layoutContentWidget(this);
 	}
 
-	hide(): void {
-		this._position = null;
-		this._state = CodeActionsState.Empty;
-		this._futureFixes.cancel();
+	private set title(value: string) {
+		this._domNode.title = value;
+	}
+
+	public hide(): void {
+		this._state = LightBulbState.Hidden;
 		this._editor.layoutContentWidget(this);
+	}
+
+	private _updateLightBulbTitle(): void {
+		const kb = this._keybindingService.lookupKeybinding(this._quickFixActionId);
+		let title: string;
+		if (kb) {
+			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", kb.getLabel());
+		} else {
+			title = nls.localize('quickFix', "Show Fixes");
+		}
+		this.title = title;
 	}
 }

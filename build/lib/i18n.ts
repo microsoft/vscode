@@ -24,8 +24,8 @@ function log(message: any, ...rest: any[]): void {
 }
 
 export interface Language {
-	id: string; // laguage id, e.g. zh-tw, de
-	translationId?: string; // language id used in translation tools, e.g zh-hant, de (optional, if not set, the id is used)
+	id: string; // language id, e.g. zh-tw, de
+	translationId?: string; // language id used in translation tools, e.g. zh-hant, de (optional, if not set, the id is used)
 	folderName?: string; // language specific folder name, e.g. cht, deu  (optional, if not set, the id is used)
 }
 

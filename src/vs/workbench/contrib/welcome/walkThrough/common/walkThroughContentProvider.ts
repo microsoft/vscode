@@ -35,11 +35,11 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 					reject(err);
 				}
 			});
-		}) : this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => content.value));
+		}) : this.textFileService.readStream(URI.file(resource.fsPath)).then(content => content.value));
 		return content.then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (!codeEditorModel) {
-				codeEditorModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource.fsPath), resource);
+				codeEditorModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource), resource);
 			} else {
 				this.modelService.updateModel(codeEditorModel, content);
 			}
@@ -61,7 +61,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 	}
 
 	public provideTextContent(resource: URI): Promise<ITextModel> {
-		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
+		return this.textFileService.readStream(URI.file(resource.fsPath)).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (!codeEditorModel) {
 				const j = parseInt(resource.fragment);

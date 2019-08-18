@@ -8,7 +8,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import 'vs/css!./media/referencesWidget';
@@ -47,22 +47,22 @@ class DecorationsManager implements IDisposable {
 
 	private _decorations = new Map<string, OneReference>();
 	private _decorationIgnoreSet = new Set<string>();
-	private _callOnDispose: IDisposable[] = [];
-	private _callOnModelChange: IDisposable[] = [];
+	private readonly _callOnDispose = new DisposableStore();
+	private readonly _callOnModelChange = new DisposableStore();
 
 	constructor(private _editor: ICodeEditor, private _model: ReferencesModel) {
-		this._callOnDispose.push(this._editor.onDidChangeModel(() => this._onModelChanged()));
+		this._callOnDispose.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
 		this._onModelChanged();
 	}
 
 	public dispose(): void {
-		this._callOnModelChange = dispose(this._callOnModelChange);
-		this._callOnDispose = dispose(this._callOnDispose);
+		this._callOnModelChange.dispose();
+		this._callOnDispose.dispose();
 		this.removeDecorations();
 	}
 
 	private _onModelChanged(): void {
-		this._callOnModelChange = dispose(this._callOnModelChange);
+		this._callOnModelChange.clear();
 		const model = this._editor.getModel();
 		if (model) {
 			for (const ref of this._model.groups) {
@@ -78,7 +78,7 @@ class DecorationsManager implements IDisposable {
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
+		this._callOnModelChange.add(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
 
 		const newDecorations: IModelDeltaDecoration[] = [];
 		const newDecorationsActualIndex: number[] = [];
@@ -157,9 +157,25 @@ class DecorationsManager implements IDisposable {
 	}
 }
 
-export interface LayoutData {
-	ratio: number;
-	heightInLines: number;
+export class LayoutData {
+	ratio: number = 0.7;
+	heightInLines: number = 18;
+
+	static fromJSON(raw: string): LayoutData {
+		let ratio: number | undefined;
+		let heightInLines: number | undefined;
+		try {
+			const data = <LayoutData>JSON.parse(raw);
+			ratio = data.ratio;
+			heightInLines = data.heightInLines;
+		} catch {
+			//
+		}
+		return {
+			ratio: ratio || 0.7,
+			heightInLines: heightInLines || 18
+		};
+	}
 }
 
 export interface SelectionEvent {
@@ -175,22 +191,21 @@ export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('r
  */
 export class ReferenceWidget extends PeekViewWidget {
 
-	private _model: ReferencesModel | undefined;
-	private _decorationsManager: DecorationsManager;
+	private _model?: ReferencesModel;
+	private _decorationsManager?: DecorationsManager;
 
-	private _disposeOnNewModel: IDisposable[] = [];
-	private _callOnDispose: IDisposable[] = [];
+	private readonly _disposeOnNewModel = new DisposableStore();
+	private readonly _callOnDispose = new DisposableStore();
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
-	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
-	private _treeContainer: HTMLElement;
-	// private _sash: VSash;
-	private _splitView: SplitView;
-	private _preview: ICodeEditor;
-	private _previewModelReference: IReference<ITextEditorModel>;
-	private _previewNotAvailableMessage: TextModel;
-	private _previewContainer: HTMLElement;
-	private _messageContainer: HTMLElement;
+	private _tree!: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
+	private _treeContainer!: HTMLElement;
+	private _splitView!: SplitView;
+	private _preview!: ICodeEditor;
+	private _previewModelReference!: IReference<ITextEditorModel>;
+	private _previewNotAvailableMessage!: TextModel;
+	private _previewContainer!: HTMLElement;
+	private _messageContainer!: HTMLElement;
 	private _dim: dom.Dimension = { height: 0, width: 0 };
 
 	constructor(
@@ -206,15 +221,19 @@ export class ReferenceWidget extends PeekViewWidget {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
 		this._applyTheme(themeService.getTheme());
-		this._callOnDispose.push(themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._callOnDispose.add(themeService.onThemeChange(this._applyTheme.bind(this)));
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this.create();
 	}
 
 	dispose(): void {
 		this.setModel(undefined);
-		this._callOnDispose = dispose(this._callOnDispose);
-		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._previewModelReference);
+		this._callOnDispose.dispose();
+		this._disposeOnNewModel.dispose();
+		dispose(this._preview);
+		dispose(this._previewNotAvailableMessage);
+		dispose(this._tree);
+		dispose(this._previewModelReference);
 		this._splitView.dispose();
 		super.dispose();
 	}
@@ -328,11 +347,11 @@ export class ReferenceWidget extends PeekViewWidget {
 			}
 		}, Sizing.Distribute);
 
-		this._splitView.onDidSashChange(() => {
+		this._disposables.add(this._splitView.onDidSashChange(() => {
 			if (this._dim.width) {
 				this.layoutData.ratio = this._splitView.getViewSize(0) / this._dim.width;
 			}
-		}, undefined, this._disposables);
+		}, undefined));
 
 		// listen on selection and focus
 		let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
@@ -352,9 +371,6 @@ export class ReferenceWidget extends PeekViewWidget {
 			if (e.browserEvent instanceof KeyboardEvent) {
 				// todo@joh make this a command
 				goto = true;
-			} else if (e.browserEvent instanceof MouseEvent) {
-				aside = e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey;
-				goto = e.browserEvent.detail === 2;
 			}
 			if (aside) {
 				onEvent(e.elements[0], 'side');
@@ -408,7 +424,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public setModel(newModel: ReferencesModel | undefined): Promise<any> {
 		// clean up
-		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
+		this._disposeOnNewModel.clear();
 		this._model = newModel;
 		if (this._model) {
 			return this._onNewModel();
@@ -430,13 +446,13 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		dom.hide(this._messageContainer);
 		this._decorationsManager = new DecorationsManager(this._preview, this._model);
-		this._disposeOnNewModel.push(this._decorationsManager);
+		this._disposeOnNewModel.add(this._decorationsManager);
 
 		// listen on model changes
-		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.rerender(reference)));
+		this._disposeOnNewModel.add(this._model.onDidChangeReferenceRange(reference => this._tree.rerender(reference)));
 
 		// listen on editor
-		this._disposeOnNewModel.push(this._preview.onMouseDown(e => {
+		this._disposeOnNewModel.add(this._preview.onMouseDown(e => {
 			const { event, target } = e;
 			if (event.detail !== 2) {
 				return;
@@ -453,7 +469,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		}));
 
 		// make sure things are rendered
-		dom.addClass(this.container, 'results-loaded');
+		dom.addClass(this.container!, 'results-loaded');
 		dom.show(this._treeContainer);
 		dom.show(this._previewContainer);
 		this._splitView.layout(this._dim.width);
@@ -553,7 +569,7 @@ export const peekViewEditorMatchHighlightBorder = registerColor('peekViewEditor.
 registerThemingParticipant((theme, collector) => {
 	const findMatchHighlightColor = theme.getColor(peekViewResultsMatchHighlight);
 	if (findMatchHighlightColor) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { background-color: ${findMatchHighlightColor}; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { background-color: ${findMatchHighlightColor}; }`);
 	}
 	const referenceHighlightColor = theme.getColor(peekViewEditorMatchHighlight);
 	if (referenceHighlightColor) {
@@ -565,7 +581,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
-		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .reference-zone-widget .ref-tree .referenceMatch .highlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
 	}
 	const resultsBackground = theme.getColor(peekViewResultsBackground);
 	if (resultsBackground) {

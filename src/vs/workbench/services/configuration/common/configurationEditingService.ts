@@ -18,7 +18,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
 import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -41,6 +41,11 @@ export const enum ConfigurationEditingErrorCode {
 	 * Error when trying to write an application setting into workspace settings.
 	 */
 	ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION,
+
+	/**
+	 * Error when trying to write a machne setting into workspace settings.
+	 */
+	ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE,
 
 	/**
 	 * Error when trying to write an invalid folder configuration key to folder settings.
@@ -104,8 +109,15 @@ export interface IConfigurationEditingOptions {
 	scopes?: IConfigurationOverrides;
 }
 
+export const enum EditableConfigurationTarget {
+	USER_LOCAL = 1,
+	USER_REMOTE,
+	WORKSPACE,
+	WORKSPACE_FOLDER
+}
+
 interface IConfigurationEditOperation extends IConfigurationValue {
-	target: ConfigurationTarget;
+	target: EditableConfigurationTarget;
 	jsonPath: json.JSONPath;
 	resource?: URI;
 	workspaceStandAloneConfigurationKey?: string;
@@ -121,7 +133,7 @@ export class ConfigurationEditingService {
 	public _serviceBrand: any;
 
 	private queue: Queue<void>;
-	private remoteSettingsResource: URI | null;
+	private remoteSettingsResource: URI | null = null;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -138,12 +150,12 @@ export class ConfigurationEditingService {
 		this.queue = new Queue<void>();
 		remoteAgentService.getEnvironment().then(environment => {
 			if (environment) {
-				this.remoteSettingsResource = environment.appSettingsPath;
+				this.remoteSettingsResource = environment.settingsPath;
 			}
 		});
 	}
 
-	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
+	writeConfiguration(target: EditableConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
 		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
 			.then(() => null,
@@ -251,13 +263,16 @@ export class ConfigurationEditingService {
 
 	private openSettings(operation: IConfigurationEditOperation): void {
 		switch (operation.target) {
-			case ConfigurationTarget.USER:
+			case EditableConfigurationTarget.USER_LOCAL:
 				this.preferencesService.openGlobalSettings(true);
 				break;
-			case ConfigurationTarget.WORKSPACE:
+			case EditableConfigurationTarget.USER_REMOTE:
+				this.preferencesService.openRemoteSettings();
+				break;
+			case EditableConfigurationTarget.WORKSPACE:
 				this.preferencesService.openWorkspaceSettings(true);
 				break;
-			case ConfigurationTarget.WORKSPACE_FOLDER:
+			case EditableConfigurationTarget.WORKSPACE_FOLDER:
 				if (operation.resource) {
 					const workspaceFolder = this.contextService.getWorkspaceFolder(operation.resource);
 					if (workspaceFolder) {
@@ -272,18 +287,19 @@ export class ConfigurationEditingService {
 		this.editorService.openEditor({ resource });
 	}
 
-	private reject<T = never>(code: ConfigurationEditingErrorCode, target: ConfigurationTarget, operation: IConfigurationEditOperation): Promise<T> {
+	private reject<T = never>(code: ConfigurationEditingErrorCode, target: EditableConfigurationTarget, operation: IConfigurationEditOperation): Promise<T> {
 		const message = this.toErrorMessage(code, target, operation);
 
 		return Promise.reject(new ConfigurationEditingError(message, code));
 	}
 
-	private toErrorMessage(error: ConfigurationEditingErrorCode, target: ConfigurationTarget, operation: IConfigurationEditOperation): string {
+	private toErrorMessage(error: ConfigurationEditingErrorCode, target: EditableConfigurationTarget, operation: IConfigurationEditOperation): string {
 		switch (error) {
 
 			// API constraints
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to {0} because {1} is not a registered configuration.", this.stringifyTarget(target), operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION: return nls.localize('errorInvalidWorkspaceConfigurationApplication', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
+			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE: return nls.localize('errorInvalidWorkspaceConfigurationMachine', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION: return nls.localize('errorInvalidFolderConfiguration', "Unable to write to Folder Settings because {0} does not support the folder resource scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET: return nls.localize('errorInvalidUserTarget', "Unable to write to User Settings because {0} does not support for global scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET: return nls.localize('errorInvalidWorkspaceTarget', "Unable to write to Workspace Settings because {0} does not support for workspace scope in a multi folder workspace.", operation.key);
@@ -299,11 +315,13 @@ export class ConfigurationEditingService {
 					return nls.localize('errorInvalidLaunchConfiguration', "Unable to write into the launch configuration file. Please open it to correct errors/warnings in it and try again.");
 				}
 				switch (target) {
-					case ConfigurationTarget.USER:
+					case EditableConfigurationTarget.USER_LOCAL:
 						return nls.localize('errorInvalidConfiguration', "Unable to write into user settings. Please open the user settings to correct errors/warnings in it and try again.");
-					case ConfigurationTarget.WORKSPACE:
+					case EditableConfigurationTarget.USER_REMOTE:
+						return nls.localize('errorInvalidRemoteConfiguration', "Unable to write into remote user settings. Please open the remote user settings to correct errors/warnings in it and try again.");
+					case EditableConfigurationTarget.WORKSPACE:
 						return nls.localize('errorInvalidConfigurationWorkspace', "Unable to write into workspace settings. Please open the workspace settings to correct errors/warnings in the file and try again.");
-					case ConfigurationTarget.WORKSPACE_FOLDER:
+					case EditableConfigurationTarget.WORKSPACE_FOLDER:
 						let workspaceFolderName: string = '<<unknown>>';
 						if (operation.resource) {
 							const folder = this.contextService.getWorkspaceFolder(operation.resource);
@@ -323,11 +341,13 @@ export class ConfigurationEditingService {
 					return nls.localize('errorLaunchConfigurationFileDirty', "Unable to write into launch configuration file because the file is dirty. Please save it first and then try again.");
 				}
 				switch (target) {
-					case ConfigurationTarget.USER:
+					case EditableConfigurationTarget.USER_LOCAL:
 						return nls.localize('errorConfigurationFileDirty', "Unable to write into user settings because the file is dirty. Please save the user settings file first and then try again.");
-					case ConfigurationTarget.WORKSPACE:
+					case EditableConfigurationTarget.USER_REMOTE:
+						return nls.localize('errorRemoteConfigurationFileDirty', "Unable to write into remote user settings because the file is dirty. Please save the remote user settings file first and then try again.");
+					case EditableConfigurationTarget.WORKSPACE:
 						return nls.localize('errorConfigurationFileDirtyWorkspace', "Unable to write into workspace settings because the file is dirty. Please save the workspace settings file first and then try again.");
-					case ConfigurationTarget.WORKSPACE_FOLDER:
+					case EditableConfigurationTarget.WORKSPACE_FOLDER:
 						let workspaceFolderName: string = '<<unknown>>';
 						if (operation.resource) {
 							const folder = this.contextService.getWorkspaceFolder(operation.resource);
@@ -342,13 +362,15 @@ export class ConfigurationEditingService {
 		}
 	}
 
-	private stringifyTarget(target: ConfigurationTarget): string {
+	private stringifyTarget(target: EditableConfigurationTarget): string {
 		switch (target) {
-			case ConfigurationTarget.USER:
+			case EditableConfigurationTarget.USER_LOCAL:
 				return nls.localize('userTarget', "User Settings");
-			case ConfigurationTarget.WORKSPACE:
+			case EditableConfigurationTarget.USER_REMOTE:
+				return nls.localize('remoteUserTarget', "Remote User Settings");
+			case EditableConfigurationTarget.WORKSPACE:
 				return nls.localize('workspaceTarget', "Workspace Settings");
-			case ConfigurationTarget.WORKSPACE_FOLDER:
+			case EditableConfigurationTarget.WORKSPACE_FOLDER:
 				return nls.localize('folderTarget', "Folder Settings");
 		}
 		return '';
@@ -375,7 +397,7 @@ export class ConfigurationEditingService {
 	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 		const exists = await this.fileService.exists(resource);
 		if (!exists) {
-			await this.fileService.updateContent(resource, '{}', { encoding: 'utf8' });
+			await this.textFileService.write(resource, '{}', { encoding: 'utf8' });
 		}
 		return this.textModelResolverService.createModelReference(resource);
 	}
@@ -391,7 +413,7 @@ export class ConfigurationEditingService {
 		return parseErrors.length > 0;
 	}
 
-	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationOverrides): Promise<IReference<IResolvedTextEditorModel>> {
+	private resolveAndValidate(target: EditableConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationOverrides): Promise<IReference<IResolvedTextEditorModel>> {
 
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.workspaceStandAloneConfigurationKey) {
@@ -403,31 +425,34 @@ export class ConfigurationEditingService {
 
 		if (operation.workspaceStandAloneConfigurationKey) {
 			// Global tasks and launches are not supported
-			if (target === ConfigurationTarget.USER) {
+			if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
 				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET, target, operation);
 			}
 
 			// Workspace tasks are not supported
-			if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && operation.target === ConfigurationTarget.WORKSPACE) {
+			if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && operation.target === EditableConfigurationTarget.WORKSPACE) {
 				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET, target, operation);
 			}
 		}
 
 		// Target cannot be workspace or folder if no workspace opened
-		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.WORKSPACE_FOLDER) && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if ((target === EditableConfigurationTarget.WORKSPACE || target === EditableConfigurationTarget.WORKSPACE_FOLDER) && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return this.reject(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target, operation);
 		}
 
-		if (target === ConfigurationTarget.WORKSPACE) {
+		if (target === EditableConfigurationTarget.WORKSPACE) {
 			if (!operation.workspaceStandAloneConfigurationKey) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 				if (configurationProperties[operation.key].scope === ConfigurationScope.APPLICATION) {
 					return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION, target, operation);
 				}
+				if (configurationProperties[operation.key].scope === ConfigurationScope.MACHINE) {
+					return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE, target, operation);
+				}
 			}
 		}
 
-		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
+		if (target === EditableConfigurationTarget.WORKSPACE_FOLDER) {
 			if (!operation.resource) {
 				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET, target, operation);
 			}
@@ -460,7 +485,7 @@ export class ConfigurationEditingService {
 			});
 	}
 
-	private getConfigurationEditOperation(target: ConfigurationTarget, config: IConfigurationValue, overrides: IConfigurationOverrides): IConfigurationEditOperation {
+	private getConfigurationEditOperation(target: EditableConfigurationTarget, config: IConfigurationValue, overrides: IConfigurationOverrides): IConfigurationEditOperation {
 
 		// Check for standalone workspace configurations
 		if (config.key) {
@@ -485,7 +510,7 @@ export class ConfigurationEditingService {
 
 		let key = config.key;
 		let jsonPath = overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier), key] : [key];
-		if (target === ConfigurationTarget.USER) {
+		if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
 			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, config, '', null)), target };
 		}
 
@@ -501,26 +526,19 @@ export class ConfigurationEditingService {
 		return !!(workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath);
 	}
 
-	private getConfigurationFileResource(target: ConfigurationTarget, config: IConfigurationValue, relativePath: string, resource: URI | null | undefined): URI | null {
-		if (target === ConfigurationTarget.USER_LOCAL) {
-			return URI.file(this.environmentService.appSettingsPath);
+	private getConfigurationFileResource(target: EditableConfigurationTarget, config: IConfigurationValue, relativePath: string, resource: URI | null | undefined): URI | null {
+		if (target === EditableConfigurationTarget.USER_LOCAL) {
+			return this.environmentService.settingsResource;
 		}
-		if (target === ConfigurationTarget.USER_REMOTE) {
+		if (target === EditableConfigurationTarget.USER_REMOTE) {
 			return this.remoteSettingsResource;
 		}
-		if (target === ConfigurationTarget.USER) {
-			if (this.configurationService.inspect(config.key).userRemote !== undefined) {
-				return this.remoteSettingsResource;
-			}
-			return URI.file(this.environmentService.appSettingsPath);
-		}
-
 		const workbenchState = this.contextService.getWorkbenchState();
 		if (workbenchState !== WorkbenchState.EMPTY) {
 
 			const workspace = this.contextService.getWorkspace();
 
-			if (target === ConfigurationTarget.WORKSPACE) {
+			if (target === EditableConfigurationTarget.WORKSPACE) {
 				if (workbenchState === WorkbenchState.WORKSPACE) {
 					return withUndefinedAsNull(workspace.configuration);
 				}
@@ -529,7 +547,7 @@ export class ConfigurationEditingService {
 				}
 			}
 
-			if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
+			if (target === EditableConfigurationTarget.WORKSPACE_FOLDER) {
 				if (resource) {
 					const folder = this.contextService.getWorkspaceFolder(resource);
 					if (folder) {

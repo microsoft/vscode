@@ -9,10 +9,11 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
 import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachDialogStyler } from 'vs/platform/theme/common/styler';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventHelper } from 'vs/base/browser/dom';
 
 export class DialogService implements IDialogService {
 	_serviceBrand: any;
@@ -39,36 +40,39 @@ export class DialogService implements IDialogService {
 			buttons.push(nls.localize('cancelButton', "Cancel"));
 		}
 
-		const severity = this.getSeverity(confirmation.type || 'none');
-		const result = await this.show(severity, confirmation.message, buttons, { cancelId: 1, detail: confirmation.detail });
+		const dialogDisposables = new DisposableStore();
+		const dialog = new Dialog(
+			this.layoutService.container,
+			confirmation.message,
+			buttons,
+			{
+				detail: confirmation.detail,
+				cancelId: 1,
+				type: confirmation.type,
+				keyEventProcessor: (event: StandardKeyboardEvent) => {
+					EventHelper.stop(event, true);
+				},
+				checkboxChecked: confirmation.checkbox ? confirmation.checkbox.checked : undefined,
+				checkboxLabel: confirmation.checkbox ? confirmation.checkbox.label : undefined
+			});
 
-		return { confirmed: result === 0 };
-	}
+		dialogDisposables.add(dialog);
+		dialogDisposables.add(attachDialogStyler(dialog, this.themeService));
 
-	private getSeverity(type: DialogType): Severity {
-		switch (type) {
-			case 'error':
-				return Severity.Error;
-			case 'warning':
-				return Severity.Warning;
-			case 'question':
-			case 'info':
-				return Severity.Info;
-			case 'none':
-			default:
-				return Severity.Ignore;
-		}
+		const result = await dialog.show();
+		dialogDisposables.dispose();
+
+		return { confirmed: result.button === 0, checkboxChecked: result.checkboxChecked };
 	}
 
 	private getDialogType(severity: Severity): DialogType {
 		return (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none';
 	}
 
-
 	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number> {
 		this.logService.trace('DialogService#show', message);
 
-		const dialogDisposables: IDisposable[] = [];
+		const dialogDisposables = new DisposableStore();
 		const dialog = new Dialog(
 			this.layoutService.container,
 			message,
@@ -76,17 +80,18 @@ export class DialogService implements IDialogService {
 			{
 				detail: options ? options.detail : undefined,
 				cancelId: options ? options.cancelId : undefined,
-				type: this.getDialogType(severity)
+				type: this.getDialogType(severity),
+				keyEventProcessor: (event: StandardKeyboardEvent) => {
+					EventHelper.stop(event, true);
+				}
 			});
 
-		dialogDisposables.push(dialog);
-		dialogDisposables.push(attachDialogStyler(dialog, this.themeService));
+		dialogDisposables.add(dialog);
+		dialogDisposables.add(attachDialogStyler(dialog, this.themeService));
 
-		const choice = await dialog.show();
-		dispose(dialogDisposables);
+		const result = await dialog.show();
+		dialogDisposables.dispose();
 
-		return choice;
+		return result.button;
 	}
 }
-
-registerSingleton(IDialogService, DialogService, true);

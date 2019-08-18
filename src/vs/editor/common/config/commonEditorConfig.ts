@@ -68,7 +68,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	public readonly isSimpleWidget: boolean;
 	protected _rawOptions: editorOptions.IEditorOptions;
 	protected _validatedOptions: editorOptions.IValidatedEditorOptions;
-	public editor: editorOptions.InternalEditorOptions;
+	public editor!: editorOptions.InternalEditorOptions;
 	private _isDominatedByLongLines: boolean;
 	private _lineNumbersDigitCount: number;
 
@@ -153,8 +153,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return true;
 	}
 
-	private static _subsetEquals(base: object, subset: object): boolean {
-		for (let key in subset) {
+	private static _subsetEquals(base: { [key: string]: any }, subset: { [key: string]: any }): boolean {
+		for (const key in subset) {
 			if (hasOwnProperty.call(subset, key)) {
 				const subsetValue = subset[key];
 				const baseValue = base[key];
@@ -267,6 +267,11 @@ const editorConfiguration: IConfigurationNode = {
 			],
 			'default': 'on',
 			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
+		},
+		'editor.cursorSurroundingLines': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.viewInfo.cursorSurroundingLines,
+			'description': nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or `scrollOffset` in some other editors.")
 		},
 		'editor.renderFinalNewline': {
 			'type': 'boolean',
@@ -460,7 +465,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.fastScrollSensitivity': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.fastScrollSensitivity,
-			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed mulitiplier when pressing `Alt`.")
+			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`.")
 		},
 		'editor.multiCursorModifier': {
 			'type': 'string',
@@ -696,7 +701,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.suggest.filteredTypes': {
 			type: 'object',
-			default: { keyword: true },
+			default: { keyword: true, snippet: true },
 			markdownDescription: nls.localize('suggest.filtered', "Controls whether some suggestion types should be filtered from IntelliSense. A list of suggestion types can be found here: https://code.visualstudio.com/docs/editor/intellisense#_types-of-completions."),
 			properties: {
 				method: {
@@ -839,7 +844,7 @@ const editorConfiguration: IConfigurationNode = {
 			enumDescriptions: [
 				nls.localize('editor.gotoLocation.multiple.peek', 'Show peek view of the results (default)'),
 				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a peek view'),
-				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and ignore others')
+				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable peek-less navigation to others')
 			]
 		},
 		'editor.selectionHighlight': {
@@ -901,10 +906,11 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.renderWhitespace': {
 			'type': 'string',
-			'enum': ['none', 'boundary', 'all'],
+			'enum': ['none', 'boundary', 'selection', 'all'],
 			'enumDescriptions': [
 				'',
-				nls.localize('renderWhiteSpace.boundary', "Render whitespace characters except for single spaces between words."),
+				nls.localize('renderWhitespace.boundary', "Render whitespace characters except for single spaces between words."),
+				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
 				''
 			],
 			default: EDITOR_DEFAULTS.viewInfo.renderWhitespace,

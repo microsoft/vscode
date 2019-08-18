@@ -100,6 +100,11 @@ export const tocData: ITOCEntry = {
 					id: 'workbench/zenmode',
 					label: localize('zenMode', "Zen Mode"),
 					settings: ['zenmode.*']
+				},
+				{
+					id: 'workbench/screencastmode',
+					label: localize('screencastMode', "Screencast Mode"),
+					settings: ['screencastMode.*']
 				}
 			]
 		},
@@ -159,6 +164,11 @@ export const tocData: ITOCEntry = {
 					id: 'features/comments',
 					label: localize('comments', "Comments"),
 					settings: ['comments.*']
+				},
+				{
+					id: 'features/remote',
+					label: localize('remote', "Remote"),
+					settings: ['remote.*']
 				}
 			]
 		},
@@ -191,7 +201,7 @@ export const tocData: ITOCEntry = {
 	]
 };
 
-export const knownAcronyms = new Set();
+export const knownAcronyms = new Set<string>();
 [
 	'css',
 	'html',
@@ -204,3 +214,7 @@ export const knownAcronyms = new Set();
 	'id',
 	'php',
 ].forEach(str => knownAcronyms.add(str));
+
+export const knownTermMappings = new Map<string, string>();
+knownTermMappings.set('power shell', 'PowerShell');
+knownTermMappings.set('powershell', 'PowerShell');

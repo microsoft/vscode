@@ -14,13 +14,14 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { isPatternInWord } from 'vs/base/common/filters';
 
 export class SnippetCompletion implements CompletionItem {
 
 	label: string;
 	detail: string;
 	insertText: string;
-	documentation: MarkdownString;
+	documentation?: MarkdownString;
 	range: IRange;
 	sortText: string;
 	kind: CompletionItemKind;
@@ -32,7 +33,7 @@ export class SnippetCompletion implements CompletionItem {
 	) {
 		this.label = snippet.prefix;
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
-		this.insertText = snippet.body;
+		this.insertText = snippet.codeSnippet;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.kind = CompletionItemKind.Snippet;
@@ -41,7 +42,6 @@ export class SnippetCompletion implements CompletionItem {
 
 	resolve(): this {
 		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
-		this.insertText = this.snippet.codeSnippet;
 		return this;
 	}
 
@@ -50,25 +50,15 @@ export class SnippetCompletion implements CompletionItem {
 	}
 }
 
-export function matches(pattern: string, patternStart: number, word: string, wordStart: number): boolean {
-	while (patternStart < pattern.length && wordStart < word.length) {
-		if (pattern[patternStart] === word[wordStart]) {
-			patternStart += 1;
-		}
-		wordStart += 1;
-	}
-	return patternStart === pattern.length;
-}
-
 export class SnippetCompletionProvider implements CompletionItemProvider {
 
 	private static readonly _maxPrefix = 10000;
 
+	readonly _debugDisplayName = 'snippetCompletions';
+
 	constructor(
-		@IModeService
-		private readonly _modeService: IModeService,
-		@ISnippetsService
-		private readonly _snippets: ISnippetsService
+		@IModeService private readonly _modeService: IModeService,
+		@ISnippetsService private readonly _snippets: ISnippetsService
 	) {
 		//
 	}
@@ -119,7 +109,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			suggestions = [];
 			for (let start of lineOffsets) {
 				availableSnippets.forEach(snippet => {
-					if (matches(linePrefixLow, start, snippet.prefixLow, 0)) {
+					if (isPatternInWord(linePrefixLow, start, linePrefixLow.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
 						suggestions.push(new SnippetCompletion(snippet, Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), position)));
 						availableSnippets.delete(snippet);
 					}

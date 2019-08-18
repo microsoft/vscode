@@ -68,7 +68,7 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 });
 
 const sepRegexp = /\//g;
-const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
+const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
 
 function hasDriveLetter(path: string): boolean {
 	return !!(isWindows && path && path[2] === ':');
@@ -160,7 +160,7 @@ export class LabelService implements ILabelService {
 	}
 
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
-		if (!isWorkspaceIdentifier(workspace) && !isSingleFolderWorkspaceIdentifier(workspace)) {
+		if (IWorkspace.isIWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (!identifier) {
 				return '';
@@ -176,23 +176,27 @@ export class LabelService implements ILabelService {
 			return this.appendWorkspaceSuffix(label, workspace);
 		}
 
-		// Workspace: Untitled
-		if (isEqualOrParent(workspace.configPath, this.environmentService.untitledWorkspacesHome)) {
-			return localize('untitledWorkspace', "Untitled (Workspace)");
-		}
+		if (isWorkspaceIdentifier(workspace)) {
+			// Workspace: Untitled
+			if (isEqualOrParent(workspace.configPath, this.environmentService.untitledWorkspacesHome)) {
+				return localize('untitledWorkspace', "Untitled (Workspace)");
+			}
 
-		// Workspace: Saved
-		let filename = basename(workspace.configPath);
-		if (endsWith(filename, WORKSPACE_EXTENSION)) {
-			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+			// Workspace: Saved
+			let filename = basename(workspace.configPath);
+			if (endsWith(filename, WORKSPACE_EXTENSION)) {
+				filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+			}
+			let label;
+			if (options && options.verbose) {
+				label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), filename)));
+			} else {
+				label = localize('workspaceName', "{0} (Workspace)", filename);
+			}
+			return this.appendWorkspaceSuffix(label, workspace.configPath);
 		}
-		let label;
-		if (options && options.verbose) {
-			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspace.configPath), filename)));
-		} else {
-			label = localize('workspaceName', "{0} (Workspace)", filename);
-		}
-		return this.appendWorkspaceSuffix(label, workspace.configPath);
+		return '';
+
 	}
 
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {
@@ -218,12 +222,23 @@ export class LabelService implements ILabelService {
 	}
 
 	private formatUri(resource: URI, formatting: ResourceLabelFormatting, forceNoTildify?: boolean): string {
-		let label = formatting.label.replace(labelMatchingRegexp, match => {
-			switch (match) {
-				case '${scheme}': return resource.scheme;
-				case '${authority}': return resource.authority;
-				case '${path}': return resource.path;
-				default: return '';
+		let label = formatting.label.replace(labelMatchingRegexp, (match, token, qsToken, qsValue) => {
+			switch (token) {
+				case 'scheme': return resource.scheme;
+				case 'authority': return resource.authority;
+				case 'path': return resource.path;
+				default: {
+					if (qsToken === 'query') {
+						const { query } = resource;
+						if (query && query[0] === '{' && query[query.length - 1] === '}') {
+							try {
+								return JSON.parse(query)[qsValue] || '';
+							}
+							catch { }
+						}
+					}
+					return '';
+				}
 			}
 		});
 

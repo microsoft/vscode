@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -29,6 +29,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 namespace delta {
 
@@ -108,7 +109,7 @@ class DocumentAndEditorStateDelta {
 
 class DocumentAndEditorState {
 
-	static compute(before: DocumentAndEditorState, after: DocumentAndEditorState): DocumentAndEditorStateDelta {
+	static compute(before: DocumentAndEditorState | undefined, after: DocumentAndEditorState): DocumentAndEditorStateDelta {
 		if (!before) {
 			return new DocumentAndEditorStateDelta(
 				[], values(after.documents),
@@ -143,9 +144,9 @@ const enum ActiveEditorOrder {
 
 class MainThreadDocumentAndEditorStateComputer {
 
-	private _toDispose: IDisposable[] = [];
+	private readonly _toDispose = new DisposableStore();
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
-	private _currentState: DocumentAndEditorState;
+	private _currentState?: DocumentAndEditorState;
 	private _activeEditorOrder: ActiveEditorOrder = ActiveEditorOrder.Editor;
 
 	constructor(
@@ -171,15 +172,15 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	private _onDidAddEditor(e: ICodeEditor): void {
-		this._toDisposeOnEditorRemove.set(e.getId(), combinedDisposable([
+		this._toDisposeOnEditorRemove.set(e.getId(), combinedDisposable(
 			e.onDidChangeModel(() => this._updateState()),
 			e.onDidFocusEditorText(() => this._updateState()),
 			e.onDidFocusEditorWidget(() => this._updateState(e))
-		]));
+		));
 		this._updateState();
 	}
 
@@ -303,10 +304,9 @@ class MainThreadDocumentAndEditorStateComputer {
 @extHostCustomer
 export class MainThreadDocumentsAndEditors {
 
-	private _toDispose: IDisposable[];
+	private readonly _toDispose = new DisposableStore();
 	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
-	private readonly _stateComputer: MainThreadDocumentAndEditorStateComputer;
-	private _textEditors = <{ [id: string]: MainThreadTextEditor }>Object.create(null);
+	private readonly _textEditors = new Map<string, MainThreadTextEditor>();
 
 	private _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();
 	private _onTextEditorRemove = new Emitter<string[]>();
@@ -330,33 +330,28 @@ export class MainThreadDocumentsAndEditors {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IBulkEditService bulkEditService: IBulkEditService,
-		@IPanelService panelService: IPanelService
-
+		@IPanelService panelService: IPanelService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
+		const mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService, environmentService));
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
-		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService);
+		const mainThreadTextEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));
 		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
-		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, panelService);
+		this._toDispose.add(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, panelService));
 
-		this._toDispose = [
-			mainThreadDocuments,
-			mainThreadTextEditors,
-			this._stateComputer,
-			this._onTextEditorAdd,
-			this._onTextEditorRemove,
-			this._onDocumentAdd,
-			this._onDocumentRemove,
-		];
+		this._toDispose.add(this._onTextEditorAdd);
+		this._toDispose.add(this._onTextEditorRemove);
+		this._toDispose.add(this._onDocumentAdd);
+		this._toDispose.add(this._onDocumentRemove);
 	}
 
 	dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {
@@ -373,16 +368,16 @@ export class MainThreadDocumentsAndEditors {
 			const mainThreadEditor = new MainThreadTextEditor(apiEditor.id, apiEditor.editor.getModel(),
 				apiEditor.editor, { onGainedFocus() { }, onLostFocus() { } }, this._modelService);
 
-			this._textEditors[apiEditor.id] = mainThreadEditor;
+			this._textEditors.set(apiEditor.id, mainThreadEditor);
 			addedEditors.push(mainThreadEditor);
 		}
 
 		// removed editors
 		for (const { id } of delta.removedEditors) {
-			const mainThreadEditor = this._textEditors[id];
+			const mainThreadEditor = this._textEditors.get(id);
 			if (mainThreadEditor) {
 				mainThreadEditor.dispose();
-				delete this._textEditors[id];
+				this._textEditors.delete(id);
 				removedEditors.push(id);
 			}
 		}
@@ -453,16 +448,16 @@ export class MainThreadDocumentsAndEditors {
 		return undefined;
 	}
 
-	findTextEditorIdFor(editor: IWorkbenchEditor): string | undefined {
-		for (const id in this._textEditors) {
-			if (this._textEditors[id].matches(editor)) {
+	findTextEditorIdFor(inputEditor: IWorkbenchEditor): string | undefined {
+		for (const [id, editor] of this._textEditors) {
+			if (editor.matches(inputEditor)) {
 				return id;
 			}
 		}
 		return undefined;
 	}
 
-	getEditor(id: string): MainThreadTextEditor {
-		return this._textEditors[id];
+	getEditor(id: string): MainThreadTextEditor | undefined {
+		return this._textEditors.get(id);
 	}
 }

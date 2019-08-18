@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import * as Strings from 'vs/base/common/strings';
 import * as Assert from 'vs/base/common/assert';
-import { join } from 'vs/base/common/path';
+import { join, normalize } from 'vs/base/common/path';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
@@ -21,11 +21,13 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 
 export enum FileLocationKind {
-	Auto,
+	Default,
 	Relative,
-	Absolute
+	Absolute,
+	AutoDetect
 }
 
 export module FileLocationKind {
@@ -35,6 +37,8 @@ export module FileLocationKind {
 			return FileLocationKind.Absolute;
 		} else if (value === 'relative') {
 			return FileLocationKind.Relative;
+		} else if (value === 'autodetect') {
+			return FileLocationKind.AutoDetect;
 		} else {
 			return undefined;
 		}
@@ -172,7 +176,7 @@ interface ProblemData {
 }
 
 export interface ProblemMatch {
-	resource: URI;
+	resource: Promise<URI>;
 	marker: IMarkerData;
 	description: ProblemMatcher;
 }
@@ -182,13 +186,32 @@ export interface HandleResult {
 	continue: boolean;
 }
 
-export function getResource(filename: string, matcher: ProblemMatcher): URI {
+
+export async function getResource(filename: string, matcher: ProblemMatcher, fileService?: IFileService): Promise<URI> {
 	let kind = matcher.fileLocation;
 	let fullPath: string | undefined;
 	if (kind === FileLocationKind.Absolute) {
 		fullPath = filename;
 	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix) {
 		fullPath = join(matcher.filePrefix, filename);
+	} else if (kind === FileLocationKind.AutoDetect) {
+		const matcherClone = Objects.deepClone(matcher);
+		matcherClone.fileLocation = FileLocationKind.Relative;
+		if (fileService) {
+			const relative = await getResource(filename, matcherClone);
+			let stat: IFileStat | undefined = undefined;
+			try {
+				stat = await fileService.resolve(relative);
+			} catch (ex) {
+				// Do nothing, we just need to catch file resolution errors.
+			}
+			if (stat) {
+				return relative;
+			}
+		}
+
+		matcherClone.fileLocation = FileLocationKind.Absolute;
+		return getResource(filename, matcherClone);
 	}
 	if (fullPath === undefined) {
 		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
@@ -197,6 +220,7 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
+	fullPath = normalize(fullPath);
 	if (matcher.uriProvider !== undefined) {
 		return matcher.uriProvider(fullPath);
 	} else {
@@ -210,12 +234,12 @@ export interface ILineMatcher {
 	handle(lines: string[], start?: number): HandleResult;
 }
 
-export function createLineMatcher(matcher: ProblemMatcher): ILineMatcher {
+export function createLineMatcher(matcher: ProblemMatcher, fileService?: IFileService): ILineMatcher {
 	let pattern = matcher.pattern;
 	if (Types.isArray(pattern)) {
-		return new MultiLineMatcher(matcher);
+		return new MultiLineMatcher(matcher, fileService);
 	} else {
-		return new SingleLineMatcher(matcher);
+		return new SingleLineMatcher(matcher, fileService);
 	}
 }
 
@@ -223,9 +247,11 @@ const endOfLine: string = Platform.OS === Platform.OperatingSystem.Windows ? '\r
 
 abstract class AbstractLineMatcher implements ILineMatcher {
 	private matcher: ProblemMatcher;
+	private fileService?: IFileService;
 
-	constructor(matcher: ProblemMatcher) {
+	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
 		this.matcher = matcher;
+		this.fileService = fileService;
 	}
 
 	public handle(lines: string[], start: number = 0): HandleResult {
@@ -238,7 +264,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 
 	public abstract get matchLength(): number;
 
-	protected fillProblemData(data: ProblemData | null, pattern: ProblemPattern, matches: RegExpExecArray): data is ProblemData {
+	protected fillProblemData(data: ProblemData | undefined, pattern: ProblemPattern, matches: RegExpExecArray): data is ProblemData {
 		if (data) {
 			this.fillProperty(data, 'file', pattern, matches, true);
 			this.appendProperty(data, 'message', pattern, matches, true);
@@ -265,7 +291,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 			if (trim) {
 				value = Strings.trim(value)!;
 			}
-			data[property] += endOfLine + value;
+			(data as any)[property] += endOfLine + value;
 		}
 	}
 
@@ -277,7 +303,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 				if (trim) {
 					value = Strings.trim(value)!;
 				}
-				data[property] = value;
+				(data as any)[property] = value;
 			}
 		}
 	}
@@ -312,8 +338,8 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		return undefined;
 	}
 
-	protected getResource(filename: string): URI {
-		return getResource(filename, this.matcher);
+	protected getResource(filename: string): Promise<URI> {
+		return getResource(filename, this.matcher, this.fileService);
 	}
 
 	private getLocation(data: ProblemData): Location | null {
@@ -389,8 +415,8 @@ class SingleLineMatcher extends AbstractLineMatcher {
 
 	private pattern: ProblemPattern;
 
-	constructor(matcher: ProblemMatcher) {
-		super(matcher);
+	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
+		super(matcher, fileService);
 		this.pattern = <ProblemPattern>matcher.pattern;
 	}
 
@@ -423,10 +449,10 @@ class SingleLineMatcher extends AbstractLineMatcher {
 class MultiLineMatcher extends AbstractLineMatcher {
 
 	private patterns: ProblemPattern[];
-	private data: ProblemData | null;
+	private data: ProblemData | undefined;
 
-	constructor(matcher: ProblemMatcher) {
-		super(matcher);
+	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
+		super(matcher, fileService);
 		this.patterns = <ProblemPattern[]>matcher.pattern;
 	}
 
@@ -454,7 +480,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		}
 		let loop = !!this.patterns[this.patterns.length - 1].loop;
 		if (!loop) {
-			this.data = null;
+			this.data = undefined;
 		}
 		const markerMatch = data ? this.getMarkerMatch(data) : null;
 		return { match: markerMatch ? markerMatch : null, continue: loop };
@@ -465,7 +491,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		Assert.ok(pattern.loop === true && this.data !== null);
 		let matches = pattern.regexp.exec(line);
 		if (!matches) {
-			this.data = null;
+			this.data = undefined;
 			return null;
 		}
 		let data = Objects.deepClone(this.data);
@@ -688,7 +714,7 @@ export namespace Config {
 		/**
 		* If set to true the watcher is in active mode when the task
 		* starts. This is equals of issuing a line that matches the
-		* beginPattern.
+		* beginsPattern.
 		*/
 		activeOnStart?: boolean;
 
@@ -768,7 +794,7 @@ export namespace Config {
 		fileLocation?: string | string[];
 
 		/**
-		* The name of a predefined problem pattern, the inline definintion
+		* The name of a predefined problem pattern, the inline definition
 		* of a problem pattern or an array of problem patterns to match
 		* problems spread over multiple lines.
 		*/
@@ -894,9 +920,9 @@ export class ProblemPatternParser extends Parser {
 		}
 
 		function copyProperty(result: ProblemPattern, source: Config.ProblemPattern, resultKey: keyof ProblemPattern, sourceKey: keyof Config.ProblemPattern) {
-			let value = source[sourceKey];
+			const value = source[sourceKey];
 			if (typeof value === 'number') {
-				result[resultKey] = value;
+				(result as any)[resultKey] = value;
 			}
 		}
 		copyProperty(result, value, 'file', 'file');
@@ -1345,7 +1371,7 @@ export class ProblemMatcherParser extends Parser {
 			kind = FileLocationKind.fromString(<string>description.fileLocation);
 			if (kind) {
 				fileLocation = kind;
-				if (kind === FileLocationKind.Relative) {
+				if ((kind === FileLocationKind.Relative) || (kind === FileLocationKind.AutoDetect)) {
 					filePrefix = '${workspaceFolder}';
 				}
 			}
@@ -1355,7 +1381,7 @@ export class ProblemMatcherParser extends Parser {
 				kind = FileLocationKind.fromString(values[0]);
 				if (values.length === 1 && kind === FileLocationKind.Absolute) {
 					fileLocation = kind;
-				} else if (values.length === 2 && kind === FileLocationKind.Relative && values[1]) {
+				} else if (values.length === 2 && (kind === FileLocationKind.Relative || kind === FileLocationKind.AutoDetect) && values[1]) {
 					fileLocation = kind;
 					filePrefix = values[1];
 				}
@@ -1573,7 +1599,7 @@ export namespace Schemas {
 				oneOf: [
 					{
 						type: 'string',
-						enum: ['absolute', 'relative']
+						enum: ['absolute', 'relative', 'autoDetect']
 					},
 					{
 						type: 'array',
@@ -1591,7 +1617,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
+						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginsPattern')
 					},
 					beginsPattern: {
 						oneOf: [
@@ -1693,7 +1719,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 	private matchers: IStringDictionary<NamedProblemMatcher>;
 	private readyPromise: Promise<void>;
 	private readonly _onMatchersChanged: Emitter<void> = new Emitter<void>();
-	public get onMatcherChanged(): Event<void> { return this._onMatchersChanged.event; }
+	public readonly onMatcherChanged: Event<void> = this._onMatchersChanged.event;
 
 
 	constructor() {

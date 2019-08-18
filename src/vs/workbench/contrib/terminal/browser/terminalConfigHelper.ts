@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
-import { Terminal as XTermTerminal } from 'vscode-xterm';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Terminal as XTermTerminal } from 'xterm';
+import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Emitter, Event } from 'vs/base/common/event';
+import { basename } from 'vs/base/common/path';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -23,16 +26,19 @@ const MAXIMUM_FONT_SIZE = 25;
  * specific test cases can be written.
  */
 export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
-	public panelContainer: HTMLElement;
+	public panelContainer: HTMLElement | undefined;
 
-	private _charMeasureElement: HTMLElement;
-	private _lastFontMeasurement: ITerminalFont;
-	public config: ITerminalConfiguration;
+	private _charMeasureElement: HTMLElement | undefined;
+	private _lastFontMeasurement: ITerminalFont | undefined;
+	public config!: ITerminalConfiguration;
+
+	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
+	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
 
 	public constructor(
 		private readonly _linuxDistro: LinuxDistro,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IConfigurationService private readonly _workspaceConfigurationService: IConfigurationService,
+		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
@@ -49,49 +55,55 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	}
 
 	public configFontIsMonospace(): boolean {
-		this._createCharMeasureElementIfNecessary();
 		const fontSize = 15;
 		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 		const i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		const w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
-		const invalidBounds = !i_rect.width || !w_rect.width;
-		if (invalidBounds) {
-			// There is no reason to believe the font is not Monospace.
+		// Check for invalid bounds, there is no reason to believe the font is not monospace
+		if (!i_rect || !w_rect || !i_rect.width || !w_rect.width) {
 			return true;
 		}
 
 		return i_rect.width === w_rect.width;
 	}
 
-	private _createCharMeasureElementIfNecessary() {
+	private _createCharMeasureElementIfNecessary(): HTMLElement {
+		if (!this.panelContainer) {
+			throw new Error('Cannot measure element when terminal is not attached');
+		}
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
+		return this._charMeasureElement;
 	}
 
-	private _getBoundingRectFor(char: string, fontFamily: string, fontSize: number): ClientRect | DOMRect {
-		const style = this._charMeasureElement.style;
+	private _getBoundingRectFor(char: string, fontFamily: string, fontSize: number): ClientRect | DOMRect | undefined {
+		let charMeasureElement: HTMLElement;
+		try {
+			charMeasureElement = this._createCharMeasureElementIfNecessary();
+		} catch {
+			return undefined;
+		}
+		const style = charMeasureElement.style;
 		style.display = 'inline-block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
 		style.lineHeight = 'normal';
-		this._charMeasureElement.innerText = char;
-		const rect = this._charMeasureElement.getBoundingClientRect();
+		charMeasureElement.innerText = char;
+		const rect = charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
 
 		return rect;
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
-		this._createCharMeasureElementIfNecessary();
-
 		const rect = this._getBoundingRectFor('X', fontFamily, fontSize);
 
 		// Bounding client rect was invalid, use last font measurement if available.
-		if (this._lastFontMeasurement && !rect.width && !rect.height) {
+		if (this._lastFontMeasurement && (!rect || !rect.width || !rect.height)) {
 			return this._lastFontMeasurement;
 		}
 
@@ -100,8 +112,8 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			fontSize,
 			letterSpacing,
 			lineHeight,
-			charWidth: rect.width,
-			charHeight: Math.ceil(rect.height)
+			charWidth: rect && rect.width ? rect.width : 0,
+			charHeight: rect && rect.height ? Math.ceil(rect.height) : 0
 		};
 		return this._lastFontMeasurement;
 	}
@@ -143,14 +155,14 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// Get the character dimensions from xterm if it's available
 		if (xterm) {
-			if (xterm._core.charMeasure && xterm._core.charMeasure.width && xterm._core.charMeasure.height) {
+			if (xterm._core._charSizeService && xterm._core._charSizeService.width && xterm._core._charSizeService.height) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xterm._core.charMeasure.height,
-					charWidth: xterm._core.charMeasure.width
+					charHeight: xterm._core._charSizeService.height,
+					charWidth: xterm._core._charSizeService.width
 				};
 			}
 		}
@@ -160,6 +172,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
+		this._onWorkspacePermissionsChanged.fire(isAllowed);
 		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
 	}
 
@@ -167,12 +180,12 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, defaultValue);
 	}
 
-	public checkWorkspaceShellPermissions(platformOverride: platform.Platform = platform.platform): boolean {
+	public checkWorkspaceShellPermissions(osOverride: platform.OperatingSystem = platform.OS): boolean {
 		// Check whether there is a workspace setting
-		const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
-		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
-		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
-		const envConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.env.${platformKey}`);
+		const platformKey = osOverride === platform.OperatingSystem.Windows ? 'windows' : osOverride === platform.OperatingSystem.Macintosh ? 'osx' : 'linux';
+		const shellConfigValue = this._configurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
+		const shellArgsConfigValue = this._configurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
+		const envConfigValue = this._configurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed: boolean | undefined = false;
@@ -227,31 +240,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		return !!isWorkspaceShellAllowed;
 	}
 
-	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
-		const isWorkspaceShellAllowed = this.checkWorkspaceShellPermissions(platformOverride);
-		const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
-		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
-		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
-
-		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
-		shell.args = (isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default;
-
-		// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
-		// safe to assume that this was used by accident as Sysnative does not
-		// exist and will break the terminal in non-WoW64 environments.
-		if ((platformOverride === platform.Platform.Windows) && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && process.env.windir) {
-			const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
-			if (shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
-				shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
-			}
-		}
-
-		// Convert / to \ on Windows for convenience
-		if (platformOverride === platform.Platform.Windows) {
-			shell.executable = shell.executable.replace(/\//g, '\\');
-		}
-	}
-
 	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {
@@ -264,5 +252,38 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			r = Math.min(maximum, r);
 		}
 		return r;
+	}
+
+	private recommendationsShown = false;
+
+	public async showRecommendations(shellLaunchConfig: IShellLaunchConfig): Promise<void> {
+		if (this.recommendationsShown) {
+			return;
+		}
+		this.recommendationsShown = true;
+
+		if (platform.isWindows && shellLaunchConfig.executable && basename(shellLaunchConfig.executable).toLowerCase() === 'wsl.exe') {
+			if (! await this.isExtensionInstalled('ms-vscode-remote.remote-wsl')) {
+				this._notificationService.prompt(
+					Severity.Info,
+					nls.localize(
+						'useWslExtension.title',
+						"Check out the 'Visual Studio Code Remote - WSL' extension for a great development experience in WSL. Click [here]({0}) to learn more.",
+						'https://go.microsoft.com/fwlink/?linkid=2097212'
+					),
+					[],
+					{
+						sticky: true,
+						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.WORKSPACE }
+					}
+				);
+			}
+		}
+	}
+
+	private isExtensionInstalled(id: string): Promise<boolean> {
+		return this._extensionManagementService.getInstalled(ExtensionType.User).then(extensions => {
+			return extensions.some(e => e.identifier.id === id);
+		});
 	}
 }

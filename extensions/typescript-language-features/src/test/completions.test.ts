@@ -131,6 +131,9 @@ suite('TypeScript Completions', () => {
 					'const x = { "hello world2": 1 };',
 					`x["hello world2"]${insert}`
 				));
+
+			disposeAll(_disposables);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 		}
 	});
 
@@ -160,7 +163,7 @@ suite('TypeScript Completions', () => {
 			`f('abc.abc$0')`
 		);
 
-		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables, { useLineRange: true });
 		assert.strictEqual(
 			document.getText(),
 			joinLines(
@@ -264,15 +267,38 @@ suite('TypeScript Completions', () => {
 				`abcdef(1, 2, 3)`
 			));
 	});
+
+	test('should not de-prioritized this.member suggestion, #74164', async () => {
+		await createTestEditor(testDocumentUri,
+			`class A {`,
+			`  private detail = '';`,
+			`  foo() {`,
+			`    det$0`,
+			`  }`,
+			`}`,
+		);
+
+		const document = await acceptFirstSuggestion(testDocumentUri, _disposables);
+		assert.strictEqual(
+			document.getText(),
+			joinLines(
+				`class A {`,
+				`  private detail = '';`,
+				`  foo() {`,
+				`    this.detail`,
+				`  }`,
+				`}`,
+			));
+	});
 });
 
 const joinLines = (...args: string[]) => args.join('\n');
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function acceptFirstSuggestion(uri: vscode.Uri, _disposables: vscode.Disposable[]) {
+async function acceptFirstSuggestion(uri: vscode.Uri, _disposables: vscode.Disposable[], options?: { useLineRange?: boolean }) {
 	const didChangeDocument = onChangedDocument(uri, _disposables);
-	const didSuggest = onDidSuggest(_disposables);
+	const didSuggest = onDidSuggest(_disposables, options);
 	await vscode.commands.executeCommand('editor.action.triggerSuggest');
 	await didSuggest;
 	// TODO: depends on reverting fix for https://github.com/Microsoft/vscode/issues/64257
@@ -310,12 +336,14 @@ async function createTestEditor(uri: vscode.Uri, ...lines: string[]) {
 	await activeEditor.insertSnippet(new vscode.SnippetString(joinLines(...lines)), new vscode.Range(0, 0, 1000, 0));
 }
 
-function onDidSuggest(disposables: vscode.Disposable[]) {
+function onDidSuggest(disposables: vscode.Disposable[], options?: { useLineRange?: boolean }) {
 	return new Promise(resolve =>
 		disposables.push(vscode.languages.registerCompletionItemProvider('typescript', new class implements vscode.CompletionItemProvider {
 			provideCompletionItems(doc: vscode.TextDocument, position: vscode.Position): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
 				// Return a fake item that will come first
-				const range = new vscode.Range(new vscode.Position(position.line, 0), position);
+				const range = options && options.useLineRange
+					? new vscode.Range(new vscode.Position(position.line, 0), position)
+					: doc.getWordRangeAtPosition(position);
 				return [{
 					label: '🦄',
 					insertText: doc.getText(range),

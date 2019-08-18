@@ -13,7 +13,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
-import { IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -67,7 +67,7 @@ class ReplacePreviewModel extends Disposable {
 
 	resolve(replacePreviewUri: URI): Promise<ITextModel> {
 		const fileResource = toFileResource(replacePreviewUri);
-		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource().toString() === fileResource.toString())[0];
+		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource.toString() === fileResource.toString())[0];
 		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
 			ref = this._register(ref);
 			const sourceModel = ref.object.textEditorModel;
@@ -101,21 +101,19 @@ export class ReplaceService implements IReplaceService {
 	) { }
 
 	replace(match: Match): Promise<any>;
-	replace(files: FileMatch[], progress?: IProgressRunner): Promise<any>;
-	replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): Promise<any>;
-	replace(arg: any, progress: IProgressRunner | undefined = undefined, resource: URI | null = null): Promise<any> {
-
+	replace(files: FileMatch[], progress?: IProgress<IProgressStep>): Promise<any>;
+	replace(match: FileMatchOrMatch, progress?: IProgress<IProgressStep>, resource?: URI): Promise<any>;
+	replace(arg: any, progress: IProgress<IProgressStep> | undefined = undefined, resource: URI | null = null): Promise<any> {
 		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
 		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
-
 	}
 
 	openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		return this.editorService.openEditor({
-			leftResource: fileMatch.resource(),
-			rightResource: toReplaceResource(fileMatch.resource()),
+			leftResource: fileMatch.resource,
+			rightResource: toReplaceResource(fileMatch.resource),
 			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
 			options: {
 				preserveFocus,
@@ -141,8 +139,8 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	updateReplacePreview(fileMatch: FileMatch, override: boolean = false): Promise<void> {
-		const replacePreviewUri = toReplaceResource(fileMatch.resource());
-		return Promise.all([this.textModelResolverService.createModelReference(fileMatch.resource()), this.textModelResolverService.createModelReference(replacePreviewUri)])
+		const replacePreviewUri = toReplaceResource(fileMatch.resource);
+		return Promise.all([this.textModelResolverService.createModelReference(fileMatch.resource), this.textModelResolverService.createModelReference(replacePreviewUri)])
 			.then(([sourceModelRef, replaceModelRef]) => {
 				const sourceModel = sourceModelRef.object.textEditorModel;
 				const replaceModel = replaceModelRef.object.textEditorModel;
@@ -202,7 +200,7 @@ export class ReplaceService implements IReplaceService {
 	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
 		const fileMatch: FileMatch = match.parent();
 		const resourceEdit: ResourceTextEdit = {
-			resource: resource !== null ? resource : fileMatch.resource(),
+			resource: resource !== null ? resource : fileMatch.resource,
 			edits: [{
 				range: match.range(),
 				text: text

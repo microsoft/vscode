@@ -9,6 +9,7 @@ import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { generateUuid } from 'vs/base/common/uuid';
 
 interface SerializedIconPath {
 	light: string | UriComponents;
@@ -44,10 +45,10 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		const data: SerializedWebview = {
 			viewType: input.viewType,
 			title: input.getName(),
-			options: input.options,
+			options: { ...input.webview.options, ...input.webview.contentOptions },
 			extensionLocation: input.extension ? input.extension.location : undefined,
-			extensionId: input.extension ? input.extension.id.value : undefined,
-			state: input.state,
+			extensionId: input.extension && input.extension.id ? input.extension.id.value : undefined,
+			state: input.webview.state,
 			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
 			group: input.group
 		};
@@ -67,12 +68,15 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		const extensionLocation = reviveUri(data.extensionLocation);
 		const extensionId = data.extensionId ? new ExtensionIdentifier(data.extensionId) : undefined;
 		const iconPath = reviveIconPath(data.iconPath);
-		return this._webviewService.reviveWebview(data.viewType, data.title, iconPath, data.state, data.options, extensionLocation ? {
+		const state = reviveState(data.state);
+
+		return this._webviewService.reviveWebview(generateUuid(), data.viewType, data.title, iconPath, state, data.options, extensionLocation ? {
 			location: extensionLocation,
 			id: extensionId
 		} : undefined, data.group);
 	}
 }
+
 function reviveIconPath(data: SerializedIconPath | undefined) {
 	if (!data) {
 		return undefined;
@@ -96,4 +100,22 @@ function reviveUri(data: string | UriComponents | undefined): URI | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+
+function reviveState(state: unknown | undefined): undefined | string {
+	if (!state) {
+		return undefined;
+	}
+
+	if (typeof state === 'string') {
+		return state;
+	}
+
+	// Likely an old style state. Unwrap to a simple state object
+	// Remove after 1.37
+	if ('state' in (state as any) && typeof (state as any).state === 'string') {
+		return (state as any).state;
+	}
+	return undefined;
 }

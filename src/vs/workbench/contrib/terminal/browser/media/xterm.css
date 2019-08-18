@@ -43,6 +43,8 @@
 	font-feature-settings: "liga" 0;
 	position: relative;
 	user-select: none;
+	-ms-user-select: none;
+	-webkit-user-select: none;
 }
 
 .xterm.focus,
@@ -57,7 +59,7 @@
 	 * The z-index of the helpers must be higher than the canvases in order for
 	 * IMEs to appear on top.
 	 */
-	z-index: 10;
+	z-index: 5;
 }
 
 .xterm .xterm-helper-textarea {
@@ -71,7 +73,7 @@
 	top: 0;
 	width: 0;
 	height: 0;
-	z-index: -10;
+	z-index: -5;
 	/** Prevent wrapping so the IME appears against the textarea at the correct position */
 	white-space: nowrap;
 	overflow: hidden;
@@ -127,13 +129,22 @@
 	line-height: normal;
 }
 
+.xterm {
+	cursor: text;
+}
+
 .xterm.enable-mouse-events {
 	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
 	cursor: default;
 }
 
-.xterm:not(.enable-mouse-events) {
-	cursor: text;
+.xterm.xterm-cursor-pointer {
+	cursor: pointer;
+}
+
+.xterm.column-select.focus {
+	/* Column selection mode */
+	cursor: crosshair;
 }
 
 .xterm .xterm-accessibility,
@@ -143,12 +154,8 @@
 	top: 0;
 	bottom: 0;
 	right: 0;
-	z-index: 100;
+	z-index: 10;
 	color: transparent;
-}
-
-.xterm .xterm-accessibility-tree:focus [id^="xterm-active-item-"] {
-	outline: 1px solid #F80;
 }
 
 .xterm .live-region {
@@ -159,11 +166,10 @@
 	overflow: hidden;
 }
 
-.xterm-cursor-pointer {
-	cursor: pointer !important;
+.xterm-dim {
+	opacity: 0.5;
 }
 
-.xterm.xterm-cursor-crosshair {
-	/* Column selection mode */
-	cursor: crosshair !important;
+.xterm-underline {
+	text-decoration: underline;
 }

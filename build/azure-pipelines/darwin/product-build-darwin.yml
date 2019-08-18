@@ -1,4 +1,24 @@
 steps:
+- script: |
+    mkdir -p .build
+    echo -n $BUILD_SOURCEVERSION > .build/commit
+    echo -n $VSCODE_QUALITY > .build/quality
+  displayName: Prepare cache flag
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: 'build/.cachesalt, .build/commit, .build/quality'
+    targetfolder: '.build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min'
+    vstsFeed: 'npm-vscode'
+    platformIndependent: true
+    alias: 'Compilation'
+
+- script: |
+    set -e
+    exit 1
+  displayName: Check RestoreCache
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
 - task: NodeTool@0
   inputs:
     versionSpec: "10.15.1"
@@ -7,33 +27,70 @@ steps:
   inputs:
     versionSpec: "1.10.1"
 
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
 - script: |
     set -e
 
     cat << EOF > ~/.netrc
-    machine monacotools.visualstudio.com
-    password $(VSO_PAT)
     machine github.com
     login vscode
-    password $(VSCODE_MIXIN_PASSWORD)
+    password $(github-distro-mixin-password)
     EOF
 
-    yarn
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" yarn gulp -- mixin
-    yarn gulp -- hygiene
-    yarn monaco-compile-check
-    node build/azure-pipelines/common/installDistro.js
-    node build/lib/builtInExtensions.js
-  displayName: Prepare build
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+  displayName: Prepare tooling
 
 - script: |
     set -e
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
-    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp -- vscode-darwin-min
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
-    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp -- upload-vscode-sourcemaps
+    git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+    git fetch distro
+    git merge $(node -p "require('./package.json').distro")
+  displayName: Merge distro
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+
+- script: |
+    set -e
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
+  displayName: Install dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+  inputs:
+    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: 'npm-vscode'
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- script: |
+    set -e
+    yarn postinstall
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
+
+- script: |
+    set -e
+    node build/azure-pipelines/mixin
+  displayName: Mix in quality
+
+- script: |
+    set -e
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-darwin-min-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-reh-darwin-min-ci
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn gulp vscode-reh-web-darwin-min-ci
   displayName: Build
 
 - script: |
@@ -42,6 +99,23 @@ steps:
     # APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
   displayName: Run unit tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    ./scripts/test-integration.sh --build --tfs "Integration Tests"
+  displayName: Run integration tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    cd test/smoke
+    yarn compile
+    cd -
+    yarn smoketest --web --headless
+  continueOnError: true
+  displayName: Run web smoke tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
@@ -69,31 +143,12 @@ steps:
 
 - script: |
     set -e
-
-    # remove pkg from archive
-    zip -d ../VSCode-darwin.zip "*.pkg"
-
-    # publish the build
-    PACKAGEJSON=`ls ../VSCode-darwin/*.app/Contents/Resources/app/package.json`
-    VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-    node build/azure-pipelines/common/publish.js \
-      "$(VSCODE_QUALITY)" \
-      darwin \
-      archive \
-      "VSCode-darwin-$(VSCODE_QUALITY).zip" \
-      $VERSION \
-      true \
-      ../VSCode-darwin.zip
-
-    # publish hockeyapp symbols
-    node build/azure-pipelines/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_MACOS)"
-
-    # upload configuration
-    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp -- upload-vscode-configuration
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
+    ./build/azure-pipelines/darwin/publish.sh
   displayName: Publish
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0

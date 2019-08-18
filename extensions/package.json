@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "Dependencies shared by all extensions",
   "dependencies": {
-    "typescript": "3.4.1"
+    "typescript": "3.6.1-rc"
   },
   "scripts": {
     "postinstall": "node ./postinstall"

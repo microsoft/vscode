@@ -3,114 +3,136 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as stream from 'vs/base/node/stream';
 import * as iconv from 'iconv-lite';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
 import { Readable, Writable } from 'stream';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
 export const UTF16be = 'utf16be';
 export const UTF16le = 'utf16le';
 
-export interface IDecodeStreamOptions {
-	guessEncoding?: boolean;
-	minBytesRequiredForDetection?: number;
-	overwriteEncoding?(detectedEncoding: string | null): string;
+export type UTF_ENCODING = typeof UTF8 | typeof UTF8_with_bom | typeof UTF16be | typeof UTF16le;
+
+export function isUTFEncoding(encoding: string): encoding is UTF_ENCODING {
+	return [UTF8, UTF8_with_bom, UTF16be, UTF16le].some(utfEncoding => utfEncoding === encoding);
 }
 
-export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }> {
+export const UTF16be_BOM = [0xFE, 0xFF];
+export const UTF16le_BOM = [0xFF, 0xFE];
+export const UTF8_BOM = [0xEF, 0xBB, 0xBF];
+
+const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to decide about a file being binary or not
+const NO_GUESS_BUFFER_MAX_LEN = 512; 			// when not auto guessing the encoding, small number of bytes are enough
+const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
+
+export interface IDecodeStreamOptions {
+	guessEncoding: boolean;
+	minBytesRequiredForDetection?: number;
+
+	overwriteEncoding(detectedEncoding: string | null): string;
+}
+
+export interface IDecodeStreamResult {
+	stream: NodeJS.ReadableStream;
+	detected: IDetectedEncodingResult;
+}
+
+export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
 	if (!options.minBytesRequiredForDetection) {
 		options.minBytesRequiredForDetection = options.guessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
 	}
 
-	if (!options.overwriteEncoding) {
-		options.overwriteEncoding = detected => detected || UTF8;
-	}
+	return new Promise<IDecodeStreamResult>((resolve, reject) => {
+		const writer = new class extends Writable {
+			private decodeStream: NodeJS.ReadWriteStream | undefined;
+			private decodeStreamPromise: Promise<void> | undefined;
 
-	return new Promise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }>((resolve, reject) => {
+			private bufferedChunks: Buffer[] = [];
+			private bytesBuffered = 0;
 
-		readable.on('error', reject);
-
-		readable.pipe(new class extends Writable {
-
-			private _decodeStream: NodeJS.ReadWriteStream;
-			private _decodeStreamConstruction: Promise<void>;
-			private _buffer: Buffer[] = [];
-			private _bytesBuffered = 0;
-
-			_write(chunk: any, encoding: string, callback: Function): void {
+			_write(chunk: Buffer, encoding: string, callback: (error: Error | null) => void): void {
 				if (!Buffer.isBuffer(chunk)) {
-					callback(new Error('data must be a buffer'));
+					return callback(new Error('toDecodeStream(): data must be a buffer'));
 				}
 
-				if (this._decodeStream) {
-					// just a forwarder now
-					this._decodeStream.write(chunk, callback);
+				// if the decode stream is ready, we just write directly
+				if (this.decodeStream) {
+					this.decodeStream.write(chunk, callback);
+
 					return;
 				}
 
-				this._buffer.push(chunk);
-				this._bytesBuffered += chunk.length;
+				// otherwise we need to buffer the data until the stream is ready
+				this.bufferedChunks.push(chunk);
+				this.bytesBuffered += chunk.byteLength;
 
-				if (this._decodeStreamConstruction) {
-					// waiting for the decoder to be ready
-					this._decodeStreamConstruction.then(_ => callback(), err => callback(err));
+				// waiting for the decoder to be ready
+				if (this.decodeStreamPromise) {
+					this.decodeStreamPromise.then(() => callback(null), error => callback(error));
+				}
 
-				} else if (typeof options.minBytesRequiredForDetection === 'number' && this._bytesBuffered >= options.minBytesRequiredForDetection) {
-					// buffered enough data, create stream and forward data
+				// buffered enough data for encoding detection, create stream and forward data
+				else if (typeof options.minBytesRequiredForDetection === 'number' && this.bytesBuffered >= options.minBytesRequiredForDetection) {
 					this._startDecodeStream(callback);
+				}
 
-				} else {
-					// only buffering
-					callback();
+				// only buffering until enough data for encoding detection is there
+				else {
+					callback(null);
 				}
 			}
 
-			_startDecodeStream(callback: Function): void {
+			_startDecodeStream(callback: (error: Error | null) => void): void {
 
-				this._decodeStreamConstruction = Promise.resolve(detectEncodingFromBuffer({
-					buffer: Buffer.concat(this._buffer), bytesRead: this._bytesBuffered
+				// detect encoding from buffer
+				this.decodeStreamPromise = Promise.resolve(detectEncodingFromBuffer({
+					buffer: Buffer.concat(this.bufferedChunks),
+					bytesRead: this.bytesBuffered
 				}, options.guessEncoding)).then(detected => {
-					if (options.overwriteEncoding) {
-						detected.encoding = options.overwriteEncoding(detected.encoding);
-					}
-					this._decodeStream = decodeStream(detected.encoding);
-					for (const buffer of this._buffer) {
-						this._decodeStream.write(buffer);
-					}
-					callback();
-					resolve({ detected, stream: this._decodeStream });
 
-				}, err => {
-					this.emit('error', err);
-					callback(err);
+					// ensure to respect overwrite of encoding
+					detected.encoding = options.overwriteEncoding(detected.encoding);
+
+					// decode and write buffer
+					this.decodeStream = decodeStream(detected.encoding);
+					this.decodeStream.write(Buffer.concat(this.bufferedChunks), callback);
+					this.bufferedChunks.length = 0;
+
+					// signal to the outside our detected encoding
+					// and final decoder stream
+					resolve({ detected, stream: this.decodeStream });
+				}, error => {
+					this.emit('error', error);
+
+					callback(error);
 				});
 			}
-			_final(callback: (err?: any) => any) {
-				if (this._decodeStream) {
-					// normal finish
-					this._decodeStream.end(callback);
-				} else {
-					// we were still waiting for data...
-					this._startDecodeStream(() => this._decodeStream.end(callback));
+
+			_final(callback: (error: Error | null) => void) {
+
+				// normal finish
+				if (this.decodeStream) {
+					this.decodeStream.end(callback);
+				}
+
+				// we were still waiting for data to do the encoding
+				// detection. thus, wrap up starting the stream even
+				// without all the data to get things going
+				else {
+					this._startDecodeStream(() => this.decodeStream!.end(callback));
 				}
 			}
-		});
+		};
+
+		// errors
+		readable.on('error', reject);
+
+		// pipe through
+		readable.pipe(writer);
 	});
-}
-
-export function bomLength(encoding: string): number {
-	switch (encoding) {
-		case UTF8:
-			return 3;
-		case UTF16be:
-		case UTF16le:
-			return 2;
-	}
-
-	return 0;
 }
 
 export function decode(buffer: Buffer, encoding: string): string {
@@ -125,7 +147,7 @@ export function encodingExists(encoding: string): boolean {
 	return iconv.encodingExists(toNodeEncoding(encoding));
 }
 
-export function decodeStream(encoding: string | null): NodeJS.ReadWriteStream {
+function decodeStream(encoding: string | null): NodeJS.ReadWriteStream {
 	return iconv.decodeStream(toNodeEncoding(encoding));
 }
 
@@ -141,8 +163,8 @@ function toNodeEncoding(enc: string | null): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: number): string | null {
-	if (!buffer || bytesRead < 2) {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): string | null {
+	if (!buffer || bytesRead < UTF16be_BOM.length) {
 		return null;
 	}
 
@@ -150,35 +172,27 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | null, bytesRead: 
 	const b1 = buffer.readUInt8(1);
 
 	// UTF-16 BE
-	if (b0 === 0xFE && b1 === 0xFF) {
+	if (b0 === UTF16be_BOM[0] && b1 === UTF16be_BOM[1]) {
 		return UTF16be;
 	}
 
 	// UTF-16 LE
-	if (b0 === 0xFF && b1 === 0xFE) {
+	if (b0 === UTF16le_BOM[0] && b1 === UTF16le_BOM[1]) {
 		return UTF16le;
 	}
 
-	if (bytesRead < 3) {
+	if (bytesRead < UTF8_BOM.length) {
 		return null;
 	}
 
 	const b2 = buffer.readUInt8(2);
 
 	// UTF-8
-	if (b0 === 0xEF && b1 === 0xBB && b2 === 0xBF) {
+	if (b0 === UTF8_BOM[0] && b1 === UTF8_BOM[1] && b2 === UTF8_BOM[2]) {
 		return UTF8;
 	}
 
 	return null;
-}
-
-/**
- * Detects the Byte Order Mark in a given file.
- * If no BOM is detected, null will be passed to callback.
- */
-export function detectEncodingByBOM(file: string): Promise<string | null> {
-	return stream.readExactlyByFile(file, 3).then(({ buffer, bytesRead }) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
 }
 
 const MINIMUM_THRESHOLD = 0.2;
@@ -187,25 +201,25 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 /**
  * Guesses the encoding from buffer.
  */
-export function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
-	return import('jschardet').then(jschardet => {
-		jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
+async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
+	const jschardet = await import('jschardet');
 
-		const guessed = jschardet.detect(buffer);
-		if (!guessed || !guessed.encoding) {
-			return null;
-		}
+	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
-		const enc = guessed.encoding.toLowerCase();
+	const guessed = jschardet.detect(buffer);
+	if (!guessed || !guessed.encoding) {
+		return null;
+	}
 
-		// Ignore encodings that cannot guess correctly
-		// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
-		if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
-			return null;
-		}
+	const enc = guessed.encoding.toLowerCase();
 
-		return toIconvLiteEncoding(guessed.encoding);
-	});
+	// Ignore encodings that cannot guess correctly
+	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
+	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
+		return null;
+	}
+
+	return toIconvLiteEncoding(guessed.encoding);
 }
 
 const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
@@ -257,18 +271,19 @@ export function toCanonicalName(enc: string): string {
 	}
 }
 
-const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to decide about a file being binary or not
-const NO_GUESS_BUFFER_MAX_LEN = 512; 			// when not auto guessing the encoding, small number of bytes are enough
-const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
-
 export interface IDetectedEncodingResult {
 	encoding: string | null;
 	seemsBinary: boolean;
 }
 
-export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
-export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult>;
-export function detectEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult> | IDetectedEncodingResult {
+export interface IReadResult {
+	buffer: Buffer | null;
+	bytesRead: number;
+}
+
+export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
+export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult>;
+export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult> | IDetectedEncodingResult {
 
 	// Always first check for BOM to find out about encoding
 	let encoding = detectEncodingByBOMFromBuffer(buffer, bytesRead);
@@ -353,7 +368,7 @@ const windowsTerminalEncodings = {
 	'1252': 'cp1252' // West European Latin
 };
 
-export function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
+export async function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
 	let rawEncodingPromise: Promise<string>;
 
 	// Support a global environment variable to win over other mechanics
@@ -386,7 +401,7 @@ export function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
 
 			exec('chcp', (err, stdout, stderr) => {
 				if (stdout) {
-					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings);
+					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings) as Array<keyof typeof windowsTerminalEncodings>;
 					for (const key of windowsTerminalEncodingKeys) {
 						if (stdout.indexOf(key) >= 0) {
 							return resolve(windowsTerminalEncodings[key]);
@@ -399,24 +414,23 @@ export function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
 		});
 	}
 
-	return rawEncodingPromise.then(rawEncoding => {
-		if (verbose) {
-			console.log(`Detected raw terminal encoding: ${rawEncoding}`);
-		}
+	const rawEncoding = await rawEncodingPromise;
+	if (verbose) {
+		console.log(`Detected raw terminal encoding: ${rawEncoding}`);
+	}
 
-		if (!rawEncoding || rawEncoding.toLowerCase() === 'utf-8' || rawEncoding.toLowerCase() === UTF8) {
-			return UTF8;
-		}
-
-		const iconvEncoding = toIconvLiteEncoding(rawEncoding);
-		if (iconv.encodingExists(iconvEncoding)) {
-			return iconvEncoding;
-		}
-
-		if (verbose) {
-			console.log('Unsupported terminal encoding, falling back to UTF-8.');
-		}
-
+	if (!rawEncoding || rawEncoding.toLowerCase() === 'utf-8' || rawEncoding.toLowerCase() === UTF8) {
 		return UTF8;
-	});
+	}
+
+	const iconvEncoding = toIconvLiteEncoding(rawEncoding);
+	if (iconv.encodingExists(iconvEncoding)) {
+		return iconvEncoding;
+	}
+
+	if (verbose) {
+		console.log('Unsupported terminal encoding, falling back to UTF-8.');
+	}
+
+	return UTF8;
 }

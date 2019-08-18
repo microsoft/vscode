@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/resources';
-import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass, addClasses } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,10 +24,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
-import { fillInContextMenuActions, ContextAwareMenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IAction, Action, IActionViewItem, ActionRunner } from 'vs/base/common/actions';
+import { createAndFillInContextMenuActions, ContextAwareMenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './scmMenus';
-import { ActionBar, IActionItemProvider, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionViewItemProvider, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { isSCMResource } from './scmUtil';
 import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -49,6 +49,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { nextTick } from 'vs/base/common/process';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -94,7 +95,7 @@ class StatusBarAction extends Action {
 	}
 }
 
-class StatusBarActionItem extends ActionItem {
+class StatusBarActionViewItem extends ActionViewItem {
 
 	constructor(action: StatusBarAction) {
 		super(null, action, {});
@@ -108,26 +109,32 @@ class StatusBarActionItem extends ActionItem {
 }
 
 function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
+	let cachedDisposable: IDisposable = Disposable.None;
 	let cachedPrimary: IAction[] = [];
 
 	const updateActions = () => {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const result = { primary, secondary };
 
-		fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+		const disposable = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, g => /^inline/.test(g));
 
 		if (equals(cachedPrimary, primary, (a, b) => a.id === b.id)) {
+			disposable.dispose();
 			return;
 		}
 
+		cachedDisposable = disposable;
 		cachedPrimary = primary;
+
 		actionBar.clear();
 		actionBar.push(primary, { icon: true, label: false });
 	};
 
 	updateActions();
-	return menu.onDidChange(updateActions);
+
+	return combinedDisposable(menu.onDidChange(updateActions), toDisposable(() => {
+		cachedDisposable.dispose();
+	}));
 }
 
 interface RepositoryTemplateData {
@@ -160,16 +167,16 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
-		const actionBar = new ActionBar(provider, { actionItemProvider: a => new StatusBarActionItem(a as StatusBarAction) });
+		const actionBar = new ActionBar(provider, { actionViewItemProvider: a => new StatusBarActionViewItem(a as StatusBarAction) });
 		const disposable = Disposable.None;
-		const templateDisposable = combinedDisposable([actionBar, badgeStyler]);
+		const templateDisposable = combinedDisposable(actionBar, badgeStyler);
 
 		return { title, type, countContainer, count, actionBar, disposable, templateDisposable };
 	}
 
 	renderElement(repository: ISCMRepository, index: number, templateData: RepositoryTemplateData): void {
 		templateData.disposable.dispose();
-		const disposables: IDisposable[] = [];
+		const disposables = new DisposableStore();
 
 		if (repository.provider.rootUri) {
 			templateData.title.textContent = basename(repository.provider.rootUri);
@@ -181,7 +188,7 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 
 		const actions: IAction[] = [];
 		const disposeActions = () => dispose(actions);
-		disposables.push({ dispose: disposeActions });
+		disposables.add({ dispose: disposeActions });
 
 		const update = () => {
 			disposeActions();
@@ -198,10 +205,10 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 			this._onDidRenderElement.fire(repository);
 		};
 
-		repository.provider.onDidChange(update, null, disposables);
+		disposables.add(repository.provider.onDidChange(update, null));
 		update();
 
-		templateData.disposable = combinedDisposable(disposables);
+		templateData.disposable = disposables;
 	}
 
 	disposeTemplate(templateData: RepositoryTemplateData): void {
@@ -228,7 +235,7 @@ export class MainPanel extends ViewletPanel {
 		@IMenuService private readonly menuService: IMenuService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -239,25 +246,25 @@ export class MainPanel extends ViewletPanel {
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false
-		}) as WorkbenchList<ISCMRepository>;
+		});
 
-		renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null, this.disposables);
-		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
-		this.list.onFocusChange(this.onListFocusChange, this, this.disposables);
-		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
+		this._register(renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null));
+		this._register(this.list.onSelectionChange(this.onListSelectionChange, this));
+		this._register(this.list.onFocusChange(this.onListFocusChange, this));
+		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
-		this.viewModel.onDidChangeVisibleRepositories(this.updateListSelection, this, this.disposables);
+		this._register(this.viewModel.onDidChangeVisibleRepositories(this.updateListSelection, this));
 
-		this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.disposables);
+		this._register(this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null));
 		this.splice(0, 0, this.viewModel.repositories);
 
-		this.disposables.push(this.list);
+		this._register(this.list);
 
-		this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.providers.visible')) {
 				this.updateBodySize();
 			}
-		}, this.disposables);
+		}));
 
 		this.updateListSelection();
 	}
@@ -299,7 +306,7 @@ export class MainPanel extends ViewletPanel {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		fillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
+		const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
 
 		menu.dispose();
 		contextKeyService.dispose();
@@ -313,10 +320,12 @@ export class MainPanel extends ViewletPanel {
 			getActions: () => secondary,
 			getActionsContext: () => repository.provider
 		});
+
+		disposable.dispose();
 	}
 
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
-		if (e.elements.length > 0 && e.browserEvent) {
+		if (e.browserEvent && e.elements.length > 0) {
 			const scrollTop = this.list.scrollTop;
 			this.viewModel.setVisibleRepositories(e.elements);
 			this.list.scrollTop = scrollTop;
@@ -324,7 +333,7 @@ export class MainPanel extends ViewletPanel {
 	}
 
 	private onListFocusChange(e: IListEvent<ISCMRepository>): void {
-		if (e.elements.length > 0) {
+		if (e.browserEvent && e.elements.length > 0) {
 			e.elements[0].focus();
 		}
 	}
@@ -366,7 +375,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
 
 	constructor(
-		private actionItemProvider: IActionItemProvider,
+		private actionViewItemProvider: IActionViewItemProvider,
 		private themeService: IThemeService,
 		private menus: SCMMenus
 	) { }
@@ -375,7 +384,7 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
 		const actionsContainer = append(element, $('.actions'));
-		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
+		const actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider });
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
 		const styler = attachBadgeStyler(count, this.themeService);
@@ -396,14 +405,14 @@ class ResourceGroupRenderer implements IListRenderer<ISCMResourceGroup, Resource
 		template.actionBar.clear();
 		template.actionBar.context = group;
 
-		const disposables: IDisposable[] = [];
-		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getResourceGroupMenu(group), template.actionBar));
+		const disposables = new DisposableStore();
+		disposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceGroupMenu(group), template.actionBar));
 
 		const updateCount = () => template.count.setCount(group.elements.length);
-		group.onDidSplice(updateCount, null, disposables);
+		disposables.add(group.onDidSplice(updateCount, null));
 		updateCount();
 
-		template.elementDisposable = combinedDisposable(disposables);
+		template.elementDisposable = disposables;
 	}
 
 	disposeElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
@@ -454,7 +463,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 
 	constructor(
 		private labels: ResourceLabels,
-		private actionItemProvider: IActionItemProvider,
+		private actionViewItemProvider: IActionViewItemProvider,
 		private getSelectedResources: () => ISCMResource[],
 		private themeService: IThemeService,
 		private menus: SCMMenus
@@ -466,7 +475,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		const fileLabel = this.labels.create(name);
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
-			actionItemProvider: this.actionItemProvider,
+			actionViewItemProvider: this.actionViewItemProvider,
 			actionRunner: new MultipleSelectionActionRunner(this.getSelectedResources)
 		});
 
@@ -487,10 +496,11 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
 
 		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon, data: resource.decorations } });
+		template.actionBar.clear();
 		template.actionBar.context = resource;
 
-		const disposables: IDisposable[] = [];
-		disposables.push(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resource.resourceGroup), template.actionBar));
+		const disposables = new DisposableStore();
+		disposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resource.resourceGroup), template.actionBar));
 
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
@@ -505,7 +515,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		}
 
 		template.element.setAttribute('data-tooltip', resource.decorations.tooltip || '');
-		template.elementDisposable = combinedDisposable(disposables);
+		template.elementDisposable = disposables;
 	}
 
 	disposeElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
@@ -602,10 +612,10 @@ class ResourceGroupSplicer {
 				absoluteToInsert.push(element);
 			}
 
-			const disposable = combinedDisposable([
+			const disposable = combinedDisposable(
 				group.onDidChange(() => this.onDidChangeGroup(group)),
 				group.onDidSplice(splice => this.onDidSpliceGroup(group, splice))
-			]);
+			);
 
 			itemsToInsert.push({ group, visible, disposable });
 		}
@@ -699,6 +709,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
+	private cachedScrollTop: number | undefined = undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
@@ -724,11 +735,11 @@ export class RepositoryPanel extends ViewletPanel {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
-		this.disposables.push(this.menus);
-		this.menus.onDidChangeTitle(this._onDidChangeTitleArea.fire, this._onDidChangeTitleArea, this.disposables);
+		this._register(this.menus);
+		this._register(this.menus.onDidChangeTitle(this._onDidChangeTitleArea.fire, this._onDidChangeTitleArea));
 
 		this.contextKeyService = contextKeyService.createScoped(this.element);
 		this.contextKeyService.createKey('scmRepository', this.repository);
@@ -736,7 +747,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	render(): void {
 		super.render();
-		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
+		this._register(this.menus.onDidChangeTitle(this.updateActions, this));
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
@@ -758,8 +769,8 @@ export class RepositoryPanel extends ViewletPanel {
 
 	protected renderBody(container: HTMLElement): void {
 		const focusTracker = trackFocus(container);
-		this.disposables.push(focusTracker.onDidFocus(() => this.repository.focus()));
-		this.disposables.push(focusTracker);
+		this._register(focusTracker.onDidFocus(() => this.repository.focus()));
+		this._register(focusTracker);
 
 		// Input
 		this.inputBoxContainer = append(container, $('.scm-editor'));
@@ -787,35 +798,35 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true, flexibleMaxHeight: 134 });
 		this.inputBox.setEnabled(this.isBodyVisible());
-		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
-		this.disposables.push(this.inputBox);
+		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
+		this._register(this.inputBox);
 
-		this.inputBox.onDidChange(triggerValidation, null, this.disposables);
+		this._register(this.inputBox.onDidChange(triggerValidation, null));
 
 		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
 		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
-		Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null, this.disposables);
+		this._register(Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null));
 
 		this.inputBox.value = this.repository.input.value;
-		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
-		this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+		this._register(this.inputBox.onDidChange(value => this.repository.input.value = value, null));
+		this._register(this.repository.input.onDidChange(value => this.inputBox.value = value, null));
 
 		updatePlaceholder();
-		this.repository.input.onDidChangePlaceholder(updatePlaceholder, null, this.disposables);
-		this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null, this.disposables);
+		this._register(this.repository.input.onDidChangePlaceholder(updatePlaceholder, null));
+		this._register(this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null));
 
-		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
+		this._register(this.inputBox.onDidHeightChange(() => this.layoutBody()));
 
 		if (this.repository.provider.onDidChangeCommitTemplate) {
-			this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
+			this._register(this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this));
 		}
 
 		this.updateInputBox();
 
 		// Input box visibility
-		this.repository.input.onDidChangeVisibility(this.updateInputBoxVisibility, this, this.disposables);
+		this._register(this.repository.input.onDidChangeVisibility(this.updateInputBoxVisibility, this));
 		this.updateInputBoxVisibility();
 
 		// List
@@ -827,36 +838,36 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const delegate = new ProviderListDelegate();
 
-		const actionItemProvider = (action: IAction) => this.getActionItem(action);
+		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.disposables.push(this.listLabels);
+		this._register(this.listLabels);
 
 		const renderers = [
-			new ResourceGroupRenderer(actionItemProvider, this.themeService, this.menus),
-			new ResourceRenderer(this.listLabels, actionItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
+			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
+			new ResourceRenderer(this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
 			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
 			horizontalScrolling: false
-		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
+		});
 
-		Event.chain(this.list.onDidOpen)
+		this._register(Event.chain(this.list.onDidOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
-			.on(this.open, this, this.disposables);
+			.on(this.open, this));
 
-		Event.chain(this.list.onPin)
+		this._register(Event.chain(this.list.onPin)
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
-			.on(this.pin, this, this.disposables);
+			.on(this.pin, this));
 
-		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
-		this.disposables.push(this.list);
+		this._register(this.list.onContextMenu(this.onListContextMenu, this));
+		this._register(this.list);
 
-		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
+		this._register(this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this));
 		this.onDidChangeVisibility(this.viewModel.isVisible());
 		this.onDidChangeBodyVisibility(visible => this.inputBox.setEnabled(visible));
 	}
@@ -866,6 +877,7 @@ export class RepositoryPanel extends ViewletPanel {
 			const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.list);
 			this.visibilityDisposables.push(listSplicer);
 		} else {
+			this.cachedScrollTop = this.list.scrollTop;
 			this.visibilityDisposables = dispose(this.visibilityDisposables);
 		}
 	}
@@ -885,14 +897,18 @@ export class RepositoryPanel extends ViewletPanel {
 			const listHeight = height - (editorHeight + 12 /* margin */);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.list.layout(listHeight, width);
-
-			toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 		} else {
 			addClass(this.inputBoxContainer, 'hidden');
-			removeClass(this.inputBoxContainer, 'scroll');
 
 			this.listContainer.style.height = `${height}px`;
 			this.list.layout(height, width);
+		}
+
+		if (this.cachedScrollTop !== undefined && this.list.scrollTop !== this.cachedScrollTop) {
+			this.list.scrollTop = Math.min(this.cachedScrollTop, this.list.scrollHeight);
+			// Applying the cached scroll position just once until the next leave.
+			// This, also, avoids the scrollbar to flicker when resizing the sidebar.
+			this.cachedScrollTop = undefined;
 		}
 	}
 
@@ -918,12 +934,12 @@ export class RepositoryPanel extends ViewletPanel {
 		return this.menus.getTitleSecondaryActions();
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
 			return undefined;
 		}
 
-		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		return new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
 	getActionsContext(): any {
@@ -1060,10 +1076,10 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		const visibleViewDescriptors = this.viewsModel.visibleViewDescriptors;
 
 		const toSetVisible = this.viewsModel.viewDescriptors
-			.filter(d => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
+			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
 
 		const toSetInvisible = visibleViewDescriptors
-			.filter(d => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
+			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
 
 		let size: number | undefined;
 		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
@@ -1077,13 +1093,18 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 				}
 			}
 
+			viewDescriptor.repository.setSelected(false);
 			this.viewsModel.setVisible(viewDescriptor.id, false);
 		}
 
 		for (const viewDescriptor of toSetVisible) {
+			viewDescriptor.repository.setSelected(true);
 			this.viewsModel.setVisible(viewDescriptor.id, true, size);
 		}
 	}
+
+	private readonly _onDidChangeRepositories = new Emitter<void>();
+	private readonly onDidFinishStartup = Event.once(Event.debounce(this._onDidChangeRepositories.event, () => null, 1000));
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -1104,15 +1125,18 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		super(VIEWLET_ID, SCMViewlet.STATE_KEY, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
-		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.toDispose);
+		this._register(this.menus.onDidChangeTitle(this.updateTitleArea, this));
 
 		this.message = $('.empty-message', { tabIndex: 0 }, localize('no open repo', "No source control providers registered."));
 
-		configurationService.onDidChangeConfiguration(e => {
+		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.alwaysShowProviders')) {
 				this.onDidChangeRepositories();
 			}
-		}, this.toDispose);
+		}));
+
+		this._register(this.onDidFinishStartup(this.onAfterStartup, this));
+		this._register(this.viewsModel.onDidRemove(this.onDidHideView, this));
 	}
 
 	create(parent: HTMLElement): void {
@@ -1122,8 +1146,8 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		addClasses(parent, 'scm-viewlet', 'empty');
 		append(parent, this.message);
 
-		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.toDispose);
-		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.toDispose);
+		this._register(this.scmService.onDidAddRepository(this.onDidAddRepository, this));
+		this._register(this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this));
 		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
 	}
 
@@ -1173,20 +1197,28 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 		if (alwaysShowProviders && repositoryCount > 0) {
 			this.viewsModel.setVisible(MainPanel.ID, true);
-		} else if (!alwaysShowProviders && repositoryCount === 1) {
-			this.viewsModel.setVisible(MainPanel.ID, false);
-		} else if (this.repositoryCount < 2 && repositoryCount >= 2) {
-			this.viewsModel.setVisible(MainPanel.ID, true);
-		} else if (this.repositoryCount >= 2 && repositoryCount === 1) {
-			this.viewsModel.setVisible(MainPanel.ID, false);
-		}
-
-		if (repositoryCount === 1) {
-			this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
 		}
 
 		toggleClass(this.el, 'empty', repositoryCount === 0);
 		this.repositoryCount = repositoryCount;
+
+		this._onDidChangeRepositories.fire();
+	}
+
+	private onAfterStartup(): void {
+		if (this.repositoryCount > 0 && this.viewDescriptors.every(d => !this.viewsModel.isVisible(d.id))) {
+			this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
+		}
+	}
+
+	private onDidHideView(): void {
+		nextTick(() => {
+			if (this.repositoryCount > 0 && this.viewDescriptors.every(d => !this.viewsModel.isVisible(d.id))) {
+				const alwaysShowProviders = this.configurationService.getValue<boolean>('scm.alwaysShowProviders') || false;
+				this.viewsModel.setVisible(MainPanel.ID, alwaysShowProviders || this.repositoryCount > 1);
+				this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
+			}
+		});
 	}
 
 	focus(): void {
@@ -1225,12 +1257,12 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		}
 	}
 
-	getActionItem(action: IAction): IActionItem | undefined {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (!(action instanceof MenuItemAction)) {
 			return undefined;
 		}
 
-		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		return new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
 	getActions(): IAction[] {

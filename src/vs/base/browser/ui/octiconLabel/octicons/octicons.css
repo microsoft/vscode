@@ -1,7 +1,7 @@
 @font-face {
     font-family: "octicons";
-    src: url("./octicons.ttf?4cd2299755e93a2430ba5703f4476584") format("truetype"),
-url("./octicons.svg?4cd2299755e93a2430ba5703f4476584#octicons") format("svg");
+    src: url("./octicons.ttf?dda6b6d46f87b1fa91a76fc0389eeb1d") format("truetype"),
+url("./octicons.svg?dda6b6d46f87b1fa91a76fc0389eeb1d#octicons") format("svg");
 }
 
 .octicon, .mega-octicon {
@@ -169,7 +169,7 @@ url("./octicons.svg?4cd2299755e93a2430ba5703f4476584#octicons") format("svg");
 .octicon-person-outline:before { content: "\f018" }
 .octicon-pin:before { content: "\f041" }
 .octicon-plug:before { content: "\f0d4" }
-.octicon-plus-small:before { content: "\f28a" }
+.octicon-plus-small:before { content: "\f05d" }
 .octicon-plus:before { content: "\f05d" }
 .octicon-primitive-dot:before { content: "\f052" }
 .octicon-primitive-square:before { content: "\f053" }
@@ -233,11 +233,19 @@ url("./octicons.svg?4cd2299755e93a2430ba5703f4476584#octicons") format("svg");
 .octicon-watch:before { content: "\f0e0" }
 .octicon-x:before { content: "\f081" }
 .octicon-zap:before { content: "\26a1" }
+.octicon-error:before { content: "\26a2" }
+.octicon-eye-closed:before { content: "\26a3" }
+.octicon-fold-down:before { content: "\26a4" }
+.octicon-fold-up:before { content: "\26a5" }
+.octicon-github-action:before { content: "\26a6" }
+.octicon-info-outline:before { content: "\26a7" }
+.octicon-play:before { content: "\26a8" }
+.octicon-remote:before { content: "\26a9" }
+.octicon-request-changes:before { content: "\26aa" }
+.octicon-smiley-outline:before { content: "\f27d" }
+.octicon-warning:before { content: "\f02d" }
+.octicon-controls:before { content: "\26ad" }
+.octicon-event:before { content: "\26ae" }
+.octicon-record-keys:before { content: "\26af" }
 .octicon-archive:before { content: "\f101" }
 .octicon-arrow-both:before { content: "\f102" }
-.octicon-eye-closed:before { content: "\f103" }
-.octicon-fold-down:before { content: "\f104" }
-.octicon-fold-up:before { content: "\f105" }
-.octicon-github-action:before { content: "\f106" }
-.octicon-play:before { content: "\f107" }
-.octicon-request-changes:before { content: "\f108" }

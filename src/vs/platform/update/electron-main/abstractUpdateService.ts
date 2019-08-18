@@ -11,12 +11,16 @@ import product from 'vs/platform/product/node/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IRequestService } from 'vs/platform/request/node/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export function createUpdateURL(platform: string, quality: string): string {
 	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
 }
+
+export type UpdateNotAvailableClassification = {
+	explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 export abstract class AbstractUpdateService implements IUpdateService {
 
@@ -27,7 +31,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	private _state: State = State.Uninitialized;
 
 	private _onStateChange = new Emitter<State>();
-	get onStateChange(): Event<State> { return this._onStateChange.event; }
+	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
 		return this._state;
@@ -77,8 +81,15 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		if (updateMode === 'start') {
+			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
+
+			// Check for updates only once after 30 seconds
+			setTimeout(() => this.checkForUpdates(null), 30 * 1000);
+		} else {
+			// Start checking for updates after 30 seconds
+			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		}
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {

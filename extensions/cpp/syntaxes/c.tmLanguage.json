@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/9de911d74546b9ae74c57e404515935a0405e696",
+	"version": "https://github.com/jeff-hykin/cpp-textmate-grammar/commit/218448eb46260864352d569db13be6cb20767e92",
 	"name": "C",
 	"scopeName": "source.c",
 	"patterns": [
@@ -18,14 +18,24 @@
 			"include": "#preprocessor-rule-conditional"
 		},
 		{
+			"include": "#predefined_macros"
+		},
+		{
 			"include": "#comments"
 		},
 		{
-			"match": "\\b(break|case|continue|default|do|else|for|goto|if|_Pragma|return|switch|while)\\b",
+			"include": "#switch_statement"
+		},
+		{
+			"match": "\\b(break|continue|do|else|for|goto|if|_Pragma|return|while)\\b",
 			"name": "keyword.control.c"
 		},
 		{
 			"include": "#storage_types"
+		},
+		{
+			"match": "typedef",
+			"name": "keyword.other.typedef.c"
 		},
 		{
 			"match": "\\b(const|extern|register|restrict|static|volatile|inline)\\b",
@@ -51,41 +61,77 @@
 			"include": "#operators"
 		},
 		{
-			"include": "#operator_overload"
-		},
-		{
 			"include": "#numbers"
 		},
 		{
 			"include": "#strings"
 		},
 		{
-			"begin": "(?x)\n^\\s* ((\\#)\\s*define) \\s+\t# define\n((?<id>[a-zA-Z_$][\\w$]*))\t  # macro name\n(?:\n  (\\()\n\t(\n\t  \\s* \\g<id> \\s*\t\t # first argument\n\t  ((,) \\s* \\g<id> \\s*)*  # additional arguments\n\t  (?:\\.\\.\\.)?\t\t\t# varargs ellipsis?\n\t)\n  (\\))\n)?",
+			"name": "meta.preprocessor.macro.c",
+			"begin": "((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))((#)\\s*define\\b)\\s+((?<!\\w)[a-zA-Z_]\\w*(?!\\w))(?:(\\()([^()\\\\]+)(\\)))?",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.directive.define.c"
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
 				},
 				"2": {
-					"name": "punctuation.definition.directive.c"
+					"name": "comment.block.c punctuation.definition.comment.begin.c"
 				},
 				"3": {
-					"name": "entity.name.function.preprocessor.c"
+					"name": "comment.block.c"
+				},
+				"4": {
+					"patterns": [
+						{
+							"match": "\\*\\/",
+							"name": "comment.block.c punctuation.definition.comment.end.c"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.c"
+						}
+					]
 				},
 				"5": {
-					"name": "punctuation.definition.parameters.begin.c"
+					"name": "keyword.control.directive.define.c"
 				},
 				"6": {
-					"name": "variable.parameter.preprocessor.c"
+					"name": "punctuation.definition.directive.c"
+				},
+				"7": {
+					"name": "entity.name.function.preprocessor.c"
 				},
 				"8": {
-					"name": "punctuation.separator.parameters.c"
+					"name": "punctuation.definition.parameters.begin.c"
 				},
 				"9": {
+					"patterns": [
+						{
+							"match": "(?<=[(,])\\s*((?<!\\w)[a-zA-Z_]\\w*(?!\\w))\\s*",
+							"captures": {
+								"1": {
+									"name": "variable.parameter.preprocessor.c"
+								}
+							}
+						},
+						{
+							"match": ",",
+							"name": "punctuation.separator.parameters.c"
+						},
+						{
+							"match": "\\.\\.\\.",
+							"name": "ellipses.c punctuation.vararg-ellipses.variable.parameter.preprocessor.c"
+						}
+					]
+				},
+				"10": {
 					"name": "punctuation.definition.parameters.end.c"
 				}
 			},
-			"end": "(?=(?://|/\\*))|(?<!\\\\)(?=\\n)",
-			"name": "meta.preprocessor.macro.c",
+			"end": "(?<!\\\\)(?=\\n)",
 			"patterns": [
 				{
 					"include": "#preprocessor-rule-define-line-contents"
@@ -316,9 +362,9 @@
 			"include": "#parens"
 		},
 		{
-			"begin": "(?!(?:not|compl|sizeof|new|delete|not_eq|bitand|xor|bitor|and|or|throw|and_eq|xor_eq|or_eq|alignof|alignas|typeid|noexcept|static_cast|dynamic_cast|const_cast|reinterpret_cast|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|auto|void|char|short|int|signed|unsigned|long|float|double|bool|wchar_t|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t|const|static|volatile|register|restrict|constexpr|extern|inline|mutable|friend|NULL|true|false|TRUE|FALSE|nullptr|class|struct|union|enum|explicit|virtual|mutable|constexpr|consteval|private|protected|public|if|elif|else|endif|ifdef|ifndef|define|undef|include|line|error|warning|pragma|_Pragma|defined|__has_include|__has_cpp_attribute|this|template|namespace|using|operator|typedef|decltype|typename|asm|__asm__|atomic_cancel|atomic_commit|atomic_noexcept|concept|co_await|co_return|co_yield|export|import|module|reflexpr|requires|synchronized|thread_local|audit|axiom|transaction_safe|transaction_safe_dynamic)\\s*\\()(?=[a-zA-Z_][a-zA-Z0-9_]*\\s*\\()",
-			"end": "(?<=\\))",
 			"name": "meta.function.c",
+			"begin": "(?<!\\w)(?!\\s*(?:not|compl|sizeof|not_eq|bitand|xor|bitor|and|or|and_eq|xor_eq|or_eq|alignof|alignas|_Alignof|_Alignas|while|for|do|if|else|goto|switch|return|break|case|continue|default|void|char|short|int|signed|unsigned|long|float|double|bool|_Bool|_Complex|_Imaginary|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t|NULL|true|false|memory_order|atomic_bool|atomic_char|atomic_schar|atomic_uchar|atomic_short|atomic_ushort|atomic_int|atomic_uint|atomic_long|atomic_ulong|atomic_llong|atomic_ullong|atomic_char16_t|atomic_char32_t|atomic_wchar_t|atomic_int_least8_t|atomic_uint_least8_t|atomic_int_least16_t|atomic_uint_least16_t|atomic_int_least32_t|atomic_uint_least32_t|atomic_int_least64_t|atomic_uint_least64_t|atomic_int_fast8_t|atomic_uint_fast8_t|atomic_int_fast16_t|atomic_uint_fast16_t|atomic_int_fast32_t|atomic_uint_fast32_t|atomic_int_fast64_t|atomic_uint_fast64_t|atomic_intptr_t|atomic_uintptr_t|atomic_size_t|atomic_ptrdiff_t|atomic_intmax_t|atomic_uintmax_t|struct|union|enum|typedef|auto|register|static|extern|thread_local|inline|_Noreturn|const|volatile|restrict|_Atomic)\\s*\\()(?=[a-zA-Z_]\\w*\\s*\\()",
+			"end": "(?<=\\))",
 			"patterns": [
 				{
 					"include": "#function-innards"
@@ -365,48 +411,1747 @@
 		}
 	],
 	"repository": {
-		"probably_a_parameter": {
-			"match": "(?:([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?==)|(?<=(?:[a-zA-Z0-9_]\\s|[&*>\\]\\)]))\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=(?:\\[\\]\\s*)?(?:,|\\))))",
+		"inline_comment": {
+			"match": "(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/))",
 			"captures": {
 				"1": {
-					"name": "variable.parameter.probably.defaulted.c"
+					"name": "comment.block.c punctuation.definition.comment.begin.c"
 				},
 				"2": {
-					"name": "variable.parameter.probably.c"
+					"name": "comment.block.c"
+				},
+				"3": {
+					"patterns": [
+						{
+							"match": "\\*\\/",
+							"name": "comment.block.c punctuation.definition.comment.end.c"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.c"
+						}
+					]
 				}
 			}
 		},
-		"operator_overload": {
-			"begin": "((?:[a-zA-Z_][a-zA-Z0-9_]*\\s*(?:<(?:[\\s<>,\\w])*>\\s*)?::)*)(operator)((?:\\s*(?:\\+\\+|\\-\\-|\\(\\)|\\[\\]|\\->|\\+\\+|\\-\\-|\\+|\\-|!|~|\\*|&|\\->\\*|\\*|\\/|%|\\+|\\-|<<|>>|<=>|<|<=|>|>=|==|!=|&|\\^|\\||&&|\\|\\||=|\\+=|\\-=|\\*=|\\/=|%=|<<=|>>=|&=|\\^=|\\|=|,)|\\s+(?:(?:new|new\\[\\]|delete|delete\\[\\])|[a-zA-Z_][a-zA-Z0-9_]*)))\\s*(\\()",
+		"default_statement": {
+			"name": "meta.conditional.case.c",
+			"begin": "((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))((?<!\\w)default(?!\\w))",
 			"beginCaptures": {
 				"1": {
-					"name": "entity.scope.c"
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
 				},
 				"2": {
-					"name": "entity.name.operator.overload.c"
+					"name": "comment.block.c punctuation.definition.comment.begin.c"
 				},
 				"3": {
-					"name": "entity.name.operator.overloadee.c"
+					"name": "comment.block.c"
 				},
 				"4": {
-					"name": "punctuation.section.parameters.begin.bracket.round.c"
+					"patterns": [
+						{
+							"match": "\\*\\/",
+							"name": "comment.block.c punctuation.definition.comment.end.c"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.c"
+						}
+					]
+				},
+				"5": {
+					"name": "keyword.control.default.c"
 				}
 			},
-			"end": "\\)",
+			"end": "(:)",
 			"endCaptures": {
-				"0": {
-					"name": "punctuation.section.parameters.end.bracket.round.c"
+				"1": {
+					"name": "punctuation.separator.colon.case.default.c"
 				}
 			},
-			"name": "meta.function.definition.parameters.operator-overload.c",
 			"patterns": [
 				{
-					"include": "#probably_a_parameter"
+					"include": "#evaluation_context"
 				},
 				{
-					"include": "#function-innards"
+					"include": "#c_conditional_context"
 				}
 			]
+		},
+		"case_statement": {
+			"name": "meta.conditional.case.c",
+			"begin": "((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))((?<!\\w)case(?!\\w))",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
+				},
+				"2": {
+					"name": "comment.block.c punctuation.definition.comment.begin.c"
+				},
+				"3": {
+					"name": "comment.block.c"
+				},
+				"4": {
+					"patterns": [
+						{
+							"match": "\\*\\/",
+							"name": "comment.block.c punctuation.definition.comment.end.c"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.c"
+						}
+					]
+				},
+				"5": {
+					"name": "keyword.control.case.c"
+				}
+			},
+			"end": "(:)",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.separator.colon.case.c"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#evaluation_context"
+				},
+				{
+					"include": "#c_conditional_context"
+				}
+			]
+		},
+		"switch_statement": {
+			"name": "meta.block.switch.c",
+			"begin": "(((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))((?<!\\w)switch(?!\\w)))",
+			"beginCaptures": {
+				"1": {
+					"name": "meta.head.switch.c"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
+				},
+				"3": {
+					"name": "comment.block.c punctuation.definition.comment.begin.c"
+				},
+				"4": {
+					"name": "comment.block.c"
+				},
+				"5": {
+					"patterns": [
+						{
+							"match": "\\*\\/",
+							"name": "comment.block.c punctuation.definition.comment.end.c"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.c"
+						}
+					]
+				},
+				"6": {
+					"name": "keyword.control.switch.c"
+				}
+			},
+			"end": "(?:(?<=\\}|%>|\\?\\?>)|(?=[;>\\[\\]=]))",
+			"patterns": [
+				{
+					"name": "meta.head.switch.c",
+					"begin": "\\G ?",
+					"end": "((?:\\{|<%|\\?\\?<|(?=;)))",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.section.block.begin.bracket.curly.switch.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#switch_conditional_parentheses"
+						},
+						{
+							"include": "$self"
+						}
+					]
+				},
+				{
+					"name": "meta.body.switch.c",
+					"begin": "(?<=\\{|<%|\\?\\?<)",
+					"end": "(\\}|%>|\\?\\?>)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.section.block.end.bracket.curly.switch.c"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#default_statement"
+						},
+						{
+							"include": "#case_statement"
+						},
+						{
+							"include": "$self"
+						},
+						{
+							"include": "#block_innards"
+						}
+					]
+				},
+				{
+					"name": "meta.tail.switch.c",
+					"begin": "(?<=\\}|%>|\\?\\?>)[\\s\\n]*",
+					"end": "[\\s\\n]*(?=;)",
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
+				}
+			]
+		},
+		"switch_conditional_parentheses": {
+			"name": "meta.conditional.switch.c",
+			"begin": "((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))(\\()",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
+				},
+				"2": {
+					"name": "comment.block.c punctuation.definition.comment.begin.c"
+				},
+				"3": {
+					"name": "comment.block.c"
+				},
+				"4": {
+					"patterns": [
+						{
+							"match": "\\*\\/",
+							"name": "comment.block.c punctuation.definition.comment.end.c"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.c"
+						}
+					]
+				},
+				"5": {
+					"name": "punctuation.section.parens.begin.bracket.round.conditional.switch.c"
+				}
+			},
+			"end": "(\\))",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.section.parens.end.bracket.round.conditional.switch.c"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#evaluation_context"
+				},
+				{
+					"include": "#c_conditional_context"
+				}
+			]
+		},
+		"static_assert": {
+			"begin": "((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))((?<!\\w)static_assert|_Static_assert(?!\\w))((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))(\\()",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
+				},
+				"2": {
+					"name": "comment.block.c punctuation.definition.comment.begin.c"
+				},
+				"3": {
+					"name": "comment.block.c"
+				},
+				"4": {
+					"patterns": [
+						{
+							"match": "\\*\\/",
+							"name": "comment.block.c punctuation.definition.comment.end.c"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.c"
+						}
+					]
+				},
+				"5": {
+					"name": "keyword.other.static_assert.c"
+				},
+				"6": {
+					"patterns": [
+						{
+							"include": "#inline_comment"
+						}
+					]
+				},
+				"7": {
+					"name": "comment.block.c punctuation.definition.comment.begin.c"
+				},
+				"8": {
+					"name": "comment.block.c"
+				},
+				"9": {
+					"patterns": [
+						{
+							"match": "\\*\\/",
+							"name": "comment.block.c punctuation.definition.comment.end.c"
+						},
+						{
+							"match": "\\*",
+							"name": "comment.block.c"
+						}
+					]
+				},
+				"10": {
+					"name": "punctuation.section.arguments.begin.bracket.round.static_assert.c"
+				}
+			},
+			"end": "(\\))",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.section.arguments.end.bracket.round.static_assert.c"
+				}
+			},
+			"patterns": [
+				{
+					"name": "meta.static_assert.message.c",
+					"begin": "(,)\\s*(?=(?:L|u8|u|U\\s*\\\")?)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.separator.delimiter.comma.c"
+						}
+					},
+					"end": "(?=\\))",
+					"patterns": [
+						{
+							"include": "#string_context"
+						},
+						{
+							"include": "#string_context_c"
+						}
+					]
+				},
+				{
+					"include": "#evaluation_context"
+				}
+			]
+		},
+		"backslash_escapes": {
+			"match": "(?x)\\\\ (\n\\\\\t\t\t |\n[abefnprtv'\"?]   |\n[0-3]\\d{,2}\t |\n[4-7]\\d?\t\t|\nx[a-fA-F0-9]{,2} |\nu[a-fA-F0-9]{,4} |\nU[a-fA-F0-9]{,8} )",
+			"name": "constant.character.escape.c"
+		},
+		"c_conditional_context": {
+			"patterns": [
+				{
+					"include": "$self"
+				},
+				{
+					"include": "#block_innards"
+				}
+			]
+		},
+		"evalutation_context": {
+			"patterns": [
+				{
+					"include": "#function-call-innards"
+				},
+				{
+					"include": "$base"
+				}
+			]
+		},
+		"member_access": {
+			"match": "((?:[a-zA-Z_]\\w*|(?<=\\]|\\)))\\s*)(?:((?:\\.\\*|\\.))|((?:->\\*|->)))((?:[a-zA-Z_]\\w*\\s*(?:(?:(?:\\.\\*|\\.))|(?:(?:->\\*|->)))\\s*)*)\\s*(\\b(?!(?:void|char|short|int|signed|unsigned|long|float|double|bool|_Bool|_Complex|_Imaginary|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t|memory_order|atomic_bool|atomic_char|atomic_schar|atomic_uchar|atomic_short|atomic_ushort|atomic_int|atomic_uint|atomic_long|atomic_ulong|atomic_llong|atomic_ullong|atomic_char16_t|atomic_char32_t|atomic_wchar_t|atomic_int_least8_t|atomic_uint_least8_t|atomic_int_least16_t|atomic_uint_least16_t|atomic_int_least32_t|atomic_uint_least32_t|atomic_int_least64_t|atomic_uint_least64_t|atomic_int_fast8_t|atomic_uint_fast8_t|atomic_int_fast16_t|atomic_uint_fast16_t|atomic_int_fast32_t|atomic_uint_fast32_t|atomic_int_fast64_t|atomic_uint_fast64_t|atomic_intptr_t|atomic_uintptr_t|atomic_size_t|atomic_ptrdiff_t|atomic_intmax_t|atomic_uintmax_t)\\b)[a-zA-Z_]\\w*\\b(?!\\())",
+			"captures": {
+				"1": {
+					"name": "variable.other.object.access.c"
+				},
+				"2": {
+					"name": "punctuation.separator.dot-access.c"
+				},
+				"3": {
+					"name": "punctuation.separator.pointer-access.c"
+				},
+				"4": {
+					"patterns": [
+						{
+							"include": "#member_access"
+						},
+						{
+							"include": "#method_access"
+						},
+						{
+							"match": "((?:[a-zA-Z_]\\w*|(?<=\\]|\\)))\\s*)(?:((?:\\.\\*|\\.))|((?:->\\*|->)))",
+							"captures": {
+								"1": {
+									"name": "variable.other.object.access.c"
+								},
+								"2": {
+									"name": "punctuation.separator.dot-access.c"
+								},
+								"3": {
+									"name": "punctuation.separator.pointer-access.c"
+								}
+							}
+						}
+					]
+				},
+				"5": {
+					"name": "variable.other.member.c"
+				}
+			}
+		},
+		"method_access": {
+			"contentName": "meta.function-call.member.c",
+			"begin": "((?:[a-zA-Z_]\\w*|(?<=\\]|\\)))\\s*)(?:((?:\\.\\*|\\.))|((?:->\\*|->)))((?:[a-zA-Z_]\\w*\\s*(?:(?:(?:\\.\\*|\\.))|(?:(?:->\\*|->)))\\s*)*)\\s*([a-zA-Z_]\\w*)(\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "variable.other.object.access.c"
+				},
+				"2": {
+					"name": "punctuation.separator.dot-access.c"
+				},
+				"3": {
+					"name": "punctuation.separator.pointer-access.c"
+				},
+				"4": {
+					"patterns": [
+						{
+							"include": "#member_access"
+						},
+						{
+							"include": "#method_access"
+						},
+						{
+							"match": "((?:[a-zA-Z_]\\w*|(?<=\\]|\\)))\\s*)(?:((?:\\.\\*|\\.))|((?:->\\*|->)))",
+							"captures": {
+								"1": {
+									"name": "variable.other.object.access.c"
+								},
+								"2": {
+									"name": "punctuation.separator.dot-access.c"
+								},
+								"3": {
+									"name": "punctuation.separator.pointer-access.c"
+								}
+							}
+						}
+					]
+				},
+				"5": {
+					"name": "entity.name.function.member.c"
+				},
+				"6": {
+					"name": "punctuation.section.arguments.begin.bracket.round.function.member.c"
+				}
+			},
+			"end": "(\\))",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.section.arguments.end.bracket.round.function.member.c"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#function-call-innards"
+				}
+			]
+		},
+		"predefined_macros": {
+			"patterns": [
+				{
+					"match": "\\b__cplusplus\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__cplusplus.c"
+				},
+				{
+					"match": "\\b__DATE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__DATE__.c"
+				},
+				{
+					"match": "\\b__FILE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FILE__.c"
+				},
+				{
+					"match": "\\b__LINE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LINE__.c"
+				},
+				{
+					"match": "\\b__STDC__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STDC__.c"
+				},
+				{
+					"match": "\\b__STDC_HOSTED__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STDC_HOSTED__.c"
+				},
+				{
+					"match": "\\b__STDC_NO_COMPLEX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STDC_NO_COMPLEX__.c"
+				},
+				{
+					"match": "\\b__STDC_VERSION__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STDC_VERSION__.c"
+				},
+				{
+					"match": "\\b__STDCPP_THREADS__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STDCPP_THREADS__.c"
+				},
+				{
+					"match": "\\b__TIME__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__TIME__.c"
+				},
+				{
+					"match": "\\bNDEBUG\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.NDEBUG.c"
+				},
+				{
+					"match": "\\b__OBJC__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__OBJC__.c"
+				},
+				{
+					"match": "\\b__ASSEMBLER__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ASSEMBLER__.c"
+				},
+				{
+					"match": "\\b__ATOM__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ATOM__.c"
+				},
+				{
+					"match": "\\b__AVX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__AVX__.c"
+				},
+				{
+					"match": "\\b__AVX2__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__AVX2__.c"
+				},
+				{
+					"match": "\\b_CHAR_UNSIGNED\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._CHAR_UNSIGNED.c"
+				},
+				{
+					"match": "\\b__CLR_VER\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__CLR_VER.c"
+				},
+				{
+					"match": "\\b_CONTROL_FLOW_GUARD\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._CONTROL_FLOW_GUARD.c"
+				},
+				{
+					"match": "\\b__COUNTER__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__COUNTER__.c"
+				},
+				{
+					"match": "\\b__cplusplus_cli\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__cplusplus_cli.c"
+				},
+				{
+					"match": "\\b__cplusplus_winrt\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__cplusplus_winrt.c"
+				},
+				{
+					"match": "\\b_CPPRTTI\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._CPPRTTI.c"
+				},
+				{
+					"match": "\\b_CPPUNWIND\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._CPPUNWIND.c"
+				},
+				{
+					"match": "\\b_DEBUG\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._DEBUG.c"
+				},
+				{
+					"match": "\\b_DLL\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._DLL.c"
+				},
+				{
+					"match": "\\b__FUNCDNAME__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FUNCDNAME__.c"
+				},
+				{
+					"match": "\\b__FUNCSIG__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FUNCSIG__.c"
+				},
+				{
+					"match": "\\b__FUNCTION__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FUNCTION__.c"
+				},
+				{
+					"match": "\\b_INTEGRAL_MAX_BITS\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._INTEGRAL_MAX_BITS.c"
+				},
+				{
+					"match": "\\b__INTELLISENSE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTELLISENSE__.c"
+				},
+				{
+					"match": "\\b_ISO_VOLATILE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._ISO_VOLATILE.c"
+				},
+				{
+					"match": "\\b_KERNEL_MODE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._KERNEL_MODE.c"
+				},
+				{
+					"match": "\\b_M_AMD64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_AMD64.c"
+				},
+				{
+					"match": "\\b_M_ARM\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_ARM.c"
+				},
+				{
+					"match": "\\b_M_ARM_ARMV7VE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_ARM_ARMV7VE.c"
+				},
+				{
+					"match": "\\b_M_ARM_FP\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_ARM_FP.c"
+				},
+				{
+					"match": "\\b_M_ARM64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_ARM64.c"
+				},
+				{
+					"match": "\\b_M_CEE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_CEE.c"
+				},
+				{
+					"match": "\\b_M_CEE_PURE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_CEE_PURE.c"
+				},
+				{
+					"match": "\\b_M_CEE_SAFE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_CEE_SAFE.c"
+				},
+				{
+					"match": "\\b_M_FP_EXCEPT\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_FP_EXCEPT.c"
+				},
+				{
+					"match": "\\b_M_FP_FAST\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_FP_FAST.c"
+				},
+				{
+					"match": "\\b_M_FP_PRECISE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_FP_PRECISE.c"
+				},
+				{
+					"match": "\\b_M_FP_STRICT\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_FP_STRICT.c"
+				},
+				{
+					"match": "\\b_M_IX86\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_IX86.c"
+				},
+				{
+					"match": "\\b_M_IX86_FP\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_IX86_FP.c"
+				},
+				{
+					"match": "\\b_M_X64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._M_X64.c"
+				},
+				{
+					"match": "\\b_MANAGED\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MANAGED.c"
+				},
+				{
+					"match": "\\b_MSC_BUILD\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MSC_BUILD.c"
+				},
+				{
+					"match": "\\b_MSC_EXTENSIONS\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MSC_EXTENSIONS.c"
+				},
+				{
+					"match": "\\b_MSC_FULL_VER\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MSC_FULL_VER.c"
+				},
+				{
+					"match": "\\b_MSC_VER\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MSC_VER.c"
+				},
+				{
+					"match": "\\b_MSVC_LANG\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MSVC_LANG.c"
+				},
+				{
+					"match": "\\b__MSVC_RUNTIME_CHECKS\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__MSVC_RUNTIME_CHECKS.c"
+				},
+				{
+					"match": "\\b_MT\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MT.c"
+				},
+				{
+					"match": "\\b_NATIVE_WCHAR_T_DEFINED\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._NATIVE_WCHAR_T_DEFINED.c"
+				},
+				{
+					"match": "\\b_OPENMP\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._OPENMP.c"
+				},
+				{
+					"match": "\\b_PREFAST\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._PREFAST.c"
+				},
+				{
+					"match": "\\b__TIMESTAMP__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__TIMESTAMP__.c"
+				},
+				{
+					"match": "\\b_VC_NO_DEFAULTLIB\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._VC_NO_DEFAULTLIB.c"
+				},
+				{
+					"match": "\\b_WCHAR_T_DEFINED\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._WCHAR_T_DEFINED.c"
+				},
+				{
+					"match": "\\b_WIN32\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._WIN32.c"
+				},
+				{
+					"match": "\\b_WIN64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._WIN64.c"
+				},
+				{
+					"match": "\\b_WINRT_DLL\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._WINRT_DLL.c"
+				},
+				{
+					"match": "\\b_ATL_VER\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._ATL_VER.c"
+				},
+				{
+					"match": "\\b_MFC_VER\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._MFC_VER.c"
+				},
+				{
+					"match": "\\b__GFORTRAN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GFORTRAN__.c"
+				},
+				{
+					"match": "\\b__GNUC__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GNUC__.c"
+				},
+				{
+					"match": "\\b__GNUC_MINOR__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GNUC_MINOR__.c"
+				},
+				{
+					"match": "\\b__GNUC_PATCHLEVEL__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GNUC_PATCHLEVEL__.c"
+				},
+				{
+					"match": "\\b__GNUG__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GNUG__.c"
+				},
+				{
+					"match": "\\b__STRICT_ANSI__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__STRICT_ANSI__.c"
+				},
+				{
+					"match": "\\b__BASE_FILE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__BASE_FILE__.c"
+				},
+				{
+					"match": "\\b__INCLUDE_LEVEL__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INCLUDE_LEVEL__.c"
+				},
+				{
+					"match": "\\b__ELF__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ELF__.c"
+				},
+				{
+					"match": "\\b__VERSION__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__VERSION__.c"
+				},
+				{
+					"match": "\\b__OPTIMIZE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__OPTIMIZE__.c"
+				},
+				{
+					"match": "\\b__OPTIMIZE_SIZE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__OPTIMIZE_SIZE__.c"
+				},
+				{
+					"match": "\\b__NO_INLINE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__NO_INLINE__.c"
+				},
+				{
+					"match": "\\b__GNUC_STDC_INLINE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GNUC_STDC_INLINE__.c"
+				},
+				{
+					"match": "\\b__CHAR_UNSIGNED__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__CHAR_UNSIGNED__.c"
+				},
+				{
+					"match": "\\b__WCHAR_UNSIGNED__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WCHAR_UNSIGNED__.c"
+				},
+				{
+					"match": "\\b__REGISTER_PREFIX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__REGISTER_PREFIX__.c"
+				},
+				{
+					"match": "\\b__REGISTER_PREFIX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__REGISTER_PREFIX__.c"
+				},
+				{
+					"match": "\\b__SIZE_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZE_TYPE__.c"
+				},
+				{
+					"match": "\\b__PTRDIFF_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__PTRDIFF_TYPE__.c"
+				},
+				{
+					"match": "\\b__WCHAR_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WCHAR_TYPE__.c"
+				},
+				{
+					"match": "\\b__WINT_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WINT_TYPE__.c"
+				},
+				{
+					"match": "\\b__INTMAX_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTMAX_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINTMAX_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINTMAX_TYPE__.c"
+				},
+				{
+					"match": "\\b__SIG_ATOMIC_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIG_ATOMIC_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT8_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT16_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT32_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT64_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT8_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT16_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT32_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT64_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST8_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST16_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST32_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST64_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST8_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST16_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST32_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST64_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_FAST8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST8_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_FAST16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST16_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_FAST32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST32_TYPE__.c"
+				},
+				{
+					"match": "\\b__INT_FAST64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST64_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST8_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST8_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST16_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST16_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST32_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST32_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST64_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST64_TYPE__.c"
+				},
+				{
+					"match": "\\b__INTPTR_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTPTR_TYPE__.c"
+				},
+				{
+					"match": "\\b__UINTPTR_TYPE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINTPTR_TYPE__.c"
+				},
+				{
+					"match": "\\b__CHAR_BIT__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__CHAR_BIT__.c"
+				},
+				{
+					"match": "\\b__SCHAR_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SCHAR_MAX__.c"
+				},
+				{
+					"match": "\\b__WCHAR_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WCHAR_MAX__.c"
+				},
+				{
+					"match": "\\b__SHRT_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SHRT_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_MAX__.c"
+				},
+				{
+					"match": "\\b__LONG_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LONG_MAX__.c"
+				},
+				{
+					"match": "\\b__LONG_LONG_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LONG_LONG_MAX__.c"
+				},
+				{
+					"match": "\\b__WINT_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WINT_MAX__.c"
+				},
+				{
+					"match": "\\b__SIZE_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZE_MAX__.c"
+				},
+				{
+					"match": "\\b__PTRDIFF_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__PTRDIFF_MAX__.c"
+				},
+				{
+					"match": "\\b__INTMAX_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTMAX_MAX__.c"
+				},
+				{
+					"match": "\\b__UINTMAX_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINTMAX_MAX__.c"
+				},
+				{
+					"match": "\\b__SIG_ATOMIC_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIG_ATOMIC_MAX__.c"
+				},
+				{
+					"match": "\\b__INT8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT8_MAX__.c"
+				},
+				{
+					"match": "\\b__INT16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT16_MAX__.c"
+				},
+				{
+					"match": "\\b__INT32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT32_MAX__.c"
+				},
+				{
+					"match": "\\b__INT64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT64_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT8_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT16_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT32_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT64_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST8_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST16_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST32_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST64_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST8_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST16_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST32_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_LEAST64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_LEAST64_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_FAST8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST8_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_FAST16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST16_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_FAST32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST32_MAX__.c"
+				},
+				{
+					"match": "\\b__INT_FAST64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST64_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST8_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST8_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST16_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST16_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST32_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST32_MAX__.c"
+				},
+				{
+					"match": "\\b__UINT_FAST64_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINT_FAST64_MAX__.c"
+				},
+				{
+					"match": "\\b__INTPTR_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTPTR_MAX__.c"
+				},
+				{
+					"match": "\\b__UINTPTR_MAX__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__UINTPTR_MAX__.c"
+				},
+				{
+					"match": "\\b__WCHAR_MIN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WCHAR_MIN__.c"
+				},
+				{
+					"match": "\\b__WINT_MIN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WINT_MIN__.c"
+				},
+				{
+					"match": "\\b__SIG_ATOMIC_MIN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIG_ATOMIC_MIN__.c"
+				},
+				{
+					"match": "\\b__SCHAR_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SCHAR_WIDTH__.c"
+				},
+				{
+					"match": "\\b__SHRT_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SHRT_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_WIDTH__.c"
+				},
+				{
+					"match": "\\b__LONG_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LONG_WIDTH__.c"
+				},
+				{
+					"match": "\\b__LONG_LONG_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LONG_LONG_WIDTH__.c"
+				},
+				{
+					"match": "\\b__PTRDIFF_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__PTRDIFF_WIDTH__.c"
+				},
+				{
+					"match": "\\b__SIG_ATOMIC_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIG_ATOMIC_WIDTH__.c"
+				},
+				{
+					"match": "\\b__SIZE_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZE_WIDTH__.c"
+				},
+				{
+					"match": "\\b__WCHAR_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WCHAR_WIDTH__.c"
+				},
+				{
+					"match": "\\b__WINT_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__WINT_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST8_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST8_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST16_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST16_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST32_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST32_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_LEAST64_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_LEAST64_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_FAST8_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST8_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_FAST16_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST16_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_FAST32_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST32_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INT_FAST64_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INT_FAST64_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INTPTR_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTPTR_WIDTH__.c"
+				},
+				{
+					"match": "\\b__INTMAX_WIDTH__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__INTMAX_WIDTH__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_INT__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_INT__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_LONG__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_LONG__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_LONG_LONG__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_LONG_LONG__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_SHORT__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_SHORT__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_POINTER__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_POINTER__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_FLOAT__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_FLOAT__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_DOUBLE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_DOUBLE__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_LONG_DOUBLE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_LONG_DOUBLE__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_SIZE_T__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_SIZE_T__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_WCHAR_T__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_WCHAR_T__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_WINT_T__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_WINT_T__.c"
+				},
+				{
+					"match": "\\b__SIZEOF_PTRDIFF_T__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SIZEOF_PTRDIFF_T__.c"
+				},
+				{
+					"match": "\\b__BYTE_ORDER__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__BYTE_ORDER__.c"
+				},
+				{
+					"match": "\\b__ORDER_LITTLE_ENDIAN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ORDER_LITTLE_ENDIAN__.c"
+				},
+				{
+					"match": "\\b__ORDER_BIG_ENDIAN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ORDER_BIG_ENDIAN__.c"
+				},
+				{
+					"match": "\\b__ORDER_PDP_ENDIAN__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__ORDER_PDP_ENDIAN__.c"
+				},
+				{
+					"match": "\\b__FLOAT_WORD_ORDER__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FLOAT_WORD_ORDER__.c"
+				},
+				{
+					"match": "\\b__DEPRECATED\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__DEPRECATED.c"
+				},
+				{
+					"match": "\\b__EXCEPTIONS\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__EXCEPTIONS.c"
+				},
+				{
+					"match": "\\b__GXX_RTTI\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GXX_RTTI.c"
+				},
+				{
+					"match": "\\b__USING_SJLJ_EXCEPTIONS__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__USING_SJLJ_EXCEPTIONS__.c"
+				},
+				{
+					"match": "\\b__GXX_EXPERIMENTAL_CXX0X__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GXX_EXPERIMENTAL_CXX0X__.c"
+				},
+				{
+					"match": "\\b__GXX_WEAK__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GXX_WEAK__.c"
+				},
+				{
+					"match": "\\b__NEXT_RUNTIME__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__NEXT_RUNTIME__.c"
+				},
+				{
+					"match": "\\b__LP64__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__LP64__.c"
+				},
+				{
+					"match": "\\b_LP64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._LP64.c"
+				},
+				{
+					"match": "\\b__SSP__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SSP__.c"
+				},
+				{
+					"match": "\\b__SSP_ALL__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SSP_ALL__.c"
+				},
+				{
+					"match": "\\b__SSP_STRONG__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SSP_STRONG__.c"
+				},
+				{
+					"match": "\\b__SSP_EXPLICIT__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SSP_EXPLICIT__.c"
+				},
+				{
+					"match": "\\b__SANITIZE_ADDRESS__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SANITIZE_ADDRESS__.c"
+				},
+				{
+					"match": "\\b__SANITIZE_THREAD__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__SANITIZE_THREAD__.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16.c"
+				},
+				{
+					"match": "\\b__HAVE_SPECULATION_SAFE_VALUE\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__HAVE_SPECULATION_SAFE_VALUE.c"
+				},
+				{
+					"match": "\\b__GCC_HAVE_DWARF2_CFI_ASM\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_HAVE_DWARF2_CFI_ASM.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMA\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMA.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAL\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAL.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF16\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF16.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF32\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF32.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF64\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF64.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF128\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF128.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF32X\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF32X.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF64X\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF64X.c"
+				},
+				{
+					"match": "\\b__FP_FAST_FMAF128X\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FP_FAST_FMAF128X.c"
+				},
+				{
+					"match": "\\b__GCC_IEC_559\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_IEC_559.c"
+				},
+				{
+					"match": "\\b__GCC_IEC_559_COMPLEX\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__GCC_IEC_559_COMPLEX.c"
+				},
+				{
+					"match": "\\b__NO_MATH_ERRNO__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__NO_MATH_ERRNO__.c"
+				},
+				{
+					"match": "\\b__has_builtin\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_builtin.c"
+				},
+				{
+					"match": "\\b__has_feature\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_feature.c"
+				},
+				{
+					"match": "\\b__has_extension\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_extension.c"
+				},
+				{
+					"match": "\\b__has_cpp_attribute\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_cpp_attribute.c"
+				},
+				{
+					"match": "\\b__has_c_attribute\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_c_attribute.c"
+				},
+				{
+					"match": "\\b__has_attribute\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_attribute.c"
+				},
+				{
+					"match": "\\b__has_declspec_attribute\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_declspec_attribute.c"
+				},
+				{
+					"match": "\\b__is_identifier\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__is_identifier.c"
+				},
+				{
+					"match": "\\b__has_include\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_include.c"
+				},
+				{
+					"match": "\\b__has_include_next\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_include_next.c"
+				},
+				{
+					"match": "\\b__has_warning\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__has_warning.c"
+				},
+				{
+					"match": "\\b__BASE_FILE__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__BASE_FILE__.c"
+				},
+				{
+					"match": "\\b__FILE_NAME__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__FILE_NAME__.c"
+				},
+				{
+					"match": "\\b__clang__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__clang__.c"
+				},
+				{
+					"match": "\\b__clang_major__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__clang_major__.c"
+				},
+				{
+					"match": "\\b__clang_minor__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__clang_minor__.c"
+				},
+				{
+					"match": "\\b__clang_patchlevel__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__clang_patchlevel__.c"
+				},
+				{
+					"match": "\\b__clang_version__\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__clang_version__.c"
+				},
+				{
+					"match": "\\b__fp16\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined.__fp16.c"
+				},
+				{
+					"match": "\\b_Float16\\b",
+					"name": "entity.name.other.preprocessor.macro.predefined._Float16.c"
+				},
+				{
+					"match": "(\\b__([A-Z_]+)__\\b)",
+					"captures": {
+						"1": {
+							"name": "entity.name.other.preprocessor.macro.predefined.probably.$2.c"
+						}
+					}
+				}
+			]
+		},
+		"numbers": {
+			"begin": "(?<!\\w)(?=\\d|\\.\\d)",
+			"end": "(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+			"patterns": [
+				{
+					"match": "(\\G0[xX])([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)?((?:(?<=[0-9a-fA-F])\\.|\\.(?=[0-9a-fA-F])))([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)?((?<!')([pP])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)))?([lLfF](?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.hexadecimal.c"
+						},
+						"2": {
+							"name": "constant.numeric.hexadecimal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric"
+						},
+						"4": {
+							"name": "constant.numeric.hexadecimal.c"
+						},
+						"5": {
+							"name": "constant.numeric.hexadecimal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"6": {
+							"name": "punctuation.separator.constant.numeric"
+						},
+						"8": {
+							"name": "keyword.other.unit.exponent.hexadecimal.c"
+						},
+						"9": {
+							"name": "keyword.operator.plus.exponent.hexadecimal.c"
+						},
+						"10": {
+							"name": "keyword.operator.minus.exponent.hexadecimal.c"
+						},
+						"11": {
+							"name": "constant.numeric.exponent.hexadecimal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"12": {
+							"name": "keyword.other.unit.suffix.floating-point.c"
+						}
+					}
+				},
+				{
+					"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)?((?:(?<=[0-9])\\.|\\.(?=[0-9])))([0-9](?:[0-9]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)?((?<!')([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)))?([lLfF](?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"2": {
+							"name": "constant.numeric.decimal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric"
+						},
+						"4": {
+							"name": "constant.numeric.decimal.point.c"
+						},
+						"5": {
+							"name": "constant.numeric.decimal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"6": {
+							"name": "punctuation.separator.constant.numeric"
+						},
+						"8": {
+							"name": "keyword.other.unit.exponent.decimal.c"
+						},
+						"9": {
+							"name": "keyword.operator.plus.exponent.decimal.c"
+						},
+						"10": {
+							"name": "keyword.operator.minus.exponent.decimal.c"
+						},
+						"11": {
+							"name": "constant.numeric.exponent.decimal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"12": {
+							"name": "keyword.other.unit.suffix.floating-point.c"
+						}
+					}
+				},
+				{
+					"match": "(\\G0[bB])([01](?:[01]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.binary.c"
+						},
+						"2": {
+							"name": "constant.numeric.binary.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric"
+						},
+						"4": {
+							"name": "keyword.other.unit.suffix.integer.c"
+						}
+					}
+				},
+				{
+					"match": "(\\G0)((?:[0-7]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))+)((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.octal.c"
+						},
+						"2": {
+							"name": "constant.numeric.octal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric"
+						},
+						"4": {
+							"name": "keyword.other.unit.suffix.integer.c"
+						}
+					}
+				},
+				{
+					"match": "(\\G0[xX])([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)((?<!')([pP])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)))?((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"1": {
+							"name": "keyword.other.unit.hexadecimal.c"
+						},
+						"2": {
+							"name": "constant.numeric.hexadecimal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric"
+						},
+						"5": {
+							"name": "keyword.other.unit.exponent.hexadecimal.c"
+						},
+						"6": {
+							"name": "keyword.operator.plus.exponent.hexadecimal.c"
+						},
+						"7": {
+							"name": "keyword.operator.minus.exponent.hexadecimal.c"
+						},
+						"8": {
+							"name": "constant.numeric.exponent.hexadecimal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"9": {
+							"name": "keyword.other.unit.suffix.integer.c"
+						}
+					}
+				},
+				{
+					"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)((?<!')([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])))*)))?((?:(?:(?:(?:(?:[uU]|[uU]ll?)|[uU]LL?)|ll?[uU]?)|LL?[uU]?)|[fF])(?!\\w))?(?!(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-]))",
+					"captures": {
+						"2": {
+							"name": "constant.numeric.decimal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"3": {
+							"name": "punctuation.separator.constant.numeric"
+						},
+						"5": {
+							"name": "keyword.other.unit.exponent.decimal.c"
+						},
+						"6": {
+							"name": "keyword.operator.plus.exponent.decimal.c"
+						},
+						"7": {
+							"name": "keyword.operator.minus.exponent.decimal.c"
+						},
+						"8": {
+							"name": "constant.numeric.exponent.decimal.c",
+							"patterns": [
+								{
+									"match": "(?<=[0-9a-fA-F])'(?=[0-9a-fA-F])",
+									"name": "punctuation.separator.constant.numeric"
+								}
+							]
+						},
+						"9": {
+							"name": "keyword.other.unit.suffix.integer.c"
+						}
+					}
+				},
+				{
+					"match": "(?:(?:[0-9a-zA-Z_\\.]|')|(?<=[eEpP])[+-])+",
+					"name": "invalid.illegal.constant.numeric"
+				}
+			]
+		},
+		"probably_a_parameter": {
+			"match": "(?<=(?:[a-zA-Z_0-9] |[&*>\\]\\)]))\\s*([a-zA-Z_]\\w*)\\s*(?=(?:\\[\\]\\s*)?(?:,|\\)))",
+			"captures": {
+				"1": {
+					"name": "variable.parameter.probably.c"
+				}
+			}
 		},
 		"access-method": {
 			"name": "meta.function-call.member.c",
@@ -436,7 +2181,7 @@
 							"name": "variable.object.c"
 						},
 						{
-							"name": "everything.else",
+							"name": "everything.else.c",
 							"match": ".+"
 						}
 					]
@@ -459,44 +2204,6 @@
 					"include": "#function-call-innards"
 				}
 			]
-		},
-		"access-member": {
-			"name": "variable.object.access.c",
-			"match": "(?:([a-zA-Z_][a-zA-Z0-9_]*)|(?<=\\]|\\)))\\s*(?:((?:\\.|\\.\\*))|((?:->|->\\*)))\\s*((?:[a-zA-Z_][a-zA-Z0-9_]*\\s*(?:\\.|->)\\s*)*)\\b(?!(?:auto|void|char|short|int|signed|unsigned|long|float|double|bool|wchar_t|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t))([a-zA-Z_][a-zA-Z0-9_]*)\\b(?!\\()",
-			"captures": {
-				"1": {
-					"name": "variable.object.c"
-				},
-				"2": {
-					"name": "punctuation.separator.dot-access.c"
-				},
-				"3": {
-					"name": "punctuation.separator.pointer-access.c"
-				},
-				"4": {
-					"patterns": [
-						{
-							"match": "\\.",
-							"name": "punctuation.separator.dot-access.c"
-						},
-						{
-							"match": "->",
-							"name": "punctuation.separator.pointer-access.c"
-						},
-						{
-							"match": "[a-zA-Z_][a-zA-Z0-9_]*",
-							"name": "variable.object.c"
-						},
-						{
-							"match": ".+",
-							"name": "everything.else"
-						}
-					]
-				},
-				"5": {
-					"name": "variable.other.member.c"
-				}
-			}
 		},
 		"block": {
 			"patterns": [
@@ -534,10 +2241,10 @@
 					"include": "#preprocessor-rule-conditional-block"
 				},
 				{
-					"include": "#access-method"
+					"include": "#method_access"
 				},
 				{
-					"include": "#access-member"
+					"include": "#member_access"
 				},
 				{
 					"include": "#c_function_call"
@@ -629,23 +2336,19 @@
 					"name": "comment.block.c"
 				},
 				{
-					"match": "\\*/.*\\n",
-					"name": "invalid.illegal.stray-comment-end.c"
-				},
-				{
 					"captures": {
 						"1": {
 							"name": "meta.toc-list.banner.line.c"
 						}
 					},
 					"match": "^// =(\\s*.*?)\\s*=\\s*$\\n?",
-					"name": "comment.line.banner.cpp"
+					"name": "comment.line.banner.c"
 				},
 				{
 					"begin": "(^[ \\t]+)?(?=//)",
 					"beginCaptures": {
 						"1": {
-							"name": "punctuation.whitespace.comment.leading.cpp"
+							"name": "punctuation.whitespace.comment.leading.c"
 						}
 					},
 					"end": "(?!\\G)",
@@ -654,11 +2357,11 @@
 							"begin": "//",
 							"beginCaptures": {
 								"0": {
-									"name": "punctuation.definition.comment.cpp"
+									"name": "punctuation.definition.comment.c"
 								}
 							},
 							"end": "(?=\\n)",
-							"name": "comment.line.double-slash.cpp",
+							"name": "comment.line.double-slash.c",
 							"patterns": [
 								{
 									"include": "#line_continuation_character"
@@ -693,16 +2396,8 @@
 				}
 			]
 		},
-		"numbers": {
-			"patterns": [
-				{
-					"match": "\\b((0(x|X)[0-9a-fA-F]([0-9a-fA-F']*[0-9a-fA-F])?)|(0(b|B)[01]([01']*[01])?)|(([0-9]([0-9']*[0-9])?\\.?[0-9]*([0-9']*[0-9])?)|(\\.[0-9]([0-9']*[0-9])?))((e|E)(\\+|-)?[0-9]([0-9']*[0-9])?)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\\b",
-					"name": "constant.numeric.c"
-				}
-			]
-		},
 		"parens": {
-			"name": "punctuation.section.parens",
+			"name": "meta.parens.c",
 			"begin": "\\(",
 			"beginCaptures": {
 				"0": {
@@ -722,7 +2417,7 @@
 			]
 		},
 		"parens-block": {
-			"name": "punctuation.section.parens.block",
+			"name": "meta.parens.block.c",
 			"begin": "\\(",
 			"beginCaptures": {
 				"0": {
@@ -740,8 +2435,8 @@
 					"include": "#block_innards"
 				},
 				{
-					"match": "(?<!:):(?!:)",
-					"name": "punctuation.range-based.cpp"
+					"match": "(?-mix:(?<!:):(?!:))",
+					"name": "punctuation.range-based.c"
 				}
 			]
 		},
@@ -761,7 +2456,7 @@
 				}
 			},
 			"match": "^\\s*(((#)\\s*pragma\\s+mark)\\s+(.*))",
-			"name": "meta.section"
+			"name": "meta.section.c"
 		},
 		"operators": {
 			"patterns": [
@@ -810,28 +2505,21 @@
 					"name": "keyword.operator.c"
 				},
 				{
-					"begin": "\\?",
+					"begin": "(\\?)",
 					"beginCaptures": {
-						"0": {
+						"1": {
 							"name": "keyword.operator.ternary.c"
 						}
 					},
-					"end": ":",
-					"applyEndPatternLast": true,
+					"end": "(:)",
 					"endCaptures": {
-						"0": {
+						"1": {
 							"name": "keyword.operator.ternary.c"
 						}
 					},
 					"patterns": [
 						{
-							"include": "#access-method"
-						},
-						{
-							"include": "#access-member"
-						},
-						{
-							"include": "#c_function_call"
+							"include": "#function-call-innards"
 						},
 						{
 							"include": "$base"
@@ -924,16 +2612,110 @@
 		"storage_types": {
 			"patterns": [
 				{
-					"match": "(?:(?<![a-zA-Z0-9_])(?:u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t)(?![a-zA-Z0-9_])|_Bool|_Complex|_Imaginary)",
-					"name": "storage.type.built-in.c"
-				},
-				{
-					"match": "(?<![a-zA-Z0-9_])(?:auto|void|char|short|int|signed|unsigned|long|float|double|bool|wchar_t)(?![a-zA-Z0-9_])",
+					"match": "(?-mix:(?<!\\w)(?:void|char|short|int|signed|unsigned|long|float|double|bool|_Bool)(?!\\w))",
 					"name": "storage.type.built-in.primitive.c"
 				},
 				{
-					"match": "\\b(asm|__asm__|enum|struct|union)\\b",
+					"match": "(?-mix:(?<!\\w)(?:_Complex|_Imaginary|u_char|u_short|u_int|u_long|ushort|uint|u_quad_t|quad_t|qaddr_t|caddr_t|daddr_t|div_t|dev_t|fixpt_t|blkcnt_t|blksize_t|gid_t|in_addr_t|in_port_t|ino_t|key_t|mode_t|nlink_t|id_t|pid_t|off_t|segsz_t|swblk_t|uid_t|id_t|clock_t|size_t|ssize_t|time_t|useconds_t|suseconds_t|pthread_attr_t|pthread_cond_t|pthread_condattr_t|pthread_mutex_t|pthread_mutexattr_t|pthread_once_t|pthread_rwlock_t|pthread_rwlockattr_t|pthread_t|pthread_key_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|int_least8_t|int_least16_t|int_least32_t|int_least64_t|uint_least8_t|uint_least16_t|uint_least32_t|uint_least64_t|int_fast8_t|int_fast16_t|int_fast32_t|int_fast64_t|uint_fast8_t|uint_fast16_t|uint_fast32_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|intmax_t|uintmax_t|uintmax_t|memory_order|atomic_bool|atomic_char|atomic_schar|atomic_uchar|atomic_short|atomic_ushort|atomic_int|atomic_uint|atomic_long|atomic_ulong|atomic_llong|atomic_ullong|atomic_char16_t|atomic_char32_t|atomic_wchar_t|atomic_int_least8_t|atomic_uint_least8_t|atomic_int_least16_t|atomic_uint_least16_t|atomic_int_least32_t|atomic_uint_least32_t|atomic_int_least64_t|atomic_uint_least64_t|atomic_int_fast8_t|atomic_uint_fast8_t|atomic_int_fast16_t|atomic_uint_fast16_t|atomic_int_fast32_t|atomic_uint_fast32_t|atomic_int_fast64_t|atomic_uint_fast64_t|atomic_intptr_t|atomic_uintptr_t|atomic_size_t|atomic_ptrdiff_t|atomic_intmax_t|atomic_uintmax_t)(?!\\w))",
+					"name": "storage.type.built-in.c"
+				},
+				{
+					"match": "(?-mix:\\b(enum|struct|union)\\b)",
 					"name": "storage.type.$1.c"
+				},
+				{
+					"name": "meta.asm.c",
+					"begin": "(\\b(?:__asm__|asm)\\b)\\s*((?:volatile)?)\\s*(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.asm.c"
+						},
+						"2": {
+							"name": "storage.modifier.c"
+						},
+						"3": {
+							"name": "punctuation.section.parens.begin.bracket.round.assembly.c"
+						}
+					},
+					"end": "(\\))",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.section.parens.end.bracket.round.assembly.c"
+						}
+					},
+					"patterns": [
+						{
+							"name": "string.quoted.double.c",
+							"contentName": "meta.embedded.assembly.c",
+							"begin": "(R?)(\")",
+							"beginCaptures": {
+								"1": {
+									"name": "meta.encoding.c"
+								},
+								"2": {
+									"name": "punctuation.definition.string.begin.assembly.c"
+								}
+							},
+							"end": "(\")",
+							"endCaptures": {
+								"1": {
+									"name": "punctuation.definition.string.end.assembly.c"
+								}
+							},
+							"patterns": [
+								{
+									"include": "source.asm"
+								},
+								{
+									"include": "source.x86"
+								},
+								{
+									"include": "source.x86_64"
+								},
+								{
+									"include": "source.arm"
+								},
+								{
+									"include": "#backslash_escapes"
+								},
+								{
+									"include": "#string_escaped_char"
+								},
+								{
+									"match": "(?=not)possible"
+								}
+							]
+						},
+						{
+							"begin": "(\\()",
+							"beginCaptures": {
+								"1": {
+									"name": "punctuation.section.parens.begin.bracket.round.assembly.inner.c"
+								}
+							},
+							"end": "(\\))",
+							"endCaptures": {
+								"1": {
+									"name": "punctuation.section.parens.end.bracket.round.assembly.inner.c"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#evaluation_context"
+								}
+							]
+						},
+						{
+							"match": ":",
+							"name": "punctuation.separator.delimiter.colon.assembly.c"
+						},
+						{
+							"include": "#comments_context"
+						},
+						{
+							"include": "#comments"
+						}
+					]
 				}
 			]
 		},
@@ -1925,10 +3707,10 @@
 					]
 				},
 				{
-					"include": "#access-method"
+					"include": "#method_access"
 				},
 				{
-					"include": "#access-member"
+					"include": "#member_access"
 				},
 				{
 					"include": "$base"
@@ -1976,10 +3758,10 @@
 					"include": "#vararg_ellipses"
 				},
 				{
-					"include": "#access-method"
+					"include": "#method_access"
 				},
 				{
-					"include": "#access-member"
+					"include": "#member_access"
 				},
 				{
 					"include": "#operators"
@@ -2045,7 +3827,7 @@
 					"include": "#vararg_ellipses"
 				},
 				{
-					"name": "meta.function.definition.parameters",
+					"name": "meta.function.definition.parameters.c",
 					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|typeid|alignof|alignas|sizeof|[cr]?iterate|and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
 					"beginCaptures": {
 						"1": {
@@ -2103,10 +3885,10 @@
 					"include": "#storage_types"
 				},
 				{
-					"include": "#access-method"
+					"include": "#method_access"
 				},
 				{
-					"include": "#access-member"
+					"include": "#member_access"
 				},
 				{
 					"include": "#operators"

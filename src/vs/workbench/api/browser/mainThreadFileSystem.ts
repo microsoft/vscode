@@ -5,23 +5,21 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions } from 'vs/platform/files/common/files';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
-import { ResourceLabelFormatter, ILabelService } from 'vs/platform/label/common/label';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	private readonly _proxy: ExtHostFileSystemShape;
 	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
-	private readonly _resourceLabelFormatters = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
-		@ILabelService private readonly _labelService: ILabelService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
@@ -40,24 +38,86 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.delete(handle);
 	}
 
-	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void {
-		// Dynamicily registered formatters should have priority over those contributed via package.json
-		formatter.priority = true;
-		const disposable = this._labelService.registerFormatter(formatter);
-		this._resourceLabelFormatters.set(handle, disposable);
-	}
-
-	$unregisterResourceLabelFormatter(handle: number): void {
-		dispose(this._resourceLabelFormatters.get(handle));
-		this._resourceLabelFormatters.delete(handle);
-	}
-
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
 		const fileProvider = this._fileProvider.get(handle);
 		if (!fileProvider) {
 			throw new Error('Unknown file provider');
 		}
 		fileProvider.$onFileSystemChange(changes);
+	}
+
+
+	// --- consumer fs, vscode.workspace.fs
+
+	$stat(uri: UriComponents): Promise<IStat> {
+		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: true }).then(stat => {
+			return {
+				ctime: 0,
+				mtime: stat.mtime,
+				size: stat.size,
+				type: MainThreadFileSystem._getFileType(stat)
+			};
+		}).catch(MainThreadFileSystem._handleError);
+	}
+
+	$readdir(uri: UriComponents): Promise<[string, FileType][]> {
+		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: false }).then(stat => {
+			if (!stat.isDirectory) {
+				const err = new Error(stat.name);
+				err.name = FileSystemProviderErrorCode.FileNotADirectory;
+				throw err;
+			}
+			return !stat.children ? [] : stat.children.map(child => [child.name, MainThreadFileSystem._getFileType(child)]);
+		}).catch(MainThreadFileSystem._handleError);
+	}
+
+	private static _getFileType(stat: IFileStat): FileType {
+		return (stat.isDirectory ? FileType.Directory : FileType.File) + (stat.isSymbolicLink ? FileType.SymbolicLink : 0);
+	}
+
+	$readFile(uri: UriComponents): Promise<VSBuffer> {
+		return this._fileService.readFile(URI.revive(uri)).then(file => file.value).catch(MainThreadFileSystem._handleError);
+	}
+
+	$writeFile(uri: UriComponents, content: VSBuffer): Promise<void> {
+		return this._fileService.writeFile(URI.revive(uri), content).catch(MainThreadFileSystem._handleError);
+	}
+
+	$rename(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+		return this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite).catch(MainThreadFileSystem._handleError);
+	}
+
+	$copy(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+		return this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite).catch(MainThreadFileSystem._handleError);
+	}
+
+	$mkdir(uri: UriComponents): Promise<void> {
+		return this._fileService.createFolder(URI.revive(uri)).catch(MainThreadFileSystem._handleError);
+	}
+
+	$delete(uri: UriComponents, opts: FileDeleteOptions): Promise<void> {
+		return this._fileService.del(URI.revive(uri), opts).catch(MainThreadFileSystem._handleError);
+	}
+
+	private static _handleError(err: any): never {
+		if (err instanceof FileOperationError) {
+			switch (err.fileOperationResult) {
+				case FileOperationResult.FILE_NOT_FOUND:
+					err.name = FileSystemProviderErrorCode.FileNotFound;
+					break;
+				case FileOperationResult.FILE_IS_DIRECTORY:
+					err.name = FileSystemProviderErrorCode.FileIsADirectory;
+					break;
+				case FileOperationResult.FILE_PERMISSION_DENIED:
+					err.name = FileSystemProviderErrorCode.NoPermissions;
+					break;
+				case FileOperationResult.FILE_MOVE_CONFLICT:
+					err.name = FileSystemProviderErrorCode.FileExists;
+					break;
+			}
+		}
+
+		throw err;
 	}
 }
 
@@ -105,10 +165,6 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	// --- forwarding calls
 
-	private static _asBuffer(data: Uint8Array): Buffer {
-		return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-	}
-
 	stat(resource: URI): Promise<IStat> {
 		return this._proxy.$stat(this._handle, resource).then(undefined, err => {
 			throw err;
@@ -116,11 +172,11 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	}
 
 	readFile(resource: URI): Promise<Uint8Array> {
-		return this._proxy.$readFile(this._handle, resource);
+		return this._proxy.$readFile(this._handle, resource).then(buffer => buffer.buffer);
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		return this._proxy.$writeFile(this._handle, resource, RemoteFileSystemProvider._asBuffer(content), opts);
+		return this._proxy.$writeFile(this._handle, resource, VSBuffer.wrap(content), opts);
 	}
 
 	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
@@ -153,12 +209,12 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
 		return this._proxy.$read(this._handle, fd, pos, length).then(readData => {
-			data.set(readData, offset);
+			data.set(readData.buffer, offset);
 			return readData.byteLength;
 		});
 	}
 
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this._proxy.$write(this._handle, fd, pos, Buffer.from(data, offset, length));
+		return this._proxy.$write(this._handle, fd, pos, VSBuffer.wrap(data).slice(offset, offset + length));
 	}
 }

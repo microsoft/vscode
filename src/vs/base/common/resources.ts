@@ -146,7 +146,7 @@ export function normalizePath(resource: URI): URI {
 export function originalFSPath(uri: URI): string {
 	let value: string;
 	const uriPath = uri.path;
-	if (uri.authority && uriPath.length > 1 && uri.scheme === 'file') {
+	if (uri.authority && uriPath.length > 1 && uri.scheme === Schemas.file) {
 		// unc path: file://shares/c$/far/boo
 		value = `//${uri.authority}${uriPath}`;
 	} else if (
@@ -176,34 +176,52 @@ export function isAbsolutePath(resource: URI): boolean {
 /**
  * Returns true if the URI path has a trailing path separator
  */
-export function hasTrailingPathSeparator(resource: URI): boolean {
+export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep): boolean {
 	if (resource.scheme === Schemas.file) {
 		const fsp = originalFSPath(resource);
-		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === paths.sep;
+		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === sep;
 	} else {
 		const p = resource.path;
 		return p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash; // ignore the slash at offset 0
 	}
 }
 
-
 /**
- * Removes a trailing path seperator, if theres one.
+ * Removes a trailing path separator, if there's one.
  * Important: Doesn't remove the first slash, it would make the URI invalid
  */
-export function removeTrailingPathSeparator(resource: URI): URI {
-	if (hasTrailingPathSeparator(resource)) {
+export function removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+	if (hasTrailingPathSeparator(resource, sep)) {
 		return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
 	}
 	return resource;
 }
 
+/**
+ * Adds a trailing path separator to the URI if there isn't one already.
+ * For example, c:\ would be unchanged, but c:\users would become c:\users\
+ */
+export function addTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+	let isRootSep: boolean = false;
+	if (resource.scheme === Schemas.file) {
+		const fsp = originalFSPath(resource);
+		isRootSep = ((fsp !== undefined) && (fsp.length === extpath.getRoot(fsp).length) && (fsp[fsp.length - 1] === sep));
+	} else {
+		sep = '/';
+		const p = resource.path;
+		isRootSep = p.length === 1 && p.charCodeAt(p.length - 1) === CharCode.Slash;
+	}
+	if (!isRootSep && !hasTrailingPathSeparator(resource, sep)) {
+		return resource.with({ path: resource.path + '/' });
+	}
+	return resource;
+}
 
 /**
  * Returns a relative path between two URIs. If the URIs don't have the same schema or authority, `undefined` is returned.
  * The returned relative path always uses forward slashes.
  */
-export function relativePath(from: URI, to: URI): string | undefined {
+export function relativePath(from: URI, to: URI, ignoreCase = hasToIgnoreCase(from)): string | undefined {
 	if (from.scheme !== to.scheme || !isEqualAuthority(from.authority, to.authority)) {
 		return undefined;
 	}
@@ -211,7 +229,20 @@ export function relativePath(from: URI, to: URI): string | undefined {
 		const relativePath = paths.relative(from.path, to.path);
 		return isWindows ? extpath.toSlashes(relativePath) : relativePath;
 	}
-	return paths.posix.relative(from.path || '/', to.path || '/');
+	let fromPath = from.path || '/', toPath = to.path || '/';
+	if (ignoreCase) {
+		// make casing of fromPath match toPath
+		let i = 0;
+		for (const len = Math.min(fromPath.length, toPath.length); i < len; i++) {
+			if (fromPath.charCodeAt(i) !== toPath.charCodeAt(i)) {
+				if (fromPath.charAt(i).toLowerCase() !== toPath.charAt(i).toLowerCase()) {
+					break;
+				}
+			}
+		}
+		fromPath = toPath.substr(0, i) + fromPath.substr(i);
+	}
+	return paths.posix.relative(fromPath, toPath);
 }
 
 /**
@@ -284,7 +315,6 @@ export namespace DataUri {
 	}
 }
 
-
 export class ResourceGlobMatcher {
 
 	private readonly globalExpression: ParsedExpression;
@@ -310,4 +340,17 @@ export class ResourceGlobMatcher {
 		}
 		return !!this.globalExpression(resource.path);
 	}
+}
+
+export function toLocalResource(resource: URI, authority: string | undefined): URI {
+	if (authority) {
+		let path = resource.path;
+		if (path && path[0] !== paths.posix.sep) {
+			path = paths.posix.sep + path;
+		}
+
+		return resource.with({ scheme: Schemas.vscodeRemote, authority, path });
+	}
+
+	return resource.with({ scheme: Schemas.file });
 }

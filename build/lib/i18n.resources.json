@@ -39,10 +39,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/codeinset",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/callHierarchy",
 			"project": "vscode-workbench"
 		},
@@ -108,6 +104,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/quickopen",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/remote",
 			"project": "vscode-workbench"
 		},
 		{
@@ -223,10 +223,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/files2",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/integrity",
 			"project": "vscode-workbench"
 		},
@@ -273,6 +269,10 @@
 		{
 			"name": "vs/workbench/services/preferences",
 			"project": "vscode-preferences"
+		},
+		{
+			"name": "vs/workbench/services/notification",
+			"project": "vscode-workbench"
 		}
 	]
 }

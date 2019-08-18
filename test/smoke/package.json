@@ -17,12 +17,13 @@
     "@types/mkdirp": "0.5.1",
     "@types/mocha": "2.2.41",
     "@types/ncp": "2.0.1",
-    "@types/node": "8.0.33",
+    "@types/node": "^10.14.8",
+    "@types/puppeteer": "^1.19.0",
     "@types/rimraf": "2.0.2",
     "@types/webdriverio": "4.6.1",
     "concurrently": "^3.5.1",
     "cpx": "^1.5.0",
-    "electron": "3.1.8",
+    "electron": "4.2.9",
     "htmlparser2": "^3.9.2",
     "mkdirp": "^0.5.1",
     "mocha": "^5.2.0",
@@ -35,5 +36,8 @@
     "tmp": "0.0.33",
     "typescript": "2.9.2",
     "watch": "^1.0.2"
+  },
+  "dependencies": {
+    "vscode-uri": "^2.0.3"
   }
 }

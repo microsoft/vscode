@@ -1,7 +1,7 @@
 [
 	{
 		"c": "//",
-		"t": "source.objc comment.line.double-slash.cpp punctuation.definition.comment.cpp",
+		"t": "source.objc comment.line.double-slash.objc punctuation.definition.comment.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -12,7 +12,7 @@
 	},
 	{
 		"c": "//",
-		"t": "source.objc comment.line.double-slash.cpp punctuation.definition.comment.cpp",
+		"t": "source.objc comment.line.double-slash.objc punctuation.definition.comment.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "  Copyright (c) Microsoft Corporation. All rights reserved.",
-		"t": "source.objc comment.line.double-slash.cpp",
+		"t": "source.objc comment.line.double-slash.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -34,7 +34,7 @@
 	},
 	{
 		"c": "//",
-		"t": "source.objc comment.line.double-slash.cpp punctuation.definition.comment.cpp",
+		"t": "source.objc comment.line.double-slash.objc punctuation.definition.comment.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "#",
-		"t": "source.objc meta.preprocessor.include.c keyword.control.directive.import.c punctuation.definition.directive.c",
+		"t": "source.objc meta.preprocessor.include.objc keyword.control.directive.import.objc punctuation.definition.directive.objc",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -56,7 +56,7 @@
 	},
 	{
 		"c": "import",
-		"t": "source.objc meta.preprocessor.include.c keyword.control.directive.import.c",
+		"t": "source.objc meta.preprocessor.include.objc keyword.control.directive.import.objc",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -67,7 +67,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.preprocessor.include.c",
+		"t": "source.objc meta.preprocessor.include.objc",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.objc meta.preprocessor.include.c string.quoted.double.include.c punctuation.definition.string.begin.c",
+		"t": "source.objc meta.preprocessor.include.objc string.quoted.double.include.objc punctuation.definition.string.begin.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "UseQuotes.h",
-		"t": "source.objc meta.preprocessor.include.c string.quoted.double.include.c",
+		"t": "source.objc meta.preprocessor.include.objc string.quoted.double.include.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -100,7 +100,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.objc meta.preprocessor.include.c string.quoted.double.include.c punctuation.definition.string.end.c",
+		"t": "source.objc meta.preprocessor.include.objc string.quoted.double.include.objc punctuation.definition.string.end.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -111,7 +111,7 @@
 	},
 	{
 		"c": "#",
-		"t": "source.objc meta.preprocessor.include.c keyword.control.directive.import.c punctuation.definition.directive.c",
+		"t": "source.objc meta.preprocessor.include.objc keyword.control.directive.import.objc punctuation.definition.directive.objc",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": "import",
-		"t": "source.objc meta.preprocessor.include.c keyword.control.directive.import.c",
+		"t": "source.objc meta.preprocessor.include.objc keyword.control.directive.import.objc",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -133,7 +133,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.preprocessor.include.c",
+		"t": "source.objc meta.preprocessor.include.objc",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -144,7 +144,7 @@
 	},
 	{
 		"c": "<",
-		"t": "source.objc meta.preprocessor.include.c string.quoted.other.lt-gt.include.c punctuation.definition.string.begin.c",
+		"t": "source.objc meta.preprocessor.include.objc string.quoted.other.lt-gt.include.objc punctuation.definition.string.begin.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "Use/GTLT.h",
-		"t": "source.objc meta.preprocessor.include.c string.quoted.other.lt-gt.include.c",
+		"t": "source.objc meta.preprocessor.include.objc string.quoted.other.lt-gt.include.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -166,7 +166,7 @@
 	},
 	{
 		"c": ">",
-		"t": "source.objc meta.preprocessor.include.c string.quoted.other.lt-gt.include.c punctuation.definition.string.end.c",
+		"t": "source.objc meta.preprocessor.include.objc string.quoted.other.lt-gt.include.objc punctuation.definition.string.end.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": "/*",
-		"t": "source.objc comment.block.c punctuation.definition.comment.begin.c",
+		"t": "source.objc comment.block.objc punctuation.definition.comment.begin.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -188,7 +188,7 @@
 	},
 	{
 		"c": "\tMulti",
-		"t": "source.objc comment.block.c",
+		"t": "source.objc comment.block.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -199,7 +199,7 @@
 	},
 	{
 		"c": "\tLine",
-		"t": "source.objc comment.block.c",
+		"t": "source.objc comment.block.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -210,7 +210,7 @@
 	},
 	{
 		"c": "\tComments",
-		"t": "source.objc comment.block.c",
+		"t": "source.objc comment.block.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -221,7 +221,7 @@
 	},
 	{
 		"c": "*/",
-		"t": "source.objc comment.block.c punctuation.definition.comment.end.c",
+		"t": "source.objc comment.block.objc punctuation.definition.comment.end.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -298,7 +298,7 @@
 	},
 	{
 		"c": "void",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc storage.type.built-in.primitive.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc storage.type.built-in.primitive.objc",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -364,7 +364,7 @@
 	},
 	{
 		"c": "NSNotification",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc support.class.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc support.class.cocoa.objc",
 		"r": {
 			"dark_plus": "support.class: #4EC9B0",
 			"light_plus": "support.class: #267F99",
@@ -386,7 +386,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc keyword.operator.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.argument-type.objc keyword.operator.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -419,7 +419,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.block.begin.bracket.curly.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.section.block.begin.bracket.curly.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.block.end.bracket.curly.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.section.block.end.bracket.curly.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -551,7 +551,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.block.begin.bracket.curly.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.section.block.begin.bracket.curly.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -562,7 +562,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -573,7 +573,7 @@
 	},
 	{
 		"c": "NSString",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c support.class.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc support.class.cocoa.objc",
 		"r": {
 			"dark_plus": "support.class: #4EC9B0",
 			"light_plus": "support.class: #267F99",
@@ -584,7 +584,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -595,7 +595,7 @@
 	},
 	{
 		"c": " defaultDir ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -606,7 +606,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.assignment.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.assignment.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -617,7 +617,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.whitespace.support.function.leading.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.whitespace.support.function.leading.cocoa.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -628,7 +628,7 @@
 	},
 	{
 		"c": "NSSearchPathForDirectoriesInDomains",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c support.function.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc support.function.cocoa.objc",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -639,7 +639,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.parens.block punctuation.section.parens.begin.bracket.round.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.parens.block.objc punctuation.section.parens.begin.bracket.round.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -650,7 +650,7 @@
 	},
 	{
 		"c": "NSDocumentDirectory",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.parens.block support.constant.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.parens.block.objc support.constant.cocoa.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -661,7 +661,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.parens.block punctuation.separator.delimiter.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.parens.block.objc punctuation.separator.delimiter.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -672,7 +672,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.parens.block",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.parens.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -683,7 +683,7 @@
 	},
 	{
 		"c": "NSUserDomainMask",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.parens.block support.constant.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.parens.block.objc support.constant.cocoa.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -694,7 +694,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.parens.block punctuation.separator.delimiter.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.parens.block.objc punctuation.separator.delimiter.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -705,7 +705,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.parens.block",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.parens.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -716,7 +716,7 @@
 	},
 	{
 		"c": "true",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.parens.block constant.language.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.parens.block.objc constant.language.objc",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -727,7 +727,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.parens.block punctuation.section.parens.end.bracket.round.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.parens.block.objc punctuation.section.parens.end.bracket.round.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -738,7 +738,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -749,7 +749,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c constant.numeric.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc constant.numeric.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -760,7 +760,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -771,7 +771,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -782,7 +782,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -793,7 +793,7 @@
 	},
 	{
 		"c": "NSOpenPanel",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c support.class.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc support.class.cocoa.objc",
 		"r": {
 			"dark_plus": "support.class: #4EC9B0",
 			"light_plus": "support.class: #267F99",
@@ -804,7 +804,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -815,7 +815,7 @@
 	},
 	{
 		"c": " panel ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -826,7 +826,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.assignment.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.assignment.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -837,7 +837,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -848,7 +848,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -859,7 +859,7 @@
 	},
 	{
 		"c": "NSOpenPanel",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c support.class.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc support.class.cocoa.objc",
 		"r": {
 			"dark_plus": "support.class: #4EC9B0",
 			"light_plus": "support.class: #267F99",
@@ -870,7 +870,7 @@
 	},
 	{
 		"c": " openPanel",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -881,7 +881,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -892,7 +892,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -903,7 +903,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -914,7 +914,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -925,7 +925,7 @@
 	},
 	{
 		"c": "panel setAllowedFileTypes:",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -936,7 +936,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -947,7 +947,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -958,7 +958,7 @@
 	},
 	{
 		"c": "NSArray",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c meta.bracket.square.access.c support.class.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc meta.bracket.square.access.objc support.class.cocoa.objc",
 		"r": {
 			"dark_plus": "support.class: #4EC9B0",
 			"light_plus": "support.class: #267F99",
@@ -969,7 +969,7 @@
 	},
 	{
 		"c": " alloc",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -980,7 +980,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -991,7 +991,7 @@
 	},
 	{
 		"c": " initWithObjects:",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1002,7 +1002,7 @@
 	},
 	{
 		"c": "@\"",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c string.quoted.double.objc punctuation.definition.string.begin.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc string.quoted.double.objc punctuation.definition.string.begin.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1013,7 +1013,7 @@
 	},
 	{
 		"c": "ipa",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c string.quoted.double.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc string.quoted.double.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1024,7 +1024,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c string.quoted.double.objc punctuation.definition.string.end.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc string.quoted.double.objc punctuation.definition.string.end.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1035,7 +1035,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.separator.delimiter.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.separator.delimiter.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1046,7 +1046,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1057,7 +1057,7 @@
 	},
 	{
 		"c": "@\"",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c string.quoted.double.objc punctuation.definition.string.begin.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc string.quoted.double.objc punctuation.definition.string.begin.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1068,7 +1068,7 @@
 	},
 	{
 		"c": "xcarchive",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c string.quoted.double.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc string.quoted.double.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1079,7 +1079,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c string.quoted.double.objc punctuation.definition.string.end.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc string.quoted.double.objc punctuation.definition.string.end.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1090,7 +1090,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.separator.delimiter.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.separator.delimiter.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1101,7 +1101,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1112,7 +1112,7 @@
 	},
 	{
 		"c": "@\"",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c string.quoted.double.objc punctuation.definition.string.begin.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc string.quoted.double.objc punctuation.definition.string.begin.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1123,7 +1123,7 @@
 	},
 	{
 		"c": "app",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c string.quoted.double.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc string.quoted.double.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1134,7 +1134,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c string.quoted.double.objc punctuation.definition.string.end.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc string.quoted.double.objc punctuation.definition.string.end.objc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1145,7 +1145,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.separator.delimiter.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.separator.delimiter.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1156,7 +1156,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1167,7 +1167,7 @@
 	},
 	{
 		"c": "nil",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c constant.language.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc constant.language.objc",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -1178,7 +1178,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1189,7 +1189,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1200,7 +1200,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1211,7 +1211,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1222,7 +1222,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1233,7 +1233,7 @@
 	},
 	{
 		"c": "panel beginWithCompletionHandler:",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1244,7 +1244,7 @@
 	},
 	{
 		"c": "^",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c keyword.operator.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc keyword.operator.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1255,7 +1255,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.section.parens.begin.bracket.round.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.section.parens.begin.bracket.round.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1266,7 +1266,7 @@
 	},
 	{
 		"c": "NSInteger",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c support.type.cocoa.leopard",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc support.type.cocoa.leopard.objc",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1277,7 +1277,7 @@
 	},
 	{
 		"c": " result",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1288,7 +1288,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.section.parens.end.bracket.round.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.section.parens.end.bracket.round.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1299,7 +1299,7 @@
 	},
 	{
 		"c": "     ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1310,7 +1310,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.section.block.begin.bracket.curly.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.section.block.begin.bracket.curly.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1321,7 +1321,7 @@
 	},
 	{
 		"c": "         ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1332,7 +1332,7 @@
 	},
 	{
 		"c": "if",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c keyword.control.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc keyword.control.objc",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -1343,7 +1343,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1354,7 +1354,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.section.parens.block punctuation.section.parens.begin.bracket.round.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.parens.block.objc punctuation.section.parens.begin.bracket.round.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1365,7 +1365,7 @@
 	},
 	{
 		"c": "result ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.section.parens.block",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.parens.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1376,7 +1376,7 @@
 	},
 	{
 		"c": "==",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.section.parens.block keyword.operator.comparison.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.parens.block.objc keyword.operator.comparison.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1387,7 +1387,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.section.parens.block",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.parens.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1398,7 +1398,7 @@
 	},
 	{
 		"c": "NSFileHandlingPanelOKButton",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.section.parens.block support.constant.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.parens.block.objc support.constant.cocoa.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1409,7 +1409,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.section.parens.block punctuation.section.parens.end.bracket.round.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.parens.block.objc punctuation.section.parens.end.bracket.round.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1420,7 +1420,7 @@
 	},
 	{
 		"c": "             ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1431,7 +1431,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1442,7 +1442,7 @@
 	},
 	{
 		"c": "self",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c variable.object.access.c variable.object.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc variable.other.object.access.objc",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1453,18 +1453,18 @@
 	},
 	{
 		"c": ".",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c variable.object.access.c punctuation.separator.dot-access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.separator.dot-access.objc",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "inputTextField",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c variable.object.access.c variable.other.member.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc variable.other.member.objc",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1475,7 +1475,7 @@
 	},
 	{
 		"c": " setStringValue:",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1486,7 +1486,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1497,7 +1497,7 @@
 	},
 	{
 		"c": "panel",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c meta.bracket.square.access.c variable.object.access.c variable.object.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc meta.bracket.square.access.objc variable.other.object.access.objc",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1508,18 +1508,18 @@
 	},
 	{
 		"c": ".",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c meta.bracket.square.access.c variable.object.access.c punctuation.separator.dot-access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.separator.dot-access.objc",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "URL",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c meta.bracket.square.access.c variable.object.access.c variable.other.member.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc meta.bracket.square.access.objc variable.other.member.objc",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1530,7 +1530,7 @@
 	},
 	{
 		"c": " path",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1541,7 +1541,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1552,7 +1552,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1563,7 +1563,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1574,7 +1574,7 @@
 	},
 	{
 		"c": "     ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1585,7 +1585,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.section.block.end.bracket.curly.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.section.block.end.bracket.curly.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1596,7 +1596,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1607,7 +1607,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1618,7 +1618,7 @@
 	},
 	{
 		"c": "     ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1629,7 +1629,7 @@
 	},
 	{
 		"c": "return",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.control.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.control.objc",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -1640,7 +1640,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1651,7 +1651,7 @@
 	},
 	{
 		"c": "YES",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c constant.language.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.language.objc",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -1662,7 +1662,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1673,7 +1673,7 @@
 	},
 	{
 		"c": "     ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1684,7 +1684,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c storage.type.built-in.primitive.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc storage.type.built-in.primitive.objc",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1695,7 +1695,7 @@
 	},
 	{
 		"c": " hex ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1706,7 +1706,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.assignment.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.assignment.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1717,7 +1717,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1727,8 +1727,19 @@
 		}
 	},
 	{
-		"c": "0xFEF1F0F",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c constant.numeric.c",
+		"c": "0x",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.other.unit.hexadecimal.objc",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #09885A",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #09885A",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": "FEF1F0F",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.hexadecimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1739,7 +1750,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1750,7 +1761,7 @@
 	},
 	{
 		"c": "\t ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1761,7 +1772,7 @@
 	},
 	{
 		"c": "float",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c storage.type.built-in.primitive.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc storage.type.built-in.primitive.objc",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1772,7 +1783,7 @@
 	},
 	{
 		"c": " ing ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1783,7 +1794,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.assignment.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.assignment.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1794,7 +1805,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1804,8 +1815,30 @@
 		}
 	},
 	{
-		"c": "3.14",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c constant.numeric.c",
+		"c": "3",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.point.objc",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "14",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1816,7 +1849,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1827,7 +1860,7 @@
 	},
 	{
 		"c": "\t ing ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1838,7 +1871,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.assignment.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.assignment.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1849,7 +1882,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1859,8 +1892,52 @@
 		}
 	},
 	{
-		"c": "3.14e0",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c constant.numeric.c",
+		"c": "3",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.point.objc",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "14",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "e",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.other.unit.exponent.decimal.objc",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #09885A",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #09885A",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.exponent.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1871,7 +1948,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1882,7 +1959,7 @@
 	},
 	{
 		"c": "\t ing ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1893,7 +1970,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.assignment.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.assignment.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1904,7 +1981,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1914,8 +1991,63 @@
 		}
 	},
 	{
-		"c": "31.4e-2",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c constant.numeric.c",
+		"c": "31",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.point.objc",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "4",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "e",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.other.unit.exponent.decimal.objc",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #09885A",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #09885A",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": "-",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.minus.exponent.decimal.objc",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "2",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.exponent.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1926,7 +2058,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1937,7 +2069,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.block.end.bracket.curly.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.section.block.end.bracket.curly.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2234,7 +2366,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.block.begin.bracket.curly.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.section.block.begin.bracket.curly.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2245,7 +2377,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.whitespace.comment.leading.cpp",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.whitespace.comment.leading.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2256,7 +2388,7 @@
 	},
 	{
 		"c": "//",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c comment.line.double-slash.cpp punctuation.definition.comment.cpp",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc comment.line.double-slash.objc punctuation.definition.comment.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -2267,7 +2399,7 @@
 	},
 	{
 		"c": " add a tap gesture recognizer",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c comment.line.double-slash.cpp",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc comment.line.double-slash.objc",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -2278,7 +2410,7 @@
 	},
 	{
 		"c": "    UITapGestureRecognizer ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2289,7 +2421,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2300,7 +2432,7 @@
 	},
 	{
 		"c": "tapGesture ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2311,7 +2443,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.assignment.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.assignment.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2322,7 +2454,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2333,7 +2465,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2344,7 +2476,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2355,7 +2487,7 @@
 	},
 	{
 		"c": "UITapGestureRecognizer alloc",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2366,7 +2498,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2377,7 +2509,7 @@
 	},
 	{
 		"c": " initWithTarget:self action:",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2388,7 +2520,7 @@
 	},
 	{
 		"c": "@",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.selector.objc storage.type.objc punctuation.definition.storage.type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.selector.objc storage.type.objc punctuation.definition.storage.type.objc",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -2399,7 +2531,7 @@
 	},
 	{
 		"c": "selector",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.selector.objc storage.type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.selector.objc storage.type.objc",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -2410,7 +2542,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.selector.objc punctuation.definition.storage.type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.selector.objc punctuation.definition.storage.type.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2421,7 +2553,7 @@
 	},
 	{
 		"c": "handleTap:",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.selector.objc meta.selector.method-name.objc support.function.any-method.name-of-parameter.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.selector.objc meta.selector.method-name.objc support.function.any-method.name-of-parameter.objc",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -2432,7 +2564,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c meta.selector.objc punctuation.definition.storage.type.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc meta.selector.objc punctuation.definition.storage.type.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2443,7 +2575,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2454,7 +2586,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2465,7 +2597,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2476,7 +2608,7 @@
 	},
 	{
 		"c": "NSMutableArray",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c support.class.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc support.class.cocoa.objc",
 		"r": {
 			"dark_plus": "support.class: #4EC9B0",
 			"light_plus": "support.class: #267F99",
@@ -2487,7 +2619,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2498,7 +2630,7 @@
 	},
 	{
 		"c": "*",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2509,7 +2641,7 @@
 	},
 	{
 		"c": "gestureRecognizers ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2520,7 +2652,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.assignment.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.assignment.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2531,7 +2663,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2542,7 +2674,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2553,7 +2685,7 @@
 	},
 	{
 		"c": "NSMutableArray",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c support.class.cocoa",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc support.class.cocoa.objc",
 		"r": {
 			"dark_plus": "support.class: #4EC9B0",
 			"light_plus": "support.class: #267F99",
@@ -2564,7 +2696,7 @@
 	},
 	{
 		"c": " array",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2575,7 +2707,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2586,7 +2718,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2597,7 +2729,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2608,7 +2740,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2619,7 +2751,7 @@
 	},
 	{
 		"c": "gestureRecognizers addObject:tapGesture",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2630,7 +2762,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2641,7 +2773,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2652,7 +2784,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2663,7 +2795,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.begin.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.begin.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2674,7 +2806,7 @@
 	},
 	{
 		"c": "gestureRecognizers addObjectsFromArray:",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2685,7 +2817,7 @@
 	},
 	{
 		"c": "scnView",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c variable.object.access.c variable.object.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc variable.other.object.access.objc",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2696,18 +2828,18 @@
 	},
 	{
 		"c": ".",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c variable.object.access.c punctuation.separator.dot-access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.separator.dot-access.objc",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "gestureRecognizers",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c variable.object.access.c variable.other.member.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc variable.other.member.objc",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2718,7 +2850,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.bracket.square.access.c punctuation.definition.end.bracket.square.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc punctuation.definition.end.bracket.square.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2729,7 +2861,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2740,7 +2872,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2751,7 +2883,7 @@
 	},
 	{
 		"c": "scnView",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c variable.object.access.c variable.object.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc variable.other.object.access.objc",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2762,18 +2894,18 @@
 	},
 	{
 		"c": ".",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c variable.object.access.c punctuation.separator.dot-access.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.separator.dot-access.objc",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "gestureRecognizers",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c variable.object.access.c variable.other.member.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc variable.other.member.objc",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2784,7 +2916,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2795,7 +2927,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.operator.assignment.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.assignment.objc",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2806,7 +2938,7 @@
 	},
 	{
 		"c": " gestureRecognizers",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2817,7 +2949,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2828,7 +2960,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2839,7 +2971,7 @@
 	},
 	{
 		"c": "return",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.control.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.control.objc",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -2850,7 +2982,7 @@
 	},
 	{
 		"c": " tapGesture",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2861,7 +2993,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2872,7 +3004,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2883,7 +3015,7 @@
 	},
 	{
 		"c": "return",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c keyword.control.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.control.objc",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -2894,7 +3026,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2905,7 +3037,7 @@
 	},
 	{
 		"c": "nil",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c constant.language.objc",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.language.objc",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -2916,7 +3048,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.terminator.statement.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.terminator.statement.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2927,7 +3059,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c punctuation.section.block.end.bracket.curly.c",
+		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc punctuation.section.block.end.bracket.curly.objc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

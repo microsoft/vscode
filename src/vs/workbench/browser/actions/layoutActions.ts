@@ -16,13 +16,14 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { IsMacContext } from 'vs/workbench/common/contextkeys';
+import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InEditorZenModeContext } from 'vs/workbench/common/editor';
+import { InEditorZenModeContext, IsCenteredLayoutContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
@@ -61,7 +62,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleActivityBarVisibilityAction.ID,
-		title: nls.localize({ key: 'miToggleActivityBar', comment: ['&& denotes a mnemonic'] }, "Toggle &&Activity Bar")
+		title: nls.localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
+		toggled: ContextKeyExpr.equals('config.workbench.activityBar.visible', true)
 	},
 	order: 4
 });
@@ -95,7 +97,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleCenteredLayout.ID,
-		title: nls.localize('miToggleCenteredLayout', "Toggle Centered Layout")
+		title: nls.localize('miToggleCenteredLayout', "Centered Layout"),
+		toggled: IsCenteredLayoutContext
 	},
 	order: 3
 });
@@ -107,7 +110,7 @@ export class ToggleEditorLayoutAction extends Action {
 	static readonly ID = 'workbench.action.toggleEditorGroupLayout';
 	static readonly LABEL = nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout");
 
-	private toDispose: IDisposable[];
+	private readonly toDispose = this._register(new DisposableStore());
 
 	constructor(
 		id: string,
@@ -116,8 +119,6 @@ export class ToggleEditorLayoutAction extends Action {
 	) {
 		super(id, label);
 
-		this.toDispose = [];
-
 		this.class = 'flip-editor-layout';
 		this.updateEnablement();
 
@@ -125,8 +126,8 @@ export class ToggleEditorLayoutAction extends Action {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.editorGroupService.onDidAddGroup(() => this.updateEnablement()));
-		this.toDispose.push(this.editorGroupService.onDidRemoveGroup(() => this.updateEnablement()));
+		this.toDispose.add(this.editorGroupService.onDidAddGroup(() => this.updateEnablement()));
+		this.toDispose.add(this.editorGroupService.onDidRemoveGroup(() => this.updateEnablement()));
 	}
 
 	private updateEnablement(): void {
@@ -138,12 +139,6 @@ export class ToggleEditorLayoutAction extends Action {
 		this.editorGroupService.setGroupOrientation(newOrientation);
 
 		return Promise.resolve();
-	}
-
-	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
 	}
 }
 
@@ -157,7 +152,7 @@ CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', functi
 });
 
 const group = viewCategory;
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Flip Editor Group Layout', group);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Vertical/Horizontal Editor Layout', group);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: 'z_flip',
@@ -203,11 +198,22 @@ export class ToggleSidebarPositionAction extends Action {
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL), 'View: Toggle Side Bar Position', viewCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '2_workbench_layout',
+	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
-		title: nls.localize({ key: 'miMoveSidebarLeftRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left/Right")
+		title: nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right")
 	},
+	when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '3_workbench_layout_move',
+	command: {
+		id: ToggleSidebarPositionAction.ID,
+		title: nls.localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left")
+	},
+	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
 	order: 2
 });
 
@@ -262,18 +268,26 @@ export class ToggleSidebarVisibilityAction extends Action {
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarVisibilityAction, ToggleSidebarVisibilityAction.ID, ToggleSidebarVisibilityAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', viewCategory);
 
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '2_appearance',
+	title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
+	submenu: MenuId.MenubarAppearanceMenu,
+	order: 1
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleSidebarVisibilityAction.ID,
-		title: nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar")
+		title: nls.localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
+		toggled: SideBarVisibleContext
 	},
 	order: 1
 });
 
 // --- Toggle Statusbar Visibility
 
-class ToggleStatusbarVisibilityAction extends Action {
+export class ToggleStatusbarVisibilityAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleStatusbarVisibility';
 	static readonly LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
@@ -305,7 +319,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleStatusbarVisibilityAction.ID,
-		title: nls.localize({ key: 'miToggleStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Status Bar")
+		title: nls.localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "Show S&&tatus Bar"),
+		toggled: ContextKeyExpr.equals('config.workbench.statusBar.visible', true)
 	},
 	order: 3
 });
@@ -370,7 +385,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleZenMode.ID,
-		title: nls.localize('miToggleZenMode', "Toggle Zen Mode")
+		title: nls.localize('miToggleZenMode', "Zen Mode"),
+		toggled: InEditorZenModeContext
 	},
 	order: 2
 });
@@ -422,18 +438,19 @@ export class ToggleMenuBarAction extends Action {
 	}
 }
 
-if (isWindows || isLinux) {
+if (isWindows || isLinux || isWeb) {
 	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '1_toggle_view',
+	group: '2_workbench_layout',
 	command: {
 		id: ToggleMenuBarAction.ID,
-		title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
+		title: nls.localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
+		toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'))
 	},
-	when: IsMacContext.toNegated(),
-	order: 4
+	when: IsMacNativeContext.toNegated(),
+	order: 0
 });
 
 // --- Resize View

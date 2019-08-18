@@ -33,13 +33,15 @@ function isDirectory(path: string): Promise<boolean> {
 	});
 }
 
-enum UpdateImportsOnFileMoveSetting {
+const enum UpdateImportsOnFileMoveSetting {
 	Prompt = 'prompt',
 	Always = 'always',
 	Never = 'never',
 }
 
 class UpdateImportsOnFileRenameHandler extends Disposable {
+	public static readonly minVersion = API.v300;
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager,
@@ -125,7 +127,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		newResource: vscode.Uri,
 		newDocument: vscode.TextDocument
 	): Promise<boolean> {
-		enum Choice {
+		const enum Choice {
 			None = 0,
 			Accept = 1,
 			Reject = 2,
@@ -233,6 +235,6 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	handles: (uri: vscode.Uri) => Promise<boolean>,
 ) {
-	return new VersionDependentRegistration(client, API.v300, () =>
+	return new VersionDependentRegistration(client, UpdateImportsOnFileRenameHandler.minVersion, () =>
 		new UpdateImportsOnFileRenameHandler(client, fileConfigurationManager, handles));
 }

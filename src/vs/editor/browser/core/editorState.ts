@@ -8,8 +8,9 @@ import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser'
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
+import { EditorKeybindingCancellationTokenSource } from 'vs/editor/browser/core/keybindingCancellation';
 
 export const enum CodeEditorStateFlag {
 	Value = 1,
@@ -34,16 +35,25 @@ export class EditorState {
 		if ((this.flags & CodeEditorStateFlag.Value) !== 0) {
 			const model = editor.getModel();
 			this.modelVersionId = model ? strings.format('{0}#{1}', model.uri.toString(), model.getVersionId()) : null;
+		} else {
+			this.modelVersionId = null;
 		}
 		if ((this.flags & CodeEditorStateFlag.Position) !== 0) {
 			this.position = editor.getPosition();
+		} else {
+			this.position = null;
 		}
 		if ((this.flags & CodeEditorStateFlag.Selection) !== 0) {
 			this.selection = editor.getSelection();
+		} else {
+			this.selection = null;
 		}
 		if ((this.flags & CodeEditorStateFlag.Scroll) !== 0) {
 			this.scrollLeft = editor.getScrollLeft();
 			this.scrollTop = editor.getScrollTop();
+		} else {
+			this.scrollLeft = -1;
+			this.scrollTop = -1;
 		}
 	}
 
@@ -78,30 +88,30 @@ export class EditorState {
  * A cancellation token source that cancels when the editor changes as expressed
  * by the provided flags
  */
-export class EditorStateCancellationTokenSource extends CancellationTokenSource {
+export class EditorStateCancellationTokenSource extends EditorKeybindingCancellationTokenSource implements IDisposable {
 
-	private readonly _listener: IDisposable[] = [];
+	private readonly _listener = new DisposableStore();
 
 	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag, parent?: CancellationToken) {
-		super(parent);
+		super(editor, parent);
 
 		if (flags & CodeEditorStateFlag.Position) {
-			this._listener.push(editor.onDidChangeCursorPosition(_ => this.cancel()));
+			this._listener.add(editor.onDidChangeCursorPosition(_ => this.cancel()));
 		}
 		if (flags & CodeEditorStateFlag.Selection) {
-			this._listener.push(editor.onDidChangeCursorSelection(_ => this.cancel()));
+			this._listener.add(editor.onDidChangeCursorSelection(_ => this.cancel()));
 		}
 		if (flags & CodeEditorStateFlag.Scroll) {
-			this._listener.push(editor.onDidScrollChange(_ => this.cancel()));
+			this._listener.add(editor.onDidScrollChange(_ => this.cancel()));
 		}
 		if (flags & CodeEditorStateFlag.Value) {
-			this._listener.push(editor.onDidChangeModel(_ => this.cancel()));
-			this._listener.push(editor.onDidChangeModelContent(_ => this.cancel()));
+			this._listener.add(editor.onDidChangeModel(_ => this.cancel()));
+			this._listener.add(editor.onDidChangeModelContent(_ => this.cancel()));
 		}
 	}
 
 	dispose() {
-		dispose(this._listener);
+		this._listener.dispose();
 		super.dispose();
 	}
 }
@@ -109,7 +119,7 @@ export class EditorStateCancellationTokenSource extends CancellationTokenSource 
 /**
  * A cancellation token source that cancels when the provided model changes
  */
-export class TextModelCancellationTokenSource extends CancellationTokenSource {
+export class TextModelCancellationTokenSource extends CancellationTokenSource implements IDisposable {
 
 	private _listener: IDisposable;
 

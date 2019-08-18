@@ -53,7 +53,7 @@ export class RichEditSupport {
 	public readonly characterPair: CharacterPairSupport;
 	public readonly wordDefinition: RegExp;
 	public readonly onEnter: OnEnterSupport | null;
-	public readonly indentRulesSupport: IndentRulesSupport;
+	public readonly indentRulesSupport: IndentRulesSupport | null;
 	public readonly indentationRules: IndentationRule | undefined;
 	public readonly foldingRules: FoldingRules;
 
@@ -81,6 +81,8 @@ export class RichEditSupport {
 		this.indentationRules = this._conf.indentationRules;
 		if (this._conf.indentationRules) {
 			this.indentRulesSupport = new IndentRulesSupport(this._conf.indentationRules);
+		} else {
+			this.indentRulesSupport = null;
 		}
 
 		this.foldingRules = this._conf.folding || {};
@@ -170,7 +172,9 @@ export class RichEditSupport {
 }
 
 export class LanguageConfigurationChangeEvent {
-	languageIdentifier: LanguageIdentifier;
+	constructor(
+		public readonly languageIdentifier: LanguageIdentifier
+	) { }
 }
 
 export class LanguageConfigurationRegistryImpl {
@@ -184,11 +188,11 @@ export class LanguageConfigurationRegistryImpl {
 		let previous = this._getRichEditSupport(languageIdentifier.id);
 		let current = new RichEditSupport(languageIdentifier, previous, configuration);
 		this._entries.set(languageIdentifier.id, current);
-		this._onDidChange.fire({ languageIdentifier });
+		this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
 		return toDisposable(() => {
 			if (this._entries.get(languageIdentifier.id) === current) {
 				this._entries.set(languageIdentifier.id, previous);
-				this._onDidChange.fire({ languageIdentifier });
+				this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
 			}
 		});
 	}

@@ -16,9 +16,10 @@ import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 
 export interface IViewZoneData {
-	viewZoneId: number;
+	viewZoneId: string;
 	positionBefore: Position | null;
 	positionAfter: Position | null;
 	position: Position;
@@ -407,7 +408,12 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public fulfill(type: MouseTargetType, position: Position | null = null, range: EditorRange | null = null, detail: any = null): MouseTarget {
-		return new MouseTarget(this.target, type, this.mouseColumn, position, range, detail);
+		let mouseColumn = this.mouseColumn;
+		if (position && position.column < this._ctx.model.getLineMaxColumn(position.lineNumber)) {
+			// Most likely, the line contains foreign decorations...
+			mouseColumn = CursorColumns.visibleColumnFromColumn(this._ctx.model.getLineContent(position.lineNumber), position.column, this._ctx.model.getOptions().tabSize) + 1;
+		}
+		return new MouseTarget(this.target, type, mouseColumn, position, range, detail);
 	}
 
 	public withTarget(target: Element | null): HitTestRequest {

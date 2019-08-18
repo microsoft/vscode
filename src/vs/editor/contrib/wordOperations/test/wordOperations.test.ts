@@ -137,6 +137,22 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
+	test('cursorWordLeftSelect - issue #74369: cursorWordLeft and cursorWordLeftSelect do not behave consistently', () => {
+		const EXPECTED = [
+			'|this.|is.|a.|test',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 15),
+			ed => cursorWordLeft(ed, true),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
 	test('cursorWordStartLeft', () => {
 		// This is the behaviour observed in Visual Studio, please do not touch test
 		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/|  '].join('\n');

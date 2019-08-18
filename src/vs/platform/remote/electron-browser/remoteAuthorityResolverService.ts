@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedAuthority, IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ipcRenderer as ipc } from 'electron';
+import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import * as errors from 'vs/base/common/errors';
+import { RemoteAuthorities } from 'vs/base/common/network';
 
 class PendingResolveAuthorityRequest {
 	constructor(
-		public readonly resolve: (value: ResolvedAuthority) => void,
+		public readonly resolve: (value: ResolverResult) => void,
 		public readonly reject: (err: any) => void,
-		public readonly promise: Promise<ResolvedAuthority>,
+		public readonly promise: Promise<ResolverResult>,
 	) {
 	}
 }
@@ -26,11 +26,11 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 		this._resolveAuthorityRequests = Object.create(null);
 	}
 
-	resolveAuthority(authority: string): Promise<ResolvedAuthority> {
+	resolveAuthority(authority: string): Promise<ResolverResult> {
 		if (!this._resolveAuthorityRequests[authority]) {
-			let resolve: (value: ResolvedAuthority) => void;
+			let resolve: (value: ResolverResult) => void;
 			let reject: (err: any) => void;
-			let promise = new Promise<ResolvedAuthority>((_resolve, _reject) => {
+			let promise = new Promise<ResolverResult>((_resolve, _reject) => {
 				resolve = _resolve;
 				reject = _reject;
 			});
@@ -40,15 +40,17 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 	}
 
 	clearResolvedAuthority(authority: string): void {
-		this._resolveAuthorityRequests[authority].reject(errors.canceled());
-		delete this._resolveAuthorityRequests[authority];
+		if (this._resolveAuthorityRequests[authority]) {
+			this._resolveAuthorityRequests[authority].reject(errors.canceled());
+			delete this._resolveAuthorityRequests[authority];
+		}
 	}
 
-	setResolvedAuthority(resolvedAuthority: ResolvedAuthority) {
+	setResolvedAuthority(resolvedAuthority: ResolvedAuthority, options?: ResolvedOptions) {
 		if (this._resolveAuthorityRequests[resolvedAuthority.authority]) {
 			let request = this._resolveAuthorityRequests[resolvedAuthority.authority];
-			ipc.send('vscode:remoteAuthorityResolved', resolvedAuthority);
-			request.resolve(resolvedAuthority);
+			RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.host, resolvedAuthority.port);
+			request.resolve({ authority: resolvedAuthority, options });
 		}
 	}
 

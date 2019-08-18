@@ -710,7 +710,8 @@ suite('Editor Controller - Cursor', () => {
 			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 				position: new Position(4, 4),
 				viewPosition: new Position(4, 4),
-				mouseColumn: 15
+				mouseColumn: 15,
+				setAnchorIfNotSet: false
 			});
 
 			let expectedSelections = [
@@ -745,7 +746,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(4, 1),
 			viewPosition: new Position(4, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 
 		assertCursor(cursor, [
@@ -784,7 +786,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -802,7 +805,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -2052,7 +2056,7 @@ suite('Editor Controller - Regression tests', () => {
 			getInitialState: () => NULL_STATE,
 			tokenize: undefined!,
 			tokenize2: (line: string, state: IState): TokenizationResult2 => {
-				return new TokenizationResult2(null!, state);
+				return new TokenizationResult2(new Uint32Array(0), state);
 			}
 		};
 
@@ -3629,6 +3633,75 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
+	test('', () => {
+		class JSONMode extends MockMode {
+			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
+			constructor() {
+				super(JSONMode._id);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					brackets: [
+						['{', '}'],
+						['[', ']'],
+						['(', ')']
+					],
+					indentationRules: {
+						increaseIndentPattern: new RegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$'),
+						decreaseIndentPattern: new RegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$'),
+					}
+				}));
+			}
+		}
+
+		let mode = new JSONMode();
+		let model = createTextModel(
+			[
+				'{',
+				'  "scripts: {"',
+				'    "watch": "a {"',
+				'    "build{": "b"',
+				'    "tasks": []',
+				'    "tasks": ["a"]',
+				'  "}"',
+				'"}"'
+			].join('\n'),
+			{
+				tabSize: 2,
+				indentSize: 2
+			},
+			mode.getLanguageIdentifier()
+		);
+
+		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+			moveTo(cursor, 3, 19, false);
+			assertCursor(cursor, new Selection(3, 19, 3, 19));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(4), '    ');
+
+			moveTo(cursor, 5, 18, false);
+			assertCursor(cursor, new Selection(5, 18, 5, 18));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(6), '    ');
+
+			moveTo(cursor, 7, 15, false);
+			assertCursor(cursor, new Selection(7, 15, 7, 15));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(8), '      ');
+			assert.deepEqual(model.getLineContent(9), '    ]');
+
+			moveTo(cursor, 10, 18, false);
+			assertCursor(cursor, new Selection(10, 18, 10, 18));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(11), '    ]');
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
 });
 
 interface ICursorOpts {
@@ -4340,12 +4413,12 @@ suite('autoClosingPairs', () => {
 			let autoClosePositions = [
 				'var a |=| [|]|;|',
 				'var b |=| |`asd`|;|',
-				'var c |=| |\'asd!\'|;|',
+				'var c |=| |\'asd\'|;|',
 				'var d |=| |"asd"|;|',
 				'var e |=| /*3*/|	3;|',
 				'var f |=| /**| 3 */3;|',
 				'var g |=| (3+5)|;|',
-				'var h |=| {| a:| |\'value!\'| |}|;|',
+				'var h |=| {| a:| |\'value\'| |}|;|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -4486,6 +4559,157 @@ suite('autoClosingPairs', () => {
 			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste"');
 			assert.equal(model.getLineContent(8), 'teste"');
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - overtypes only those characters that it inserted', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: 'asd' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
+
+			// overtype!
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
+
+			// do not overtype!
+			cursor.setSelections('test', [new Selection(2, 4, 2, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(2), 'y=());');
+
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - stops overtyping once cursor leaves area', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=())');
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - it overtypes only once', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=())');
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - it can remember multiple auto-closed instances', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(())');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(())');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(())');
+		});
+		mode.dispose();
+	});
+
+	test('issue #78527 - does not close quote on odd count', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'std::cout << \'"\' << entryMap'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 29, 1, 29)]);
+
+			cursorCommand(cursor, H.Type, { text: '[' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap[]');
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap[""]');
+
+			cursorCommand(cursor, H.Type, { text: 'a' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+
+			cursorCommand(cursor, H.Type, { text: ']' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+		});
+		mode.dispose();
+	});
+
+	test('issue #78975 - Parentheses swallowing does not work when parentheses are inserted by autocomplete', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'<div id'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 8, 1, 8)]);
+
+			cursor.executeEdits('snippet', [{ range: new Range(1, 6, 1, 8), text: 'id=""' }], () => [new Selection(1, 10, 1, 10)]);
+			assert.strictEqual(model.getLineContent(1), '<div id=""');
+
+			cursorCommand(cursor, H.Type, { text: 'a' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '<div id="a"');
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '<div id="a"');
 		});
 		mode.dispose();
 	});

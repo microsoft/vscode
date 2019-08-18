@@ -181,7 +181,7 @@ interface ThemeItem {
 }
 
 function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
-	return i['type'] !== 'separatpr';
+	return (<any>i)['type'] !== 'separator';
 }
 
 function toEntries(themes: Array<IColorTheme | IFileIconTheme>, label?: string): QuickPickInput<ThemeItem>[] {
@@ -212,7 +212,7 @@ class GenerateColorThemeAction extends Action {
 		let theme = this.themeService.getColorTheme();
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();
-		let resultingColors = {};
+		let resultingColors: { [key: string]: string } = {};
 		let inherited: string[] = [];
 		for (let colorId of colorIds) {
 			const color = theme.getColor(colorId, false);
@@ -236,7 +236,7 @@ class GenerateColorThemeAction extends Action {
 		}, null, '\t');
 		contents = contents.replace(/\"__/g, '//"');
 
-		return this.editorService.openEditor({ contents, language: 'jsonc' });
+		return this.editorService.openEditor({ contents, mode: 'jsonc' });
 	}
 }
 
@@ -268,6 +268,24 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	command: {
 		id: SelectIconThemeAction.ID,
 		title: localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '4_themes',
+	command: {
+		id: SelectColorThemeAction.ID,
+		title: localize('selectTheme.label', "Color Theme")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '4_themes',
+	command: {
+		id: SelectIconThemeAction.ID,
+		title: localize('themes.selectIconTheme.label', "File Icon Theme")
 	},
 	order: 2
 });

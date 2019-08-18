@@ -5,34 +5,32 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
+import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export class CommentsDataSource implements IDataSource {
-	public getId(tree: ITree, element: any): string {
-		if (element instanceof CommentsModel) {
-			return 'root';
-		}
-		if (element instanceof ResourceWithCommentThreads) {
-			return element.id;
-		}
-		if (element instanceof CommentNode) {
-			return `${element.resource.toString()}-${element.comment.commentId}`;
-		}
-		return '';
-	}
+export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
+export const COMMENTS_PANEL_TITLE = 'Comments';
 
-	public hasChildren(tree: ITree, element: any): boolean {
+export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
+	hasChildren(element: any): boolean {
 		return element instanceof CommentsModel || element instanceof ResourceWithCommentThreads || (element instanceof CommentNode && !!element.replies.length);
 	}
 
-	public getChildren(tree: ITree, element: any): Promise<ResourceWithCommentThreads[] | CommentNode[]> {
+	getChildren(element: any): any[] | Promise<any[]> {
 		if (element instanceof CommentsModel) {
 			return Promise.resolve(element.resourceCommentThreads);
 		}
@@ -44,14 +42,6 @@ export class CommentsDataSource implements IDataSource {
 		}
 		return Promise.resolve([]);
 	}
-
-	public getParent(tree: ITree, element: any): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	public shouldAutoexpand(tree: ITree, element: any): boolean {
-		return true;
-	}
 }
 
 interface IResourceTemplateData {
@@ -62,64 +52,39 @@ interface ICommentThreadTemplateData {
 	icon: HTMLImageElement;
 	userName: HTMLSpanElement;
 	commentText: HTMLElement;
-	disposables: Disposable[];
+	disposables: IDisposable[];
 }
 
-export class CommentsModelRenderer implements ITreeRenderer {
+export class CommentsModelVirualDelegate implements IListVirtualDelegate<any> {
 	private static RESOURCE_ID = 'resource-with-comments';
 	private static COMMENT_ID = 'comment-node';
 
-	constructor(
-		private labels: ResourceLabels,
-		@IOpenerService private readonly openerService: IOpenerService
-	) {
-	}
 
-	public getHeight(tree: ITree, element: any): number {
+	getHeight(element: any): number {
 		return 22;
 	}
 
-	public getTemplateId(tree: ITree, element: any): string {
+	public getTemplateId(element: any): string {
 		if (element instanceof ResourceWithCommentThreads) {
-			return CommentsModelRenderer.RESOURCE_ID;
+			return CommentsModelVirualDelegate.RESOURCE_ID;
 		}
 		if (element instanceof CommentNode) {
-			return CommentsModelRenderer.COMMENT_ID;
+			return CommentsModelVirualDelegate.COMMENT_ID;
 		}
 
 		return '';
 	}
+}
 
-	public renderTemplate(ITree: ITree, templateId: string, container: HTMLElement): any {
-		switch (templateId) {
-			case CommentsModelRenderer.RESOURCE_ID:
-				return this.renderResourceTemplate(container);
-			case CommentsModelRenderer.COMMENT_ID:
-				return this.renderCommentTemplate(container);
-		}
+export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<ResourceWithCommentThreads>, IResourceTemplateData> {
+	templateId: string = 'resource-with-comments';
+
+	constructor(
+		private labels: ResourceLabels
+	) {
 	}
 
-	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		switch (templateId) {
-			case CommentsModelRenderer.RESOURCE_ID:
-				(<IResourceTemplateData>templateData).resourceLabel.dispose();
-				break;
-			case CommentsModelRenderer.COMMENT_ID:
-				(<ICommentThreadTemplateData>templateData).disposables.forEach(disposeable => disposeable.dispose());
-				break;
-		}
-	}
-
-	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
-		switch (templateId) {
-			case CommentsModelRenderer.RESOURCE_ID:
-				return this.renderResourceElement(tree, element, templateData);
-			case CommentsModelRenderer.COMMENT_ID:
-				return this.renderCommentElement(tree, element, templateData);
-		}
-	}
-
-	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
+	renderTemplate(container: HTMLElement) {
 		const data = <IResourceTemplateData>Object.create(null);
 		const labelContainer = dom.append(container, dom.$('.resource-container'));
 		data.resourceLabel = this.labels.create(labelContainer);
@@ -127,7 +92,23 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		return data;
 	}
 
-	private renderCommentTemplate(container: HTMLElement): ICommentThreadTemplateData {
+	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData, height: number | undefined): void {
+		templateData.resourceLabel.setFile(node.element.resource);
+	}
+
+	disposeTemplate(templateData: IResourceTemplateData): void {
+		templateData.resourceLabel.dispose();
+	}
+}
+
+export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>, ICommentThreadTemplateData> {
+	templateId: string = 'comment-node';
+
+	constructor(
+		@IOpenerService private readonly openerService: IOpenerService
+	) { }
+
+	renderTemplate(container: HTMLElement) {
 		const data = <ICommentThreadTemplateData>Object.create(null);
 		const labelContainer = dom.append(container, dom.$('.comment-container'));
 		data.userName = dom.append(labelContainer, dom.$('.user'));
@@ -137,14 +118,12 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		return data;
 	}
 
-	private renderResourceElement(tree: ITree, element: ResourceWithCommentThreads, templateData: IResourceTemplateData) {
-		templateData.resourceLabel.setFile(element.resource);
-	}
-
-	private renderCommentElement(tree: ITree, element: CommentNode, templateData: ICommentThreadTemplateData) {
-		templateData.userName.textContent = element.comment.userName;
+	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
+		templateData.userName.textContent = node.element.comment.userName;
 		templateData.commentText.innerHTML = '';
-		const renderedComment = renderMarkdown(element.comment.body, {
+		const disposables = new DisposableStore();
+		templateData.disposables.push(disposables);
+		const renderedComment = renderMarkdown(node.element.comment.body, {
 			inline: true,
 			actionHandler: {
 				callback: (content) => {
@@ -155,7 +134,7 @@ export class CommentsModelRenderer implements ITreeRenderer {
 						// ignore
 					}
 				},
-				disposeables: templateData.disposables
+				disposeables: disposables
 			}
 		});
 
@@ -169,16 +148,71 @@ export class CommentsModelRenderer implements ITreeRenderer {
 
 		templateData.commentText.appendChild(renderedComment);
 	}
+
+	disposeTemplate(templateData: ICommentThreadTemplateData): void {
+		templateData.disposables.forEach(disposeable => disposeable.dispose());
+	}
 }
 
-export class CommentsDataFilter implements IFilter {
-	public isVisible(tree: ITree, element: any): boolean {
-		if (element instanceof CommentsModel) {
-			return element.resourceCommentThreads.length > 0;
-		}
-		if (element instanceof ResourceWithCommentThreads) {
-			return element.commentThreads.length > 0;
-		}
-		return true;
+export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
+	constructor(
+		labels: ResourceLabels,
+		container: HTMLElement,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
+	) {
+		const delegate = new CommentsModelVirualDelegate();
+		const dataSource = new CommentsAsyncDataSource();
+
+		const renderers = [
+			instantiationService.createInstance(ResourceWithCommentsRenderer, labels),
+			instantiationService.createInstance(CommentNodeRenderer)
+		];
+
+		super(
+			container,
+			delegate,
+			renderers,
+			dataSource,
+			{
+				ariaLabel: COMMENTS_PANEL_TITLE,
+				keyboardSupport: true,
+				identityProvider: {
+					getId: (element: any) => {
+						if (element instanceof CommentsModel) {
+							return 'root';
+						}
+						if (element instanceof ResourceWithCommentThreads) {
+							return `${element.owner}-${element.id}`;
+						}
+						if (element instanceof CommentNode) {
+							return `${element.owner}-${element.resource.toString()}-${element.threadId}-${element.comment.uniqueIdInThread}` + (element.isRoot ? '-root' : '');
+						}
+						return '';
+					}
+				},
+				expandOnlyOnTwistieClick: (element: any) => {
+					if (element instanceof CommentsModel || element instanceof ResourceWithCommentThreads) {
+						return false;
+					}
+
+					return true;
+				},
+				collapseByDefault: () => {
+					return false;
+				}
+			},
+			contextKeyService,
+			listService,
+			themeService,
+			configurationService,
+			keybindingService,
+			accessibilityService
+		);
 	}
 }

@@ -5,6 +5,8 @@
 	"version": "1.0.0",
 	"icon": "icon.png",
 	"publisher": "vscode",
+	"enableProposedApi": true,
+	"license": "MIT",
 	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
 		"vscode": "^1.20.0"
@@ -31,8 +33,8 @@
 				"title": "%markdown.preview.title%",
 				"category": "Markdown",
 				"icon": {
-					"light": "./media/Preview.svg",
-					"dark": "./media/Preview_inverse.svg"
+					"light": "./media/preview-light.svg",
+					"dark": "./media/preview-dark.svg"
 				}
 			},
 			{
@@ -40,8 +42,8 @@
 				"title": "%markdown.previewSide.title%",
 				"category": "Markdown",
 				"icon": {
-					"light": "./media/PreviewOnRightPane_16x.svg",
-					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
+					"light": "./media/preview-right-light.svg",
+					"dark": "./media/preview-right-dark.svg"
 				}
 			},
 			{
@@ -49,8 +51,8 @@
 				"title": "%markdown.showLockedPreviewToSide.title%",
 				"category": "Markdown",
 				"icon": {
-					"light": "./media/PreviewOnRightPane_16x.svg",
-					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
+					"light": "./media/preview-right-light.svg",
+					"dark": "./media/preview-right-dark.svg"
 				}
 			},
 			{
@@ -58,8 +60,8 @@
 				"title": "%markdown.showSource.title%",
 				"category": "Markdown",
 				"icon": {
-					"light": "./media/ViewSource.svg",
-					"dark": "./media/ViewSource_inverse.svg"
+					"light": "./media/view-source-light.svg",
+					"dark": "./media/view-source-dark.svg"
 				}
 			},
 			{
@@ -185,6 +187,9 @@
 			"properties": {
 				"markdown.styles": {
 					"type": "array",
+					"items": {
+						"type": "string"
+					},
 					"default": [],
 					"description": "%markdown.styles.dec%",
 					"scope": "resource"
@@ -303,7 +308,7 @@
 		"build-preview": "webpack --mode development"
 	},
 	"dependencies": {
-		"highlight.js": "9.13.1",
+		"highlight.js": "9.15.8",
 		"markdown-it": "^8.4.2",
 		"markdown-it-front-matter": "^0.1.2",
 		"vscode-extension-telemetry": "0.1.1",
@@ -313,7 +318,7 @@
 		"@types/highlight.js": "9.12.3",
 		"@types/lodash.throttle": "^4.1.3",
 		"@types/markdown-it": "0.0.2",
-		"@types/node": "^10.12.21",
+		"@types/node": "^10.14.8",
 		"lodash.throttle": "^4.1.1",
 		"mocha-junit-reporter": "^1.17.0",
 		"mocha-multi-reporters": "^1.1.7",

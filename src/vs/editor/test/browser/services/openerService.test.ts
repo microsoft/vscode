@@ -17,6 +17,7 @@ suite('OpenerService', function () {
 	const commandService = new class implements ICommandService {
 		_serviceBrand: any;
 		onWillExecuteCommand = () => ({ dispose: () => { } });
+		onDidExecuteCommand = () => ({ dispose: () => { } });
 		executeCommand(id: string, ...args: any[]): Promise<any> {
 			lastCommand = { id, args };
 			return Promise.resolve(undefined);

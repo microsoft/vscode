@@ -7,11 +7,10 @@ import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
-import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -67,15 +66,12 @@ export class ToggleOrSetOutputScrollLockAction extends Action {
 	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';
 	public static readonly LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
 
-	private toDispose: IDisposable[] = [];
-
-	constructor(id: string, label: string,
-		@IOutputService private readonly outputService: IOutputService) {
+	constructor(id: string, label: string, @IOutputService private readonly outputService: IOutputService) {
 		super(id, label, 'output-action output-scroll-unlock');
-		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => {
+		this._register(this.outputService.onActiveOutputChannel(channel => {
 			const activeChannel = this.outputService.getActiveChannel();
 			if (activeChannel) {
-				this.setClass(activeChannel.scrollLock);
+				this.setClassAndLabel(activeChannel.scrollLock);
 			}
 		}));
 	}
@@ -90,23 +86,20 @@ export class ToggleOrSetOutputScrollLockAction extends Action {
 			else {
 				activeChannel.scrollLock = !activeChannel.scrollLock;
 			}
-			this.setClass(activeChannel.scrollLock);
+			this.setClassAndLabel(activeChannel.scrollLock);
 		}
 
 		return Promise.resolve(true);
 	}
 
-	private setClass(locked: boolean) {
+	private setClassAndLabel(locked: boolean) {
 		if (locked) {
 			this.class = 'output-action output-scroll-lock';
+			this.label = nls.localize('outputScrollOn', "Turn Auto Scrolling On");
 		} else {
 			this.class = 'output-action output-scroll-unlock';
+			this.label = nls.localize('outputScrollOff', "Turn Auto Scrolling Off");
 		}
-	}
-
-	public dispose() {
-		super.dispose();
-		this.toDispose = dispose(this.toDispose);
 	}
 }
 
@@ -125,12 +118,12 @@ export class SwitchOutputAction extends Action {
 	}
 }
 
-export class SwitchOutputActionItem extends SelectActionItem {
+export class SwitchOutputActionViewItem extends SelectActionViewItem {
 
 	private static readonly SEPARATOR = '─────────';
 
-	private outputChannels: IOutputChannelDescriptor[];
-	private logChannels: IOutputChannelDescriptor[];
+	private outputChannels: IOutputChannelDescriptor[] = [];
+	private logChannels: IOutputChannelDescriptor[] = [];
 
 	constructor(
 		action: IAction,
@@ -141,10 +134,10 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.') });
 
 		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-		this.toDispose.push(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions()));
-		this.toDispose.push(outputChannelRegistry.onDidRemoveChannel(() => this.updateOtions()));
-		this.toDispose.push(this.outputService.onActiveOutputChannel(() => this.updateOtions()));
-		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
+		this._register(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions()));
+		this._register(outputChannelRegistry.onDidRemoveChannel(() => this.updateOtions()));
+		this._register(this.outputService.onActiveOutputChannel(() => this.updateOtions()));
+		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.updateOtions();
 	}
@@ -168,7 +161,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		this.logChannels = groups[1] || [];
 		const showSeparator = this.outputChannels.length && this.logChannels.length;
 		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
-		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
+		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionViewItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
 		let selected = 0;
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
@@ -187,15 +180,13 @@ export class OpenLogOutputFile extends Action {
 	public static readonly ID = 'workbench.output.action.openLogOutputFile';
 	public static readonly LABEL = nls.localize('openInLogViewer', "Open Log File");
 
-	private disposables: IDisposable[] = [];
-
 	constructor(
 		@IOutputService private readonly outputService: IOutputService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action open-log-file');
-		this.outputService.onActiveOutputChannel(this.update, this, this.disposables);
+		this._register(this.outputService.onActiveOutputChannel(this.update, this));
 		this.update();
 	}
 

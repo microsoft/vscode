@@ -7,7 +7,7 @@ import { URI as uri } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Position } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource } from 'vs/workbench/contrib/debug/common/debug';
+import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { CompletionItem } from 'vs/editor/common/modes';
 import Severity from 'vs/base/common/severity';
@@ -51,7 +51,9 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	public updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }, sendOnResourceSaved: boolean): void { }
+	public updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void> {
+		throw new Error('not implemented');
+	}
 
 	public enableOrDisableBreakpoints(enabled: boolean): Promise<void> {
 		throw new Error('not implemented');
@@ -75,6 +77,13 @@ export class MockDebugService implements IDebugService {
 
 	public removeFunctionBreakpoints(id?: string): Promise<void> {
 		throw new Error('not implemented');
+	}
+
+	addDataBreakpoint(label: string, dataId: string, canPersist: boolean): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	removeDataBreakpoints(id?: string | undefined): Promise<void> {
+		throw new Error('Method not implemented.');
 	}
 
 	public addReplExpression(name: string): Promise<void> {
@@ -123,6 +132,19 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+	dataBreakpointInfo(name: string, variablesReference?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined; }> {
+		throw new Error('Method not implemented.');
+	}
+
+	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	subId: string | undefined;
+
+	setSubId(subId: string | undefined): void {
+		throw new Error('Method not implemented.');
+	}
 
 	get parentSession(): IDebugSession | undefined {
 		return undefined;
@@ -147,7 +169,7 @@ export class MockSession implements IDebugSession {
 	configuration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	state = State.Stopped;
-	root: IWorkspaceFolder;
+	root!: IWorkspaceFolder;
 	capabilities: DebugProtocol.Capabilities = {};
 
 	getId(): string {
@@ -281,14 +303,21 @@ export class MockSession implements IDebugSession {
 		throw new Error('Method not implemented.');
 	}
 
+	gotoTargets(source: DebugProtocol.Source, line: number, column?: number | undefined): Promise<DebugProtocol.GotoTargetsResponse> {
+		throw new Error('Method not implemented.');
+	}
+	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse> {
+		throw new Error('Method not implemented.');
+	}
+
 	shutdown(): void { }
 }
 
 export class MockRawSession {
 
-	capabilities: DebugProtocol.Capabilities;
-	disconnected: boolean;
-	sessionLengthInSeconds: number;
+	capabilities: DebugProtocol.Capabilities = {};
+	disconnected = false;
+	sessionLengthInSeconds: number = 0;
 
 	public readyForBreakpoints = true;
 	public emittedStopped = true;

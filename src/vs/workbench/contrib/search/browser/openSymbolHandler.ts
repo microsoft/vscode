@@ -25,10 +25,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 
 class SymbolEntry extends EditorQuickOpenEntry {
-	private bearingResolve: Promise<this | undefined>;
+	private bearingResolve: Promise<this | undefined> | undefined;
 
 	constructor(
 		private bearing: IWorkspaceSymbol,
@@ -49,7 +48,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		return nls.localize('entryAriaLabel', "{0}, symbols picker", this.getLabel());
 	}
 
-	getDescription(): string | null {
+	getDescription(): string | undefined {
 		const containerName = this.bearing.containerName;
 		if (this.bearing.location.uri) {
 			if (containerName) {
@@ -59,7 +58,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			return this.labelService.getUriLabel(this.bearing.location.uri, { relative: true });
 		}
 
-		return withUndefinedAsNull(containerName);
+		return containerName;
 	}
 
 	getIcon(): string {
@@ -157,12 +156,12 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return true;
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
+	async getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
-		let promise: Promise<QuickOpenEntry[]>;
+		let entries: QuickOpenEntry[];
 		if (!this.options.skipDelay) {
-			promise = this.delayer.trigger(() => {
+			entries = await this.delayer.trigger(() => {
 				if (token.isCancellationRequested) {
 					return Promise.resolve([]);
 				}
@@ -170,32 +169,31 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 				return this.doGetResults(searchValue, token);
 			});
 		} else {
-			promise = this.doGetResults(searchValue, token);
+			entries = await this.doGetResults(searchValue, token);
 		}
 
-		return promise.then(e => new QuickOpenModel(e));
+		return new QuickOpenModel(entries);
 	}
 
-	private doGetResults(searchValue: string, token: CancellationToken): Promise<SymbolEntry[]> {
-		return getWorkspaceSymbols(searchValue, token).then(tuples => {
-			if (token.isCancellationRequested) {
-				return [];
-			}
+	private async doGetResults(searchValue: string, token: CancellationToken): Promise<SymbolEntry[]> {
+		const tuples = await getWorkspaceSymbols(searchValue, token);
+		if (token.isCancellationRequested) {
+			return [];
+		}
 
-			const result: SymbolEntry[] = [];
-			for (let tuple of tuples) {
-				const [provider, bearings] = tuple;
-				this.fillInSymbolEntries(result, provider, bearings, searchValue);
-			}
+		const result: SymbolEntry[] = [];
+		for (let tuple of tuples) {
+			const [provider, bearings] = tuple;
+			this.fillInSymbolEntries(result, provider, bearings, searchValue);
+		}
 
-			// Sort (Standalone only)
-			if (!this.options.skipSorting) {
-				searchValue = searchValue ? strings.stripWildcards(searchValue.toLowerCase()) : searchValue;
-				return result.sort((a, b) => SymbolEntry.compare(a, b, searchValue));
-			}
+		// Sort (Standalone only)
+		if (!this.options.skipSorting) {
+			searchValue = searchValue ? strings.stripWildcards(searchValue.toLowerCase()) : searchValue;
+			return result.sort((a, b) => SymbolEntry.compare(a, b, searchValue));
+		}
 
-			return result;
-		});
+		return result;
 	}
 
 	private fillInSymbolEntries(bucket: SymbolEntry[], provider: IWorkspaceSymbolProvider, types: IWorkspaceSymbol[], searchValue: string): void {

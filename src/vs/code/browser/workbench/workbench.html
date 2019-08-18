@@ -1,0 +1,32 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+
+		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+
+		<!-- Disable pinch zooming -->
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
+		<meta http-equiv="Content-Security-Policy"
+		content="default-src 'none'; img-src 'self' https: data: blob: vscode-remote:; media-src 'none'; frame-src 'self' {{WEBVIEW_ENDPOINT}} https://*.vscode-webview-test.com; script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; font-src 'self' blob: vscode-remote:;">
+
+		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONGIGURATION}}">
+
+		<!-- Workaround to pass remote user data uri-->
+		<meta id="vscode-remote-user-data-uri" data-settings="{{REMOTE_USER_DATA_URI}}">
+
+		<!-- Workaround to pass product configuration-->
+		<meta id="vscode-remote-product-configuration" data-settings="{{PRODUCT_CONFIGURATION}}">
+	</head>
+
+	<body aria-label="">
+	</body>
+
+	<!-- Require our AMD loader -->
+	<script src="./out/vs/loader.js"></script>
+
+	<!-- Startup via workbench.js -->
+	<script src="./out/vs/code/browser/workbench/workbench.js"></script>
+</html>

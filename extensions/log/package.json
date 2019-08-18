@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": {
 		"vscode": "*"
 	},
@@ -19,7 +20,7 @@
 					"*.log.?"
 				],
 				"aliases": [
-					"log"
+					"Log"
 				]
 			}
 		],

@@ -20,7 +20,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 
@@ -50,8 +49,9 @@ export class PerfviewInput extends ResourceEditorInput {
 	) {
 		super(
 			localize('name', "Startup Performance"),
-			null,
+			undefined,
 			PerfviewInput.Uri,
+			undefined,
 			textModelResolverService
 		);
 	}
@@ -72,7 +72,6 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITimerService private readonly _timerService: ITimerService,
-		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 	) { }
 
@@ -106,7 +105,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		]).then(([metrics]) => {
 			if (this._model && !this._model.isDisposed()) {
 
-				let stats = this._envService.args['prof-modules'] ? LoaderStats.get() : undefined;
+				let stats = LoaderStats.get();
 				let md = new MarkdownBuilder();
 				this._addSummary(md, metrics);
 				md.blank();
@@ -117,6 +116,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				this._addRawPerfMarks(md);
 				md.blank();
 				this._addLoaderStats(md, stats);
+				md.blank();
+				this._addCachedDataStats(md);
 
 				this._model.setValue(md.value);
 			}
@@ -135,7 +136,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			md.li(`Memory(System): ${(metrics.totalmem / (1024 * 1024 * 1024)).toFixed(2)} GB(${(metrics.freemem / (1024 * 1024 * 1024)).toFixed(2)}GB free)`);
 		}
 		if (metrics.meminfo) {
-			md.li(`Memory(Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)} MB working set(${(metrics.meminfo.peakWorkingSetSize / 1024).toFixed(2)}MB peak, ${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
+			md.li(`Memory(Process): ${(metrics.meminfo.workingSetSize / 1024).toFixed(2)} MB working set(${(metrics.meminfo.privateBytes / 1024).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / 1024).toFixed(2)}MB shared)`);
 		}
 		md.li(`VM(likelyhood): ${metrics.isVMLikelyhood}%`);
 		md.li(`Initial Startup: ${metrics.initialStartup}`);
@@ -151,8 +152,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		table.push(['nls:start => nls:end', metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['require(main.bundle.js)', metrics.initialStartup ? perf.getDuration('willLoadMainBundle', 'didLoadMainBundle') : undefined, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['app.isReady => window.loadUrl()', metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['window.loadUrl() => begin to require(workbench.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
-		table.push(['require(workbench.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
+		table.push(['window.loadUrl() => begin to require(workbench.desktop.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
+		table.push(['require(workbench.desktop.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
 		table.push(['require & init workspace storage', metrics.timers.ellapsedWorkspaceStorageInit, '[renderer]', undefined]);
 		table.push(['init workspace service', metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]', undefined]);
 		table.push(['register extensions & spawn extension host', metrics.timers.ellapsedExtensions, '[renderer]', undefined]);
@@ -209,30 +210,63 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.value += '```\n';
 	}
 
-	private _addLoaderStats(md: MarkdownBuilder, stats?: LoaderStats): void {
-		if (stats) {
-			md.heading(2, 'Loader Stats');
-			md.heading(3, 'Load AMD-module');
-			md.table(['Module', 'Duration'], stats.amdLoad);
-			md.blank();
-			md.heading(3, 'Load commonjs-module');
-			md.table(['Module', 'Duration'], stats.nodeRequire);
-			md.blank();
-			md.heading(3, 'Invoke AMD-module factory');
-			md.table(['Module', 'Duration'], stats.amdInvoke);
-			md.blank();
-			md.heading(3, 'Invoke commonjs-module');
-			md.table(['Module', 'Duration'], stats.nodeEval);
+	private _addLoaderStats(md: MarkdownBuilder, stats: LoaderStats): void {
+		md.heading(2, 'Loader Stats');
+		md.heading(3, 'Load AMD-module');
+		md.table(['Module', 'Duration'], stats.amdLoad);
+		md.blank();
+		md.heading(3, 'Load commonjs-module');
+		md.table(['Module', 'Duration'], stats.nodeRequire);
+		md.blank();
+		md.heading(3, 'Invoke AMD-module factory');
+		md.table(['Module', 'Duration'], stats.amdInvoke);
+		md.blank();
+		md.heading(3, 'Invoke commonjs-module');
+		md.table(['Module', 'Duration'], stats.nodeEval);
+	}
+
+	private _addCachedDataStats(md: MarkdownBuilder): void {
+
+		const map = new Map<LoaderEventType, string[]>();
+		map.set(LoaderEventType.CachedDataCreated, []);
+		map.set(LoaderEventType.CachedDataFound, []);
+		map.set(LoaderEventType.CachedDataMissed, []);
+		map.set(LoaderEventType.CachedDataRejected, []);
+		for (const stat of require.getStats()) {
+			if (map.has(stat.type)) {
+				map.get(stat.type)!.push(stat.detail);
+			}
 		}
+
+		const printLists = (arr?: string[]) => {
+			if (arr) {
+				arr.sort();
+				for (const e of arr) {
+					md.li(`${e}`);
+				}
+				md.blank();
+			}
+		};
+
+		md.heading(2, 'Node Cached Data Stats');
+		md.blank();
+		md.heading(3, 'cached data used');
+		printLists(map.get(LoaderEventType.CachedDataFound));
+		md.heading(3, 'cached data missed');
+		printLists(map.get(LoaderEventType.CachedDataMissed));
+		md.heading(3, 'cached data rejected');
+		printLists(map.get(LoaderEventType.CachedDataRejected));
+		md.heading(3, 'cached data created (lazy, might need refreshes)');
+		printLists(map.get(LoaderEventType.CachedDataCreated));
 	}
 }
 
 abstract class LoaderStats {
-	readonly amdLoad: (string | number)[][];
-	readonly amdInvoke: (string | number)[][];
-	readonly nodeRequire: (string | number)[][];
-	readonly nodeEval: (string | number)[][];
-	readonly nodeRequireTotal: number;
+	abstract get amdLoad(): (string | number)[][];
+	abstract get amdInvoke(): (string | number)[][];
+	abstract get nodeRequire(): (string | number)[][];
+	abstract get nodeEval(): (string | number)[][];
+	abstract get nodeRequireTotal(): number;
 
 
 	static get(): LoaderStats {

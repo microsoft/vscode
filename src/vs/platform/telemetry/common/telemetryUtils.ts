@@ -8,12 +8,19 @@ import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { safeStringify } from 'vs/base/common/objects';
+import { isObject } from 'vs/base/common/types';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
 	}
+	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
+	}
+	setEnabled() { }
 	isOptedIn: true;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
@@ -26,17 +33,17 @@ export const NullTelemetryService = new class implements ITelemetryService {
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
-	dispose(): Promise<any> | undefined;
+	flush(): Promise<any>;
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
 	return {
 		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		dispose: () => Promise.all(appenders.map(a => a.dispose()))
+		flush: () => Promise.all(appenders.map(a => a.flush()))
 	};
 }
 
-export const NullAppender: ITelemetryAppender = { log: () => null, dispose: () => Promise.resolve(null) };
+export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
 
 
 export class LogAppender implements ITelemetryAppender {
@@ -44,12 +51,12 @@ export class LogAppender implements ITelemetryAppender {
 	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
 	constructor(@ILogService private readonly _logService: ILogService) { }
 
-	dispose(): Promise<any> {
+	flush(): Promise<any> {
 		return Promise.resolve(undefined);
 	}
 
 	log(eventName: string, data: any): void {
-		const strippedData = {};
+		const strippedData: { [key: string]: any } = {};
 		Object.keys(data).forEach(key => {
 			if (!this.commonPropertiesRegex.test(key)) {
 				strippedData[key] = data[key];
@@ -174,12 +181,12 @@ const configurationValueWhitelist = [
 	'terminal.integrated.fontFamily',
 	'window.openFilesInNewWindow',
 	'window.restoreWindows',
+	'window.nativeFullScreen',
 	'window.zoomLevel',
 	'workbench.editor.enablePreview',
 	'workbench.editor.enablePreviewFromQuickOpen',
 	'workbench.editor.showTabs',
 	'workbench.editor.highlightModifiedTabs',
-	'workbench.editor.swipeToNavigate',
 	'workbench.sideBar.location',
 	'workbench.startupEditor',
 	'workbench.statusBar.visible',
@@ -189,23 +196,27 @@ const configurationValueWhitelist = [
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
-			/* __GDPR__
-				"updateConfiguration" : {
-					"configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"configurationKeys": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			telemetryService.publicLog('updateConfiguration', {
+			type UpdateConfigurationClassification = {
+				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				configurationKeys: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+			type UpdateConfigurationEvent = {
+				configurationSource: string;
+				configurationKeys: string[];
+			};
+			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
 				configurationSource: ConfigurationTargetToString(event.source),
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
-			/* __GDPR__
-				"updateConfigurationValues" : {
-					"configurationSource" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"configurationValues": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-				}
-			*/
-			telemetryService.publicLog('updateConfigurationValues', {
+			type UpdateConfigurationValuesClassification = {
+				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				configurationValues: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
+			};
+			type UpdateConfigurationValuesEvent = {
+				configurationSource: string;
+				configurationValues: { [key: string]: any }[];
+			};
+			telemetryService.publicLog2<UpdateConfigurationValuesEvent, UpdateConfigurationValuesClassification>('updateConfigurationValues', {
 				configurationSource: ConfigurationTargetToString(event.source),
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
@@ -216,12 +227,13 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 export function keybindingsTelemetry(telemetryService: ITelemetryService, keybindingService: IKeybindingService): IDisposable {
 	return keybindingService.onDidUpdateKeybindings(event => {
 		if (event.source === KeybindingSource.User && event.keybindings) {
-			/* __GDPR__
-				"updateKeybindings" : {
-					"bindings": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-				}
-			*/
-			telemetryService.publicLog('updateKeybindings', {
+			type UpdateKeybindingsClassification = {
+				bindings: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
+			};
+			type UpdateKeybindingsEvents = {
+				bindings: { key: string, command: string, when: string | undefined, args: boolean | undefined }[];
+			};
+			telemetryService.publicLog2<UpdateKeybindingsEvents, UpdateKeybindingsClassification>('updateKeybindings', {
 				bindings: event.keybindings.map(binding => ({
 					key: binding.key,
 					command: binding.command,
@@ -233,7 +245,94 @@ export function keybindingsTelemetry(telemetryService: ITelemetryService, keybin
 	});
 }
 
-function flattenKeys(value: Object): string[] {
+
+export interface Properties {
+	[key: string]: string;
+}
+
+export interface Measurements {
+	[key: string]: number;
+}
+
+export function validateTelemetryData(data?: any): { properties: Properties, measurements: Measurements } {
+
+	const properties: Properties = Object.create(null);
+	const measurements: Measurements = Object.create(null);
+
+	const flat = Object.create(null);
+	flatten(data, flat);
+
+	for (let prop in flat) {
+		// enforce property names less than 150 char, take the last 150 char
+		prop = prop.length > 150 ? prop.substr(prop.length - 149) : prop;
+		const value = flat[prop];
+
+		if (typeof value === 'number') {
+			measurements[prop] = value;
+
+		} else if (typeof value === 'boolean') {
+			measurements[prop] = value ? 1 : 0;
+
+		} else if (typeof value === 'string') {
+			//enforce property value to be less than 1024 char, take the first 1024 char
+			properties[prop] = value.substring(0, 1023);
+
+		} else if (typeof value !== 'undefined' && value !== null) {
+			properties[prop] = value;
+		}
+	}
+
+	return {
+		properties,
+		measurements
+	};
+}
+
+export function cleanRemoteAuthority(remoteAuthority?: string): string {
+	if (!remoteAuthority) {
+		return 'none';
+	}
+
+	let ret = 'other';
+	// Whitelisted remote authorities
+	['ssh-remote', 'dev-container', 'attached-container', 'wsl'].forEach((res: string) => {
+		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
+			ret = res;
+		}
+	});
+
+	return ret;
+}
+
+function flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
+	if (!obj) {
+		return;
+	}
+
+	for (let item of Object.getOwnPropertyNames(obj)) {
+		const value = obj[item];
+		const index = prefix ? prefix + item : item;
+
+		if (Array.isArray(value)) {
+			result[index] = safeStringify(value);
+
+		} else if (value instanceof Date) {
+			// TODO unsure why this is here and not in _getData
+			result[index] = value.toISOString();
+
+		} else if (isObject(value)) {
+			if (order < 2) {
+				flatten(value, result, order + 1, index + '.');
+			} else {
+				result[index] = safeStringify(value);
+			}
+		} else {
+			result[index] = value;
+		}
+	}
+}
+
+function flattenKeys(value: Object | undefined): string[] {
 	if (!value) {
 		return [];
 	}
@@ -242,7 +341,7 @@ function flattenKeys(value: Object): string[] {
 	return result;
 }
 
-function flatKeys(result: string[], prefix: string, value: Object): void {
+function flatKeys(result: string[], prefix: string, value: { [key: string]: any } | undefined): void {
 	if (value && typeof value === 'object' && !Array.isArray(value)) {
 		Object.keys(value)
 			.forEach(key => flatKeys(result, prefix ? `${prefix}.${key}` : key, value[key]));
@@ -251,7 +350,7 @@ function flatKeys(result: string[], prefix: string, value: Object): void {
 	}
 }
 
-function flattenValues(value: Object, keys: string[]): { [key: string]: any }[] {
+function flattenValues(value: { [key: string]: any } | undefined, keys: string[]): { [key: string]: any }[] {
 	if (!value) {
 		return [];
 	}

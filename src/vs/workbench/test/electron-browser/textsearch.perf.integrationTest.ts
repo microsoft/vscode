@@ -13,9 +13,9 @@ import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import * as minimist from 'minimist';
+import * as minimist from 'vscode-minimist';
 import * as path from 'vs/base/common/path';
-import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -33,6 +33,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 declare var __dirname: string;
 
@@ -68,7 +69,7 @@ suite.skip('TextSearch performance (integration)', () => {
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)],
+			[ISearchService, createSyncDescriptor(LocalSearchService)],
 			[ILogService, new NullLogService()]
 		));
 
@@ -155,11 +156,18 @@ class TestTelemetryService implements ITelemetryService {
 		return this.emitter.event;
 	}
 
+	public setEnabled(value: boolean): void {
+	}
+
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);
 		return Promise.resolve();
+	}
+
+	public publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as any);
 	}
 
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {

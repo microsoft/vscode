@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadCommandsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
@@ -26,7 +26,10 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), undefined!, new NullLogService());
+		const commands = new ExtHostCommands(
+			SingleProxyRPCProtocol(shape),
+			new NullLogService()
+		);
 		commands.registerCommand(true, 'foo', (): any => { }).dispose();
 		assert.equal(lastUnregister!, 'foo');
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
@@ -46,7 +49,10 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), undefined!, new NullLogService());
+		const commands = new ExtHostCommands(
+			SingleProxyRPCProtocol(shape),
+			new NullLogService()
+		);
 		const reg = commands.registerCommand(true, 'foo', (): any => { });
 		reg.dispose();
 		reg.dispose();

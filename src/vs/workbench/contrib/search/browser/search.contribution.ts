@@ -5,7 +5,7 @@
 
 import { Action } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { illegalArgument } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -38,11 +38,11 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewExtensions, IViewsRegistry } from 'vs/workbench/common/views';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
-import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition } from 'vs/workbench/contrib/files/common/files';
+import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, IExplorerService, VIEWLET_ID as VIEWLET_ID_FILES } from 'vs/workbench/contrib/files/common/files';
 import { OpenAnythingHandler } from 'vs/workbench/contrib/search/browser/openAnythingHandler';
 import { OpenSymbolHandler } from 'vs/workbench/contrib/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FindInFilesAction, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand } from 'vs/workbench/contrib/search/browser/searchActions';
+import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
@@ -50,12 +50,13 @@ import { registerContributions as searchWidgetContributions } from 'vs/workbench
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_CONTAINER, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -311,6 +312,38 @@ CommandsRegistry.registerCommand({
 	handler: clearHistoryCommand
 });
 
+CommandsRegistry.registerCommand({
+	id: Constants.RevealInSideBarForSearchResults,
+	handler: (accessor, fileMatch: FileMatch) => {
+		const viewletService = accessor.get(IViewletService);
+		const explorerService = accessor.get(IExplorerService);
+		const contextService = accessor.get(IWorkspaceContextService);
+		const uri = fileMatch.resource;
+
+		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet: ExplorerViewlet) => {
+			if (uri && contextService.isInsideWorkspace(uri)) {
+				const explorerView = viewlet.getExplorerView();
+				if (explorerView) {
+					explorerView.setExpanded(true);
+					explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
+				}
+			}
+		});
+	}
+});
+
+const RevealInSideBarForSearchResultsCommand: ICommandAction = {
+	id: Constants.RevealInSideBarForSearchResults,
+	title: nls.localize('revealInSideBar', "Reveal in Explorer")
+};
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: RevealInSideBarForSearchResultsCommand,
+	when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
+	group: 'search_3',
+	order: 1
+});
+
 const clearSearchHistoryLabel = nls.localize('clearSearchHistoryLabel', "Clear Search History");
 const ClearSearchHistoryCommand: ICommandAction = {
 	id: Constants.ClearSearchHistoryCommandId,
@@ -478,6 +511,14 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	1
 ));
 
+Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+	SearchPanel,
+	PANEL_ID,
+	nls.localize('name', "Search"),
+	'search',
+	10
+));
+
 class RegisterSearchViewContribution implements IWorkbenchContribution {
 
 	constructor(
@@ -525,7 +566,14 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 // Show Search and Find in Files are redundant, but we can't break keybindings by removing one. So it's the same action, same keybinding, registered to different IDs.
 // Show Search 'when' is redundant but if the two conflict with exactly the same keybinding and 'when' clause, then they can show up as "unbound" - #51780
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSearchViewletAction, VIEWLET_ID, OpenSearchViewletAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
-registry.registerWorkbenchAction(new SyncActionDescriptor(FindInFilesAction, Constants.FindInFilesActionId, nls.localize('findInFiles', "Find in Files"), { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }), 'Find in Files', category);
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.FindInFilesActionId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: null,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+	handler: FindInFilesCommand
+});
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: Constants.FindInFilesActionId, title: { value: nls.localize('findInFiles', "Find in Files"), original: 'Find in Files' }, category } });
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	group: '4_find_global',
 	command: {
@@ -573,7 +621,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CollapseDeepestExpande
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ShowAllSymbolsAction.ID, ShowAllSymbolsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_T }), 'Go to Symbol in Workspace...');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(RefreshAction, RefreshAction.ID, RefreshAction.LABEL), 'Search: Refresh', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear Search Results', category);
 
 
 // Register Quick Open Handler
@@ -726,7 +774,8 @@ configurationRegistry.registerConfiguration({
 		'search.usePCRE2': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advanced regex features like lookahead and backreferences. However, not all PCRE2 features are supported - only features that are also supported by JavaScript.")
+			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advanced regex features like lookahead and backreferences. However, not all PCRE2 features are supported - only features that are also supported by JavaScript."),
+			deprecationMessage: nls.localize('usePCRE2Deprecated', "Deprecated. PCRE2 will be used automatically when using regex features that are only supported by PCRE2."),
 		},
 		'search.actionsPosition': {
 			type: 'string',

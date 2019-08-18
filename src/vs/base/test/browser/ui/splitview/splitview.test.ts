@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { SplitView, IView, Orientation, Sizing, LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
+import { SplitView, IView, Sizing, LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 import { Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 
 class TestView implements IView {
@@ -27,7 +27,9 @@ class TestView implements IView {
 
 	private _size = 0;
 	get size(): number { return this._size; }
-	private _onDidLayout = new Emitter<{ size: number; orientation: Orientation }>();
+	private _orthogonalSize: number | undefined = 0;
+	get orthogonalSize(): number | undefined { return this._orthogonalSize; }
+	private _onDidLayout = new Emitter<{ size: number; orthogonalSize: number | undefined }>();
 	readonly onDidLayout = this._onDidLayout.event;
 
 	private _onDidFocus = new Emitter<void>();
@@ -41,9 +43,10 @@ class TestView implements IView {
 		assert(_minimumSize <= _maximumSize, 'splitview view minimum size must be <= maximum size');
 	}
 
-	layout(size: number, orientation: Orientation): void {
+	layout(size: number, orthogonalSize: number | undefined): void {
 		this._size = size;
-		this._onDidLayout.fire({ size, orientation });
+		this._orthogonalSize = orthogonalSize;
+		this._onDidLayout.fire({ size, orthogonalSize });
 	}
 
 	focus(): void {
@@ -196,8 +199,8 @@ suite('Splitview', () => {
 		splitview.resizeView(0, 70);
 
 		assert.equal(view1.size, 70, 'view1 is collapsed');
-		assert.equal(view2.size, 110, 'view2 is expanded');
-		assert.equal(view3.size, 20, 'view3 stays the same');
+		assert.equal(view2.size, 40, 'view2 stays the same');
+		assert.equal(view3.size, 90, 'view3 is stretched');
 
 		splitview.resizeView(2, 40);
 
@@ -474,10 +477,10 @@ suite('Splitview', () => {
 		splitview.addView(view1, Sizing.Distribute);
 		splitview.addView(view2, Sizing.Distribute);
 		splitview.addView(view3, Sizing.Distribute);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 66, 68]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [66, 68, 66]);
 
 		splitview.layout(180);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 46, 68]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [66, 48, 66]);
 
 		splitview.layout(124);
 		assert.deepEqual([view1.size, view2.size, view3.size], [66, 20, 38]);
@@ -504,19 +507,39 @@ suite('Splitview', () => {
 		splitview.addView(view1, Sizing.Distribute);
 		splitview.addView(view2, Sizing.Distribute);
 		splitview.addView(view3, Sizing.Distribute);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 66, 68]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [66, 68, 66]);
 
 		splitview.layout(180);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 46, 68]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [66, 48, 66]);
 
 		splitview.layout(132);
-		assert.deepEqual([view1.size, view2.size, view3.size], [44, 20, 68]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [46, 20, 66]);
 
 		splitview.layout(60);
 		assert.deepEqual([view1.size, view2.size, view3.size], [20, 20, 20]);
 
 		splitview.layout(200);
 		assert.deepEqual([view1.size, view2.size, view3.size], [20, 160, 20]);
+
+		splitview.dispose();
+		view3.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
+
+	test('orthogonal size propagates to views', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.Low);
+		const splitview = new SplitView(container, { proportionalLayout: false });
+		splitview.layout(200);
+
+		splitview.addView(view1, Sizing.Distribute);
+		splitview.addView(view2, Sizing.Distribute);
+		splitview.addView(view3, Sizing.Distribute);
+
+		splitview.layout(200, 100);
+		assert.deepEqual([view1.orthogonalSize, view2.orthogonalSize, view3.orthogonalSize], [100, 100, 100]);
 
 		splitview.dispose();
 		view3.dispose();

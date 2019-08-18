@@ -20,7 +20,7 @@ suite('Config', () => {
 		const newDir = path.join(parentDir, 'config', id);
 		const testFile = path.join(newDir, 'config.json');
 
-		let watcher = new ConfigWatcher(testFile);
+		let watcher = new ConfigWatcher<{}>(testFile);
 
 		let config = watcher.getConfig();
 		assert.ok(config);

@@ -36,7 +36,7 @@ export interface IOpenEditorOverride {
 	 * If defined, will prevent the opening of an editor and replace the resulting
 	 * promise with the provided promise for the openEditor() call.
 	 */
-	override?: Promise<IEditor | null>;
+	override?: Promise<IEditor | undefined>;
 }
 
 export interface IVisibleEditor extends IEditor {
@@ -117,13 +117,13 @@ export interface IEditorService {
 	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 *
-	 * @returns the editor that opened or NULL if the operation failed or the editor was not
+	 * @returns the editor that opened or `undefined` if the operation failed or the editor was not
 	 * opened to be active.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor | null>;
-	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditor | null>;
-	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditor | null>;
-	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextSideBySideEditor | null>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor | undefined>;
+	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditor | undefined>;
+	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditor | undefined>;
+	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextSideBySideEditor | undefined>;
 
 	/**
 	 * Open editors in an editor group.

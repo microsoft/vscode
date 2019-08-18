@@ -59,9 +59,9 @@ class RegexpTaskMatcher implements TaskDetectorMatcher {
 }
 
 class GruntTaskMatcher implements TaskDetectorMatcher {
-	private tasksStart: boolean;
-	private tasksEnd: boolean;
-	private descriptionOffset: number | null;
+	private tasksStart!: boolean;
+	private tasksEnd!: boolean;
+	private descriptionOffset!: number | null;
 
 	init() {
 		this.tasksStart = false;
@@ -179,7 +179,7 @@ export class ProcessRunnerDetector {
 				commandExecutable, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list));
 		} else {
 			if (detectSpecific) {
-				let detectorPromise: Promise<DetectorResult>;
+				let detectorPromise: Promise<DetectorResult | null>;
 				if ('gulp' === detectSpecific) {
 					detectorPromise = this.tryDetectGulp(this._workspaceRoot, list);
 				} else if ('jake' === detectSpecific) {
@@ -187,7 +187,7 @@ export class ProcessRunnerDetector {
 				} else if ('grunt' === detectSpecific) {
 					detectorPromise = this.tryDetectGrunt(this._workspaceRoot, list);
 				} else {
-					throw new Error('Unkown detector type');
+					throw new Error('Unknown detector type');
 				}
 				return detectorPromise.then((value) => {
 					if (value) {
@@ -229,7 +229,7 @@ export class ProcessRunnerDetector {
 		return result;
 	}
 
-	private tryDetectGulp(workspaceFolder: IWorkspaceFolder, list: boolean): Promise<DetectorResult> {
+	private tryDetectGulp(workspaceFolder: IWorkspaceFolder, list: boolean): Promise<DetectorResult | null> {
 		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('gulpfile.js'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, { cwd: this._cwd });
@@ -239,7 +239,7 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectGrunt(workspaceFolder: IWorkspaceFolder, list: boolean): Promise<DetectorResult> {
+	private tryDetectGrunt(workspaceFolder: IWorkspaceFolder, list: boolean): Promise<DetectorResult | null> {
 		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('Gruntfile.js'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, { cwd: this._cwd });
@@ -249,7 +249,7 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectJake(workspaceFolder: IWorkspaceFolder, list: boolean): Promise<DetectorResult> {
+	private tryDetectJake(workspaceFolder: IWorkspaceFolder, list: boolean): Promise<DetectorResult | null> {
 		let run = () => {
 			let config = ProcessRunnerDetector.detectorConfig('jake');
 			let process = new LineProcess('jake', [config.arg], true, { cwd: this._cwd });

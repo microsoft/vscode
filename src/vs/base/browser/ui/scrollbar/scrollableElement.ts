@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scrollbars';
+import { isEdgeOrIE } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent, StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -147,9 +148,9 @@ export abstract class AbstractScrollableElement extends Widget {
 	private readonly _horizontalScrollbar: HorizontalScrollbar;
 	private readonly _domNode: HTMLElement;
 
-	private readonly _leftShadowDomNode: FastDomNode<HTMLElement>;
-	private readonly _topShadowDomNode: FastDomNode<HTMLElement>;
-	private readonly _topLeftShadowDomNode: FastDomNode<HTMLElement>;
+	private readonly _leftShadowDomNode: FastDomNode<HTMLElement> | null;
+	private readonly _topShadowDomNode: FastDomNode<HTMLElement> | null;
+	private readonly _topLeftShadowDomNode: FastDomNode<HTMLElement> | null;
 
 	private readonly _listenOnDomNode: HTMLElement;
 
@@ -206,6 +207,10 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._topLeftShadowDomNode = createFastDomNode(document.createElement('div'));
 			this._topLeftShadowDomNode.setClassName('shadow top-left-corner');
 			this._domNode.appendChild(this._topLeftShadowDomNode.domNode);
+		} else {
+			this._leftShadowDomNode = null;
+			this._topShadowDomNode = null;
+			this._topLeftShadowDomNode = null;
 		}
 
 		this._listenOnDomNode = this._options.listenOnDomNode || this._domNode;
@@ -312,7 +317,7 @@ export abstract class AbstractScrollableElement extends Widget {
 				this._onMouseWheel(new StandardWheelEvent(browserEvent));
 			};
 
-			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, 'mousewheel', onMouseWheel));
+			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, isEdgeOrIE ? 'mousewheel' : 'wheel', onMouseWheel));
 		}
 	}
 
@@ -429,9 +434,9 @@ export abstract class AbstractScrollableElement extends Widget {
 			let enableTop = scrollState.scrollTop > 0;
 			let enableLeft = scrollState.scrollLeft > 0;
 
-			this._leftShadowDomNode.setClassName('shadow' + (enableLeft ? ' left' : ''));
-			this._topShadowDomNode.setClassName('shadow' + (enableTop ? ' top' : ''));
-			this._topLeftShadowDomNode.setClassName('shadow top-left-corner' + (enableTop ? ' top' : '') + (enableLeft ? ' left' : ''));
+			this._leftShadowDomNode!.setClassName('shadow' + (enableLeft ? ' left' : ''));
+			this._topShadowDomNode!.setClassName('shadow' + (enableTop ? ' top' : ''));
+			this._topLeftShadowDomNode!.setClassName('shadow top-left-corner' + (enableTop ? ' top' : '') + (enableLeft ? ' left' : ''));
 		}
 	}
 
@@ -523,7 +528,7 @@ export class DomScrollableElement extends ScrollableElement {
 	}
 
 	public scanDomNode(): void {
-		// widh, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
+		// width, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
 		this.setScrollDimensions({
 			width: this._element.clientWidth,
 			scrollWidth: this._element.scrollWidth,

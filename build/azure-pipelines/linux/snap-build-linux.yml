@@ -7,10 +7,16 @@ steps:
   inputs:
     versionSpec: "1.10.1"
 
+- task: AzureKeyVault@1
+  displayName: 'Azure Key Vault: Get Secrets'
+  inputs:
+    azureSubscription: 'vscode-builds-subscription'
+    KeyVaultName: vscode
+
 - task: DownloadPipelineArtifact@0
   displayName: 'Download Pipeline Artifact'
   inputs:
-    artifactName: snap-$(VSCODE_ARCH)
+    artifactName: snap-x64
     targetPath: .build/linux/snap-tarball
 
 - script: |
@@ -25,14 +31,13 @@ steps:
 
     # Define variables
     REPO="$(pwd)"
-    ARCH="$(VSCODE_ARCH)"
-    SNAP_ROOT="$REPO/.build/linux/snap/$ARCH"
+    SNAP_ROOT="$REPO/.build/linux/snap/x64"
 
     # Install build dependencies
     (cd build && yarn)
 
     # Unpack snap tarball artifact, in order to preserve file perms
-    SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-$ARCH.tar.gz"
+    SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-x64.tar.gz"
     (cd .build/linux && tar -xzf $SNAP_TARBALL_PATH)
 
     # Create snap package
@@ -41,10 +46,9 @@ steps:
     PACKAGEJSON="$(ls $SNAP_ROOT/code*/usr/share/code*/resources/app/package.json)"
     VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
     SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
-    (cd $SNAP_ROOT/code-* && sudo snapcraft snap --output "$SNAP_PATH")
+    (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap --output "$SNAP_PATH")
 
     # Publish snap package
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-    node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "linux-snap-$ARCH" package "$SNAP_FILENAME" "$VERSION" true "$SNAP_PATH"
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "linux-snap-x64" package "$SNAP_FILENAME" "$VERSION" true "$SNAP_PATH"

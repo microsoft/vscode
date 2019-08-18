@@ -15,6 +15,10 @@
 	align-items: center;
 }
 
+.monaco-workbench .dialog-modal-block.dimmed {
+	background: rgba(0, 0, 0, 0.3);
+}
+
 /** Dialog: Container */
 .monaco-workbench .dialog-box {
 	display: flex;
@@ -43,12 +47,12 @@
 
 
 .monaco-workbench .dialog-box .dialog-close-action {
-	background: url('close.svg') center center no-repeat;
+	background: url('close-light.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .dialog-box .dialog-close-action,
 .hc-black .monaco-workbench .dialog-box .dialog-close-action {
-	background: url('close-inverse.svg') center center no-repeat;
+	background: url('close-dark.svg') center center no-repeat;
 }
 
 /** Dialog: Message Row */
@@ -56,41 +60,59 @@
 	display: flex;
 	flex-grow: 1;
 	padding: 10px 15px 20px;
+	align-items: center;
 }
 
 .monaco-workbench .dialog-box .dialog-message-row .dialog-icon {
-	flex: 0 0 30px;
-	padding-right: 4px;
-	padding-left: 4px;
+	flex: 0 0 40px;
+	height: 40px;
+	align-self: baseline;
 	background-position: center;
 	background-repeat: no-repeat;
+	background-size: 40px;
+}
+
+.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
+	background-image: url('pending.svg');
 }
 
 .vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info {
-	background-image: url('info.svg');
+	background-image: url('info-light.svg');
 }
 
 .vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning {
-	background-image: url('warning.svg');
+	background-image: url('warning-light.svg');
 }
 
 .vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error {
-	background-image: url('error.svg');
+	background-image: url('error-light.svg');
+}
+
+.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
+	background-image: url('pending-dark.svg');
 }
 
 .vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info,
 .hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info {
-	background-image: url('info-inverse.svg');
+	background-image: url('info-dark.svg');
 }
 
 .vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning,
 .hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning {
-	background-image: url('warning-inverse.svg');
+	background-image: url('warning-dark.svg');
 }
 
 .vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error,
 .hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error {
-	background-image: url('error-inverse.svg');
+	background-image: url('error-dark.svg');
+}
+
+.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
+	background-image: url('pending-hc.svg');
+}
+
+.monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
+	background-size: 30px;
 }
 
 /** Dialog: Message Container */
@@ -125,6 +147,11 @@
 .monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
 	outline-width: 1px;
 	outline-style: solid;
+}
+
+.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row {
+	padding: 15px 0px 0px;
+	display: flex;
 }
 
 /** Dialog: Buttons Row */

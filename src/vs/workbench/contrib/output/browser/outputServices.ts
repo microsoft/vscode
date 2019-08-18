@@ -14,14 +14,11 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { IOutputChannelDescriptor, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, LOG_SCHEME, CONTEXT_ACTIVE_LOG_OUTPUT, LOG_MIME, OUTPUT_MIME } from 'vs/workbench/contrib/output/common/output';
 import { OutputPanel } from 'vs/workbench/contrib/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OutputLinkProvider } from 'vs/workbench/contrib/output/common/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPanel } from 'vs/workbench/common/panel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -68,19 +65,16 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private activeChannelIdInStorage: string;
 	private activeChannel?: OutputChannel;
 
-	private readonly _onActiveOutputChannel = new Emitter<string>();
+	private readonly _onActiveOutputChannel = this._register(new Emitter<string>());
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
 
-	private _outputPanel: OutputPanel;
+	private _outputPanel: OutputPanel | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPanelService private readonly panelService: IPanelService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWindowService windowService: IWindowService,
 		@ILogService private readonly logService: ILogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -105,11 +99,10 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		// Set active channel to first channel if not set
 		if (!this.activeChannel) {
 			const channels = this.getChannelDescriptors();
-			this.activeChannel = channels && channels.length > 0 ? this.getChannel(channels[0].id) : undefined;
+			this.setActiveChannel(channels && channels.length > 0 ? this.getChannel(channels[0].id) : undefined);
 		}
 
 		this._register(this.lifecycleService.onShutdown(() => this.dispose()));
-		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 	}
 
 	provideTextContent(resource: URI): Promise<ITextModel> | null {
@@ -129,13 +122,13 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			return Promise.resolve(undefined);
 		}
 
-		this.activeChannel = channel;
+		this.setActiveChannel(channel);
 		let promise: Promise<void>;
 		if (this.isPanelShown()) {
 			promise = this.doShowChannel(channel, !!preserveFocus);
 		} else {
 			this.panelService.openPanel(OUTPUT_PANEL_ID);
-			promise = this.doShowChannel(this.activeChannel, !!preserveFocus);
+			promise = this.doShowChannel(channel, !!preserveFocus);
 		}
 		return promise.then(() => this._onActiveOutputChannel.fire(id));
 	}
@@ -156,7 +149,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		const channel = this.createChannel(channelId);
 		this.channels.set(channelId, channel);
 		if (!this.activeChannel || this.activeChannelIdInStorage === channelId) {
-			this.activeChannel = channel;
+			this.setActiveChannel(channel);
 			this.onDidPanelOpen(this.panelService.getActivePanel(), true)
 				.then(() => this._onActiveOutputChannel.fire(channelId));
 		}
@@ -198,7 +191,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 				if (channel && this.isPanelShown()) {
 					this.showChannel(channel.id, true);
 				} else {
-					this.activeChannel = channel;
+					this.setActiveChannel(channel);
 					if (this.activeChannel) {
 						this._onActiveOutputChannel.fire(this.activeChannel.id);
 					}
@@ -225,7 +218,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!channel.outputChannelDescriptor.file && channel.outputChannelDescriptor.log);
 			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus }), CancellationToken.None)
 				.then(() => {
-					if (!preserveFocus) {
+					if (!preserveFocus && this._outputPanel) {
 						this._outputPanel.focus();
 					}
 				});
@@ -244,12 +237,16 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private createInput(channel: IOutputChannel): ResourceEditorInput {
 		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channel.id });
-		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), resource);
+		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), resource, undefined);
 	}
 
-	private saveState(): void {
+	private setActiveChannel(channel: OutputChannel | undefined): void {
+		this.activeChannel = channel;
+
 		if (this.activeChannel) {
 			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE);
 		}
 	}
 }

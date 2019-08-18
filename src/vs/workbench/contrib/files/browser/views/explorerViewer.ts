@@ -7,8 +7,8 @@ import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -35,7 +35,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -49,7 +49,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
-	private static readonly ITEM_HEIGHT = 22;
+	static readonly ITEM_HEIGHT = 22;
 
 	getHeight(element: ExplorerItem): number {
 		return ExplorerDelegate.ITEM_HEIGHT;
@@ -98,7 +98,11 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return []; // we could not resolve any children because of an error
 		});
 
-		this.progressService.showWhile(promise, this.layoutService.isRestored() ? 800 : 3200 /* less ugly initial startup */);
+		this.progressService.withProgress({
+			location: ProgressLocation.Explorer,
+			delay: this.layoutService.isRestored() ? 800 : 1200 // less ugly initial startup
+		}, _progress => promise);
+
 		return promise;
 	}
 }
@@ -217,45 +221,43 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = once(async (success: boolean) => {
+		const done = once(async (success: boolean, blur: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
 			container.removeChild(label.element);
-			// Timeout: once done rendering only then re-render #70902
-			setTimeout(() => editableData.onFinish(value, success), 0);
+			editableData.onFinish(value, success);
 		});
 
-		let ignoreDisposeAndBlur = true;
-		setTimeout(() => ignoreDisposeAndBlur = false, 100);
-		const blurDisposable = DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-			if (!ignoreDisposeAndBlur) {
-				done(inputBox.isInputValid());
-			}
-		});
+		// It can happen that the tree re-renders this node. When that happens,
+		// we're gonna get a blur event first and only after an element disposable.
+		// Because of that, we should setTimeout the blur handler to differentiate
+		// between the blur happening because of a unrender or because of a user action.
+		let ignoreBlur = false;
 
 		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
-						done(true);
+						done(true, false);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false);
+					done(false, false);
 				}
 			}),
-			blurDisposable,
+			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
+				setTimeout(() => {
+					if (!ignoreBlur) {
+						done(inputBox.isInputValid(), true);
+					}
+				}, 0);
+			}),
 			label,
 			styler
 		];
 
-		return toDisposable(() => {
-			if (!ignoreDisposeAndBlur) {
-				blurDisposable.dispose();
-				done(false);
-			}
-		});
+		return toDisposable(() => ignoreBlur = true);
 	}
 
 	disposeElement?(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
@@ -428,7 +430,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
 	private toDispose: IDisposable[];
-	private dropEnabled: boolean;
+	private dropEnabled = false;
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,
@@ -484,7 +486,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
 
 			if (!target) {
-				// Droping onto the empty area. Do not accept if items dragged are already
+				// Dropping onto the empty area. Do not accept if items dragged are already
 				// children of the root unless we are copying the file
 				if (!isCopy && items.every(i => !!i.parent && i.parent.isRoot)) {
 					return false;
@@ -515,7 +517,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					return true; // Can not move a file to the same parent unless we copy
 				}
 
-				if (isEqualOrParent(target.resource, source.resource, !isLinux /* ignorecase */)) {
+				if (isEqualOrParent(target.resource, source.resource)) {
 					return true; // Can not move a parent folder into one of its children
 				}
 
@@ -593,54 +595,57 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			this.handleExternalDrop(data, target, originalEvent);
+			this.handleExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
 		}
 		// In-Explorer DND (Move/Copy file)
 		else {
-			this.handleExplorerDrop(data, target, originalEvent);
+			this.handleExplorerDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
 		}
 	}
 
 
-	private handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
-
 		// Check for dropped external files to be folders
-		return this.fileService.resolveAll(droppedResources).then(result => {
+		const result = await this.fileService.resolveAll(droppedResources);
 
-			// Pass focus to window
-			this.windowService.focusWindow();
+		// Pass focus to window
+		this.windowService.focusWindow();
 
-			// Handle folders by adding to workspace if we are in workspace context
-			const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
-			if (folders.length > 0) {
+		// Handle folders by adding to workspace if we are in workspace context
+		const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
+		if (folders.length > 0) {
 
-				// If we are in no-workspace context, ask for confirmation to create a workspace
-				let confirmedPromise: Promise<IConfirmationResult> = Promise.resolve({ confirmed: true });
-				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-					confirmedPromise = this.dialogService.confirm({
-						message: folders.length > 1 ? localize('dropFolders', "Do you want to add the folders to the workspace?") : localize('dropFolder', "Do you want to add the folder to the workspace?"),
-						type: 'question',
-						primaryButton: folders.length > 1 ? localize('addFolders', "&&Add Folders") : localize('addFolder', "&&Add Folder")
-					});
-				}
-
-				return confirmedPromise.then(res => {
-					if (res.confirmed) {
-						return this.workspaceEditingService.addFolders(folders);
-					}
-
-					return undefined;
-				});
+			const buttons = [
+				folders.length > 1 ? localize('copyFolders', "&&Copy Folders") : localize('copyFolder', "&&Copy Folder"),
+				localize('cancel', "Cancel")
+			];
+			const workspaceFolderSchemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
+			let message = folders.length > 1 ? localize('copyfolders', "Are you sure to want to copy folders?") : localize('copyfolder', "Are you sure to want to copy '{0}'?", basename(folders[0].uri));
+			if (folders.some(f => workspaceFolderSchemas.indexOf(f.uri.scheme) >= 0)) {
+				// We only allow to add a folder to the workspace if there is already a workspace folder with that scheme
+				buttons.unshift(folders.length > 1 ? localize('addFolders', "&&Add Folders to Workspace") : localize('addFolder', "&&Add Folder to Workspace"));
+				message = folders.length > 1 ? localize('dropFolders', "Do you want to copy the folders or add the folders to the workspace?")
+					: localize('dropFolder', "Do you want to copy '{0}' or add '{0}' as a folder to the workspace?", basename(folders[0].uri));
 			}
 
-			// Handle dropped files (only support FileStat as target)
-			else if (target instanceof ExplorerItem) {
+			const choice = await this.dialogService.show(Severity.Info, message, buttons);
+			if (choice === buttons.length - 3) {
+				return this.workspaceEditingService.addFolders(folders);
+			}
+			if (choice === buttons.length - 2) {
 				return this.addResources(target, droppedResources.map(res => res.resource));
 			}
 
 			return undefined;
-		});
+		}
+
+		// Handle dropped files (only support FileStat as target)
+		else if (target instanceof ExplorerItem) {
+			return this.addResources(target, droppedResources.map(res => res.resource));
+		}
+
+		return undefined;
 	}
 
 	private addResources(target: ExplorerItem, resources: URI[]): Promise<any> {
@@ -652,8 +657,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				// Check for name collisions
 				const targetNames = new Set<string>();
 				if (targetStat.children) {
+					const ignoreCase = hasToIgnoreCase(target.resource);
 					targetStat.children.forEach(child => {
-						targetNames.add(isLinux ? child.name : child.name.toLowerCase());
+						targetNames.add(ignoreCase ? child.name : child.name.toLowerCase());
 					});
 				}
 
@@ -696,7 +702,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 								return this.fileService.copy(sourceFile, copyTarget, true).then(stat => {
 
 									// if we only add one file, just open it directly
-									if (resources.length === 1) {
+									if (resources.length === 1 && !stat.isDirectory) {
 										this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 									}
 								});
@@ -792,8 +798,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private doHandleExplorerDrop(source: ExplorerItem, target: ExplorerItem, isCopy: boolean): Promise<void> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
-
-			return this.fileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwirte: false })).then(stat => {
+			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
+			return this.fileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming)).then(stat => {
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).then(() => undefined);
 				}

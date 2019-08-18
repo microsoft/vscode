@@ -13,6 +13,7 @@ import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findIn
 import { HistoryInputBox, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { Delayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -27,10 +28,11 @@ import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MA
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 
 export interface IFindController {
 	replace(): void;
@@ -46,6 +48,7 @@ const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind'
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
 const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
+const NLS_PRESERVE_CASE_LABEL = nls.localize('label.preserveCaseCheckbox', "Preserve Case");
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
@@ -90,18 +93,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _keybindingService: IKeybindingService;
 	private readonly _contextKeyService: IContextKeyService;
 
-	private _domNode: HTMLElement;
-	private _findInput: FindInput;
-	private _replaceInputBox: HistoryInputBox;
+	private _domNode!: HTMLElement;
+	private _findInput!: FindInput;
+	private _replaceInputBox!: HistoryInputBox;
 
-	private _toggleReplaceBtn: SimpleButton;
-	private _matchesCount: HTMLElement;
-	private _prevBtn: SimpleButton;
-	private _nextBtn: SimpleButton;
-	private _toggleSelectionFind: SimpleCheckbox;
-	private _closeBtn: SimpleButton;
-	private _replaceBtn: SimpleButton;
-	private _replaceAllBtn: SimpleButton;
+	private _toggleReplaceBtn!: SimpleButton;
+	private _matchesCount!: HTMLElement;
+	private _prevBtn!: SimpleButton;
+	private _nextBtn!: SimpleButton;
+	private _toggleSelectionFind!: SimpleCheckbox;
+	private _closeBtn!: SimpleButton;
+	private _preserveCase!: Checkbox;
+	private _replaceBtn!: SimpleButton;
+	private _replaceAllBtn!: SimpleButton;
 
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
@@ -112,10 +116,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _replaceFocusTracker: dom.IFocusTracker;
 	private readonly _replaceInputFocused: IContextKey<boolean>;
 	private _viewZone?: FindWidgetViewZone;
-	private _viewZoneId?: number;
+	private _viewZoneId?: string;
 
-	private _resizeSash: Sash;
-	private _resized: boolean;
+	private _resizeSash!: Sash;
+	private _resized!: boolean;
 	private readonly _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
@@ -220,15 +224,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (!this._isVisible) {
 				return;
 			}
-			if (this._viewZoneId === undefined) {
-				return;
-			}
-			this._codeEditor.changeViewZones((accessor) => {
-				if (this._viewZoneId) {
-					accessor.removeZone(this._viewZoneId);
-				}
-				this._viewZoneId = undefined;
-			});
+			this._viewZoneId = undefined;
 		}));
 
 
@@ -372,12 +368,25 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		} else {
 			label = NLS_NO_RESULTS;
 		}
+
 		this._matchesCount.appendChild(document.createTextNode(label));
 
+		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString), true);
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
 	}
 
 	// ----- actions
+
+	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
+		if (label === NLS_NO_RESULTS) {
+			return searchString === ''
+				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
+				: nls.localize('ariaSearchNoResult', "{0} found for {1}", label, searchString);
+		}
+		return currentMatch
+			? nls.localize('ariaSearchNoResultWithLineNum', "{0} found for {1} at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn)
+			: nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for {1}", label, searchString);
+	}
 
 	/**
 	 * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
@@ -560,6 +569,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _applyTheme(theme: ITheme) {
 		let inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
 			inputBorder: theme.getColor(inputBorder),
@@ -575,14 +585,26 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		};
 		this._findInput.style(inputStyles);
 		this._replaceInputBox.style(inputStyles);
+		this._preserveCase.style(inputStyles);
 	}
 
 	private _tryUpdateWidgetWidth() {
 		if (!this._isVisible) {
 			return;
 		}
-		let editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
-		let minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
+
+		const editorContentWidth = this._codeEditor.getConfiguration().layoutInfo.contentWidth;
+
+		if (editorContentWidth <= 0) {
+			// for example, diff view original editor
+			dom.addClass(this._domNode, 'hiddenEditor');
+			return;
+		} else if (dom.hasClass(this._domNode, 'hiddenEditor')) {
+			dom.removeClass(this._domNode, 'hiddenEditor');
+		}
+
+		const editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
+		const minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
 		let collapsedFindWidget = false;
 		let reducedFindWidget = false;
 		let narrowFindWidget = false;
@@ -754,7 +776,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		return ` (${kb.getLabel()})`;
 	}
 
-	private _buildFindPart(): HTMLElement {
+	private _buildDomNode(): void {
 		// Find input
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
 			width: FIND_INPUT_AREA_WIDTH,
@@ -878,10 +900,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		findPart.appendChild(this._closeBtn.domNode);
 
-		return findPart;
-	}
-
-	private _buildReplacePart(): HTMLElement {
 		// Replace input
 		let replaceInput = document.createElement('div');
 		replaceInput.className = 'replace-input';
@@ -896,6 +914,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
 		this._register(this._replaceInputBox.onDidChange(() => {
 			this._state.change({ replaceString: this._replaceInputBox.value }, false);
+		}));
+
+		this._preserveCase = this._register(new Checkbox({
+			actionClassName: 'monaco-preserve-case',
+			title: NLS_PRESERVE_CASE_LABEL,
+			isChecked: false,
+		}));
+		this._preserveCase.checked = !!this._state.preserveCase;
+		this._register(this._preserveCase.onChange(viaKeyboard => {
+			if (!viaKeyboard) {
+				this._state.change({ preserveCase: !this._state.preserveCase }, false);
+				this._replaceInputBox.focus();
+			}
 		}));
 
 		// Replace one button
@@ -922,21 +953,17 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 		}));
 
+		let controls = document.createElement('div');
+		controls.className = 'controls';
+		controls.style.display = 'block';
+		controls.appendChild(this._preserveCase.domNode);
+		replaceInput.appendChild(controls);
+
 		let replacePart = document.createElement('div');
 		replacePart.className = 'replace-part';
 		replacePart.appendChild(replaceInput);
 		replacePart.appendChild(this._replaceBtn.domNode);
 		replacePart.appendChild(this._replaceAllBtn.domNode);
-
-		return replacePart;
-	}
-
-	private _buildDomNode(): void {
-		// Find part
-		let findPart = this._buildFindPart();
-
-		// Replace part
-		let replacePart = this._buildReplacePart();
 
 		// Toggle replace button
 		this._toggleReplaceBtn = this._register(new SimpleButton({
@@ -965,10 +992,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._domNode.appendChild(findPart);
 		this._domNode.appendChild(replacePart);
 
-		this._buildSash();
-	}
-
-	private _buildSash() {
 		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL });
 		this._resized = false;
 		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
@@ -1193,6 +1216,11 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .find-widget { border: 2px solid ${hcBorder}; }`);
 	}
 
+	const foreground = theme.getColor(editorWidgetForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .find-widget { color: ${foreground}; }`);
+	}
+
 	const error = theme.getColor(errorForeground);
 	if (error) {
 		collector.addRule(`.monaco-editor .find-widget.no-results .matchesCount { color: ${error}; }`);
@@ -1211,5 +1239,10 @@ registerThemingParticipant((theme, collector) => {
 	const inputActiveBorder = theme.getColor(inputActiveOptionBorder);
 	if (inputActiveBorder) {
 		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { border: 1px solid ${inputActiveBorder.toString()}; }`);
+	}
+
+	const inputActiveBackground = theme.getColor(inputActiveOptionBackground);
+	if (inputActiveBackground) {
+		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { background-color: ${inputActiveBackground.toString()}; }`);
 	}
 });
