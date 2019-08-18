@@ -244,7 +244,7 @@ class SuggestionDetails {
 	private readonly disposables: DisposableStore;
 	private renderDisposeable?: IDisposable;
 	private borderWidth: number = 1;
-	_width?: number;
+	private _maxLineLengthInCodeBlock?: number;
 	readonly defaultWidth = 500;
 
 	constructor(
@@ -316,7 +316,7 @@ class SuggestionDetails {
 	}
 
 	getDocumentationWidth() {
-		return this._width;
+		return this._maxLineLengthInCodeBlock;
 	}
 
 	renderLoading(): void {
@@ -353,7 +353,7 @@ class SuggestionDetails {
 		if (typeof documentation === 'string') {
 			removeClass(this.docs, 'markdown-docs');
 			this.docs.textContent = documentation;
-			this._width = this.defaultWidth;
+			this._maxLineLengthInCodeBlock = undefined;
 		} else {
 			const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
 			if (largeDetail) {
@@ -364,7 +364,7 @@ class SuggestionDetails {
 			const renderedContents = this.markdownRenderer.render(documentation);
 			this.renderDisposeable = renderedContents;
 			this.docs.appendChild(renderedContents.element);
-			this._width = this.calcWidth(documentation);
+			this._maxLineLengthInCodeBlock = this.calcWidth(documentation);
 		}
 
 		// --- details
@@ -1073,7 +1073,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private getDetailWidth(): number {
-		const maxWidth = this.getDetailMaxWidth() || 500;
+		const maxWidth = this.getDetailMaxWidth() || this.details.defaultWidth;
 		const width = this.details.getDocumentationWidth() || this.details.defaultWidth;
 		return Math.min(maxWidth, width);
 	}
