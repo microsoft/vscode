@@ -309,7 +309,6 @@ class SuggestionDetails {
 	}
 
 	set width(n: number) {
-		console.log(n);
 		this.docs.style.width = (n - 5) + 'px';
 		this.element.style.width = n + 'px';
 		this.scrollbar.scanDomNode();
