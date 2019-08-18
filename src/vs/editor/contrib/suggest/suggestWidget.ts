@@ -244,7 +244,7 @@ class SuggestionDetails {
 	private readonly disposables: DisposableStore;
 	private renderDisposeable?: IDisposable;
 	private borderWidth: number = 1;
-	width?: number;
+	_width?: number;
 	readonly defaultWidth = 500;
 
 	constructor(
@@ -282,17 +282,41 @@ class SuggestionDetails {
 
 		markdownRenderer.onDidRenderCodeBlock(() => {
 			const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
-			this.scrollbar.scanDomNode();
 			if (largeDetail) {
 				removeClass(this.el, 'large-markdown-details');
 				addClass(this.el, 'code-markdown-details');
 				addClass(this.docs, 'code-markdown-docs');
 			}
+			this.scrollbar.scanDomNode();
 		}, this, this.disposables);
 	}
 
 	get element() {
 		return this.el;
+	}
+
+	get height() {
+		return this.header.offsetHeight + this.docs.offsetHeight + (this.borderWidth * 2);
+	}
+
+	set maxHeight(n: number) {
+		this.element.style.maxHeight = n + 'px';
+		this.scrollbar.scanDomNode();
+	}
+
+	get width() {
+		return this.element.offsetWidth;
+	}
+
+	set width(n: number) {
+		console.log(n);
+		this.docs.style.width = (n - 5) + 'px';
+		this.element.style.width = n + 'px';
+		this.scrollbar.scanDomNode();
+	}
+
+	getDocumentationWidth() {
+		return this._width;
 	}
 
 	renderLoading(): void {
@@ -329,7 +353,7 @@ class SuggestionDetails {
 		if (typeof documentation === 'string') {
 			removeClass(this.docs, 'markdown-docs');
 			this.docs.textContent = documentation;
-			this.width = this.defaultWidth;
+			this._width = this.defaultWidth;
 		} else {
 			const largeDetail = this._configService.getValue<string>('editor.suggest.largeDetail');
 			if (largeDetail) {
@@ -340,7 +364,7 @@ class SuggestionDetails {
 			const renderedContents = this.markdownRenderer.render(documentation);
 			this.renderDisposeable = renderedContents;
 			this.docs.appendChild(renderedContents.element);
-			this.width = this.calcWidth(documentation);
+			this._width = this.calcWidth(documentation);
 		}
 
 		// --- details
@@ -383,7 +407,7 @@ class SuggestionDetails {
 		const sizes = tokens.map((tok) => {
 			switch (tok.type) {
 				case 'code':
-					return Math.max(...tok.text.split('\n').map(line => line.length * fontSize));
+					return Math.max(...tok.text.split('\n').map(line => Math.round(line.length * fontSize * 0.7)));
 				default:
 					return this.defaultWidth;
 			}
@@ -1049,8 +1073,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private getDetailWidth(): number {
-		const maxWidth = this.getDetailMaxWidth() || 330;
-		const width = this.details.width || this.details.defaultWidth;
+		const maxWidth = this.getDetailMaxWidth() || 500;
+		const width = this.details.getDocumentationWidth() || this.details.defaultWidth;
 		return Math.min(maxWidth, width);
 	}
 
@@ -1098,10 +1122,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				if (detailWidth !== null) {
 					this.element.style.width = `${detailWidth + this.listWidth}px`;
 					this.listElement.style.width = `${this.listWidth}px`;
-					this.details.element.style.width = `${detailWidth}px`;
-					this.details.element.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height - widgetY, this.maxWidgetHeight)}px`;
+					this.details.width = detailWidth;
+					const maxHeight = Math.max(this.editor.getLayoutInfo().height - widgetY, this.maxWidgetHeight);
+					this.details.maxHeight = maxHeight;
 				}
 			}
+		} else {
+			this.details.width = this.listWidth;
 		}
 
 		// Reset margin-top that was set as Fix for #26416
