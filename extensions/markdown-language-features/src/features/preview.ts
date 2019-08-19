@@ -286,6 +286,8 @@ export class MarkdownPreview extends Disposable {
 		const editor = vscode.window.activeTextEditor;
 		if (editor && editor.document.uri.fsPath === resource.fsPath) {
 			this.line = getVisibleLine(editor);
+		} else {
+			this.line = 0;
 		}
 
 		// If we have changed resources, cancel any pending updates
