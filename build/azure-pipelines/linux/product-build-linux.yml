@@ -100,21 +100,15 @@ steps:
 
 - script: |
     set -e
-    export ELECTRON_ENABLE_LOGGING=true
-    export ELECTRON_ENABLE_STACK_DUMPING=true
-    DISPLAY=:10 ./scripts/test.sh --build --no-sandbox "Unit Tests"
+    DISPLAY=:10 ./scripts/test.sh --build --tfs --no-sandbox "Unit Tests"
   displayName: Run unit tests
-  timeoutInMinutes: 5
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
-    export ELECTRON_ENABLE_LOGGING=true
-    export ELECTRON_ENABLE_STACK_DUMPING=true
-    DISPLAY=:10 ./scripts/test-integration.sh --build --no-sandbox "Integration Tests"
+    DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-x64"
   displayName: Run integration tests
-  timeoutInMinutes: 5
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
