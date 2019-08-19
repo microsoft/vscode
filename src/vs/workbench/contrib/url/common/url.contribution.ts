@@ -65,7 +65,7 @@ const configureTrustedDomainsHandler = (
 	const specialQuickPickItems: IQuickPickItem[] = [
 		{
 			type: 'item',
-			label: localize('allowAllLinks', 'Allow all links to be open without protection'),
+			label: localize('openAllLinksWithoutPrompt', 'Open all links without prompt'),
 			picked: trustedDomains.indexOf('*') !== -1
 		}
 	];
