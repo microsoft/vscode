@@ -23,13 +23,7 @@ exports.serviceWorker = [{
 	dest: 'vs/workbench/contrib/resources/browser/resourceServiceWorkerMain.js'
 }];
 
-exports.workerExtensionHost = [{
-	name: 'vs/workbench/services/extensions/worker/extensionHostWorker',
-	// include: [],
-	prepend: ['vs/loader.js', 'vs/nls.js'],
-	append: ['vs/workbench/services/extensions/worker/extensionHostWorkerMain'],
-	dest: 'vs/workbench/services/extensions/worker/extensionHostWorkerMain.js'
-}];
+exports.workerExtensionHost = [entrypoint('vs/workbench/services/extensions/worker/extensionHostWorker')];
 
 exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.desktop.main']);
 exports.workbenchWeb = entrypoint('vs/workbench/workbench.web.api');
