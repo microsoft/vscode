@@ -8,6 +8,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
@@ -22,10 +23,10 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		window.onbeforeunload = () => this.beforeUnload();
+		addDisposableListener(window, EventType.BEFORE_UNLOAD, () => this.onBeforeUnload());
 	}
 
-	private beforeUnload(): string | null {
+	private onBeforeUnload(): string | null {
 		let veto = false;
 
 		// Before Shutdown
@@ -34,7 +35,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 				if (value === true) {
 					veto = true;
 				} else if (value instanceof Promise && !veto) {
-					console.warn(new Error('Long running onBeforeShutdown currently not supported'));
+					console.warn(new Error('Long running onBeforeShutdown currently not supported in the web'));
 					veto = true;
 				}
 			},
@@ -49,10 +50,13 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// No Veto: continue with Will Shutdown
 		this._onWillShutdown.fire({
 			join() {
-				console.warn(new Error('Long running onWillShutdown currently not supported'));
+				console.warn(new Error('Long running onWillShutdown currently not supported in the web'));
 			},
 			reason: ShutdownReason.QUIT
 		});
+
+		// Finally end with Shutdown event
+		this._onShutdown.fire();
 
 		return null;
 	}
