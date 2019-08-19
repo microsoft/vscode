@@ -102,6 +102,7 @@ steps:
     set -e
     DISPLAY=:10 ./scripts/test.sh --build --tfs --no-sandbox "Unit Tests"
   displayName: Run unit tests
+  timeoutInMinutes: 5
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
