@@ -25,8 +25,8 @@ fi
 REMOTE_VSCODE=$AUTHORITY$EXT_PATH
 
 # Tests in the extension host
-./scripts/code.sh --folder-uri=$REMOTE_VSCODE/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/singlefolder-tests --disable-inspect --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
-./scripts/code.sh --file-uri=$REMOTE_VSCODE/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/workspace-tests --disable-inspect --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
+./scripts/code.sh --folder-uri=$REMOTE_VSCODE/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/singlefolder-tests --disable-inspect --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started "$@"
+./scripts/code.sh --file-uri=$REMOTE_VSCODE/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/workspace-tests --disable-inspect --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started "$@"
 
 # Clean up
 if [[ "$3" == "" ]]; then
