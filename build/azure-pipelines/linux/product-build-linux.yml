@@ -100,7 +100,9 @@ steps:
 
 - script: |
     set -e
-    DISPLAY=:10 ./scripts/test.sh --build --tfs --no-sandbox "Unit Tests"
+    export ELECTRON_ENABLE_LOGGING=true
+    export ELECTRON_ENABLE_STACK_DUMPING=true
+    DISPLAY=:10 ./scripts/test.sh --build --no-sandbox "Unit Tests"
   displayName: Run unit tests
   timeoutInMinutes: 5
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))

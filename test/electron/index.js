@@ -99,6 +99,7 @@ function parseReporterOption(value) {
 }
 
 app.on('ready', () => {
+	console.log("electron test renderer ready");
 
 	ipcMain.on('error', (_, err) => {
 		if (!argv.debug) {
