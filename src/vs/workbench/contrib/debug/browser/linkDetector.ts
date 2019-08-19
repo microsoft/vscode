@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import { isAbsolute } from 'vs/base/common/path';
 import { URI as uri } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';

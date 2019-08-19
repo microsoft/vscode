@@ -142,7 +142,7 @@ export class Application {
 		await this.code.waitForElement('.monaco-workbench');
 
 		if (this.remote) {
-			await this.code.waitForElement('.monaco-workbench .statusbar-item[title="Editing on TestResolver"]');
+			await this.code.waitForElement('.monaco-workbench .statusbar-item[id="status.host"]');
 		}
 
 		// wait a bit, since focus might be stolen off widgets

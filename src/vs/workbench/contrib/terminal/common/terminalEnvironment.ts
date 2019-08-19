@@ -62,7 +62,7 @@ export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, ve
 	env['COLORTERM'] = 'truecolor';
 }
 
-function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | NodeJS.ProcessEnv | undefined) {
+function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | undefined) {
 	if (!other) {
 		return;
 	}
