@@ -18,6 +18,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import Severity from 'vs/base/common/severity';
 
 export class OpenerService implements IOpenerService {
 
@@ -76,31 +77,34 @@ export class OpenerService implements IOpenerService {
 			if (isDomainTrusted(domainToOpen, trustedDomains)) {
 				return this.openExternal(resource);
 			} else {
-				return this._dialogService.confirm({
-					title: localize('openExternalLink', 'Open External Link'),
-					type: 'question',
-					message: localize(
+				return this._dialogService.show(
+					Severity.Info,
+					localize(
 						'openExternalLinkAt',
 						'Do you want {0} to open the external website?\n{1}',
 						this._productService.productConfiguration.nameShort,
 						resource.toString(true)
 					),
-					primaryButton: localize('openLink', 'Open Link'),
-					secondaryButton: localize('cancel', 'Cancel'),
-					checkbox: {
-						label: localize('trustAllLinksFrom', 'Trust all links from') + ` ${domainToOpen}`,
-						checked: false
-					}
-				}).then(({ confirmed, checkboxChecked }) => {
-					if (checkboxChecked) {
-						this._storageService.store('http.trustedDomains', JSON.stringify([...trustedDomains, domainToOpen]), StorageScope.GLOBAL);
-					}
-					if (confirmed) {
-						return this.openExternal(resource);
-					}
-
-					return Promise.resolve(false);
-				});
+					[
+						localize('openLink', 'Open Link'),
+						localize('cancel', 'Cancel'),
+						localize('configureLinkPermission', 'Configure Link Permission'),
+					],
+					{
+						cancelId: 1
+					}).then((choice) => {
+						if (choice === 0) {
+							return this.openExternal(resource);
+						} else if (choice === 2) {
+							return this._commandService.executeCommand('_workbench.action.configureTrustedDomains', domainToOpen).then((pickedDomains: string[]) => {
+								if (pickedDomains.indexOf(domainToOpen) !== -1) {
+									return this.openExternal(resource);
+								}
+								return Promise.resolve(false);
+							});
+						}
+						return Promise.resolve(false);
+					});
 			}
 		} else if (equalsIgnoreCase(scheme, Schemas.command)) {
 			// run command or bail out if command isn't known

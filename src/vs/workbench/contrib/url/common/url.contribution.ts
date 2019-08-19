@@ -12,6 +12,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/plat
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export class OpenUrlAction extends Action {
 
@@ -35,6 +36,70 @@ export class OpenUrlAction extends Action {
 	}
 }
 
+Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
+	new SyncActionDescriptor(OpenUrlAction, OpenUrlAction.ID, OpenUrlAction.LABEL),
+	'Open URL',
+	localize('developer', 'Developer')
+);
+
+const configureTrustedDomainsHandler = (
+	quickInputService: IQuickInputService,
+	storageService: IStorageService,
+	domainToConfigure?: string
+) => {
+	let trustedDomains: string[] = [];
+	try {
+		trustedDomains = JSON.parse(storageService.get('http.trustedDomains', StorageScope.GLOBAL, '[]'));
+	} catch (err) { }
+
+	const domainQuickPickItems: IQuickPickItem[] = trustedDomains
+		.filter(d => d !== '*')
+		.map(d => {
+			return {
+				type: 'item',
+				label: d,
+				picked: true,
+			};
+		});
+
+	const specialQuickPickItems: IQuickPickItem[] = [
+		{
+			type: 'item',
+			label: localize('allowAllLinks', 'Allow all links to be open without protection'),
+			picked: trustedDomains.indexOf('*') !== -1
+		}
+	];
+
+	let domainToConfigureItem: IQuickPickItem | undefined = undefined;
+	if (domainToConfigure) {
+		domainToConfigureItem = {
+			type: 'item',
+			label: domainToConfigure,
+			picked: true,
+			description: localize('trustDomainAndOpenLink', 'Trust domain and open link')
+		};
+		specialQuickPickItems.push(<IQuickPickItem>domainToConfigureItem);
+	}
+
+	const quickPickItems: (IQuickPickItem | IQuickPickSeparator)[] = domainQuickPickItems.length === 0
+		? specialQuickPickItems
+		: [...specialQuickPickItems, { type: 'separator' }, ...domainQuickPickItems];
+
+	return quickInputService.pick(quickPickItems, {
+		canPickMany: true,
+		activeItem: domainToConfigureItem
+	}).then(result => {
+		if (result) {
+			const pickedDomains = result.map(r => r.label);
+			storageService.store('http.trustedDomains', JSON.stringify(pickedDomains), StorageScope.GLOBAL);
+
+			return pickedDomains;
+		}
+
+		return [];
+	});
+};
+
 export class ConfigureTrustedDomainsAction extends Action {
 
 	static readonly ID = 'workbench.action.configureTrustedDomains';
@@ -50,45 +115,10 @@ export class ConfigureTrustedDomainsAction extends Action {
 	}
 
 	run(): Promise<any> {
-		let trustedDomains: string[] = [];
-		try {
-			trustedDomains = JSON.parse(this.storageService.get('http.trustedDomains', StorageScope.GLOBAL, '[]'));
-		} catch (err) { }
-
-		const quickPickItems: (IQuickPickItem | IQuickPickSeparator)[] = trustedDomains
-			.filter(d => d !== '*')
-			.map(d => {
-				return {
-					type: 'item',
-					label: d,
-					picked: true,
-				};
-			});
-
-		quickPickItems.unshift({
-			type: 'separator'
-		});
-		quickPickItems.unshift({
-			type: 'item',
-			label: 'Allow all links to be open without protection',
-			picked: trustedDomains.indexOf('*') !== -1
-		});
-
-		return this.quickInputService.pick(quickPickItems, {
-			canPickMany: true
-		}).then(result => {
-			if (result) {
-				this.storageService.store('http.trustedDomains', JSON.stringify(result.map(r => r.label)), StorageScope.GLOBAL);
-			}
-		});
+		return configureTrustedDomainsHandler(this.quickInputService, this.storageService);
 	}
 }
 
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(OpenUrlAction, OpenUrlAction.ID, OpenUrlAction.LABEL),
-	'Open URL',
-	localize('developer', 'Developer')
-);
 Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
 	new SyncActionDescriptor(
 		ConfigureTrustedDomainsAction,
@@ -97,3 +127,16 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 	),
 	'Configure Trusted Domains'
 );
+CommandsRegistry.registerCommand({
+	id: '_workbench.action.configureTrustedDomains',
+	description: {
+		description: 'Configure Trusted Domains',
+		args: [{ name: 'domainToConfigure', schema: { type: 'string' } }]
+	},
+	handler: (accessor, domainToConfigure?: string) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		const storageService = accessor.get(IStorageService);
+
+		return configureTrustedDomainsHandler(quickInputService, storageService, domainToConfigure);
+	}
+});
