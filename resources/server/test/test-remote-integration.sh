@@ -8,7 +8,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 else
 	ROOT=$(dirname $(dirname $(dirname $(dirname $(readlink -f $0)))))
 	VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
-	LINUX_NO_SANDBOX = "--no-sandbox" # TODO@deepak workaround Electron 6 issue on Linux when running tests in container
+	LINUX_NO_SANDBOX="--no-sandbox" # TODO@deepak workaround Electron 6 issue on Linux when running tests in container
 fi
 
 cd $ROOT
