@@ -34,6 +34,10 @@ export interface IStorageMainService {
 	 */
 	readonly onWillSaveState: Event<void>;
 
+	readonly items: Map<string, string>;
+
+	initialize(): Promise<void>;
+
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
 	 * the provided defaultValue if the element is null or undefined.
