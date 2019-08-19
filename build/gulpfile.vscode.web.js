@@ -42,7 +42,7 @@ const vscodeWebResources = [
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 
 	// Extension Worker
-	'vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
+	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
 
 	// Excludes
 	'!out-build/vs/**/{node,electron-browser,electron-main}/**',
