@@ -59,7 +59,6 @@ export class EmptyView extends ViewletPanel {
 		container.appendChild(titleContainer);
 
 		this.titleElement = document.createElement('span');
-		this.titleElement.textContent = name;
 		titleContainer.appendChild(this.titleElement);
 	}
 
