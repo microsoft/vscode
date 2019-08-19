@@ -49,6 +49,7 @@ import 'vs/workbench/services/accessibility/node/accessibilityService';
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/opener/electron-browser/openerService';
+import 'vs/workbench/services/credentials/node/credentialsService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -60,8 +61,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsService } from 'vs/platform/localizations/electron-browser/localizationsService';
 import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { IProductService } from 'vs/platform/product/common/product';
-import { ProductService } from 'vs/platform/product/node/productService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -74,22 +73,20 @@ import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
+import { StaticExtensionsService, IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 
 registerSingleton(IClipboardService, ClipboardService, true);
 registerSingleton(IRequestService, RequestService, true);
 registerSingleton(ILifecycleService, LifecycleService);
 registerSingleton(ILocalizationsService, LocalizationsService);
 registerSingleton(ISharedProcessService, SharedProcessService, true);
-registerSingleton(IProductService, ProductService, true);
 registerSingleton(IWindowsService, WindowsService);
 registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
 registerSingleton(IWorkspacesService, WorkspacesService);
 registerSingleton(IMenubarService, MenubarService);
 registerSingleton(IURLService, RelayURLService);
-registerSingleton(ICredentialsService, KeytarCredentialsService, true);
+registerSingleton(IStaticExtensionsService, class extends StaticExtensionsService { constructor() { super([]); } });
 
 //#endregion
 
@@ -130,9 +127,6 @@ import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 
 // Execution
 import 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
-
-// Send a Smile
-import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
 // Update
 import 'vs/workbench/contrib/update/electron-browser/update.contribution';

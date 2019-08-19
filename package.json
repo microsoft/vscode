@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.38.0",
-  "distro": "27bb4f0e93f58466a9b7813e31d69010675d5a19",
+  "distro": "481202cd856f5dbbb010996544e4fa7498154f2e",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -53,7 +53,7 @@
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
     "xterm": "3.15.0-beta99",
-    "xterm-addon-search": "0.2.0-beta3",
+    "xterm-addon-search": "0.2.0-beta5",
     "xterm-addon-web-links": "0.1.0-beta10",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
@@ -124,6 +124,7 @@
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
     "pump": "^1.0.1",
+    "puppeteer": "^1.19.0",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
     "rimraf": "^2.2.8",

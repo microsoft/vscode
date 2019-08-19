@@ -22,9 +22,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey, IExtensionsViewlet, IExtensionsWorkbenchService, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import * as os from 'os';
 import { flatten, distinct, shuffle, coalesce } from 'vs/base/common/arrays';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
@@ -42,6 +40,9 @@ import { extname } from 'vs/base/common/resources';
 import { IExeBasedExtensionTip, IProductService } from 'vs/platform/product/common/product';
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
+import { setImmediate, isWeb } from 'vs/base/common/platform';
+import { platform, env as processEnv } from 'vs/base/common/process';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -98,7 +99,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IViewletService private readonly viewletService: IViewletService,
@@ -115,8 +116,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		if (this.productService.productConfiguration.extensionsGallery && this.productService.productConfiguration.extensionsGallery.recommendationsUrl) {
-			this._extensionsRecommendationsUrl = this.productService.productConfiguration.extensionsGallery.recommendationsUrl;
+		if (this.productService.extensionsGallery && this.productService.extensionsGallery.recommendationsUrl) {
+			this._extensionsRecommendationsUrl = this.productService.extensionsGallery.recommendationsUrl;
 		}
 
 		this.sessionSeed = +new Date();
@@ -242,7 +243,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getKeymapRecommendations(): IExtensionRecommendation[] {
-		return (this.productService.productConfiguration.keymapExtensionTips || [])
+		return (this.productService.keymapExtensionTips || [])
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId))
 			.map(extensionId => (<IExtensionRecommendation>{ extensionId, sources: ['application'] }));
 	}
@@ -599,10 +600,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return Object.keys(this._fileBasedRecommendations)
 			.sort((a, b) => {
 				if (this._fileBasedRecommendations[a].recommendedTime === this._fileBasedRecommendations[b].recommendedTime) {
-					if (!this.productService.productConfiguration.extensionImportantTips || caseInsensitiveGet(this.productService.productConfiguration.extensionImportantTips, a)) {
+					if (!this.productService.extensionImportantTips || caseInsensitiveGet(this.productService.extensionImportantTips, a)) {
 						return -1;
 					}
-					if (caseInsensitiveGet(this.productService.productConfiguration.extensionImportantTips, b)) {
+					if (caseInsensitiveGet(this.productService.extensionImportantTips, b)) {
 						return 1;
 					}
 				}
@@ -613,11 +614,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	/**
-	 * Parse all file based recommendations from this.productService.productConfiguration.extensionTips
-	 * Retire existing recommendations if they are older than a week or are not part of this.productService.productConfiguration.extensionTips anymore
+	 * Parse all file based recommendations from this.productService.extensionTips
+	 * Retire existing recommendations if they are older than a week or are not part of this.productService.extensionTips anymore
 	 */
 	private fetchFileBasedRecommendations() {
-		const extensionTips = this.productService.productConfiguration.extensionTips;
+		const extensionTips = this.productService.extensionTips;
 		if (!extensionTips) {
 			return;
 		}
@@ -634,7 +635,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			}
 		});
 
-		forEach(this.productService.productConfiguration.extensionImportantTips, entry => {
+		forEach(this.productService.extensionImportantTips, entry => {
 			let { key: id, value } = entry;
 			const { pattern } = value;
 			let ids = this._availableRecommendations[pattern];
@@ -696,7 +697,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				let { key: pattern, value: ids } = entry;
 				if (match(pattern, model.uri.toString())) {
 					for (let id of ids) {
-						if (caseInsensitiveGet(this.productService.productConfiguration.extensionImportantTips, id)) {
+						if (caseInsensitiveGet(this.productService.extensionImportantTips, id)) {
 							recommendationsToSuggest.push(id);
 						}
 						const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
@@ -750,7 +751,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}
 
 		const id = recommendationsToSuggest[0];
-		const entry = caseInsensitiveGet(this.productService.productConfiguration.extensionImportantTips, id);
+		const entry = caseInsensitiveGet(this.productService.extensionImportantTips, id);
 		if (!entry) {
 			return false;
 		}
@@ -980,13 +981,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	/**
-	 * If user has any of the tools listed in this.productService.productConfiguration.exeBasedExtensionTips, fetch corresponding recommendations
+	 * If user has any of the tools listed in this.productService.exeBasedExtensionTips, fetch corresponding recommendations
 	 */
-	private fetchExecutableRecommendations(important: boolean): Promise<void> {
-		const homeDir = os.homedir();
-		let foundExecutables: Set<string> = new Set<string>();
+	private async fetchExecutableRecommendations(important: boolean): Promise<void> {
+		if (isWeb) {
+			return;
+		}
 
-		let findExecutable = (exeName: string, tip: IExeBasedExtensionTip, path: string) => {
+		const foundExecutables: Set<string> = new Set<string>();
+		const findExecutable = (exeName: string, tip: IExeBasedExtensionTip, path: string) => {
 			return this.fileService.exists(URI.file(path)).then(exists => {
 				if (exists && !foundExecutables.has(exeName)) {
 					foundExecutables.add(exeName);
@@ -1002,9 +1005,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			});
 		};
 
-		let promises: Promise<void>[] = [];
+		const promises: Promise<void>[] = [];
 		// Loop through recommended extensions
-		forEach(this.productService.productConfiguration.exeBasedExtensionTips, entry => {
+		forEach(this.productService.exeBasedExtensionTips, entry => {
 			if (typeof entry.value !== 'object' || !Array.isArray(entry.value['recommendations'])) {
 				return;
 			}
@@ -1012,24 +1015,24 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				return;
 			}
 			const exeName = entry.key;
-			if (process.platform === 'win32') {
+			if (platform === 'win32') {
 				let windowsPath = entry.value['windowsPath'];
 				if (!windowsPath || typeof windowsPath !== 'string') {
 					return;
 				}
-				windowsPath = windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']!)
-					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)']!)
-					.replace('%ProgramFiles%', process.env['ProgramFiles']!)
-					.replace('%APPDATA%', process.env['APPDATA']!)
-					.replace('%WINDIR%', process.env['WINDIR']!);
+				windowsPath = windowsPath.replace('%USERPROFILE%', processEnv['USERPROFILE']!)
+					.replace('%ProgramFiles(x86)%', processEnv['ProgramFiles(x86)']!)
+					.replace('%ProgramFiles%', processEnv['ProgramFiles']!)
+					.replace('%APPDATA%', processEnv['APPDATA']!)
+					.replace('%WINDIR%', processEnv['WINDIR']!);
 				promises.push(findExecutable(exeName, entry.value, windowsPath));
 			} else {
 				promises.push(findExecutable(exeName, entry.value, join('/usr/local/bin', exeName)));
-				promises.push(findExecutable(exeName, entry.value, join(homeDir, exeName)));
+				promises.push(findExecutable(exeName, entry.value, join(this.environmentService.userHome, exeName)));
 			}
 		});
 
-		return Promise.all(promises).then(() => undefined);
+		await Promise.all(promises);
 	}
 
 	/**
@@ -1141,4 +1144,5 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private isExtensionAllowedToBeRecommended(id: string): boolean {
 		return this._allIgnoredRecommendations.indexOf(id.toLowerCase()) === -1;
 	}
+
 }

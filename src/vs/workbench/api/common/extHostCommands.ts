@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { validateConstraint } from 'vs/base/common/types';
-import { ICommandHandlerDescription, ICommandEvent } from 'vs/platform/commands/common/commands';
+import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -17,7 +17,6 @@ import { revive } from 'vs/base/common/marshalling';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -36,9 +35,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	readonly _serviceBrand: any;
 
-	private readonly _onDidExecuteCommand: Emitter<vscode.CommandExecutionEvent>;
-	readonly onDidExecuteCommand: Event<vscode.CommandExecutionEvent>;
-
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _proxy: MainThreadCommandsShape;
 	private readonly _converter: CommandsConverter;
@@ -50,11 +46,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		@ILogService logService: ILogService
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
-		this._onDidExecuteCommand = new Emitter<vscode.CommandExecutionEvent>({
-			onFirstListenerDidAdd: () => this._proxy.$registerCommandListener(),
-			onLastListenerRemove: () => this._proxy.$unregisterCommandListener(),
-		});
-		this.onDidExecuteCommand = Event.filter(this._onDidExecuteCommand.event, e => e.command[0] !== '_'); // filter 'private' commands
 		this._logService = logService;
 		this._converter = new CommandsConverter(this);
 		this._argumentProcessors = [
@@ -119,22 +110,13 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	$handleDidExecuteCommand(command: ICommandEvent): void {
-		this._onDidExecuteCommand.fire({
-			command: command.commandId,
-			arguments: command.args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg))
-		});
-	}
-
 	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		this._logService.trace('ExtHostCommands#executeCommand', id);
 
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
 			// to pass any kind of parameters around
-			const res = this._executeContributedCommand<T>(id, args);
-			this._onDidExecuteCommand.fire({ command: id, arguments: args });
-			return res;
+			return this._executeContributedCommand<T>(id, args);
 
 		} else {
 			// automagically convert some argument types

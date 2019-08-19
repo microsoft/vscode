@@ -213,7 +213,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		}
 	}
 
-	initialScrollProgress: number;
+	initialScrollProgress: number = 0;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocus.event;

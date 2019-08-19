@@ -16,7 +16,7 @@ import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel, IReplElementSource,
-	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State
+	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint
 } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
@@ -227,14 +227,14 @@ export class Expression extends ExpressionContainer implements IExpression {
 			const response = await session.evaluate(this.name, stackFrame ? stackFrame.frameId : undefined, context);
 			this.available = !!(response && response.body);
 			if (response && response.body) {
-				this.value = response.body.result;
+				this.value = response.body.result || '';
 				this.reference = response.body.variablesReference;
 				this.namedVariables = response.body.namedVariables;
 				this.indexedVariables = response.body.indexedVariables;
 				this.type = response.body.type || this.type;
 			}
 		} catch (e) {
-			this.value = e.message;
+			this.value = e.message || '';
 			this.available = false;
 			this.reference = 0;
 		}
@@ -256,7 +256,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		reference: number | undefined,
 		public name: string,
 		public evaluateName: string | undefined,
-		value: string,
+		value: string | undefined,
 		namedVariables: number | undefined,
 		indexedVariables: number | undefined,
 		public presentationHint: DebugProtocol.VariablePresentationHint | undefined,
@@ -265,7 +265,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		startOfVariables = 0
 	) {
 		super(session, reference, `variable:${parent.getId()}:${name}`, namedVariables, indexedVariables, startOfVariables);
-		this.value = value;
+		this.value = value || '';
 	}
 
 	async setVariable(value: string): Promise<any> {
@@ -276,7 +276,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		try {
 			const response = await this.session.setVariable((<ExpressionContainer>this.parent).reference, this.name, value);
 			if (response && response.body) {
-				this.value = response.body.value;
+				this.value = response.body.value || '';
 				this.type = response.body.type || this.type;
 				this.reference = response.body.variablesReference;
 				this.namedVariables = response.body.namedVariables;
@@ -735,6 +735,34 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 	}
 }
 
+export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
+
+	constructor(
+		public label: string,
+		public dataId: string,
+		public canPersist: boolean,
+		enabled: boolean,
+		hitCondition: string | undefined,
+		condition: string | undefined,
+		logMessage: string | undefined,
+		id = generateUuid()
+	) {
+		super(enabled, hitCondition, condition, logMessage, id);
+	}
+
+	toJSON(): any {
+		const result = super.toJSON();
+		result.label = this.label;
+		result.dataid = this.dataId;
+
+		return result;
+	}
+
+	toString(): string {
+		return this.label;
+	}
+}
+
 export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpoint {
 
 	constructor(public filter: string, public label: string, enabled: boolean) {
@@ -778,6 +806,7 @@ export class DebugModel implements IDebugModel {
 		private breakpointsActivated: boolean,
 		private functionBreakpoints: FunctionBreakpoint[],
 		private exceptionBreakpoints: ExceptionBreakpoint[],
+		private dataBreakopints: DataBreakpoint[],
 		private watchExpressions: Expression[],
 		private textFileService: ITextFileService
 	) {
@@ -918,6 +947,10 @@ export class DebugModel implements IDebugModel {
 		return this.functionBreakpoints;
 	}
 
+	getDataBreakpoints(): IDataBreakpoint[] {
+		return this.dataBreakopints;
+	}
+
 	getExceptionBreakpoints(): IExceptionBreakpoint[] {
 		return this.exceptionBreakpoints;
 	}
@@ -991,6 +1024,12 @@ export class DebugModel implements IDebugModel {
 				fbp.setSessionData(sessionId, fbpData);
 			}
 		});
+		this.dataBreakopints.forEach(dbp => {
+			const dbpData = data.get(dbp.getId());
+			if (dbpData) {
+				dbp.setSessionData(sessionId, dbpData);
+			}
+		});
 
 		this._onDidChangeBreakpoints.fire({
 			sessionOnly: true
@@ -1001,6 +1040,7 @@ export class DebugModel implements IDebugModel {
 		this.breakpointsSessionId = sessionId;
 		this.breakpoints.forEach(bp => bp.setSessionId(sessionId));
 		this.functionBreakpoints.forEach(fbp => fbp.setSessionId(sessionId));
+		this.dataBreakopints.forEach(dbp => dbp.setSessionId(sessionId));
 
 		this._onDidChangeBreakpoints.fire({
 			sessionOnly: true
@@ -1038,7 +1078,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	enableOrDisableAllBreakpoints(enable: boolean): void {
-		const changed: Array<IBreakpoint | IFunctionBreakpoint> = [];
+		const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint> = [];
 
 		this.breakpoints.forEach(bp => {
 			if (bp.enabled !== enable) {
@@ -1051,6 +1091,12 @@ export class DebugModel implements IDebugModel {
 				changed.push(fbp);
 			}
 			fbp.enabled = enable;
+		});
+		this.dataBreakopints.forEach(dbp => {
+			if (dbp.enabled !== enable) {
+				changed.push(dbp);
+			}
+			dbp.enabled = enable;
 		});
 
 		this._onDidChangeBreakpoints.fire({ changed: changed });
@@ -1073,7 +1119,6 @@ export class DebugModel implements IDebugModel {
 	}
 
 	removeFunctionBreakpoints(id?: string): void {
-
 		let removed: FunctionBreakpoint[];
 		if (id) {
 			removed = this.functionBreakpoints.filter(fbp => fbp.getId() === id);
@@ -1082,7 +1127,25 @@ export class DebugModel implements IDebugModel {
 			removed = this.functionBreakpoints;
 			this.functionBreakpoints = [];
 		}
-		this._onDidChangeBreakpoints.fire({ removed: removed });
+		this._onDidChangeBreakpoints.fire({ removed });
+	}
+
+	addDataBreakpoint(label: string, dataId: string, canPersist: boolean): void {
+		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined);
+		this.dataBreakopints.push(newDataBreakpoint);
+		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint] });
+	}
+
+	removeDataBreakpoints(id?: string): void {
+		let removed: DataBreakpoint[];
+		if (id) {
+			removed = this.dataBreakopints.filter(fbp => fbp.getId() === id);
+			this.dataBreakopints = this.dataBreakopints.filter(fbp => fbp.getId() !== id);
+		} else {
+			removed = this.dataBreakopints;
+			this.dataBreakopints = [];
+		}
+		this._onDidChangeBreakpoints.fire({ removed });
 	}
 
 	getWatchExpressions(): Expression[] {

@@ -55,7 +55,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/product';
-import { ProductService } from 'vs/platform/product/node/productService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -111,10 +110,10 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);
+	services.set(IProductService, { _serviceBrand: undefined, ...product });
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IProductService, new SyncDescriptor(ProductService));
 
 	const mainProcessService = new MainProcessService(server, mainRouter);
 	services.set(IMainProcessService, mainProcessService);

@@ -29,13 +29,14 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly _findInput: FindInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerDomNode: HTMLElement;
-	private _isVisible: boolean = false;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private readonly _findInputFocusTracker: dom.IFocusTracker;
 	private readonly _updateHistoryDelayer: Delayer<void>;
-	private prevBtn: SimpleButton;
-	private nextBtn: SimpleButton;
-	private foundMatch: boolean;
+	private readonly prevBtn: SimpleButton;
+	private readonly nextBtn: SimpleButton;
+
+	private _isVisible: boolean = false;
+	private foundMatch: boolean = false;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,

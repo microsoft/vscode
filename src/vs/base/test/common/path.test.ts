@@ -30,6 +30,7 @@
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
+import * as process from 'vs/base/common/process';
 
 suite('Paths (Node Implementation)', () => {
 	test('join', () => {
