@@ -8,7 +8,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughInput';
+import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 

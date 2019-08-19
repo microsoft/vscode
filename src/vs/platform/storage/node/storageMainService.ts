@@ -35,6 +35,16 @@ export interface IStorageMainService {
 	readonly onWillSaveState: Event<void>;
 
 	/**
+	 * Access to all cached items of this storage service.
+	 */
+	readonly items: Map<string, string>;
+
+	/**
+	 * Required call to ensure the service can be used.
+	 */
+	initialize(): Promise<void>;
+
+	/**
 	 * Retrieve an element stored with the given key from storage. Use
 	 * the provided defaultValue if the element is null or undefined.
 	 */
