@@ -9987,10 +9987,10 @@ xtend@~2.1.1:
   dependencies:
     object-keys "~0.4.0"
 
-xterm-addon-search@0.2.0-beta3:
-  version "0.2.0-beta3"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.2.0-beta3.tgz#710ce14658e269c5a4791f5a9e2f520883a2e62b"
-  integrity sha512-KzVdkEtGbKJe9ER2TmrI7XjF/wUq1lir9U63vPJi0t2ymQvIECl1V63f9QtOp1vvpdhbZiXBxO+vGTj+y0tRow==
+xterm-addon-search@0.2.0-beta5:
+  version "0.2.0-beta5"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.2.0-beta5.tgz#258d7cb1511d9060cd4520f0f82e408000fd4f53"
+  integrity sha512-Tg+d8scch0rYOVmzBbX35Y1GXtq+eu/YlzbXznmTo/yD83j3BQlXOhgECu/Yv8EX5JwFmzbfVRWC+JWnfigwGg==
 
 xterm-addon-web-links@0.1.0-beta10:
   version "0.1.0-beta10"

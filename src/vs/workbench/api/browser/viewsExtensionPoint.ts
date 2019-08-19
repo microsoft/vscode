@@ -210,7 +210,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		});
 	}
 
-	private addCustomViewContainers(extensionPoints: IExtensionPointUser<ViewContainerExtensionPointType>[], existingViewContainers: ViewContainer[]): void {
+	private addCustomViewContainers(extensionPoints: readonly IExtensionPointUser<ViewContainerExtensionPointType>[], existingViewContainers: ViewContainer[]): void {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		let order = TEST_VIEW_CONTAINER_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId).length + 1;
 		for (let { value, collector, description } of extensionPoints) {
@@ -227,7 +227,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		}
 	}
 
-	private removeCustomViewContainers(extensionPoints: IExtensionPointUser<ViewContainerExtensionPointType>[]): void {
+	private removeCustomViewContainers(extensionPoints: readonly IExtensionPointUser<ViewContainerExtensionPointType>[]): void {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const removedExtensions: Set<string> = extensionPoints.reduce((result, e) => { result.add(ExtensionIdentifier.toKey(e.description.identifier)); return result; }, new Set<string>());
 		for (const viewContainer of viewContainersRegistry.all) {
@@ -378,7 +378,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		});
 	}
 
-	private addViews(extensions: IExtensionPointUser<ViewExtensionPointType>[]): void {
+	private addViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
 		for (const extension of extensions) {
 			const { value, collector } = extension;
 
@@ -442,7 +442,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return this.viewContainersRegistry.get(EXPLORER)!;
 	}
 
-	private removeViews(extensions: IExtensionPointUser<ViewExtensionPointType>[]): void {
+	private removeViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
 		const removedExtensions: Set<string> = extensions.reduce((result, e) => { result.add(ExtensionIdentifier.toKey(e.description.identifier)); return result; }, new Set<string>());
 		for (const viewContainer of this.viewContainersRegistry.all) {
 			const removedViews = this.viewsRegistry.getViews(viewContainer).filter((v: ICustomViewDescriptor) => v.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(v.extensionId)));

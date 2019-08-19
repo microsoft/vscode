@@ -3,35 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { tmpdir } from 'os';
+import { generateUuid } from 'vs/base/common/uuid';
 import { ILocalExtension, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { Schemas } from 'vs/base/common/network';
+import * as path from 'vs/base/common/path';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
-	async install(vsix: URI): Promise<ILocalExtension> {
-		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const manifest = await getManifest(vsix.fsPath);
-			if (isLanguagePackExtension(manifest)) {
-				// Install on both servers
-				const [local] = await Promise.all(this.servers.map(server => server.extensionManagementService.install(vsix)));
-				return local;
-			}
-			if (isUIExtension(manifest, this.productService, this.configurationService)) {
-				// Install only on local server
-				return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
-			}
-			// Install only on remote server
-			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.install(vsix);
+	protected async installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
+		if (vsix.scheme === Schemas.vscodeRemote && server === this.extensionManagementServerService.localExtensionManagementServer) {
+			const downloadedLocation = URI.file(path.join(tmpdir(), generateUuid()));
+			await this.downloadService.download(vsix, downloadedLocation);
+			vsix = downloadedLocation;
 		}
-		if (this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
-		}
-		return Promise.reject('No Servers to Install');
+		return server.extensionManagementService.install(vsix);
 	}
 }
 

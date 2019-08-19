@@ -89,7 +89,7 @@ class WorkerRequireInterceptor extends RequireInterceptor {
 		}
 
 		if (this._factories.has(request)) {
-			return this._factories.get(request)!.load(request, parent, false, () => { throw new Error(); });
+			return this._factories.get(request)!.load(request, parent, () => { throw new Error('CANNOT LOAD MODULE from here.'); });
 		}
 		return undefined;
 	}
