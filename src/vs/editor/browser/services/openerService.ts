@@ -91,7 +91,7 @@ export class OpenerService implements IOpenerService {
 					[
 						localize('openLink', 'Open Link'),
 						localize('cancel', 'Cancel'),
-						localize('configureLinkPermission', 'Configure Link Permission'),
+						localize('configureTrustedDomains', 'Configure Trusted Domains')
 					],
 					{
 						cancelId: 1
