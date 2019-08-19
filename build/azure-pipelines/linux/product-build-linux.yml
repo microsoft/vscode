@@ -108,6 +108,8 @@ steps:
 
 - script: |
     set -e
+    export ELECTRON_ENABLE_LOGGING=true
+    export ELECTRON_ENABLE_STACK_DUMPING=true
     DISPLAY=:10 ./scripts/test-integration.sh --build --tfs --no-sandbox "Integration Tests"
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-x64"
   displayName: Run integration tests
