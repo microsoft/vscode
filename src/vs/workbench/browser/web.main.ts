@@ -204,7 +204,7 @@ class CodeRendererMain extends Disposable {
 				version: '1.38.0-unknown',
 				nameLong: 'Unknown',
 				extensionAllowedProposedApi: [],
-			}, ...{ urlProtocol: ''}
+			}, ...{ urlProtocol: '' }
 		};
 		return { _serviceBrand: undefined, ...productConfiguration };
 	}
