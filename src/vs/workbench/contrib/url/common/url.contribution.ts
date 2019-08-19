@@ -47,9 +47,13 @@ const configureTrustedDomainsHandler = (
 	storageService: IStorageService,
 	domainToConfigure?: string
 ) => {
-	let trustedDomains: string[] = [];
+	let trustedDomains: string[] = ['https://code.visualstudio.com'];
+
 	try {
-		trustedDomains = JSON.parse(storageService.get('http.trustedDomains', StorageScope.GLOBAL, '[]'));
+		const trustedDomainsSrc = storageService.get('http.trustedDomains', StorageScope.GLOBAL);
+		if (trustedDomainsSrc) {
+			trustedDomains = JSON.parse(trustedDomainsSrc);
+		}
 	} catch (err) { }
 
 	const domainQuickPickItems: IQuickPickItem[] = trustedDomains
