@@ -82,7 +82,7 @@ export class OpenerService implements IOpenerService {
 					localize(
 						'openExternalLinkAt',
 						'Do you want {0} to open the external website?\n{1}',
-						this._productService.productConfiguration.nameShort,
+						this._productService.nameShort,
 						resource.toString(true)
 					),
 					[

@@ -50,30 +50,27 @@ suite('OpenerService', function () {
 
 	function getDialogService() {
 		return new class implements IDialogService {
-			_confirmInvoked = 0;
-			confirm = () => {
-				this._confirmInvoked++;
+			_showInvoked = 0;
+			show = () => {
+				this._showInvoked++;
 				return Promise.resolve({} as any);
 			}
-			get confirmInvoked() { return this._confirmInvoked; }
+			get confirmInvoked() { return this._showInvoked; }
 
 			// Don't care
 			_serviceBrand: any;
-			show = () => {
+			confirm = () => {
 				return Promise.resolve({} as any);
 			}
 		};
 	}
 
-	function getProductService() {
-		return new class implements IProductService {
-			// Don't care
-			_serviceBrand: any;
+	function getProductService(): IProductService {
+		return new class {
+			nameShort: 'VS Code';
 
-			productConfiguration = {
-				nameShort: 'VS Code'
-			} as any;
-		};
+			_serviceBrand: any;
+		} as IProductService;
 	}
 
 
@@ -176,7 +173,7 @@ suite('OpenerService', function () {
 		assert.equal(lastCommand!.args[1], true);
 	});
 
-	test('links are protected by dialog confirmation', function () {
+	test('links are protected by dialog.show', function () {
 		const dialogService = getDialogService();
 		const openerService = new OpenerService(
 			editorService,
@@ -190,7 +187,7 @@ suite('OpenerService', function () {
 		assert.equal(dialogService.confirmInvoked, 1);
 	});
 
-	test('links on the whitelisted domains can be opened without dialog confirmation', function () {
+	test('links on the whitelisted domains can be opened without dialog.show', function () {
 		const dialogService = getDialogService();
 		const openerService = new OpenerService(
 			editorService,
