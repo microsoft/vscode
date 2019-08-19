@@ -196,7 +196,9 @@ function runTests(opts) {
 		}
 
 		const runner = mocha.run(() => {
+			console.log("createCoverageReport");
 			createCoverageReport(opts).then(() => {
+				console.log("Sending all done")
 				ipcRenderer.send('all done');
 			});
 		});
