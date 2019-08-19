@@ -3831,10 +3831,10 @@ growl@1.9.2:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.9.2.tgz#0ea7743715db8d8de2c5ede1775e1b45ac85c02f"
   integrity sha1-Dqd0NxXbjY3ixe3hd14bRayFwC8=
 
-gulp-atom-electron@^1.21.1:
-  version "1.21.1"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.21.1.tgz#4017144bf659fbbf7d0644664fcc47c64efac0f0"
-  integrity sha512-UHEf2pZrJD/u+AAzKCbhdPXaKrReFDa+OEJjBCAdN2SHnD+dfZqSJAz/u2OD6YR/eREuUbQOCw+VWUwex20klQ==
+gulp-atom-electron@^1.22.0:
+  version "1.22.0"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.22.0.tgz#0e2f4fe7c7310145c6c81d5660d0277cd8338d27"
+  integrity sha512-K13Ze2+iRIvC1igl+BIbZdF8M2ZzEIM6LF+/j83oWNGNhe7+en77qT9y9rs6SipYeOyoInlbly+pzbFgvwpSHA==
   dependencies:
     event-stream "3.3.4"
     github-releases-ms "^0.5.0"
