@@ -159,7 +159,6 @@ export class OpenerService implements IOpenerService {
 /**
  * Check whether a domain like https://www.microsoft.com matches
  * the list of trusted domains.
- *
  */
 function isDomainTrusted(domain: string, trustedDomains: string[]) {
 	for (let i = 0; i < trustedDomains.length; i++) {
