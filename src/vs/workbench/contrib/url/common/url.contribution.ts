@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -13,6 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class OpenUrlAction extends Action {
 
@@ -42,12 +43,14 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 	localize('developer', 'Developer')
 );
 
+const VSCODE_DOMAIN = 'https://code.visualstudio.com';
+
 const configureTrustedDomainsHandler = (
 	quickInputService: IQuickInputService,
 	storageService: IStorageService,
 	domainToConfigure?: string
 ) => {
-	let trustedDomains: string[] = ['https://code.visualstudio.com'];
+	let trustedDomains: string[] = [VSCODE_DOMAIN];
 
 	try {
 		const trustedDomainsSrc = storageService.get('http.trustedDomains', StorageScope.GLOBAL);
@@ -75,7 +78,7 @@ const configureTrustedDomainsHandler = (
 	];
 
 	let domainToConfigureItem: IQuickPickItem | undefined = undefined;
-	if (domainToConfigure) {
+	if (domainToConfigure && trustedDomains.indexOf(domainToConfigure) === -1) {
 		domainToConfigureItem = {
 			type: 'item',
 			label: domainToConfigure,
@@ -104,43 +107,24 @@ const configureTrustedDomainsHandler = (
 	});
 };
 
-export class ConfigureTrustedDomainsAction extends Action {
-
-	static readonly ID = 'workbench.action.configureTrustedDomains';
-	static readonly LABEL = localize('configureTrustedDomains', "Configure Trusted Domains");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IStorageService private readonly storageService: IStorageService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<any> {
-		return configureTrustedDomainsHandler(this.quickInputService, this.storageService);
-	}
-}
-
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(
-		ConfigureTrustedDomainsAction,
-		ConfigureTrustedDomainsAction.ID,
-		ConfigureTrustedDomainsAction.LABEL
-	),
-	'Configure Trusted Domains'
-);
-CommandsRegistry.registerCommand({
-	id: '_workbench.action.configureTrustedDomains',
+const configureTrustedDomainCommand = {
+	id: 'workbench.action.configureTrustedDomains',
 	description: {
-		description: 'Configure Trusted Domains',
+		description: localize('configureTrustedDomains', 'Configure Trusted Domains'),
 		args: [{ name: 'domainToConfigure', schema: { type: 'string' } }]
 	},
-	handler: (accessor, domainToConfigure?: string) => {
+	handler: (accessor: ServicesAccessor, domainToConfigure?: string) => {
 		const quickInputService = accessor.get(IQuickInputService);
 		const storageService = accessor.get(IStorageService);
 
 		return configureTrustedDomainsHandler(quickInputService, storageService, domainToConfigure);
+	}
+};
+
+CommandsRegistry.registerCommand(configureTrustedDomainCommand);
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: configureTrustedDomainCommand.id,
+		title: configureTrustedDomainCommand.description.description
 	}
 });

@@ -67,9 +67,12 @@ export class OpenerService implements IOpenerService {
 		}
 
 		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
-			let trustedDomains: string[] = [];
+			let trustedDomains: string[] = ['https://code.visualstudio.com'];
 			try {
-				trustedDomains = JSON.parse(this._storageService.get('http.trustedDomains', StorageScope.GLOBAL, '[]'));
+				const trustedDomainsSrc = this._storageService.get('http.trustedDomains', StorageScope.GLOBAL);
+				if (trustedDomainsSrc) {
+					trustedDomains = JSON.parse(trustedDomainsSrc);
+				}
 			} catch (err) { }
 
 			const domainToOpen = `${scheme}://${authority}`;
@@ -96,7 +99,7 @@ export class OpenerService implements IOpenerService {
 						if (choice === 0) {
 							return this.openExternal(resource);
 						} else if (choice === 2) {
-							return this._commandService.executeCommand('_workbench.action.configureTrustedDomains', domainToOpen).then((pickedDomains: string[]) => {
+							return this._commandService.executeCommand('workbench.action.configureTrustedDomains', domainToOpen).then((pickedDomains: string[]) => {
 								if (pickedDomains.indexOf(domainToOpen) !== -1) {
 									return this.openExternal(resource);
 								}
