@@ -334,8 +334,6 @@ export interface ITreeView extends IDisposable {
 
 	layout(height: number, width: number): void;
 
-	show(container: HTMLElement): void;
-
 	getOptimalWidth(): number;
 
 	reveal(item: ITreeItem): Promise<void>;
