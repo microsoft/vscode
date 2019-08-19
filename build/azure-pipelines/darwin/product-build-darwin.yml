@@ -114,7 +114,7 @@ steps:
     cd -
     yarn smoketest --web --headless
   continueOnError: true
-  displayName: Run smoke tests
+  displayName: Run web smoke tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ipcRenderer as ipc } from 'electron';
 import * as errors from 'vs/base/common/errors';
 import { RemoteAuthorities } from 'vs/base/common/network';
 
@@ -50,7 +49,6 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 	setResolvedAuthority(resolvedAuthority: ResolvedAuthority, options?: ResolvedOptions) {
 		if (this._resolveAuthorityRequests[resolvedAuthority.authority]) {
 			let request = this._resolveAuthorityRequests[resolvedAuthority.authority];
-			ipc.send('vscode:remoteAuthorityResolved', resolvedAuthority);
 			RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.host, resolvedAuthority.port);
 			request.resolve({ authority: resolvedAuthority, options });
 		}

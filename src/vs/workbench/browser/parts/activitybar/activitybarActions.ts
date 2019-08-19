@@ -171,7 +171,7 @@ export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, layoutService, telemetryService);
 
 		const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
-		DOM.createCSSRule(iconClass, `-webkit-mask: url('${DOM.asDomUri(iconUrl) || ''}') no-repeat 50% 50%; -webkit-mask-size: 24px;`);
+		DOM.createCSSRule(iconClass, `-webkit-mask: ${DOM.asCSSUrl(iconUrl)} no-repeat 50% 50%; -webkit-mask-size: 24px;`);
 	}
 
 	setActivity(activity: IActivity): void {

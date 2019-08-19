@@ -21,12 +21,12 @@ import { platform } from 'vs/base/common/process';
 
 
 interface LoadFunction {
-	(request: string, parent: { filename: string; }, isMain: any): any;
+	(request: string): any;
 }
 
 interface INodeModuleFactory {
 	readonly nodeModuleName: string | string[];
-	load(request: string, parent: URI, isMain: any, original: LoadFunction): any;
+	load(request: string, parent: URI, original: LoadFunction): any;
 	alternativeModuleName?(name: string): string | undefined;
 }
 
@@ -245,7 +245,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 		};
 	}
 
-	public load(request: string, parent: URI, isMain: any, original: LoadFunction): any {
+	public load(request: string, parent: URI, original: LoadFunction): any {
 		// get extension id from filename and api for extension
 		const extension = this._extensionPaths.findSubstr(parent.fsPath);
 		if (extension) {
@@ -253,7 +253,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 			this.sendShimmingTelemetry();
 		}
 
-		this._original = original(request, { filename: parent.fsPath }, isMain);
+		this._original = original(request);
 		return this._impl;
 	}
 

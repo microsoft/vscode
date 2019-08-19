@@ -12,7 +12,7 @@ import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/com
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughInput';
+import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as marked from 'vs/base/common/marked/marked';
 import { IModelService } from 'vs/editor/common/services/modelService';
