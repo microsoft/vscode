@@ -14,7 +14,7 @@ fi
 cd $ROOT
 
 # Integration tests in AMD
-./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
+./scripts/test.sh $LINUX_NO_SANDBOX --runGlob **/*.integrationTest.js "$@"
 
 # Tests in the extension host
 ./scripts/code.sh $LINUX_NO_SANDBOX $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/singlefolder-tests --disable-extensions --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR
