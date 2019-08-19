@@ -36,14 +36,16 @@
 		const testDeserialization = params.findIndex(p => p === 'deserialize') >= 0;
 
 		if (testGrid) {
-			require(['vs/base/browser/ui/grid/grid', 'vs/base/common/event'], ({ Grid, Sizing, Direction }, { Event }) => {
+			require(['vs/base/browser/ui/grid/grid', 'vs/base/common/event'], ({ Grid, Sizing, Direction, SerializableGrid }, { Event }) => {
 				const buttons = document.getElementById('buttons');
+
+				let grid;
 
 				class View {
 					static ID = 0;
 
 					constructor(label, minimumWidth, maximumWidth, minimumHeight, maximumHeight, snap) {
-						const id = View.ID++;
+						this.id = View.ID++;
 						this.label = label;
 						this.minimumWidth = minimumWidth;
 						this.maximumWidth = maximumWidth;
@@ -54,7 +56,7 @@
 
 						this.element = document.createElement('div');
 						this.element.className = 'view';
-						this.element.style.backgroundColor = `hsl(${(id * 41) % 360}, 50%, 70%)`;
+						this.element.style.backgroundColor = `hsl(${(this.id * 41) % 360}, 50%, 70%)`;
 						this.element.textContent = this.label;
 
 						this.button = document.createElement('button');
@@ -64,6 +66,7 @@
 					}
 
 					layout(width, height, orientation) {
+						console.log(`layout@${this.label}`);
 						this.element.style.lineHeight = `${height}px`;
 					}
 
@@ -78,15 +81,90 @@
 				const sidebar = new View('sidebar', 200, Number.POSITIVE_INFINITY, 0, Number.POSITIVE_INFINITY, true);
 				const panel = new View('panel', 0, Number.POSITIVE_INFINITY, 200, Number.POSITIVE_INFINITY, true);
 
-				const grid = new Grid(editor, {});
-				const container = document.getElementById('container');
-				container.appendChild(grid.element);
-				grid.layout(800, 600);
+				if (testDeserialization) {
+					const viewMap = {
+						['activitybar']: activitybar,
+						['editor']: editor,
+						['panel']: panel,
+						['sidebar']: sidebar,
+						['statusbar']: statusbar
+					};
 
-				grid.addView(statusbar, Sizing.Distribute, editor, Direction.Down);
-				grid.addView(activitybar, Sizing.Distribute, editor, Direction.Left);
-				grid.addView(sidebar, 250, editor, Direction.Left);
-				grid.addView(panel, 200, editor, Direction.Down);
+					const gridViewDescriptor = {
+						root: {
+							type: 'branch',
+							size: 800,
+							data: [
+								{
+									type: 'branch',
+									size: 580,
+									data: [
+										{
+											type: 'leaf',
+											size: activitybar.maximumWidth,
+											data: { type: 'activitybar' },
+											visible: true
+										},
+										{
+											type: 'leaf',
+											size: 200,
+											data: { type: 'sidebar' },
+											visible: true
+										},
+										{
+											type: 'branch',
+											size: 550,
+											data: [
+												{
+													type: 'leaf',
+													size: 380,
+													data: { type: 'editor' },
+													visible: true
+												},
+												{
+													type: 'leaf',
+													size: 200,
+													data: { type: 'panel' },
+													visible: true
+												}
+											]
+										}
+									]
+								},
+								{
+									type: 'leaf',
+									size: statusbar.maximumHeight,
+									data: { type: "statusbar" },
+									visible: true
+								}
+							]
+						},
+						orientation: 0,
+						width: 800,
+						height: 600
+					};
+
+
+					const fromJSON = ({ type }) => viewMap[type];
+					grid = SerializableGrid.deserialize(
+						gridViewDescriptor,
+						{ fromJSON },
+						{ proportionalLayout: false }
+					);
+
+					container.appendChild(grid.element);
+					grid.layout(800, 600);
+				} else {
+					grid = new Grid(editor, {});
+					const container = document.getElementById('container');
+					container.appendChild(grid.element);
+					grid.layout(800, 600);
+
+					grid.addView(statusbar, Sizing.Distribute, editor, Direction.Down);
+					grid.addView(activitybar, Sizing.Distribute, editor, Direction.Left);
+					grid.addView(sidebar, 250, editor, Direction.Left);
+					grid.addView(panel, 200, editor, Direction.Down);
+				}
 			});
 		}
 		else {
