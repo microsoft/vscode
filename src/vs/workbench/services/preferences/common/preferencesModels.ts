@@ -23,6 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { withNullAsUndefined, isArray } from 'vs/base/common/types';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 
 export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLineNumber: -1, endColumn: -1 };
 export function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
@@ -659,11 +660,14 @@ export class DefaultSettings extends Disposable {
 	}
 
 	private matchesScope(property: IConfigurationNode): boolean {
+		if (!property.scope) {
+			return true;
+		}
 		if (this.target === ConfigurationTarget.WORKSPACE_FOLDER) {
-			return property.scope === ConfigurationScope.RESOURCE;
+			return FOLDER_SCOPES.indexOf(property.scope) !== -1;
 		}
 		if (this.target === ConfigurationTarget.WORKSPACE) {
-			return property.scope === ConfigurationScope.WINDOW || property.scope === ConfigurationScope.RESOURCE;
+			return WORKSPACE_SCOPES.indexOf(property.scope) !== -1;
 		}
 		return true;
 	}
