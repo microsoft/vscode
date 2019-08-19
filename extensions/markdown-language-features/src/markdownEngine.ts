@@ -297,13 +297,13 @@ async function getMarkdownOptions(md: () => MarkdownIt) {
 		html: true,
 		highlight: (str: string, lang?: string) => {
 			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
-			if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
+			if (lang && ['tsx', 'typescriptreact'].includes(lang.toLocaleLowerCase())) {
 				lang = 'jsx';
 			}
 			if (lang && lang.toLocaleLowerCase() === 'json5') {
 				lang = 'json';
 			}
-			if (lang && lang.toLocaleLowerCase() === 'c#') {
+			if (lang && ['c#', 'csharp'].includes(lang.toLocaleLowerCase())) {
 				lang = 'cs';
 			}
 			if (lang && hljs.getLanguage(lang)) {
