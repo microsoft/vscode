@@ -12,29 +12,23 @@ class Rule extends Lint.Rules.TypedRule {
         const configs = this.getOptions().ruleArguments;
         for (const config of configs) {
             if (minimatch(sourceFile.fileName, config.target)) {
-                return this.applyWithWalker(new NoNodejsGlobalsRuleWalker(sourceFile, program, this.getOptions(), config));
+                return this.applyWithWalker(new NoDOMGlobalsRuleWalker(sourceFile, program, this.getOptions(), config));
             }
         }
         return [];
     }
 }
 exports.Rule = Rule;
-class NoNodejsGlobalsRuleWalker extends abstractGlobalsRule_1.AbstractGlobalsRuleWalker {
+class NoDOMGlobalsRuleWalker extends abstractGlobalsRule_1.AbstractGlobalsRuleWalker {
     getDefinitionPattern() {
-        return '@types/node';
+        return 'lib.dom.d.ts';
     }
     getDisallowedGlobals() {
-        // https://nodejs.org/api/globals.html#globals_global_objects
+        // intentionally not complete
         return [
-            "Buffer",
-            "__dirname",
-            "__filename",
-            "clearImmediate",
-            "exports",
-            "global",
-            "module",
-            "process",
-            "setImmediate"
+            "window",
+            "document",
+            "HTMLElement"
         ];
     }
 }

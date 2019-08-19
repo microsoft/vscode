@@ -8,7 +8,7 @@ import * as Lint from 'tslint';
 import * as minimatch from 'minimatch';
 import { AbstractGlobalsRuleWalker } from './abstractGlobalsRule';
 
-interface NoNodejsGlobalsConfig {
+interface NoDOMGlobalsRuleConfig {
 	target: string;
 	allowed: string[];
 }
@@ -16,11 +16,11 @@ interface NoNodejsGlobalsConfig {
 export class Rule extends Lint.Rules.TypedRule {
 
 	applyWithProgram(sourceFile: ts.SourceFile, program: ts.Program): Lint.RuleFailure[] {
-		const configs = <NoNodejsGlobalsConfig[]>this.getOptions().ruleArguments;
+		const configs = <NoDOMGlobalsRuleConfig[]>this.getOptions().ruleArguments;
 
 		for (const config of configs) {
 			if (minimatch(sourceFile.fileName, config.target)) {
-				return this.applyWithWalker(new NoNodejsGlobalsRuleWalker(sourceFile, program, this.getOptions(), config));
+				return this.applyWithWalker(new NoDOMGlobalsRuleWalker(sourceFile, program, this.getOptions(), config));
 			}
 		}
 
@@ -28,24 +28,18 @@ export class Rule extends Lint.Rules.TypedRule {
 	}
 }
 
-class NoNodejsGlobalsRuleWalker extends AbstractGlobalsRuleWalker {
+class NoDOMGlobalsRuleWalker extends AbstractGlobalsRuleWalker {
 
 	getDefinitionPattern(): string {
-		return '@types/node';
+		return 'lib.dom.d.ts';
 	}
 
 	getDisallowedGlobals(): string[] {
-		// https://nodejs.org/api/globals.html#globals_global_objects
+		// intentionally not complete
 		return [
-			"Buffer",
-			"__dirname",
-			"__filename",
-			"clearImmediate",
-			"exports",
-			"global",
-			"module",
-			"process",
-			"setImmediate"
+			"window",
+			"document",
+			"HTMLElement"
 		];
 	}
 }
