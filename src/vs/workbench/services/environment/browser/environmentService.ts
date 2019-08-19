@@ -15,6 +15,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
@@ -80,6 +81,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		this.appNameLong = 'Visual Studio Code - Web';
 
 		this.configuration.remoteAuthority = options.remoteAuthority;
+		this.configuration.machineId = generateUuid();
 		this.userRoamingDataHome = URI.file('/User').with({ scheme: Schemas.userData });
 		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
 		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
