@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mnemonicMenuLabel as baseMnemonicLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
-import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/common/menubar';
+import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/node/menubar';
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';

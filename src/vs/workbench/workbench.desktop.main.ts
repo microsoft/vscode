@@ -69,7 +69,7 @@ import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IssueService } from 'vs/platform/issue/electron-browser/issueService';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-browser/workspacesService';
-import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
