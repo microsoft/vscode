@@ -65,6 +65,7 @@ const configureTrustedDomainsHandler = (
 			return {
 				type: 'item',
 				label: d,
+				id: d,
 				picked: true,
 			};
 		});
@@ -73,6 +74,7 @@ const configureTrustedDomainsHandler = (
 		{
 			type: 'item',
 			label: localize('openAllLinksWithoutPrompt', 'Open all links without prompt'),
+			id: '*',
 			picked: trustedDomains.indexOf('*') !== -1
 		}
 	];
@@ -82,6 +84,7 @@ const configureTrustedDomainsHandler = (
 		domainToConfigureItem = {
 			type: 'item',
 			label: domainToConfigure,
+			id: domainToConfigure,
 			picked: true,
 			description: localize('trustDomainAndOpenLink', 'Trust domain and open link')
 		};
@@ -97,7 +100,7 @@ const configureTrustedDomainsHandler = (
 		activeItem: domainToConfigureItem
 	}).then(result => {
 		if (result) {
-			const pickedDomains = result.map(r => r.label);
+			const pickedDomains = result.map(r => r.id);
 			storageService.store('http.trustedDomains', JSON.stringify(pickedDomains), StorageScope.GLOBAL);
 
 			return pickedDomains;
