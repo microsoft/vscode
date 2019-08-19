@@ -89,6 +89,7 @@ export class MarkdownPreview extends Disposable {
 	private isScrolling = false;
 	private _disposed: boolean = false;
 	private imageInfo: { id: string, width: number, height: number }[] = [];
+	private scrollToFragment: string | undefined;
 
 	public static async revive(
 		webview: vscode.WebviewPanel,
@@ -264,7 +265,8 @@ export class MarkdownPreview extends Disposable {
 			locked: this._locked,
 			line: this.line,
 			resourceColumn: this.resourceColumn,
-			imageInfo: this.imageInfo
+			imageInfo: this.imageInfo,
+			fragment: this.scrollToFragment
 		};
 	}
 
@@ -284,6 +286,8 @@ export class MarkdownPreview extends Disposable {
 
 	public update(resource: vscode.Uri) {
 		const editor = vscode.window.activeTextEditor;
+		// Reposition scroll preview, position scroll to the top if active text editor
+		// doesn't corresponds with preview
 		if (editor && editor.document.uri.fsPath === resource.fsPath) {
 			this.line = getVisibleLine(editor);
 		} else {
@@ -522,11 +526,15 @@ export class MarkdownPreview extends Disposable {
 	}
 
 	private async onDidClickPreviewLink(path: string, fragment: string | undefined) {
+		this.scrollToFragment = undefined;
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
 			const markdownLink = await resolveLinkToMarkdownFile(path);
 			if (markdownLink) {
+				if (fragment) {
+					this.scrollToFragment = fragment;
+				}
 				this.update(markdownLink);
 				return;
 			}
