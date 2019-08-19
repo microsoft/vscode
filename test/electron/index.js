@@ -99,14 +99,10 @@ function parseReporterOption(value) {
 }
 
 app.on('ready', () => {
-	console.log("electron test renderer ready");
 
 	ipcMain.on('error', (_, err) => {
 		if (!argv.debug) {
 			console.error(err);
-			app.exit(1);
-		} else {
-			console.log("Exit prevented");
 			app.exit(1);
 		}
 	});
@@ -167,10 +163,5 @@ app.on('ready', () => {
 
 	if (!argv.debug) {
 		ipcMain.on('all done', () => app.exit(runner.didFail ? 1 : 0));
-	} else {
-		ipcMain.on('all done', () => {
-			console.log("Exit prevented");
-			app.exit(runner.didFail ? 1 : 0);
-		});
 	}
 });
