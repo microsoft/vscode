@@ -239,6 +239,11 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 				'description': nls.localize('workbench.useExperimentalGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
 				'default': true,
 				'scope': ConfigurationScope.APPLICATION
+			},
+			'workbench.octiconsUpdate.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('workbench.octiconsUpdate.enabled', "Controls the visibility of the new Octicons style in the workbench.")
 			}
 		}
 	});

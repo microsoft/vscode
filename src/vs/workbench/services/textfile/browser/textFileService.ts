@@ -17,15 +17,15 @@ export class BrowserTextFileService extends TextFileService {
 		}
 	};
 
-	protected beforeShutdown(reason: ShutdownReason): boolean {
+	protected onBeforeShutdown(reason: ShutdownReason): boolean {
 		// Web: we cannot perform long running in the shutdown phase
 		// As such we need to check sync if there are any dirty files
 		// that have not been backed up yet and then prevent the shutdown
 		// if that is the case.
-		return this.doBeforeShutdownSync(reason);
+		return this.doBeforeShutdownSync();
 	}
 
-	private doBeforeShutdownSync(reason: ShutdownReason): boolean {
+	private doBeforeShutdownSync(): boolean {
 		const dirtyResources = this.getDirty();
 		if (!dirtyResources.length) {
 			return false; // no dirty: no veto

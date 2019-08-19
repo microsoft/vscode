@@ -572,9 +572,7 @@ export class ExtensionEditor extends BaseEditor {
 					{
 						enableFindWidget: true,
 					},
-					{
-						svgWhiteList: this.extensionsWorkbenchService.allowedBadgeProviders,
-					});
+					{});
 				webviewElement.mountTo(template.content);
 				this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webviewElement);

@@ -192,9 +192,6 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	public dispose(): void {
-
-		this._disposables.dispose();
-
 		if (this._overlayWidget) {
 			this.editor.removeOverlayWidget(this._overlayWidget);
 			this._overlayWidget = null;
@@ -211,6 +208,8 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		this.editor.deltaDecorations(this._positionMarkerId, []);
 		this._positionMarkerId = [];
+
+		this._disposables.dispose();
 	}
 
 	public create(): void {

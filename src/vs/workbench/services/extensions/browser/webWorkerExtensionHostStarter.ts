@@ -65,8 +65,8 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			};
 
 			worker.onerror = (event) => {
-				console.error(event.error);
-				this._onDidExit.fire([81, event.error]);
+				console.error(event.message, event.error);
+				this._onDidExit.fire([81, event.message || event.error]);
 			};
 
 			// keep for cleanup
