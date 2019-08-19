@@ -6,6 +6,7 @@
 import * as strings from 'vs/base/common/strings';
 import { IPatternInfo } from 'vs/workbench/services/search/common/search';
 import { CharCode } from 'vs/base/common/charCode';
+import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
 
 export class ReplacePattern {
 
@@ -72,18 +73,8 @@ export class ReplacePattern {
 	}
 
 	public buildReplaceString(matches: string[] | null, preserveCase?: boolean): string {
-
-		if (preserveCase && matches && (matches[0] !== '')) {
-			if (matches[0].toUpperCase() === matches[0]) {
-				return this._replacePattern.toUpperCase();
-			} else if (matches[0].toLowerCase() === matches[0]) {
-				return this._replacePattern.toLowerCase();
-			} else if (strings.containsUppercaseCharacter(matches[0][0])) {
-				return this._replacePattern[0].toUpperCase() + this._replacePattern.substr(1);
-			} else {
-				// we don't understand its pattern yet.
-				return this._replacePattern;
-			}
+		if (preserveCase) {
+			return buildReplaceStringWithCasePreserved(matches, this._replacePattern);
 		} else {
 			return this._replacePattern;
 		}
