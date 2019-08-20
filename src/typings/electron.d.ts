@@ -1,4 +1,4 @@
-// Type definitions for Electron 6.0.2
+// Type definitions for Electron 6.0.3
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -1719,9 +1719,6 @@ declare namespace Electron {
 		 * window.
 		 */
 		getTitle(): string;
-		/**
-		 * On Windows and Linux always returns true.
-		 */
 		hasShadow(): boolean;
 		/**
 		 * Hides the window.
@@ -3004,7 +3001,7 @@ declare namespace Electron {
 		 * set properties to ['openFile', 'openDirectory'] on these platforms, a directory
 		 * selector will be shown.
 		 */
-		showOpenDialogSync(browserWindow: BrowserWindow, options: OpenDialogSyncOptions): void;
+		showOpenDialogSync(browserWindow: BrowserWindow, options: OpenDialogSyncOptions): (string[]) | (undefined);
 		/**
 		 * The browserWindow argument allows the dialog to attach itself to a parent
 		 * window, making it modal. The filters specifies an array of file types that can
@@ -3016,7 +3013,7 @@ declare namespace Electron {
 		 * set properties to ['openFile', 'openDirectory'] on these platforms, a directory
 		 * selector will be shown.
 		 */
-		showOpenDialogSync(options: OpenDialogSyncOptions): void;
+		showOpenDialogSync(options: OpenDialogSyncOptions): (string[]) | (undefined);
 		/**
 		 * The browserWindow argument allows the dialog to attach itself to a parent
 		 * window, making it modal. The filters specifies an array of file types that can
@@ -9125,7 +9122,7 @@ declare namespace Electron {
 		 * Initial checked state of the checkbox. false by default.
 		 */
 		checkboxChecked?: boolean;
-		icon?: NativeImage;
+		icon?: (NativeImage) | (string);
 		/**
 		 * The index of the button to be used to cancel the dialog, via the Esc key. By
 		 * default this is assigned to the first button with "cancel" or "no" as the label.
