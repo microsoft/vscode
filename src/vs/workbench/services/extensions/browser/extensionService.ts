@@ -85,13 +85,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _createExtensionHosts(_isInitialStart: boolean, initialActivationEvents: string[]): ExtensionHostProcessManager[] {
 		const result: ExtensionHostProcessManager[] = [];
 
-		const remoteAgentConnection = this._remoteAgentService.getConnection();
-
 		const webExtensions = this.getExtensions().then(extensions => extensions.filter(ext => isWebExtension(ext, this._configService)));
 		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, true, webExtensions, URI.parse('empty:value')); //todo@joh
-		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, remoteAgentConnection ? remoteAgentConnection.remoteAuthority : null, initialActivationEvents);
+		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, null, initialActivationEvents);
 		result.push(webHostProcessManager);
 
+		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const remoteExtensions = this.getExtensions().then(extensions => extensions.filter(ext => !isWebExtension(ext, this._configService)));
 			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, remoteExtensions, this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
