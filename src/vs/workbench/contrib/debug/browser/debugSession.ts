@@ -554,7 +554,8 @@ export class DebugSession implements IDebugSession {
 								insertText: item.text || item.label,
 								kind: completionKindFromString(item.type || 'property'),
 								filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
-								range: Range.fromPositions(position.delta(0, -(item.length || overwriteBefore)), position)
+								range: Range.fromPositions(position.delta(0, -(item.length || overwriteBefore)), position),
+								sortText: item.sortText
 							});
 						}
 					});
