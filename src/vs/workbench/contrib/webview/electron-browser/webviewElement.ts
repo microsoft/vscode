@@ -336,7 +336,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 							return;
 						}
 						catch (TypeError) {
-							//CustomEvent was treated as MouseEvent - https://github.com/microsoft/vscode/issues/78915
+							// CustomEvent was treated as MouseEvent so don't do anything - https://github.com/microsoft/vscode/issues/78915
 							return;
 						}
 
