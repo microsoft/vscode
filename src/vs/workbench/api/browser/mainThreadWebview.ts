@@ -285,6 +285,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 					continue;
 				}
 
+				input.updateGroup(group.id);
+
 				const handle = this._webviewEditorInputs.getHandleForInput(input);
 				if (handle) {
 					viewStates[handle] = {
