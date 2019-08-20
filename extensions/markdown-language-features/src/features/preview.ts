@@ -439,8 +439,8 @@ export class MarkdownPreview extends Disposable {
 		if (this._resource === markdownResource) {
 			const self = this;
 			const resourceProvider: WebviewResourceProvider = {
-				toWebviewResource: (resource) => {
-					return this.editor.webview.toWebviewResource(normalizeResource(markdownResource, resource));
+				asWebviewUri: (resource) => {
+					return this.editor.webview.asWebviewUri(normalizeResource(markdownResource, resource));
 				},
 				get cspSource() { return self.editor.webview.cspSource; }
 			};
