@@ -496,7 +496,11 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		if (!this._webview) {
 			return;
 		}
-		this._webview.focus();
+		try {
+			this._webview.focus();
+		} catch {
+			// noop
+		}
 		this._send('focus');
 
 		// Handle focus change programmatically (do not rely on event from <webview>)
