@@ -497,6 +497,7 @@ export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostT
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 
 		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), lastActiveWorkspace ? lastActiveWorkspace : undefined, this._variableResolver, activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
+		shellLaunchConfig.cwd = initialCwd;
 
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
 		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
