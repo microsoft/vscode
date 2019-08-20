@@ -444,6 +444,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
+		this.replInputContainer.title = nls.localize('debugConsole', "Debug Console");
 
 		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
 		this.historyNavigationEnablement = historyNavigationEnablement;
