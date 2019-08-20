@@ -33,6 +33,8 @@ import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatch
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface IFindController {
 	replace(): void;
@@ -63,6 +65,7 @@ let MAX_MATCHES_COUNT_WIDTH = 69;
 let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Results */ + 23 /** Button */ * 4 + 2/** sash */;
 
 const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
+const ctrlEnterReplaceAllWarningPromptedKey = 'ctrlEnterReplaceAll.windows.donotask';
 
 export class FindWidgetViewZone implements IViewZone {
 	public readonly afterLineNumber: number;
@@ -104,6 +107,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _contextViewProvider: IContextViewProvider;
 	private readonly _keybindingService: IKeybindingService;
 	private readonly _contextKeyService: IContextKeyService;
+	private readonly _storageService: IStorageService;
+	private readonly _notificationService: INotificationService;
 
 	private _domNode!: HTMLElement;
 	private _cachedHeight: number | null;
@@ -122,6 +127,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
 	private _ignoreChangeEvent: boolean;
+	private _ctrlEnterReplaceAllWarningPrompted: boolean;
 
 	private readonly _findFocusTracker: dom.IFocusTracker;
 	private readonly _findInputFocused: IContextKey<boolean>;
@@ -141,7 +147,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		contextViewProvider: IContextViewProvider,
 		keybindingService: IKeybindingService,
 		contextKeyService: IContextKeyService,
-		themeService: IThemeService
+		themeService: IThemeService,
+		storageService: IStorageService,
+		notificationService: INotificationService,
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -150,6 +158,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._contextViewProvider = contextViewProvider;
 		this._keybindingService = keybindingService;
 		this._contextKeyService = contextKeyService;
+		this._storageService = storageService;
+		this._notificationService = notificationService;
+
+		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.GLOBAL);
 
 		this._isVisible = false;
 		this._isReplaceVisible = false;
@@ -755,19 +767,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
-
-		if (e.equals(KeyCode.Enter)) {
-			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(undefined, onUnexpectedError);
-			e.preventDefault();
-			return;
-		}
-
-		if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(undefined, onUnexpectedError);
-			e.preventDefault();
-			return;
-		}
-
 		if (e.equals(KeyMod.WinCtrl | KeyCode.Enter)) {
 			const inputElement = this._findInput.inputBox.inputElement;
 			const start = inputElement.selectionStart;
@@ -810,14 +809,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
-
-		if (e.equals(KeyCode.Enter)) {
-			this._controller.replace();
-			e.preventDefault();
-			return;
-		}
-
 		if (e.equals(KeyMod.WinCtrl | KeyCode.Enter)) {
+			if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
+				// this is the first time when users press Ctrl + Enter to replace all
+				this._notificationService.info(
+					nls.localize('ctrlEnter.keybindingChanged',
+						'Ctrl+Enter now inserts line break instead of replacing all. You can modify the keybinding for editor.action.replaceAll to override this behavior.')
+				);
+
+				this._ctrlEnterReplaceAllWarningPrompted = true;
+				this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL);
+
+			}
+
 			const inputElement = this._replaceInput.inputBox.inputElement;
 			const start = inputElement.selectionStart;
 			const end = inputElement.selectionEnd;
@@ -831,12 +835,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				e.preventDefault();
 				return;
 			}
-		}
-
-		if (e.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
-			this._controller.replaceAll();
-			e.preventDefault();
-			return;
 		}
 
 		if (e.equals(KeyCode.Tab)) {
