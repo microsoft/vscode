@@ -31,7 +31,7 @@ if [ -f ./resources/server/test/test-remote-integration.sh ]; then
 fi
 
 # Tests in commonJS
-cd $ROOT/extensions/css-language-features/server && $ROOT/scripts/node-electron.sh $LINUX_NO_SANDBOX test/index.js
-cd $ROOT/extensions/html-language-features/server && $ROOT/scripts/node-electron.sh $LINUX_NO_SANDBOX test/index.js
+cd $ROOT/extensions/css-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
+cd $ROOT/extensions/html-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
 
 rm -r $VSCODEUSERDATADIR
