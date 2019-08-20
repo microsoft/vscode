@@ -17,6 +17,10 @@
 	text-decoration-line: underline;
 }
 
+.monaco-workbench .monaco-breadcrumb-item.shows-symbol-icon .symbol-icon.block {
+	padding-right: 6px;
+}
+
 /* todo@joh move somewhere else */
 
 .monaco-workbench .monaco-breadcrumbs-picker .arrow {
