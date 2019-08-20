@@ -59,7 +59,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			}
 		}
 
-		return this.openerService.openExternal(uri);
+		return this.openerService.open(uri, { openExternal: true });
 	}
 
 	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {

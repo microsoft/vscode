@@ -19,10 +19,11 @@ import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import Severity from 'vs/base/common/severity';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class OpenerService implements IOpenerService {
 
-	_serviceBrand: any;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly _opener = new LinkedList<IOpener>();
 
@@ -41,7 +42,7 @@ export class OpenerService implements IOpenerService {
 		return { dispose: remove };
 	}
 
-	async open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean> {
+	async open(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
 		// no scheme ?!?
 		if (!resource.scheme) {
 			return Promise.resolve(false);
@@ -57,13 +58,13 @@ export class OpenerService implements IOpenerService {
 		return this._doOpen(resource, options);
 	}
 
-	private _doOpen(resource: URI, options?: { openToSide?: boolean }): Promise<boolean> {
+	private _doOpen(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
 
 		const { scheme, authority, path, query, fragment } = resource;
 
-		if (equalsIgnoreCase(scheme, Schemas.mailto)) {
+		if (equalsIgnoreCase(scheme, Schemas.mailto) || (options && options.openExternal)) {
 			// open default mail application
-			return this.openExternal(resource);
+			return this._doOpenExternal(resource);
 		}
 
 		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
@@ -78,7 +79,7 @@ export class OpenerService implements IOpenerService {
 			const domainToOpen = `${scheme}://${authority}`;
 
 			if (isDomainTrusted(domainToOpen, trustedDomains)) {
-				return this.openExternal(resource);
+				return this._doOpenExternal(resource);
 			} else {
 				return this._dialogService.show(
 					Severity.Info,
@@ -97,11 +98,11 @@ export class OpenerService implements IOpenerService {
 						cancelId: 1
 					}).then((choice) => {
 						if (choice === 0) {
-							return this.openExternal(resource);
+							return this._doOpenExternal(resource);
 						} else if (choice === 2) {
 							return this._commandService.executeCommand('workbench.action.configureTrustedDomains', domainToOpen).then((pickedDomains: string[]) => {
 								if (pickedDomains.indexOf(domainToOpen) !== -1) {
-									return this.openExternal(resource);
+									return this._doOpenExternal(resource);
 								}
 								return Promise.resolve(false);
 							});
@@ -152,7 +153,7 @@ export class OpenerService implements IOpenerService {
 		}
 	}
 
-	openExternal(resource: URI): Promise<boolean> {
+	private _doOpenExternal(resource: URI): Promise<boolean> {
 		dom.windowOpenNoOpener(encodeURI(resource.toString(true)));
 
 		return Promise.resolve(true);
