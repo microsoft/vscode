@@ -296,11 +296,6 @@ export class ReplaceInput extends Widget {
 
 		if (this._showOptionButtons) {
 			this.cachedOptionsWidth = this.preserveCase.width();
-			// const paddingRight = () + 'px';
-			// this.inputBox.inputElement.style.paddingRight = paddingRight;
-			// if (this.inputBox.mirrorElement) {
-			// 	this.inputBox.mirrorElement.style.paddingRight = paddingRight;
-			// }
 		} else {
 			this.cachedOptionsWidth = 0;
 		}
