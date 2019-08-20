@@ -359,9 +359,7 @@ export class ElectronWindow extends Disposable {
 		// Block window.open() calls
 		const $this = this;
 		window.open = function (): Window | null {
-			console.error(new Error('Prevented call to window.open(). Use IOpenerService instead!'));
-
-			return null;
+			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
 		};
 
 		// Handle internal open() calls
