@@ -133,11 +133,18 @@ export class EditorBreadcrumbsModel {
 		if (!this._editor) {
 			return;
 		}
-		// update as model changes
+		// update as language, model, providers changes
 		this._disposables.push(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
 		this._disposables.push(this._editor.onDidChangeModel(_ => this._updateOutline()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._updateOutline()));
-		this._disposables.push(Event.debounce(this._editor.onDidChangeModelContent, _ => _, 350)(_ => this._updateOutline(true)));
+
+		// update soon'ish as model content change
+		const updateSoon = new TimeoutTimer();
+		this._disposables.push(updateSoon);
+		this._disposables.push(this._editor.onDidChangeModelContent(_ => {
+			const timeout = OutlineModel.getRequestDelay(this._editor!.getModel());
+			updateSoon.cancelAndSet(() => this._updateOutline(true), timeout);
+		}));
 		this._updateOutline();
 
 		// stop when editor dies
