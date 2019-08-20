@@ -178,6 +178,7 @@ export class InputBox extends Widget {
 			if (this.options.flexibleWidth) {
 				this.input.setAttribute('wrap', 'off');
 				this.mirror.style.whiteSpace = 'pre';
+				this.mirror.style.wordWrap = 'initial';
 			}
 
 			dom.append(container, this.scrollableElement.getDomNode());

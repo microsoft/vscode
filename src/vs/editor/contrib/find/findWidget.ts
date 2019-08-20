@@ -9,8 +9,10 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
 import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
@@ -31,8 +33,6 @@ import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatch
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
-import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
 
 export interface IFindController {
 	replace(): void;
@@ -888,6 +888,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _buildDomNode(): void {
+		const flexibleHeight = platform.isNative;
+		const flexibleWidth = platform.isNative;
 		// Find input
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
 			width: FIND_INPUT_AREA_WIDTH,
@@ -908,8 +910,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					return { content: e.message };
 				}
 			},
-			flexibleHeight: true,
-			flexibleWidth: true,
+			flexibleHeight,
+			flexibleWidth,
 			flexibleMaxHeight: 118
 		}, this._contextKeyService, true));
 		this._findInput.setRegex(!!this._state.isRegex);
@@ -1035,8 +1037,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
 			history: [],
-			flexibleHeight: true,
-			flexibleWidth: true,
+			flexibleHeight,
+			flexibleWidth,
 			flexibleMaxHeight: 118
 		}, this._contextKeyService, true));
 		this._replaceInput.setPreserveCase(!!this._state.preserveCase);
