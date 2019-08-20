@@ -549,15 +549,17 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$unregisterSerializer(viewType: string): void;
 }
 
-export interface WebviewPanelViewState {
-	readonly active: boolean;
-	readonly visible: boolean;
-	readonly position: EditorViewColumn;
+export interface WebviewPanelViewStateData {
+	[handle: string]: {
+		readonly active: boolean;
+		readonly visible: boolean;
+		readonly position: EditorViewColumn;
+	};
 }
 
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
-	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, newState: WebviewPanelViewState): void;
+	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 }

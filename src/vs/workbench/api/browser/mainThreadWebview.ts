@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions, WebviewPanelViewStateData } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
@@ -23,6 +23,7 @@ import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { IProductService } from 'vs/platform/product/common/product';
 import { startsWith } from 'vs/base/common/strings';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { find } from 'vs/base/common/arrays';
 
 interface OldMainThreadWebviewState {
 	readonly viewType: string;
@@ -241,39 +242,34 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	}
 
 	private updateWebviewViewStates() {
-		const activeEditor = this._editorService.activeControl;
+		if (!this._webviewEditorInputs.size) {
+			return;
+		}
 
-		const webviews = new Map<WebviewEditorInput, {
-			group: number,
-			visible: boolean,
-			active: boolean,
-		}>();
+		const activeInput = this._editorService.activeControl && this._editorService.activeControl.input;
+		const viewStates: WebviewPanelViewStateData = {};
 		for (const group of this._editorGroupService.groups) {
 			for (const input of group.editors) {
 				if (!(input instanceof WebviewEditorInput)) {
 					continue;
 				}
-				webviews.set(input, {
-					group: group.id,
-					visible: input === group.activeEditor,
-					active: !!activeEditor && input === activeEditor.input
-				});
+
+				const handle = find(
+					map.keys(this._webviewEditorInputs),
+					handle => input === this._webviewEditorInputs.get(handle));
+
+				if (handle) {
+					viewStates[handle] = {
+						visible: input === group.activeEditor,
+						active: input === activeInput,
+						position: editorGroupToViewColumn(this._editorGroupService, group.id || 0),
+					};
+				}
 			}
 		}
 
-		for (const webview of map.keys(webviews)) {
-			const state = webviews.get(webview)!;
-			for (const handle of map.keys(this._webviewEditorInputs)) {
-				const input = this._webviewEditorInputs.get(handle)!;
-				if (input === webview) {
-					this._proxy.$onDidChangeWebviewPanelViewState(handle, {
-						active: state.active,
-						visible: state.visible,
-						position: editorGroupToViewColumn(this._editorGroupService, state.group || 0),
-					});
-					break;
-				}
-			}
+		if (Object.keys(viewStates).length) {
+			this._proxy.$onDidChangeWebviewPanelViewStates(viewStates);
 		}
 	}
 
