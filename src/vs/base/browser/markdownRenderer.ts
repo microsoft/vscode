@@ -183,7 +183,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		allowedAttributes: {
 			'a': ['href', 'name', 'target', 'data-href'],
 			'iframe': ['allowfullscreen', 'frameborder', 'src'],
-			'img': ['src']
+			'img': ['src', 'title', 'alt', 'width', 'height']
 		}
 	});
 	signalInnerHTML!();
