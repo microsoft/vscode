@@ -33,6 +33,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -42,6 +43,7 @@ export interface ISearchWidgetOptions {
 	isWholeWords?: boolean;
 	searchHistory?: string[];
 	replaceHistory?: string[];
+	preserveCase?: boolean;
 }
 
 class ReplaceAllAction extends Action {
@@ -97,6 +99,7 @@ export class SearchWidget extends Widget {
 	replaceInputFocusTracker: dom.IFocusTracker;
 	private replaceInputBoxFocused: IContextKey<boolean>;
 	private _replaceHistoryDelayer: Delayer<void>;
+	private _preserveCase: Checkbox;
 
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string;
@@ -112,6 +115,9 @@ export class SearchWidget extends Widget {
 
 	private _onReplaceStateChange = this._register(new Emitter<boolean>());
 	readonly onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
+
+	private _onPreserveCaseChange = this._register(new Emitter<boolean>());
+	readonly onPreserveCaseChange: Event<boolean> = this._onPreserveCaseChange.event;
 
 	private _onReplaceValueChanged = this._register(new Emitter<void>());
 	readonly onReplaceValueChanged: Event<void> = this._onReplaceValueChanged.event;
@@ -333,13 +339,34 @@ export class SearchWidget extends Widget {
 
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
 		this.replaceContainer = dom.append(parent, dom.$('.replace-container.disabled'));
-		const replaceBox = dom.append(this.replaceContainer, dom.$('.input-box'));
+		const replaceBox = dom.append(this.replaceContainer, dom.$('.replace-input'));
+
 		this.replaceInput = this._register(new ContextScopedHistoryInputBox(replaceBox, this.contextViewService, {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
 			history: options.replaceHistory || [],
 			flexibleHeight: true
 		}, this.contextKeyService));
+
+		this._preserveCase = this._register(new Checkbox({
+			actionClassName: 'monaco-preserve-case',
+			title: nls.localize('label.preserveCaseCheckbox', "Preserve Case"),
+			isChecked: !!options.preserveCase,
+		}));
+
+		this._register(this._preserveCase.onChange(viaKeyboard => {
+			if (!viaKeyboard) {
+				this.replaceInput.focus();
+				this._onPreserveCaseChange.fire(this._preserveCase.checked);
+			}
+		}));
+
+		let controls = document.createElement('div');
+		controls.className = 'controls';
+		controls.style.display = 'block';
+		controls.appendChild(this._preserveCase.domNode);
+		replaceBox.appendChild(controls);
+
 		this._register(attachInputBoxStyler(this.replaceInput, this.themeService));
 		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
 		this.replaceInput.value = options.replaceValue || '';

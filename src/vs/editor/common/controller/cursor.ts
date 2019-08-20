@@ -86,6 +86,14 @@ export class CursorModelState {
 
 class AutoClosedAction {
 
+	public static getAllAutoClosedCharacters(autoClosedActions: AutoClosedAction[]): Range[] {
+		let autoClosedCharacters: Range[] = [];
+		for (const autoClosedAction of autoClosedActions) {
+			autoClosedCharacters = autoClosedCharacters.concat(autoClosedAction.getAutoClosedCharactersRanges());
+		}
+		return autoClosedCharacters;
+	}
+
 	private readonly _model: ITextModel;
 
 	private _autoClosedCharactersDecorations: string[];
@@ -593,11 +601,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			}
 			const closeChar = m[1];
 
-			const openChar = this.context.config.autoClosingPairsClose[closeChar];
-			if (!openChar) {
+			const autoClosingPairsCandidates = this.context.config.autoClosingPairsClose2.get(closeChar);
+			if (!autoClosingPairsCandidates || autoClosingPairsCandidates.length !== 1) {
 				return null;
 			}
 
+			const openChar = autoClosingPairsCandidates[0].open;
 			const closeCharIndex = edit.text.length - m[2].length - 1;
 			const openCharIndex = edit.text.lastIndexOf(openChar, closeCharIndex - 1);
 			if (openCharIndex === -1) {
@@ -738,7 +747,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _interpretCompositionEnd(source: string) {
 		if (!this._isDoingComposition && source === 'keyboard') {
 			// composition finishes, let's check if we need to auto complete if necessary.
-			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections()));
+			const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
+			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters));
 		}
 	}
 
@@ -756,14 +766,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 					chr = text.charAt(i);
 				}
 
-				let autoClosedCharacters: Range[] = [];
-				if (this._autoClosedActions.length > 0) {
-					for (let i = 0, len = this._autoClosedActions.length; i < len; i++) {
-						autoClosedCharacters = autoClosedCharacters.concat(this._autoClosedActions[i].getAutoClosedCharactersRanges());
-					}
-				}
-
-				// Here we must interpret each typed character individually, that's why we create a new context
+				// Here we must interpret each typed character individually
+				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
 				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
 			}
 

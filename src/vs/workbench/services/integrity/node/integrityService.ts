@@ -15,6 +15,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -64,7 +65,8 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		this._storage = new IntegrityStorage(storageService);
 
@@ -91,7 +93,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 			[
 				{
 					label: nls.localize('integrity.moreInformation', "More Information"),
-					run: () => window.open(URI.parse(product.checksumFailMoreInfoUrl).toString(true))
+					run: () => this.openerService.open(URI.parse(product.checksumFailMoreInfoUrl))
 				},
 				{
 					label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),

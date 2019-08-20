@@ -789,7 +789,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 	get templateId(): string { return KEYBINDING_ENTRY_TEMPLATE_ID; }
 
 	constructor(
-		private keybindingsEditor: IKeybindingsEditor,
+		private keybindingsEditor: KeybindingsEditor,
 		private instantiationService: IInstantiationService
 	) { }
 

@@ -195,6 +195,7 @@ export interface IExtensionManagementService {
 
 	zip(extension: ILocalExtension): Promise<URI>;
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier>;
+	getManifest(vsix: URI): Promise<IExtensionManifest>;
 	install(vsix: URI): Promise<ILocalExtension>;
 	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, force?: boolean): Promise<void>;

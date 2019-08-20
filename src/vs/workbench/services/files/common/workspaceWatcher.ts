@@ -16,6 +16,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { FileService } from 'vs/platform/files/common/fileService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class WorkspaceWatcher extends Disposable {
 
@@ -25,7 +26,8 @@ export class WorkspaceWatcher extends Disposable {
 		@IFileService private readonly fileService: FileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 
@@ -77,7 +79,7 @@ export class WorkspaceWatcher extends Disposable {
 				localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
 				[{
 					label: localize('installNet', "Download .NET Framework 4.5"),
-					run: () => window.open('https://go.microsoft.com/fwlink/?LinkId=786533')
+					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=786533'))
 				}],
 				{
 					sticky: true,
@@ -93,7 +95,7 @@ export class WorkspaceWatcher extends Disposable {
 				localize('enospcError', "Unable to watch for file changes in this large workspace. Please follow the instructions link to resolve this issue."),
 				[{
 					label: localize('learnMore', "Instructions"),
-					run: () => window.open('https://go.microsoft.com/fwlink/?linkid=867693')
+					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=867693'))
 				}],
 				{
 					sticky: true,
