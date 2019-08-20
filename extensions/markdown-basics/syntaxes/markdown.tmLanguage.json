@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/05ccfa3db6edbd357390431f9e316adb38ba41d8",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/d64818b45a51ad281d0eececa06fccb8c3767fe4",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -122,7 +122,7 @@
 					"contentName": "meta.embedded.block.html",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					]
 				}
@@ -386,7 +386,7 @@
 					"contentName": "meta.embedded.block.php",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						},
 						{
 							"include": "source.php"
@@ -1993,7 +1993,7 @@
 						"1": {
 							"patterns": [
 								{
-									"include": "text.html.basic"
+									"include": "text.html.derivative"
 								}
 							]
 						},
@@ -2015,7 +2015,7 @@
 							"begin": "(\\s*|$)",
 							"patterns": [
 								{
-									"include": "text.html.basic"
+									"include": "text.html.derivative"
 								}
 							],
 							"while": "(?i)^(?!.*</(script|style|pre)>)"
@@ -2023,10 +2023,10 @@
 					]
 				},
 				{
-					"begin": "(?i)(^|\\G)\\s*(?=</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(\\s|$|/?>))",
+					"begin": "(?i)(^|\\G)\\s*(?=</?[a-zA-Z]+[^\\s/>]*(\\s|$|/?>))",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					],
 					"while": "^(?!\\s*$)"
@@ -2035,7 +2035,7 @@
 					"begin": "(^|\\G)\\s*(?=(<[a-zA-Z0-9\\-](/?>|\\s.*?>)|</[a-zA-Z0-9\\-]>)\\s*$)",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					],
 					"while": "^(?!\\s*$)"
@@ -2095,7 +2095,7 @@
 					"include": "#inline"
 				},
 				{
-					"include": "text.html.basic"
+					"include": "text.html.derivative"
 				},
 				{
 					"include": "#heading-setext"
@@ -2152,7 +2152,7 @@
 					"include": "#inline"
 				},
 				{
-					"include": "text.html.basic"
+					"include": "text.html.derivative"
 				},
 				{
 					"include": "#heading-setext"
@@ -2246,7 +2246,7 @@
 					"end": "(?<=>)",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					]
 				},
@@ -2391,7 +2391,7 @@
 					"end": "(?<=>)",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					]
 				},
