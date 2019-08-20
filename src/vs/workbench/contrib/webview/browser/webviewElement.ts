@@ -202,7 +202,8 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._send('content', {
 			contents: this.content.html,
 			options: this.content.options,
-			state: this.content.state
+			state: this.content.state,
+			endpoint: this.endpoint,
 		});
 	}
 
