@@ -44,7 +44,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 	private readonly _proxy: ExtHostWebviewsShape;
 	private readonly _webviewEditorInputs = new Map<string, WebviewEditorInput>();
-	private readonly _webviews = new Map<string, Webview>();
 	private readonly _revivers = new Map<string, IDisposable>();
 
 	constructor(
@@ -103,7 +102,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		this.hookupWebviewEventDelegate(handle, webview);
 
 		this._webviewEditorInputs.set(handle, webview);
-		this._webviews.set(handle, webview.webview);
 
 		/* __GDPR__
 			"webviews:createWebviewPanel" : {
@@ -174,7 +172,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 				const handle = `revival-${MainThreadWebviews.revivalPool++}`;
 				this._webviewEditorInputs.set(handle, webviewEditorInput);
-				this._webviews.set(handle, webviewEditorInput.webview);
 				this.hookupWebviewEventDelegate(handle, webviewEditorInput);
 
 				let state = undefined;
@@ -232,7 +229,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		input.onDispose(() => {
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
 				this._webviewEditorInputs.delete(handle);
-				this._webviews.delete(handle);
 			});
 		});
 		input.webview.onDidUpdateState((newState: any) => {
@@ -315,15 +311,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	}
 
 	private getWebview(handle: WebviewPanelHandle): Webview {
-		const webview = this.tryGetWebview(handle);
-		if (!webview) {
-			throw new Error('Unknown webview handle:' + handle);
-		}
-		return webview;
-	}
-
-	private tryGetWebview(handle: WebviewPanelHandle): Webview | undefined {
-		return this._webviews.get(handle);
+		return this.getWebviewEditorInput(handle).webview;
 	}
 
 	private static getDeserializationFailedContents(viewType: string) {
