@@ -140,12 +140,12 @@ export class MarkdownEngine {
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
-	public async render(document: SkinnyTextDocument | string): Promise<string> {
-		const config = this.getConfig(typeof document === 'string' ? undefined : document.uri);
+	public async render(input: SkinnyTextDocument | string): Promise<string> {
+		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this.getEngine(config);
-		const tokens = typeof document === 'string'
-			? this.tokenizeString(document, engine)
-			: this.tokenizeDocument(document, config, engine);
+		const tokens = typeof input === 'string'
+			? this.tokenizeString(input, engine)
+			: this.tokenizeDocument(input, config, engine);
 
 		return engine.renderer.render(tokens, {
 			...(engine as any).options,
