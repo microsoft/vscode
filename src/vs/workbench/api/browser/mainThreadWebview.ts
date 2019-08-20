@@ -5,29 +5,60 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as map from 'vs/base/common/map';
+import { startsWith } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions, WebviewPanelViewStateData } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
-import { IProductService } from 'vs/platform/product/common/product';
-import { startsWith } from 'vs/base/common/strings';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { find } from 'vs/base/common/arrays';
 
 interface OldMainThreadWebviewState {
 	readonly viewType: string;
 	state: any;
+}
+
+/**
+ * Bi-directional map between webview handles and inputs.
+ */
+class WebviewHandleStore {
+	private readonly _handlesToInputs = new Map<string, WebviewEditorInput>();
+	private readonly _inputsToHandles = new Map<WebviewEditorInput, string>();
+
+	public add(handle: string, input: WebviewEditorInput): void {
+		this._handlesToInputs.set(handle, input);
+		this._inputsToHandles.set(input, handle);
+	}
+
+	public getHandleForInput(input: WebviewEditorInput): string | undefined {
+		return this._inputsToHandles.get(input);
+	}
+
+	public getInputForHandle(handle: string): WebviewEditorInput | undefined {
+		return this._handlesToInputs.get(handle);
+	}
+
+	public delete(handle: string): void {
+		const input = this.getInputForHandle(handle);
+		this._handlesToInputs.delete(handle);
+		if (input) {
+			this._inputsToHandles.delete(input);
+		}
+	}
+
+	public get size(): number {
+		return this._handlesToInputs.size;
+	}
 }
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
@@ -44,7 +75,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	private static revivalPool = 0;
 
 	private readonly _proxy: ExtHostWebviewsShape;
-	private readonly _webviewEditorInputs = new Map<string, WebviewEditorInput>();
+	private readonly _webviewEditorInputs = new WebviewHandleStore();
 	private readonly _revivers = new Map<string, IDisposable>();
 
 	constructor(
@@ -102,7 +133,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		});
 		this.hookupWebviewEventDelegate(handle, webview);
 
-		this._webviewEditorInputs.set(handle, webview);
+		this._webviewEditorInputs.add(handle, webview);
 
 		/* __GDPR__
 			"webviews:createWebviewPanel" : {
@@ -172,7 +203,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				}
 
 				const handle = `revival-${MainThreadWebviews.revivalPool++}`;
-				this._webviewEditorInputs.set(handle, webviewEditorInput);
+				this._webviewEditorInputs.add(handle, webviewEditorInput);
 				this.hookupWebviewEventDelegate(handle, webviewEditorInput);
 
 				let state = undefined;
@@ -254,10 +285,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 					continue;
 				}
 
-				const handle = find(
-					map.keys(this._webviewEditorInputs),
-					handle => input === this._webviewEditorInputs.get(handle));
-
+				const handle = this._webviewEditorInputs.getHandleForInput(input);
 				if (handle) {
 					viewStates[handle] = {
 						visible: input === group.activeEditor,
@@ -303,7 +331,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	}
 
 	private tryGetWebviewEditorInput(handle: WebviewPanelHandle): WebviewEditorInput | undefined {
-		return this._webviewEditorInputs.get(handle);
+		return this._webviewEditorInputs.getInputForHandle(handle);
 	}
 
 	private getWebview(handle: WebviewPanelHandle): Webview {
