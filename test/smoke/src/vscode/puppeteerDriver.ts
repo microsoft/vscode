@@ -26,7 +26,7 @@ const vscodeToPuppeteerKey = {
 };
 
 function buildDriver(browser: puppeteer.Browser, page: puppeteer.Page): IDriver {
-	const driver = {
+	const driver: IDriver = {
 		_serviceBrand: undefined,
 		getWindowIds: () => {
 			return Promise.resolve([1]);
@@ -180,7 +180,7 @@ export interface IDriver {
 	getTitle(windowId: number): Promise<string>;
 	isActiveElement(windowId: number, selector: string): Promise<boolean>;
 	getElements(windowId: number, selector: string, recursive?: boolean): Promise<IElement[]>;
-	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }>;
+	getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }>;
 	typeInEditor(windowId: number, selector: string, text: string): Promise<void>;
 	getTerminalBuffer(windowId: number, selector: string): Promise<string[]>;
 	writeInTerminal(windowId: number, selector: string, text: string): Promise<void>;
