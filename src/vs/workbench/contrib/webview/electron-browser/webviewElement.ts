@@ -327,12 +327,19 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 					{
 						const rawEvent = event.args[0];
 						const bounds = this._webview.getBoundingClientRect();
-						window.dispatchEvent(new MouseEvent(rawEvent.type, {
-							...rawEvent,
-							clientX: rawEvent.clientX + bounds.left,
-							clientY: rawEvent.clientY + bounds.top,
-						}));
-						return;
+						try {
+							window.dispatchEvent(new MouseEvent(rawEvent.type, {
+								...rawEvent,
+								clientX: rawEvent.clientX + bounds.left,
+								clientY: rawEvent.clientY + bounds.top,
+							}));
+							return;
+						}
+						catch (TypeError) {
+							// CustomEvent was treated as MouseEvent so don't do anything - https://github.com/microsoft/vscode/issues/78915
+							return;
+						}
+
 					}
 
 				case 'did-set-content':
