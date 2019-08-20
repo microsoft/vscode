@@ -17,7 +17,7 @@ import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } fr
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { IProductService } from 'vs/platform/product/common/product';
@@ -47,8 +47,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	private readonly _webviews = new Map<string, Webview>();
 	private readonly _revivers = new Map<string, IDisposable>();
 
-	private _activeWebview: WebviewPanelHandle | undefined = undefined;
-
 	constructor(
 		context: IExtHostContext,
 		@IExtensionService extensionService: IExtensionService,
@@ -62,8 +60,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		super();
 
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
-		this._register(_editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
-		this._register(_editorService.onDidVisibleEditorsChange(this.onVisibleEditorsChanged, this));
+		this._register(_editorService.onDidActiveEditorChange(this.updateWebviewViewStates, this));
+		this._register(_editorService.onDidVisibleEditorsChange(this.updateWebviewViewStates, this));
 
 		// This reviver's only job is to activate webview extensions
 		// This should trigger the real reviver to be registered from the extension host side.
@@ -246,70 +244,41 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		});
 	}
 
-	private onActiveEditorChanged() {
+	private updateWebviewViewStates() {
 		const activeEditor = this._editorService.activeControl;
-		let newActiveWebview: { input: WebviewEditorInput, handle: WebviewPanelHandle } | undefined = undefined;
-		if (activeEditor && activeEditor.input instanceof WebviewEditorInput) {
-			for (const handle of map.keys(this._webviewEditorInputs)) {
-				const input = this._webviewEditorInputs.get(handle)!;
-				if (input.matches(activeEditor.input)) {
-					newActiveWebview = { input, handle };
-					break;
+
+		const webviews = new Map<WebviewEditorInput, {
+			group: number,
+			visible: boolean,
+			active: boolean,
+		}>();
+		for (const group of this._editorGroupService.groups) {
+			for (const input of group.editors) {
+				if (!(input instanceof WebviewEditorInput)) {
+					continue;
 				}
-			}
-		}
-
-		if (newActiveWebview && newActiveWebview.handle === this._activeWebview) {
-			// Webview itself unchanged but position may have changed
-			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, {
-				active: true,
-				visible: true,
-				position: editorGroupToViewColumn(this._editorGroupService, newActiveWebview.input.group || 0)
-			});
-			return;
-		}
-
-		// Broadcast view state update for currently active
-		if (typeof this._activeWebview !== 'undefined') {
-			const oldActiveWebview = this._webviewEditorInputs.get(this._activeWebview);
-			if (oldActiveWebview) {
-				this._proxy.$onDidChangeWebviewPanelViewState(this._activeWebview, {
-					active: false,
-					visible: this._editorService.visibleControls.some(editor => !!editor.input && editor.input.matches(oldActiveWebview)),
-					position: editorGroupToViewColumn(this._editorGroupService, oldActiveWebview.group || 0),
+				webviews.set(input, {
+					group: group.id,
+					visible: input === group.activeEditor,
+					active: !!activeEditor && input === activeEditor.input
 				});
 			}
 		}
 
-		// Then for newly active
-		if (newActiveWebview) {
-			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, {
-				active: true,
-				visible: true,
-				position: editorGroupToViewColumn(this._editorGroupService, activeEditor ? activeEditor.group : ACTIVE_GROUP),
-			});
-			this._activeWebview = newActiveWebview.handle;
-		} else {
-			this._activeWebview = undefined;
-		}
-	}
-
-	private onVisibleEditorsChanged(): void {
-		this._webviewEditorInputs.forEach((input, handle) => {
-			for (const workbenchEditor of this._editorService.visibleControls) {
-				if (workbenchEditor.input && workbenchEditor.input.matches(input)) {
-					const editorPosition = editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group!);
-
-					input.updateGroup(workbenchEditor.group!.id);
+		for (const webview of map.keys(webviews)) {
+			const state = webviews.get(webview)!;
+			for (const handle of map.keys(this._webviewEditorInputs)) {
+				const input = this._webviewEditorInputs.get(handle)!;
+				if (input === webview) {
 					this._proxy.$onDidChangeWebviewPanelViewState(handle, {
-						active: handle === this._activeWebview,
-						visible: true,
-						position: editorPosition
+						active: state.active,
+						visible: state.visible,
+						position: editorGroupToViewColumn(this._editorGroupService, state.group || 0),
 					});
 					break;
 				}
 			}
-		});
+		}
 	}
 
 	private onDidClickLink(handle: WebviewPanelHandle, link: URI): void {

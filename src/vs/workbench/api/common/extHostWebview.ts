@@ -89,10 +89,11 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 
 	private readonly _options: vscode.WebviewPanelOptions;
 	private readonly _webview: ExtHostWebview;
-	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private _visible: boolean = true;
 	private _active: boolean = true;
+
+	_isDisposed: boolean = false;
 
 	readonly _onDisposeEmitter = new Emitter<void>();
 	public readonly onDidDispose: Event<void> = this._onDisposeEmitter.event;
@@ -302,7 +303,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		newState: WebviewPanelViewState
 	): void {
 		const panel = this.getWebviewPanel(handle);
-		if (!panel) {
+		if (!panel || panel._isDisposed) {
 			return;
 		}
 
