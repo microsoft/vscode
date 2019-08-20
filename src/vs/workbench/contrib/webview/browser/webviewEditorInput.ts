@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
-import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/common/webview';
+import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 
 class WebviewIconsManager {

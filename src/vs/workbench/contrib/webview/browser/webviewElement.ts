@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
+import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';

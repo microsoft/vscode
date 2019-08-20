@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
-import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/webview';
+import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/browser/webview';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindWidget } from '../browser/webviewFindWidget';
