@@ -11,6 +11,8 @@ import { IExtensionsViewlet } from 'vs/workbench/contrib/extensions/common/exten
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { URI } from 'vs/base/common/uri';
 
 export class ExperimentalPrompts extends Disposable implements IWorkbenchContribution {
 
@@ -18,7 +20,8 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		@IExperimentService private readonly experimentService: IExperimentService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IOpenerService private readonly openerService: IOpenerService
 
 	) {
 		super();
@@ -65,7 +68,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 				run: () => {
 					logTelemetry(commandText);
 					if (command.externalLink) {
-						window.open(command.externalLink);
+						this.openerService.open(URI.parse(command.externalLink));
 					} else if (command.curatedExtensionsKey && Array.isArray(command.curatedExtensionsList)) {
 						this.viewletService.openViewlet('workbench.view.extensions', true)
 							.then(viewlet => viewlet as IExtensionsViewlet)

@@ -61,6 +61,7 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const $ = dom.$;
 
@@ -153,6 +154,7 @@ export class SearchView extends ViewletPanel {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super({ ...(options as IViewletPanelOptions), id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
@@ -1473,7 +1475,7 @@ export class SearchView extends ViewletPanel {
 	private onLearnMore = (e: MouseEvent): void => {
 		dom.EventHelper.stop(e, false);
 
-		window.open('https://go.microsoft.com/fwlink/?linkid=853977');
+		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=853977'));
 	}
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean): void {
