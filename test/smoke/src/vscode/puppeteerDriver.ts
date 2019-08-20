@@ -98,6 +98,7 @@ export async function launch(_args: string[]): Promise<void> {
 	server.stdout.on('data', e => console.log('Server stdout: ' + e));
 	process.on('exit', teardown);
 	process.on('SIGINT', teardown);
+	process.on('SIGTERM', teardown);
 	endpoint = await waitForEndpoint();
 }
 
