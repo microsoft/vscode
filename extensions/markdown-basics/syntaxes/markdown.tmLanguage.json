@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/d64818b45a51ad281d0eececa06fccb8c3767fe4",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/eb3898715b50d7911377a650e383a768a3a21f25",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -122,7 +122,7 @@
 					"contentName": "meta.embedded.block.html",
 					"patterns": [
 						{
-							"include": "text.html.derivative"
+							"include": "text.html.basic"
 						}
 					]
 				}
@@ -386,7 +386,7 @@
 					"contentName": "meta.embedded.block.php",
 					"patterns": [
 						{
-							"include": "text.html.derivative"
+							"include": "text.html.basic"
 						},
 						{
 							"include": "source.php"
@@ -1855,12 +1855,12 @@
 			"name": "markup.fenced_code.block.markdown"
 		},
 		"heading": {
-			"match": "(?:^|\\G)[ ]{0,3}((#{1,6})\\s*(?=[\\S[^#]]).*?\\s*(#{1,6})?)$\\n?",
+			"match": "(?:^|\\G)[ ]{0,3}((#{1,6})\\s+(?=[\\S[^#]]).*?\\s*(#{1,6})?)$\\n?",
 			"captures": {
 				"1": {
 					"patterns": [
 						{
-							"match": "(#{6})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{6})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.6.markdown",
 							"captures": {
 								"1": {
@@ -1875,7 +1875,7 @@
 							}
 						},
 						{
-							"match": "(#{5})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{5})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.5.markdown",
 							"captures": {
 								"1": {
@@ -1890,7 +1890,7 @@
 							}
 						},
 						{
-							"match": "(#{4})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{4})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.4.markdown",
 							"captures": {
 								"1": {
@@ -1905,7 +1905,7 @@
 							}
 						},
 						{
-							"match": "(#{3})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{3})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.3.markdown",
 							"captures": {
 								"1": {
@@ -1920,7 +1920,7 @@
 							}
 						},
 						{
-							"match": "(#{2})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{2})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.2.markdown",
 							"captures": {
 								"1": {
@@ -1935,7 +1935,7 @@
 							}
 						},
 						{
-							"match": "(#{1})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{1})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.1.markdown",
 							"captures": {
 								"1": {
@@ -2023,7 +2023,7 @@
 					]
 				},
 				{
-					"begin": "(?i)(^|\\G)\\s*(?=</?[a-zA-Z]+[^\\s/>]*(\\s|$|/?>))",
+					"begin": "(?i)(^|\\G)\\s*(?=</?[a-zA-Z]+[^\\s/&gt;]*(\\s|$|/?>))",
 					"patterns": [
 						{
 							"include": "text.html.derivative"
