@@ -134,3 +134,12 @@ export function getEditorLineNumberForPageOffset(offset: number) {
 	}
 	return null;
 }
+
+/**
+ * Try to find the html element by using a fragment id
+ */
+export function getLineElementForFragment(fragment: string): CodeLineElement | undefined {
+	return getCodeLineElements().find((element) => {
+		return element.element.id === fragment;
+	});
+}

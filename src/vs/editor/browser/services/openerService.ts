@@ -14,16 +14,25 @@ import { IOpenerService, IOpener } from 'vs/platform/opener/common/opener';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { localize } from 'vs/nls';
+import { IProductService } from 'vs/platform/product/common/product';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import Severity from 'vs/base/common/severity';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class OpenerService implements IOpenerService {
 
-	_serviceBrand: any;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly _opener = new LinkedList<IOpener>();
 
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		//
 	}
@@ -33,7 +42,7 @@ export class OpenerService implements IOpenerService {
 		return { dispose: remove };
 	}
 
-	async open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean> {
+	async open(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
 		// no scheme ?!?
 		if (!resource.scheme) {
 			return Promise.resolve(false);
@@ -49,14 +58,58 @@ export class OpenerService implements IOpenerService {
 		return this._doOpen(resource, options);
 	}
 
-	private _doOpen(resource: URI, options?: { openToSide?: boolean }): Promise<boolean> {
+	private _doOpen(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
 
-		const { scheme, path, query, fragment } = resource;
+		const { scheme, authority, path, query, fragment } = resource;
 
-		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https) || equalsIgnoreCase(scheme, Schemas.mailto)) {
-			// open http or default mail application
-			return this.openExternal(resource);
+		if (equalsIgnoreCase(scheme, Schemas.mailto) || (options && options.openExternal)) {
+			// open default mail application
+			return this._doOpenExternal(resource);
+		}
 
+		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
+			let trustedDomains: string[] = ['https://code.visualstudio.com'];
+			try {
+				const trustedDomainsSrc = this._storageService.get('http.trustedDomains', StorageScope.GLOBAL);
+				if (trustedDomainsSrc) {
+					trustedDomains = JSON.parse(trustedDomainsSrc);
+				}
+			} catch (err) { }
+
+			const domainToOpen = `${scheme}://${authority}`;
+
+			if (isDomainTrusted(domainToOpen, trustedDomains)) {
+				return this._doOpenExternal(resource);
+			} else {
+				return this._dialogService.show(
+					Severity.Info,
+					localize(
+						'openExternalLinkAt',
+						'Do you want {0} to open the external website?\n{1}',
+						this._productService.nameShort,
+						resource.toString(true)
+					),
+					[
+						localize('openLink', 'Open Link'),
+						localize('cancel', 'Cancel'),
+						localize('configureTrustedDomains', 'Configure Trusted Domains')
+					],
+					{
+						cancelId: 1
+					}).then((choice) => {
+						if (choice === 0) {
+							return this._doOpenExternal(resource);
+						} else if (choice === 2) {
+							return this._commandService.executeCommand('workbench.action.configureTrustedDomains', domainToOpen).then((pickedDomains: string[]) => {
+								if (pickedDomains.indexOf(domainToOpen) !== -1) {
+									return this._doOpenExternal(resource);
+								}
+								return Promise.resolve(false);
+							});
+						}
+						return Promise.resolve(false);
+					});
+			}
 		} else if (equalsIgnoreCase(scheme, Schemas.command)) {
 			// run command or bail out if command isn't known
 			if (!CommandsRegistry.getCommand(path)) {
@@ -100,9 +153,27 @@ export class OpenerService implements IOpenerService {
 		}
 	}
 
-	openExternal(resource: URI): Promise<boolean> {
+	private _doOpenExternal(resource: URI): Promise<boolean> {
 		dom.windowOpenNoOpener(encodeURI(resource.toString(true)));
 
 		return Promise.resolve(true);
 	}
+}
+
+/**
+ * Check whether a domain like https://www.microsoft.com matches
+ * the list of trusted domains.
+ */
+function isDomainTrusted(domain: string, trustedDomains: string[]) {
+	for (let i = 0; i < trustedDomains.length; i++) {
+		if (trustedDomains[i] === '*') {
+			return true;
+		}
+
+		if (trustedDomains[i] === domain) {
+			return true;
+		}
+	}
+
+	return false;
 }

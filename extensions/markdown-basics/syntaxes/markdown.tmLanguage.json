@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/05ccfa3db6edbd357390431f9e316adb38ba41d8",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/eb3898715b50d7911377a650e383a768a3a21f25",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1855,12 +1855,12 @@
 			"name": "markup.fenced_code.block.markdown"
 		},
 		"heading": {
-			"match": "(?:^|\\G)[ ]{0,3}((#{1,6})\\s*(?=[\\S[^#]]).*?\\s*(#{1,6})?)$\\n?",
+			"match": "(?:^|\\G)[ ]{0,3}((#{1,6})\\s+(?=[\\S[^#]]).*?\\s*(#{1,6})?)$\\n?",
 			"captures": {
 				"1": {
 					"patterns": [
 						{
-							"match": "(#{6})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{6})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.6.markdown",
 							"captures": {
 								"1": {
@@ -1875,7 +1875,7 @@
 							}
 						},
 						{
-							"match": "(#{5})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{5})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.5.markdown",
 							"captures": {
 								"1": {
@@ -1890,7 +1890,7 @@
 							}
 						},
 						{
-							"match": "(#{4})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{4})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.4.markdown",
 							"captures": {
 								"1": {
@@ -1905,7 +1905,7 @@
 							}
 						},
 						{
-							"match": "(#{3})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{3})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.3.markdown",
 							"captures": {
 								"1": {
@@ -1920,7 +1920,7 @@
 							}
 						},
 						{
-							"match": "(#{2})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{2})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.2.markdown",
 							"captures": {
 								"1": {
@@ -1935,7 +1935,7 @@
 							}
 						},
 						{
-							"match": "(#{1})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{1})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.1.markdown",
 							"captures": {
 								"1": {
@@ -1993,7 +1993,7 @@
 						"1": {
 							"patterns": [
 								{
-									"include": "text.html.basic"
+									"include": "text.html.derivative"
 								}
 							]
 						},
@@ -2015,7 +2015,7 @@
 							"begin": "(\\s*|$)",
 							"patterns": [
 								{
-									"include": "text.html.basic"
+									"include": "text.html.derivative"
 								}
 							],
 							"while": "(?i)^(?!.*</(script|style|pre)>)"
@@ -2023,10 +2023,10 @@
 					]
 				},
 				{
-					"begin": "(?i)(^|\\G)\\s*(?=</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(\\s|$|/?>))",
+					"begin": "(?i)(^|\\G)\\s*(?=</?[a-zA-Z]+[^\\s/&gt;]*(\\s|$|/?>))",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					],
 					"while": "^(?!\\s*$)"
@@ -2035,7 +2035,7 @@
 					"begin": "(^|\\G)\\s*(?=(<[a-zA-Z0-9\\-](/?>|\\s.*?>)|</[a-zA-Z0-9\\-]>)\\s*$)",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					],
 					"while": "^(?!\\s*$)"
@@ -2095,7 +2095,7 @@
 					"include": "#inline"
 				},
 				{
-					"include": "text.html.basic"
+					"include": "text.html.derivative"
 				},
 				{
 					"include": "#heading-setext"
@@ -2152,7 +2152,7 @@
 					"include": "#inline"
 				},
 				{
-					"include": "text.html.basic"
+					"include": "text.html.derivative"
 				},
 				{
 					"include": "#heading-setext"
@@ -2246,7 +2246,7 @@
 					"end": "(?<=>)",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					]
 				},
@@ -2391,7 +2391,7 @@
 					"end": "(?<=>)",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					]
 				},

@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { ReplacePattern, ReplacePiece, parseReplaceString } from 'vs/editor/contrib/find/replacePattern';
+import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
 
 suite('Replace Pattern test', () => {
 
@@ -152,6 +153,29 @@ suite('Replace Pattern test', () => {
 		let matches = /a(z)?/.exec('abcd');
 		let actual = replacePattern.buildReplaceString(matches);
 		assert.equal(actual, 'a{}');
+	});
+
+	test('buildReplaceStringWithCasePreserved test', () => {
+		let replacePattern = 'Def';
+		let actual: string | string[] = 'abc';
+
+		assert.equal(buildReplaceStringWithCasePreserved([actual], replacePattern), 'def');
+		actual = 'Abc';
+		assert.equal(buildReplaceStringWithCasePreserved([actual], replacePattern), 'Def');
+		actual = 'ABC';
+		assert.equal(buildReplaceStringWithCasePreserved([actual], replacePattern), 'DEF');
+
+		actual = ['abc', 'Abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'def');
+		actual = ['Abc', 'abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
+		actual = ['ABC', 'abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'DEF');
+
+		actual = ['AbC'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
+		actual = ['aBC'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
 	});
 
 	test('preserve case', () => {

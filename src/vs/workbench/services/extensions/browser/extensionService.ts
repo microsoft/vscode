@@ -27,6 +27,7 @@ import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browse
 import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
+import { DeltaExtensionsResult } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -81,21 +82,21 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		};
 	}
 
-	protected _createExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): ExtensionHostProcessManager[] {
+	protected _createExtensionHosts(_isInitialStart: boolean, initialActivationEvents: string[]): ExtensionHostProcessManager[] {
 		const result: ExtensionHostProcessManager[] = [];
 
-		const remoteAgentConnection = this._remoteAgentService.getConnection()!;
-
 		const webExtensions = this.getExtensions().then(extensions => extensions.filter(ext => isWebExtension(ext, this._configService)));
-		const remoteExtensions = this.getExtensions().then(extensions => extensions.filter(ext => !isWebExtension(ext, this._configService)));
-
 		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, true, webExtensions, URI.parse('empty:value')); //todo@joh
-		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
+		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, null, initialActivationEvents);
 		result.push(webHostProcessManager);
 
-		const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, remoteExtensions, this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
-		const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
-		result.push(remoteExtHostProcessManager);
+		const remoteAgentConnection = this._remoteAgentService.getConnection();
+		if (remoteAgentConnection) {
+			const remoteExtensions = this.getExtensions().then(extensions => extensions.filter(ext => !isWebExtension(ext, this._configService)));
+			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, remoteExtensions, this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
+			const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
+			result.push(remoteExtHostProcessManager);
+		}
 
 		return result;
 	}
@@ -103,27 +104,35 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected async _scanAndHandleExtensions(): Promise<void> {
 		// fetch the remote environment
 		let [remoteEnv, localExtensions] = await Promise.all([
-			<Promise<IRemoteAgentEnvironment>>this._remoteAgentService.getEnvironment(),
+			this._remoteAgentService.getEnvironment(),
 			this._staticExtensions.getExtensions()
 		]);
+
+		let result: DeltaExtensionsResult;
 
 		// local: only enabled and web'ish extension
 		localExtensions = localExtensions.filter(ext => this._isEnabled(ext) && isWebExtension(ext, this._configService));
 		this._checkEnableProposedApi(localExtensions);
 
-		// remote: only enabled and none-web'ish extension
-		remoteEnv.extensions = remoteEnv.extensions.filter(extension => this._isEnabled(extension) && !isWebExtension(extension, this._configService));
-		this._checkEnableProposedApi(remoteEnv.extensions);
+		if (!remoteEnv) {
+			result = this._registry.deltaExtensions(localExtensions, []);
 
-		// in case of overlap, the remote wins
-		const isRemoteExtension = new Set<string>();
-		remoteEnv.extensions.forEach(extension => isRemoteExtension.add(ExtensionIdentifier.toKey(extension.identifier)));
-		localExtensions = localExtensions.filter(extension => !isRemoteExtension.has(ExtensionIdentifier.toKey(extension.identifier)));
+		} else {
+			// remote: only enabled and none-web'ish extension
+			remoteEnv.extensions = remoteEnv.extensions.filter(extension => this._isEnabled(extension) && !isWebExtension(extension, this._configService));
+			this._checkEnableProposedApi(remoteEnv.extensions);
 
-		// save for remote extension's init data
-		this._remoteExtensionsEnvironmentData = remoteEnv;
+			// in case of overlap, the remote wins
+			const isRemoteExtension = new Set<string>();
+			remoteEnv.extensions.forEach(extension => isRemoteExtension.add(ExtensionIdentifier.toKey(extension.identifier)));
+			localExtensions = localExtensions.filter(extension => !isRemoteExtension.has(ExtensionIdentifier.toKey(extension.identifier)));
 
-		const result = this._registry.deltaExtensions(remoteEnv.extensions.concat(localExtensions), []);
+			// save for remote extension's init data
+			this._remoteExtensionsEnvironmentData = remoteEnv;
+
+			result = this._registry.deltaExtensions(remoteEnv.extensions.concat(localExtensions), []);
+		}
+
 		if (result.removedDueToLooping.length > 0) {
 			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
 		}

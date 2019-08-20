@@ -298,6 +298,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.experimentalRefreshOnResume', "An experimental setting that will refresh the terminal renderer when the system is resumed."),
 			type: 'boolean',
 			default: false
+		},
+		'terminal.integrated.experimentalUseTitleEvent': {
+			description: nls.localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
+			type: 'boolean',
+			default: false
 		}
 	}
 });

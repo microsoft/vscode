@@ -3998,8 +3998,12 @@ suite('autoClosingPairs', () => {
 					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
 					{ open: '\"', close: '\"', notIn: ['string'] },
 					{ open: '`', close: '`', notIn: ['string', 'comment'] },
-					{ open: '/**', close: ' */', notIn: ['string'] }
+					{ open: '/**', close: ' */', notIn: ['string'] },
+					{ open: 'begin', close: 'end', notIn: ['string'] }
 				],
+				__electricCharacterSupport: {
+					docComment: { open: '/**', close: ' */' }
+				}
 			}));
 		}
 
@@ -4439,6 +4443,28 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('multi-character autoclose', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			model.setValue('begi');
+			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			cursorCommand(cursor, H.Type, { text: 'n' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'beginend');
+
+			model.setValue('/*');
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '/** */');
+		});
+		mode.dispose();
+	});
+
 	test('issue #55314: Do not auto-close when ending with open', () => {
 		const languageId = new LanguageIdentifier('myElectricMode', 5);
 		class ElectricMode extends MockMode {
@@ -4477,7 +4503,7 @@ suite('autoClosingPairs', () => {
 			model.forceTokenization(model.getLineCount());
 			assertType(model, cursor, 3, 4, '"', '"', `does not double quote when ending with open`);
 			model.forceTokenization(model.getLineCount());
-			assertType(model, cursor, 4, 2, '"', '""', `double quote when ending with open`);
+			assertType(model, cursor, 4, 2, '"', '"', `does not double quote when ending with open`);
 			model.forceTokenization(model.getLineCount());
 			assertType(model, cursor, 4, 3, '"', '"', `does not double quote when ending with open`);
 		});
@@ -4772,31 +4798,18 @@ suite('autoClosingPairs', () => {
 
 			// on the mac US intl kb layout
 
-			// Typing ` + space
+			// Typing ' + space
 			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
 			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
 			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
-
 			assert.equal(model.getValue(), '\'\'');
 
-			// Typing " + space within string
-			cursor.setSelections('test', [new Selection(1, 2, 1, 2)]);
-			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
-			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
-			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '"' }, 'keyboard');
-			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
-
-			assert.equal(model.getValue(), '\'"\'');
-
-			// Typing ' + space after '
-			model.setValue('\'');
-			cursor.setSelections('test', [new Selection(1, 2, 1, 2)]);
+			// Typing one more ' + space
 			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
 			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
 			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
-
 			assert.equal(model.getValue(), '\'\'');
 
 			// Typing ' as a closing tag

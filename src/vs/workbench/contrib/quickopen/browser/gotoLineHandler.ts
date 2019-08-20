@@ -99,18 +99,17 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		if (this.editorService.activeTextEditorWidget && this.invalidRange(maxLineNumber)) {
 			const position = this.editorService.activeTextEditorWidget.getPosition();
 			if (position) {
-				const currentLine = position.lineNumber;
 
 				if (maxLineNumber > 0) {
-					return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}. Type a line number between 1 and {1} to navigate to.", currentLine, maxLineNumber);
+					return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Column: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, maxLineNumber);
 				}
 
-				return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
+				return nls.localize('gotoLineLabelEmpty', "Current Line: {0}, Column: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
 			}
 		}
 
 		// Input valid, indicate action
-		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and character {1}.", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}.", this.line);
+		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and column {1}.", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}.", this.line);
 	}
 
 	private invalidRange(maxLineNumber: number = this.getMaxLineNumber()): boolean {
@@ -229,8 +228,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 		if (this.editorService.activeTextEditorWidget) {
 			const position = this.editorService.activeTextEditorWidget.getPosition();
 			if (position) {
-				const currentLine = position.lineNumber;
-				return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
+				return nls.localize('gotoLineLabelEmpty', "Current Line: {0}, Column: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
 			}
 		}
 

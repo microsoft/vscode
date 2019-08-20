@@ -31,7 +31,11 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			if (!that._factories.has(request)) {
 				return original.apply(this, arguments);
 			}
-			return that._factories.get(request)!.load(request, URI.file(parent.filename), isMain, original);
+			return that._factories.get(request)!.load(
+				request,
+				URI.file(parent.filename),
+				request => original.apply(this, [request, parent, isMain])
+			);
 		};
 	}
 }

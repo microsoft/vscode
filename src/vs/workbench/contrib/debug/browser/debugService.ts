@@ -404,7 +404,7 @@ export class DebugService implements IDebugService {
 								.then(() => false);
 						}
 
-						return launch && launch.openConfigFile(false, true, undefined, this.initCancellationToken ? this.initCancellationToken.token : undefined).then(() => false);
+						return !!launch && launch.openConfigFile(false, true, undefined, this.initCancellationToken ? this.initCancellationToken.token : undefined).then(() => false);
 					});
 				}
 
@@ -542,6 +542,10 @@ export class DebugService implements IDebugService {
 				if (this.layoutService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getValue<IDebugConfiguration>('debug').openExplorerOnEnd) {
 					this.viewletService.openViewlet(EXPLORER_VIEWLET_ID);
 				}
+
+				// Data breakpoints that can not be persisted should be cleared when a session ends
+				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.canPersist);
+				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
 			}
 
 		}));

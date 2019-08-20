@@ -1620,7 +1620,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				nls.localize('TaskService.noWorkspace', "Tasks are only available on a workspace folder."),
 				[{
 					label: nls.localize('TaskService.learnMore', "Learn More"),
-					run: () => window.open('https://code.visualstudio.com/docs/editor/tasks')
+					run: () => this.openerService.open(URI.parse('https://code.visualstudio.com/docs/editor/tasks'))
 				}]
 			);
 			return false;

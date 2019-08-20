@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharacterPair, IAutoClosingPair, IAutoClosingPairConditional, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { IAutoClosingPair, StandardAutoClosingPairConditional, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
 
 export class CharacterPairSupport {
@@ -15,7 +15,7 @@ export class CharacterPairSupport {
 	private readonly _surroundingPairs: IAutoClosingPair[];
 	private readonly _autoCloseBefore: string;
 
-	constructor(config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[], autoCloseBefore?: string }) {
+	constructor(config: LanguageConfiguration) {
 		if (config.autoClosingPairs) {
 			this._autoClosingPairs = config.autoClosingPairs.map(el => new StandardAutoClosingPairConditional(el));
 		} else if (config.brackets) {
@@ -24,12 +24,18 @@ export class CharacterPairSupport {
 			this._autoClosingPairs = [];
 		}
 
+		if (config.__electricCharacterSupport && config.__electricCharacterSupport.docComment) {
+			const docComment = config.__electricCharacterSupport.docComment;
+			// IDocComment is legacy, only partially supported
+			this._autoClosingPairs.push(new StandardAutoClosingPairConditional({ open: docComment.open, close: docComment.close || '' }));
+		}
+
 		this._autoCloseBefore = typeof config.autoCloseBefore === 'string' ? config.autoCloseBefore : CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
 
 		this._surroundingPairs = config.surroundingPairs || this._autoClosingPairs;
 	}
 
-	public getAutoClosingPairs(): IAutoClosingPair[] {
+	public getAutoClosingPairs(): StandardAutoClosingPairConditional[] {
 		return this._autoClosingPairs;
 	}
 
@@ -37,22 +43,15 @@ export class CharacterPairSupport {
 		return this._autoCloseBefore;
 	}
 
-	public shouldAutoClosePair(character: string, context: ScopedLineTokens, column: number): boolean {
+	public static shouldAutoClosePair(autoClosingPair: StandardAutoClosingPairConditional, context: ScopedLineTokens, column: number): boolean {
 		// Always complete on empty line
 		if (context.getTokenCount() === 0) {
 			return true;
 		}
 
-		let tokenIndex = context.findTokenIndexAtOffset(column - 2);
-		let standardTokenType = context.getStandardTokenType(tokenIndex);
-
-		for (const autoClosingPair of this._autoClosingPairs) {
-			if (autoClosingPair.open === character) {
-				return autoClosingPair.isOK(standardTokenType);
-			}
-		}
-
-		return false;
+		const tokenIndex = context.findTokenIndexAtOffset(column - 2);
+		const standardTokenType = context.getStandardTokenType(tokenIndex);
+		return autoClosingPair.isOK(standardTokenType);
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {

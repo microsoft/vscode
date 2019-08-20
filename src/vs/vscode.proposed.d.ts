@@ -1141,35 +1141,4 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
-	//#region Webview Resource Roots
-
-	export interface Webview {
-		/**
-		 * Convert a uri for the local file system to one that can be used inside webviews.
-		 *
-		 * Webviews cannot directly load resoruces from the workspace or local file system using `file:` uris. The
-		 * `toWebviewResource` function takes a local `file:` uri and converts it into a uri that can be used inside of
-		 * a webview to load the same resource:
-		 *
-		 * ```ts
-		 * webview.html = `<img src="${webview.toWebviewResource(vscode.Uri.file('/Users/codey/workspace/cat.gif'))}">`
-		 * ```
-		 */
-		toWebviewResource(localResource: Uri): Uri;
-
-		/**
-		 * Content security policy source for webview resources.
-		 *
-		 * This is the origin that should be used in a content security policy rule:
-		 *
-		 * ```
-		 * img-src https: ${webview.cspSource} ...;
-		 * ```
-		 */
-		readonly cspSource: string;
-	}
-
-	//#endregion
-
 }

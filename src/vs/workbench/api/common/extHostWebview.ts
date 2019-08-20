@@ -12,7 +12,7 @@ import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShap
 import { Disposable } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as modes from 'vs/editor/common/modes';
-import { WebviewInitData, toWebviewResource } from 'vs/workbench/api/common/shared/webview';
+import { WebviewInitData, asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { generateUuid } from 'vs/base/common/uuid';
 
 type IconPath = URI | { light: URI, dark: URI };
@@ -35,8 +35,8 @@ export class ExtHostWebview implements vscode.Webview {
 		this._onMessageEmitter.dispose();
 	}
 
-	public toWebviewResource(resource: vscode.Uri): vscode.Uri {
-		return toWebviewResource(this._initData, this._handle, resource);
+	public asWebviewUri(resource: vscode.Uri): vscode.Uri {
+		return asWebviewUri(this._initData, this._handle, resource);
 	}
 
 	public get cspSource(): string {

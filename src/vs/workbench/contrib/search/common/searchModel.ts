@@ -103,17 +103,17 @@ export class Match {
 		}
 
 		const fullMatchText = this.fullMatchText();
-		let replaceString = searchModel.replacePattern.getReplaceString(fullMatchText);
+		let replaceString = searchModel.replacePattern.getReplaceString(fullMatchText, searchModel.preserveCase);
 
 		// If match string is not matching then regex pattern has a lookahead expression
 		if (replaceString === null) {
 			const fullMatchTextWithTrailingContent = this.fullMatchText(true);
-			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithTrailingContent);
+			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithTrailingContent, searchModel.preserveCase);
 
 			// Search/find normalize line endings - check whether \r prevents regex from matching
 			if (replaceString === null) {
 				const fullMatchTextWithoutCR = fullMatchTextWithTrailingContent.replace(/\r\n/g, '\n');
-				replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR);
+				replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR, searchModel.preserveCase);
 			}
 		}
 
@@ -895,6 +895,7 @@ export class SearchModel extends Disposable {
 	private _replaceActive: boolean = false;
 	private _replaceString: string | null = null;
 	private _replacePattern: ReplacePattern | null = null;
+	private _preserveCase: boolean = false;
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -924,6 +925,14 @@ export class SearchModel extends Disposable {
 
 	get replaceString(): string {
 		return this._replaceString || '';
+	}
+
+	set preserveCase(value: boolean) {
+		this._preserveCase = value;
+	}
+
+	get preserveCase(): boolean {
+		return this._preserveCase;
 	}
 
 	set replaceString(replaceString: string) {

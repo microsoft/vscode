@@ -22,7 +22,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { IProductService } from 'vs/platform/product/common/product';
 import { startsWith } from 'vs/base/common/strings';
-import { Webview } from 'vs/workbench/contrib/webview/common/webview';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
 interface OldMainThreadWebviewState {
 	readonly viewType: string;
