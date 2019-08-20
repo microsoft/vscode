@@ -10,7 +10,7 @@ import { MarkdownEngine } from '../markdownEngine';
 import { SkinnyTextDocument } from '../tableOfContentsProvider';
 
 export class RenderDocument implements Command {
-	public readonly id = 'markdown.render';
+	public readonly id = 'markdown.api.render';
 
 	public constructor(
 		private readonly engine: MarkdownEngine
