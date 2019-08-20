@@ -50,7 +50,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';

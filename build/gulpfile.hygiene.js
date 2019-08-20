@@ -50,6 +50,7 @@ const indentationFilter = [
 	'!src/vs/css.js',
 	'!src/vs/css.build.js',
 	'!src/vs/loader.js',
+	'!src/vs/base/common/insane/insane.js',
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
@@ -131,6 +132,7 @@ const eslintFilter = [
 	'!src/vs/nls.js',
 	'!src/vs/css.build.js',
 	'!src/vs/nls.build.js',
+	'!src/**/insane.js',
 	'!src/**/marked.js',
 	'!**/test/**'
 ];
