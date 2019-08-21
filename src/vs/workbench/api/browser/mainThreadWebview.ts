@@ -292,7 +292,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 					viewStates[handle] = {
 						visible: input === group.activeEditor,
 						active: input === activeInput,
-						position: editorGroupToViewColumn(this._editorGroupService, group.id || 0),
+						position: editorGroupToViewColumn(this._editorGroupService, group.id),
 					};
 				}
 			}
