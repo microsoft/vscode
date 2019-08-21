@@ -12,7 +12,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
-suite.skip('OpenerService', function () {
+suite('OpenerService', function () {
 
 	const editorService = new TestCodeEditorService();
 
@@ -79,6 +79,7 @@ suite.skip('OpenerService', function () {
 	});
 
 	test('delegate to editorService, scheme:///fff', function () {
+
 		const openerService = new OpenerService(
 			editorService,
 			NullCommandService,
