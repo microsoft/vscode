@@ -12,7 +12,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
-suite('OpenerService', function () {
+suite.skip('OpenerService', function () {
 
 	const editorService = new TestCodeEditorService();
 
