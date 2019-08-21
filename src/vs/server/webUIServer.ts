@@ -32,6 +32,7 @@ const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 export class WebUIServer extends Disposable {
 
 	private _webviewServer: http.Server | null;
+	private _webviewEndpoint: string | null;
 
 	constructor(
 		private readonly _connectionToken: string,
@@ -40,126 +41,59 @@ export class WebUIServer extends Disposable {
 	) {
 		super();
 		this._webviewServer = null;
+		this._webviewEndpoint = null;
+	}
+
+	dispose(): void {
+		if (this._webviewServer) {
+			this._webviewServer.close();
+		}
+		super.dispose();
 	}
 
 	async init(port: number): Promise<void> {
 		const webviewPort = port > 0 ? await findFreePort(+port + 1, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */) : 0;
 		this._webviewServer = this.spawnWebviewServer(webviewPort);
+		const webviewServerAddress = this._webviewServer.address();
+		this._webviewEndpoint = 'http://' + (typeof webviewServerAddress === 'string'
+			? webviewServerAddress
+			: (webviewServerAddress.address === '::' ? 'localhost' : webviewServerAddress.address) + ':' + webviewServerAddress.port);
 	}
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		if (!req.url) {
+			return this._serveError(req, res, 400, `Bad request.`);
+		}
 
-
-		// Workbench
 		try {
-			const headers: Record<string, string> = Object.create(null);
-			const parsedUrl = url.parse(req.url!, true);
-			const pathname = url.parse(req.url!).pathname;
-			let validatePath = true;
+			const parsedUrl = url.parse(req.url, true);
+			const pathname = parsedUrl.pathname;
 
-			let filePath: string;
 			if (pathname === '/') {
-				filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
-
-				const remoteAuthority = req.headers.host!; // TODO@web this is localhost when opening 127.0.0.1 and is possibly undefined, does it matter?
-				const transformer = createRemoteURITransformer(remoteAuthority);
-
-				const { workspacePath, isFolder } = await this._getWorkspace(req.url);
-
-				const webviewServerAddress = this._webviewServer!.address();
-				const webviewEndpoint = 'http://' + (typeof webviewServerAddress === 'string'
-					? webviewServerAddress
-					: (webviewServerAddress.address === '::' ? 'localhost' : webviewServerAddress.address) + ':' + webviewServerAddress.port);
-
-				function escapeAttribute(value: string): string {
-					return value.replace(/"/g, '&quot;');
-				}
-
-				const data = (await util.promisify(fs.readFile)(filePath)).toString()
-					.replace('{{WORKBENCH_WEB_CONGIGURATION}}', escapeAttribute(JSON.stringify({
-						folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
-						workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
-						remoteAuthority,
-						webviewEndpoint,
-						driver: this._environmentService.driverHandle === 'web' ? true : undefined,
-					})))
-					.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
-					.replace('{{PRODUCT_CONFIGURATION}}', escapeAttribute(JSON.stringify(product)))
-					.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(this._environmentService.webUserDataHome))));
-
-				res.writeHead(200, { 'Content-Type': textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
-				return res.end(data);
+				return this._handleRoot(req, res, parsedUrl);
 			}
-
-			// Favicon
-			else if (pathname === '/favicon.ico') {
-				filePath = path.join(APP_ROOT, 'resources', 'server', 'favicon.ico');
+			if (pathname === '/favicon.ico') {
+				return this._serveFile(req, res, path.join(APP_ROOT, 'resources', 'server', 'favicon.ico'));
 			}
-
-			// Extension/Workspace resources
-			else if (pathname === '/vscode-remote') {
-				const { query } = url.parse(req.url!);
-				if (typeof query !== 'string') {
-					res.writeHead(400, { 'Content-Type': 'text/plain' });
-					res.end(`Bad request.`);
-					return;
-				}
-				try {
-					let queryData = JSON.parse(decodeURIComponent(query));
-					filePath = URI.revive(queryData).fsPath;
-					validatePath = false;
-				} catch (err) {
-					res.writeHead(400, { 'Content-Type': 'text/plain' });
-					res.end(`Bad request.\n${err}`);
-					return;
-				}
-
-				if (isEqualOrParent(filePath, this._environmentService.builtinExtensionsPath, !isLinux)
-					|| isEqualOrParent(filePath, this._environmentService.extensionsPath, !isLinux)
-				) {
-					headers['Cache-Control'] = 'public, max-age=31536000';
-					headers['X-VSCode-Extension'] = 'true';
-				}
+			if (pathname === '/vscode-remote') {
+				return this._handleVSCodeRemoteResource(req, res, parsedUrl);
 			}
-
-			// Extension/Workspace resources
-			else if (pathname === '/vscode-remote2') {
-				if (parsedUrl.query['tkn'] !== this._connectionToken) {
-					res.writeHead(403, { 'Content-Type': 'text/plain' });
-					res.end(`Forbidden.`);
-					return;
-				}
-				const desiredPath = parsedUrl.query['path'];
-				if (typeof desiredPath !== 'string') {
-					res.writeHead(400, { 'Content-Type': 'text/plain' });
-					res.end(`Bad request.`);
-					return;
-				}
-				try {
-					filePath = URI.from({ scheme: Schemas.file, path: desiredPath }).fsPath;
-					validatePath = false;
-				} catch (err) {
-					res.writeHead(400, { 'Content-Type': 'text/plain' });
-					res.end(`Bad request.\n${err}`);
-					return;
-				}
-
-				return this._serveFile(req, res, filePath, headers);
+			if (pathname === '/vscode-remote2') {
+				return this._handleVSCodeRemoteResource2(req, res, parsedUrl);
 			}
 
 			// Anything else
-			else {
-				const client = (this._environmentService.args as any)['client'];
-				let clientRoot;
-				if (!client || pathname! === '/out/vs/code/browser/workbench/workbench.js') {
-					clientRoot = APP_ROOT;
-				} else {
-					clientRoot = path.normalize(client); // use provided path as client root
-					validatePath = false; // do not validate path as such
-				}
-
-				filePath = path.join(clientRoot, path.normalize(pathname!));
+			let validatePath = true;
+			const client = (this._environmentService.args as any)['client'];
+			let clientRoot;
+			if (!client || pathname! === '/out/vs/code/browser/workbench/workbench.js') {
+				clientRoot = APP_ROOT;
+			} else {
+				clientRoot = path.normalize(client); // use provided path as client root
+				validatePath = false; // do not validate path as such
 			}
+
+			let filePath = path.join(clientRoot, path.normalize(pathname!));
 
 			if (validatePath && !isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
 				throw new Error(`Invalid path ${pathname}`); // prevent navigation outside root
@@ -170,6 +104,7 @@ export class WebUIServer extends Disposable {
 				filePath += '/index.html';
 			}
 
+			const headers: Record<string, string> = Object.create(null);
 			// Allow all service worker requests to control the "max" scope
 			// see: https://www.w3.org/TR/service-workers-1/#extended-http-headers
 			if (req.headers['service-worker']) {
@@ -189,10 +124,106 @@ export class WebUIServer extends Disposable {
 		}
 	}
 
-	private async _serveFile(req: http.IncomingMessage, res: http.ServerResponse, filePath: string, headers: Record<string, string>): Promise<void> {
+	/**
+	 * Handle HTTP requests for /
+	 */
+	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		if (!req.headers.host) {
+			return this._serveError(req, res, 400, `Bad request.`);
+		}
+
+		const remoteAuthority = req.headers.host;
+		const transformer = createRemoteURITransformer(remoteAuthority);
+		const webviewEndpoint = this._webviewEndpoint || '';
+		const { workspacePath, isFolder } = await this._getWorkspace(parsedUrl);
+
+		function escapeAttribute(value: string): string {
+			return value.replace(/"/g, '&quot;');
+		}
+
+		const filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
+		const data = (await util.promisify(fs.readFile)(filePath)).toString()
+			.replace('{{WORKBENCH_WEB_CONGIGURATION}}', escapeAttribute(JSON.stringify({
+				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
+				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
+				remoteAuthority,
+				webviewEndpoint,
+				driver: this._environmentService.driverHandle === 'web' ? true : undefined,
+			})))
+			.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
+			.replace('{{PRODUCT_CONFIGURATION}}', escapeAttribute(JSON.stringify(product)))
+			.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(this._environmentService.webUserDataHome))));
+
+		res.writeHead(200, { 'Content-Type': textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
+		return res.end(data);
+	}
+
+	/**
+	 * Handle HTTP requests for resources from the web client (images, fonts, etc.)
+	 */
+	private async _handleVSCodeRemoteResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		const { query } = url.parse(req.url!);
+		if (typeof query !== 'string') {
+			return this._serveError(req, res, 400, `Bad request.`);
+		}
+
+		let filePath: string;
 		try {
-			headers['Content-Type'] = textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
-			res.writeHead(200, headers);
+			let queryData = JSON.parse(decodeURIComponent(query));
+			filePath = URI.revive(queryData).fsPath;
+		} catch (err) {
+			return this._serveError(req, res, 400, `Bad request.`);
+		}
+
+		const responseHeaders: Record<string, string> = Object.create(null);
+		if (isEqualOrParent(filePath, this._environmentService.builtinExtensionsPath, !isLinux)
+			|| isEqualOrParent(filePath, this._environmentService.extensionsPath, !isLinux)
+		) {
+			responseHeaders['Cache-Control'] = 'public, max-age=31536000';
+			responseHeaders['X-VSCode-Extension'] = 'true';
+		}
+
+		return this._serveFile(req, res, filePath, responseHeaders);
+	}
+
+	/**
+	 * Handle HTTP requests for renderer resources from the rich client (images, fonts, etc.)
+	 */
+	private async _handleVSCodeRemoteResource2(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		if (parsedUrl.query['tkn'] !== this._connectionToken) {
+			return this._serveError(req, res, 403, `Forbidden.`);
+		}
+
+		const desiredPath = parsedUrl.query['path'];
+		if (typeof desiredPath !== 'string') {
+			return this._serveError(req, res, 400, `Bad request.`);
+		}
+
+		let filePath: string;
+		try {
+			filePath = URI.from({ scheme: Schemas.file, path: desiredPath }).fsPath;
+		} catch (err) {
+			return this._serveError(req, res, 400, `Bad request.`);
+		}
+
+		return this._serveFile(req, res, filePath);
+	}
+
+	/**
+	 * Return an error to the client.
+	 */
+	private async _serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCode: number, errorMessage: string): Promise<void> {
+		res.writeHead(errorCode, { 'Content-Type': 'text/plain' });
+		res.end(errorMessage);
+	}
+
+	/**
+	 * Serve a file at a given path or 404 if the file is missing.
+	 */
+	private async _serveFile(req: http.IncomingMessage, res: http.ServerResponse, filePath: string, responseHeaders: Record<string, string> = Object.create(null)): Promise<void> {
+		try {
+			responseHeaders['Content-Type'] = textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
+			res.writeHead(200, responseHeaders);
 			const data = await util.promisify(fs.readFile)(filePath);
 			return res.end(data);
 		} catch (error) {
@@ -204,18 +235,17 @@ export class WebUIServer extends Disposable {
 		}
 	}
 
-	private async _getWorkspace(url: string | undefined): Promise<{ workspacePath?: string, isFolder?: boolean }> {
+	private async _getWorkspace(parsedUrl: url.UrlWithParsedQuery): Promise<{ workspacePath?: string, isFolder?: boolean }> {
 
 		// empty window requested?
-		if (this._getQueryValue(url, 'ew') === 'true') {
+		if (this._getFirstQueryValue(parsedUrl, 'ew') === 'true') {
 			// empty window
 			return {};
 		}
 
 		const cwd = process.env['VSCODE_CWD'] || process.cwd();
-
-		const queryWorkspace = this._getQueryValue(url, 'workspace');
-		const queryFolder = this._getQueryValue(url, 'folder');
+		const queryWorkspace = this._getFirstQueryValue(parsedUrl, 'workspace');
+		const queryFolder = this._getFirstQueryValue(parsedUrl, 'folder');
 
 		// check for workspace argument
 		if (queryWorkspace || !queryFolder /* queries always have higher priority */) {
@@ -253,21 +283,9 @@ export class WebUIServer extends Disposable {
 		return {};
 	}
 
-	private _getQueryValue(url: string | undefined, key: string): string | undefined {
-		if (url === undefined) {
-			return undefined;
-		}
-		const queryString = url.split('?')[1];
-		if (queryString) {
-			const args = queryString.split('&');
-			for (let i = 0; i < args.length; i++) {
-				const split = args[i].split('=');
-				if (split[0] === key) {
-					return decodeURIComponent(split[1]);
-				}
-			}
-		}
-		return undefined;
+	private _getFirstQueryValue(parsedUrl: url.UrlWithParsedQuery, key: string): string | undefined {
+		const result = parsedUrl.query[key];
+		return Array.isArray(result) ? result[0] : result;
 	}
 
 	private spawnWebviewServer(webviewPort: number): http.Server {
