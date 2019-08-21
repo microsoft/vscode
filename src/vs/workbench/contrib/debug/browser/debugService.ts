@@ -479,11 +479,11 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private launchOrAttachToSession(session: IDebugSession, focus = true): Promise<void> {
+	private launchOrAttachToSession(session: IDebugSession, forceFocus = false): Promise<void> {
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
 		return session.initialize(dbgr!).then(() => {
 			return session.launchOrAttach(session.configuration).then(() => {
-				if (focus) {
+				if (forceFocus || !this.viewModel.focusedSession) {
 					this.focusStackFrame(undefined, undefined, session);
 				}
 			});
@@ -572,7 +572,7 @@ export class DebugService implements IDebugService {
 				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? this.extensionHostDebugService.reload(session.getId()) : undefined);
 			}
 
-			const shouldFocus = this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
+			const shouldFocus = !!this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
 			// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
 			return (isAutoRestart ? session.disconnect(true) : session.terminate(true)).then(() => {
 

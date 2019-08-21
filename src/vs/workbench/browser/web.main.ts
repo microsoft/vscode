@@ -8,7 +8,6 @@ import { domContentLoaded, addDisposableListener, EventType, addClass } from 'vs
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { SimpleLogService } from 'vs/workbench/browser/web.simpleservices';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -42,6 +41,9 @@ import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/th
 import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { StaticExtensionsService, IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
+import { BufferLogService } from 'vs/platform/log/common/bufferLog';
+import { INMEMORY_LOG_SCHEME, InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
+import { FileLogService } from 'vs/platform/log/common/fileLogService';
 
 class CodeRendererMain extends Disposable {
 
@@ -117,13 +119,14 @@ class CodeRendererMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Log
-		const logService = new SimpleLogService();
+		const logFile = URI.file(`window.log`).with({ scheme: INMEMORY_LOG_SCHEME });
+		const logService = new BufferLogService();
 		serviceCollection.set(ILogService, logService);
 
 		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		// Environment
-		const environmentService = new BrowserWorkbenchEnvironmentService(payload.id, this.configuration);
+		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logFile, ...this.configuration });
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -145,6 +148,10 @@ class CodeRendererMain extends Disposable {
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
+
+		// InMemory Log
+		fileService.registerProvider(INMEMORY_LOG_SCHEME, new InMemoryLogProvider());
+		logService.logger = new FileLogService('window', logFile, logService.getLevel(), fileService);
 
 		// Static Extensions
 		const staticExtensions = new StaticExtensionsService(this.configuration.staticExtensions || []);

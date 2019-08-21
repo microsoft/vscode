@@ -30,6 +30,7 @@ suite('OpenerService', function () {
 	});
 
 	test('delegate to editorService, scheme:///fff', function () {
+
 		const openerService = new OpenerService(
 			editorService,
 			NullCommandService

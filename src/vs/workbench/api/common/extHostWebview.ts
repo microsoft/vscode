@@ -5,15 +5,15 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import * as modes from 'vs/editor/common/modes';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
+import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import * as vscode from 'vscode';
-import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewState } from './extHost.protocol';
+import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
 import { Disposable } from './extHostTypes';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as modes from 'vs/editor/common/modes';
-import { WebviewInitData, asWebviewUri } from 'vs/workbench/api/common/shared/webview';
-import { generateUuid } from 'vs/base/common/uuid';
 
 type IconPath = URI | { light: URI, dark: URI };
 
@@ -89,10 +89,11 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 
 	private readonly _options: vscode.WebviewPanelOptions;
 	private readonly _webview: ExtHostWebview;
-	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private _visible: boolean = true;
 	private _active: boolean = true;
+
+	_isDisposed: boolean = false;
 
 	readonly _onDisposeEmitter = new Emitter<void>();
 	public readonly onDidDispose: Event<void> = this._onDisposeEmitter.event;
@@ -297,21 +298,21 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	public $onDidChangeWebviewPanelViewState(
-		handle: WebviewPanelHandle,
-		newState: WebviewPanelViewState
-	): void {
-		const panel = this.getWebviewPanel(handle);
-		if (!panel) {
-			return;
-		}
+	public $onDidChangeWebviewPanelViewStates(newStates: WebviewPanelViewStateData): void {
+		for (const handle of Object.keys(newStates)) {
+			const panel = this.getWebviewPanel(handle);
+			if (!panel || panel._isDisposed) {
+				continue;
+			}
 
-		const viewColumn = typeConverters.ViewColumn.to(newState.position);
-		if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
-			panel._setActive(newState.active);
-			panel._setVisible(newState.visible);
-			panel._setViewColumn(viewColumn);
-			panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
+			const newState = newStates[handle];
+			const viewColumn = typeConverters.ViewColumn.to(newState.position);
+			if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
+				panel._setActive(newState.active);
+				panel._setVisible(newState.visible);
+				panel._setViewColumn(viewColumn);
+				panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
+			}
 		}
 	}
 
