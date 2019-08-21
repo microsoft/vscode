@@ -31,7 +31,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/product';
 import Severity from 'vs/base/common/severity';
@@ -176,7 +175,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -372,7 +370,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		for (let i = 0; i < _uris.length; i++) {
 			const uri = _uris[i];
 			if ('folderUri' in uri) {
-				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}${this.workbenchEnvironmentService.configuration.connectionToken ? `&tkn=${this.workbenchEnvironmentService.configuration.connectionToken}` : ''}`;
+				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {
@@ -459,7 +457,6 @@ export class SimpleWindowsService implements IWindowsService {
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
 
 	constructor(
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService
@@ -649,11 +646,6 @@ export class SimpleWindowsService implements IWindowsService {
 		const ibe = args['inspect-brk-extensions'];
 		if (ibe) {
 			addQueryParameter('ibe', ibe);
-		}
-
-		// add connection token
-		if (this.workbenchEnvironmentService.configuration.connectionToken) {
-			addQueryParameter('tkn', this.workbenchEnvironmentService.configuration.connectionToken);
 		}
 
 		window.open(newAddress);
