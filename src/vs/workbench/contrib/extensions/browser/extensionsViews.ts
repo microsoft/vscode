@@ -876,7 +876,7 @@ export class ServerExtensionsView extends ExtensionsListView {
 
 	getActions(): IAction[] {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === this.server) {
-			const installLocalExtensionsInRemoteAction = this._register(this.instantiationService.createInstance(InstallLocalExtensionsInRemoteAction, false));
+			const installLocalExtensionsInRemoteAction = this._register(this.instantiationService.createInstance(InstallLocalExtensionsInRemoteAction));
 			installLocalExtensionsInRemoteAction.class = 'octicon octicon-cloud-download';
 			return [installLocalExtensionsInRemoteAction];
 		}
