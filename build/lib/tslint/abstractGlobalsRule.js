@@ -35,7 +35,7 @@ class AbstractGlobalsRuleWalker extends Lint.RuleWalker {
                     }
                     return false;
                 })) {
-                    this.addFailureAtNode(node, `!!Cannot use global '${node.text}' in '${this._config.target}'`);
+                    this.addFailureAtNode(node, `Cannot use global '${node.text}' in '${this._config.target}'`);
                 }
             }
         }
