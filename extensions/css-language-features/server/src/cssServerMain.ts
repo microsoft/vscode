@@ -103,7 +103,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
-	const dataPaths: string[] = params.initializationOptions.dataPaths;
+	const dataPaths: string[] = params.initializationOptions.dataPaths || [];
 	const customDataProviders = getDataProviders(dataPaths);
 
 	function getClientCapability<T>(name: string, def: T) {
