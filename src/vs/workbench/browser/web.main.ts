@@ -121,7 +121,7 @@ class CodeRendererMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Log
-		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: INMEMORY_LOG_SCHEME });
+		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: INDEXEDDB_LOG_SCHEME });
 		const logService = new BufferLogService();
 		serviceCollection.set(ILogService, logService);
 
