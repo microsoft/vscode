@@ -319,7 +319,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 					return;
 
 				case 'did-click-link':
-					let [uri] = event.args;
+					const [uri] = event.args;
 					this._onDidClickLink.fire(URI.parse(uri));
 					return;
 
@@ -334,12 +334,10 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 								clientY: rawEvent.clientY + bounds.top,
 							}));
 							return;
-						}
-						catch (TypeError) {
+						} catch {
 							// CustomEvent was treated as MouseEvent so don't do anything - https://github.com/microsoft/vscode/issues/78915
 							return;
 						}
-
 					}
 
 				case 'did-set-content':
@@ -637,6 +635,12 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 	public hideFind() {
 		if (this._webviewFindWidget) {
 			this._webviewFindWidget.hide();
+		}
+	}
+
+	public runFindAction(previous: boolean) {
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.find(previous);
 		}
 	}
 

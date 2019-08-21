@@ -74,6 +74,10 @@ export class FileLogService extends AbstractLogService implements ILogService {
 		return this.queue.queue(() => Promise.resolve());
 	}
 
+	log(level: LogLevel, args: any[]): void {
+		this._log(level, this.format(args));
+	}
+
 	private _log(level: LogLevel, message: string): void {
 		this.queue.queue(async () => {
 			let content = await this.loadContent();

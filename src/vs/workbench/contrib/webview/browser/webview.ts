@@ -16,6 +16,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
  * Set when the find widget in a webview is visible.
  */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
+export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('webviewFindWidgetFocused', false);
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
@@ -83,6 +84,7 @@ export interface Webview extends IDisposable {
 
 	showFind(): void;
 	hideFind(): void;
+	runFindAction(previous: boolean): void;
 }
 
 export interface WebviewElement extends Webview {

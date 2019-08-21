@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
@@ -42,8 +42,7 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean,
-		private readonly _invertDefaultDirection: boolean = false
+		showOptionButtons?: boolean
 	) {
 		super();
 
@@ -92,20 +91,6 @@ export abstract class SimpleFindWidget extends Widget {
 			this._findInput.setWholeWords(this._state.wholeWord);
 			this._findInput.setCaseSensitive(this._state.matchCase);
 			this.findFirst();
-		}));
-
-		this._register(this._findInput.onKeyDown((e) => {
-			if (e.equals(KeyCode.Enter)) {
-				this.find(this._invertDefaultDirection);
-				e.preventDefault();
-				return;
-			}
-
-			if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-				this.find(!this._invertDefaultDirection);
-				e.preventDefault();
-				return;
-			}
 		}));
 
 		this.prevBtn = this._register(new SimpleButton({

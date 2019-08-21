@@ -89,7 +89,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
 		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
 		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, options.workspaceId);
-		this.configuration.connectionToken = options.connectionToken || this.getConnectionTokenFromLocation();
+		this.configuration.connectionToken = options.connectionToken || getCookieValue('vscode-tkn');
 
 		this.debugExtensionHost = {
 			port: null,
@@ -190,21 +190,12 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get webviewCspSource(): string {
 		return this.webviewEndpoint ? this.webviewEndpoint : 'vscode-resource:';
 	}
+}
 
-	private getConnectionTokenFromLocation(): string | undefined {
-		// TODO: Check with @alexd where the token will be: search or hash?
-		let connectionToken: string | undefined = undefined;
-		if (document.location.search) {
-			connectionToken = this.getConnectionToken(document.location.search);
-		}
-		if (!connectionToken && document.location.hash) {
-			connectionToken = this.getConnectionToken(document.location.hash);
-		}
-		return connectionToken;
-	}
-
-	private getConnectionToken(str: string): string | undefined {
-		const m = str.match(/[#&?]tkn=([^&]+)/);
-		return m ? m[1] : undefined;
-	}
+/**
+ * See https://stackoverflow.com/a/25490531
+ */
+function getCookieValue(name: string): string | undefined {
+	const m = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)');
+	return m ? m.pop() : undefined;
 }

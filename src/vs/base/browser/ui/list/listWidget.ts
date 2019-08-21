@@ -1307,6 +1307,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view.setScrollTop(scrollTop);
 	}
 
+	get scrollLeft(): number {
+		return this.view.getScrollLeft();
+	}
+
+	set scrollLeft(scrollLeft: number) {
+		this.view.setScrollLeftt(scrollLeft);
+	}
+
 	get scrollHeight(): number {
 		return this.view.scrollHeight;
 	}

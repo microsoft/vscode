@@ -367,6 +367,10 @@ export let completionKindFromString: {
 	};
 })();
 
+export const enum CompletionItemKindModifier {
+	Deprecated = 1
+}
+
 export const enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
@@ -397,9 +401,10 @@ export interface CompletionItem {
 	 */
 	kind: CompletionItemKind;
 	/**
-	 * Indicates if this item is deprecated.
+	 * A modifier to the `kind` which affect how the item
+	 * is rendered, e.g. Deprecated is rendered with a strikeout
 	 */
-	deprecated?: boolean;
+	kindModifier?: CompletionItemKindModifier;
 	/**
 	 * A human-readable string with additional information
 	 * about this item, like type or symbol information.
@@ -468,7 +473,7 @@ export interface CompletionItem {
 	/**
 	 * @internal
 	 */
-	[key: string]: any;
+	_id?: [number, number];
 }
 
 export interface CompletionList {
