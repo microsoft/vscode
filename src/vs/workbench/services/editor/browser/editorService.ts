@@ -282,9 +282,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Respect option to reveal an editor if it is open (not necessarily visible)
 			if ((options && options.revealIfOpened) || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
 				for (const group of groupsByLastActive) {
-					if (group.isOpened(input)) {
+					if (group.isOpened(input) && group.isActive(input)) {
 						targetGroup = group;
 						break;
+					}
+					if (group.isOpened(input)) {
+						targetGroup = group;
 					}
 				}
 			}
