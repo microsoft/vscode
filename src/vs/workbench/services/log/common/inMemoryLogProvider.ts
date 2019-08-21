@@ -3,75 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileDeleteOptions, FileWriteOptions, FileChangeType } from 'vs/platform/files/common/files';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { KeyValueLogProvider } from 'vs/workbench/services/log/common/keyValueLogProvider';
+import { keys } from 'vs/base/common/map';
 
 export const INMEMORY_LOG_SCHEME = 'vscode-logs-inmemory';
 
-interface ILog {
-	content: string;
-	version: number;
-}
+export class InMemoryLogProvider extends KeyValueLogProvider {
 
-export class InMemoryLogProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
-
-	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.FileReadWrite;
-	readonly onDidChangeCapabilities: Event<void> = Event.None;
-
-	private readonly _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
-	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChangeFile.event;
-
-	private readonly logs: Map<string, ILog> = new Map<string, ILog>();
+	private readonly logs: Map<string, string> = new Map<string, string>();
 
 	constructor(
 	) {
-		super();
+		super(INMEMORY_LOG_SCHEME);
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		return Disposable.None;
+	protected async getAllKeys(): Promise<string[]> {
+		return keys(this.logs);
 	}
 
-	mkdir(resource: URI): Promise<void> {
-		return Promise.reject(new Error('Not Supported'));
+	protected async hasKey(key: string): Promise<boolean> {
+		return this.logs.has(key);
 	}
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		return Promise.reject(new Error('Not Supported'));
+	protected async getValue(key: string): Promise<string> {
+		return this.logs.get(key) || '';
 	}
 
-	readdir(resource: URI): Promise<[string, FileType][]> {
-		return Promise.reject(new Error('Not Supported'));
+	protected async setValue(key: string, value: string): Promise<void> {
+		this.logs.set(key, value);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		return Promise.reject(new Error('Not Supported'));
-	}
-
-	async stat(resource: URI): Promise<IStat> {
-		const log = this.logs.get(resource.toString());
-		return {
-			ctime: 0,
-			mtime: log ? log.version : 0,
-			size: log ? log.content.length : 0,
-			type: FileType.File
-		};
-	}
-
-	async readFile(resource: URI): Promise<Uint8Array> {
-		const log = this.logs.get(resource.toString());
-		return VSBuffer.fromString(log ? log.content : '').buffer;
-	}
-
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		const log = this.logs.get(resource.toString()) || { content: '', version: 0 };
-		log.content = VSBuffer.wrap(content).toString();
-		log.version = log.version + 1;
-		this.logs.set(resource.toString(), log);
-		this._onDidChangeFile.fire([{ resource, type: FileChangeType.UPDATED }]);
+	protected async deleteKey(key: string): Promise<void> {
+		this.logs.delete(key);
 	}
 
 }
