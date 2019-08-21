@@ -52,6 +52,12 @@ steps:
     git merge $(node -p "require('./package.json').distro")
   displayName: Merge distro
 
+- script: |
+    set -e
+    AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
+    ./build/azure-pipelines/web/publish-webview.sh
+  displayName: Publish Webview
+
 # - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
 #   inputs:
 #     keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
