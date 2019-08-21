@@ -9,6 +9,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import * as marked from 'vs/base/common/marked/marked';
+import * as insane from 'vs/base/common/insane/insane';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
@@ -171,7 +172,20 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		renderer
 	};
 
-	element.innerHTML = marked.parse(markdown.value, markedOptions);
+	const allowedSchemes = ['http', 'https', 'mailto'];
+	if (markdown.isTrusted) {
+		allowedSchemes.push('command');
+	}
+
+	const renderedMarkdown = marked.parse(markdown.value, markedOptions);
+	element.innerHTML = insane(renderedMarkdown, {
+		allowedSchemes,
+		allowedAttributes: {
+			'a': ['href', 'name', 'target', 'data-href'],
+			'iframe': ['allowfullscreen', 'frameborder', 'src'],
+			'img': ['src', 'title', 'alt', 'width', 'height']
+		}
+	});
 	signalInnerHTML!();
 
 	return element;

@@ -61,6 +61,7 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const $ = dom.$;
 
@@ -153,6 +154,7 @@ export class SearchView extends ViewletPanel {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super({ ...(options as IViewletPanelOptions), id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
@@ -364,6 +366,7 @@ export class SearchView extends ViewletPanel {
 		const searchHistory = history.search || this.viewletState['query.searchHistory'] || [];
 		const replaceHistory = history.replace || this.viewletState['query.replaceHistory'] || [];
 		const showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
+		const preserveCase = this.viewletState['query.preserveCase'] === true;
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
 			value: contentPattern,
@@ -372,7 +375,8 @@ export class SearchView extends ViewletPanel {
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords,
 			searchHistory: searchHistory,
-			replaceHistory: replaceHistory
+			replaceHistory: replaceHistory,
+			preserveCase: preserveCase
 		}));
 
 		if (showReplace) {
@@ -390,6 +394,12 @@ export class SearchView extends ViewletPanel {
 			this.viewModel.replaceActive = state;
 			this.refreshTree();
 		}));
+
+		this._register(this.searchWidget.onPreserveCaseChange((state) => {
+			this.viewModel.preserveCase = state;
+			this.refreshTree();
+		}));
+
 		this._register(this.searchWidget.onReplaceValueChanged((value) => {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 			this.delayedRefresh.trigger(() => this.refreshTree());
@@ -1465,7 +1475,7 @@ export class SearchView extends ViewletPanel {
 	private onLearnMore = (e: MouseEvent): void => {
 		dom.EventHelper.stop(e, false);
 
-		window.open('https://go.microsoft.com/fwlink/?linkid=853977');
+		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=853977'));
 	}
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean): void {
@@ -1641,6 +1651,7 @@ export class SearchView extends ViewletPanel {
 		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
+		const preserveCase = this.viewModel.preserveCase;
 
 		this.viewletState['query.contentPattern'] = contentPattern;
 		this.viewletState['query.regex'] = isRegex;
@@ -1649,6 +1660,7 @@ export class SearchView extends ViewletPanel {
 		this.viewletState['query.folderExclusions'] = patternExcludes;
 		this.viewletState['query.folderIncludes'] = patternIncludes;
 		this.viewletState['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
+		this.viewletState['query.preserveCase'] = preserveCase;
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		this.viewletState['view.showReplace'] = isReplaceShown;

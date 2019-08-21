@@ -169,7 +169,7 @@ class SelectionToReplAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const panelService = accessor.get(IPanelService);
 		const viewModel = debugService.getViewModel();
@@ -179,9 +179,8 @@ class SelectionToReplAction extends EditorAction {
 		}
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
-		return session.addReplExpression(viewModel.focusedStackFrame!, text)
-			.then(() => panelService.openPanel(REPL_ID, true))
-			.then(_ => undefined);
+		await session.addReplExpression(viewModel.focusedStackFrame!, text);
+		await panelService.openPanel(REPL_ID, true);
 	}
 }
 

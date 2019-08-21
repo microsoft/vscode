@@ -79,7 +79,7 @@ export class WorkspaceWatcher extends Disposable {
 				localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
 				[{
 					label: localize('installNet', "Download .NET Framework 4.5"),
-					run: () => this.openerService.openExternal(URI.parse('https://go.microsoft.com/fwlink/?LinkId=786533'))
+					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=786533'))
 				}],
 				{
 					sticky: true,
@@ -95,7 +95,7 @@ export class WorkspaceWatcher extends Disposable {
 				localize('enospcError', "Unable to watch for file changes in this large workspace. Please follow the instructions link to resolve this issue."),
 				[{
 					label: localize('learnMore', "Instructions"),
-					run: () => this.openerService.openExternal(URI.parse('https://go.microsoft.com/fwlink/?linkid=867693'))
+					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=867693'))
 				}],
 				{
 					sticky: true,

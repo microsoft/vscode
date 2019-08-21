@@ -343,11 +343,12 @@ suite('WorkspacesMainService', () => {
 		const untitledTwo = await createWorkspace([os.tmpdir(), process.cwd()]);
 		assert.ok(fs.existsSync(untitledTwo.configPath.fsPath));
 		assert.ok(fs.existsSync(untitledOne.configPath.fsPath), `Unexpected workspaces count of 1 (expected 2): ${untitledOne.configPath.fsPath} does not exist anymore?`);
+		const untitledHome = dirname(dirname(untitledTwo.configPath));
+		const beforeGettingUntitledWorkspaces = fs.readdirSync(untitledHome.fsPath).map(name => fs.readFileSync(joinPath(untitledHome, name, 'workspace.json').fsPath, 'utf8'));
 		untitled = service.getUntitledWorkspacesSync();
 		assert.ok(fs.existsSync(untitledOne.configPath.fsPath), `Unexpected workspaces count of 1 (expected 2): ${untitledOne.configPath.fsPath} does not exist anymore?`);
 		if (untitled.length === 1) {
-			const untitledHome = dirname(dirname(untitledTwo.configPath));
-			assert.fail(`Unexpected workspaces count of 1 (expected 2), all workspaces:\n ${fs.readdirSync(untitledHome.fsPath).map(name => fs.readFileSync(joinPath(untitledHome, name, 'workspace.json').fsPath, 'utf8'))}`);
+			assert.fail(`Unexpected workspaces count of 1 (expected 2), all workspaces:\n ${fs.readdirSync(untitledHome.fsPath).map(name => fs.readFileSync(joinPath(untitledHome, name, 'workspace.json').fsPath, 'utf8'))}, before getUntitledWorkspacesSync: ${beforeGettingUntitledWorkspaces}`);
 		}
 		assert.equal(2, untitled.length);
 

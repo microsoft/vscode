@@ -117,6 +117,7 @@ export interface ITerminalConfiguration {
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
 	experimentalRefreshOnResume: boolean;
+	experimentalUseTitleEvent: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -636,7 +637,7 @@ export interface ITerminalInstance {
 	/**
 	 * Sets the title of the terminal instance.
 	 */
-	setTitle(title: string, eventFromProcess: boolean): void;
+	setTitle(title: string, eventSource: TitleEventSource): void;
 
 	waitForTitle(): Promise<string>;
 
@@ -767,6 +768,15 @@ export enum LinuxDistro {
 	Fedora,
 	Ubuntu,
 	Unknown
+}
+
+export enum TitleEventSource {
+	/** From the API or the rename command that overrides any other type */
+	Api,
+	/** From the process name property*/
+	Process,
+	/** From the VT sequence */
+	Sequence
 }
 
 export interface IWindowsShellHelper extends IDisposable {
