@@ -11,8 +11,9 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
 import { isEqualOrParent, joinPath, relativePath } from 'vs/base/common/resources';
 
-const LOGS_OBJECT_STORE = 'logs';
 export const INDEXEDDB_LOG_SCHEME = 'vscode-logs-indexedbd';
+export const INDEXEDDB_LOGS_DB = 'vscode-logs-db';
+export const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
 
 export class IndexedDBLogProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
@@ -29,23 +30,23 @@ export class IndexedDBLogProvider extends Disposable implements IFileSystemProvi
 	constructor(
 	) {
 		super();
-		this.database = this.openDatabase(2);
+		this.database = this.openDatabase(1);
 	}
 
 	private openDatabase(version: number): Promise<IDBDatabase> {
 		return new Promise((c, e) => {
-			const request = window.indexedDB.open('LoggingDatabase', version);
+			const request = window.indexedDB.open(INDEXEDDB_LOGS_DB, version);
 			request.onerror = (err) => e(request.error);
 			request.onsuccess = () => {
 				const db = request.result;
-				if (db.objectStoreNames.contains(LOGS_OBJECT_STORE)) {
+				if (db.objectStoreNames.contains(INDEXEDDB_LOGS_OBJECT_STORE)) {
 					c(db);
 				}
 			};
 			request.onupgradeneeded = () => {
 				const db = request.result;
-				if (!db.objectStoreNames.contains(LOGS_OBJECT_STORE)) {
-					db.createObjectStore(LOGS_OBJECT_STORE);
+				if (!db.objectStoreNames.contains(INDEXEDDB_LOGS_OBJECT_STORE)) {
+					db.createObjectStore(INDEXEDDB_LOGS_OBJECT_STORE);
 				}
 				c(db);
 			};
@@ -89,8 +90,8 @@ export class IndexedDBLogProvider extends Disposable implements IFileSystemProvi
 		}
 		return new Promise(async (c, e) => {
 			const db = await this.database;
-			const transaction = db.transaction([LOGS_OBJECT_STORE]);
-			const objectStore = transaction.objectStore(LOGS_OBJECT_STORE);
+			const transaction = db.transaction([INDEXEDDB_LOGS_OBJECT_STORE]);
+			const objectStore = transaction.objectStore(INDEXEDDB_LOGS_OBJECT_STORE);
 			const request = objectStore.getAllKeys();
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
@@ -117,8 +118,8 @@ export class IndexedDBLogProvider extends Disposable implements IFileSystemProvi
 		}
 		return new Promise(async (c, e) => {
 			const db = await this.database;
-			const transaction = db.transaction([LOGS_OBJECT_STORE]);
-			const objectStore = transaction.objectStore(LOGS_OBJECT_STORE);
+			const transaction = db.transaction([INDEXEDDB_LOGS_OBJECT_STORE]);
+			const objectStore = transaction.objectStore(INDEXEDDB_LOGS_OBJECT_STORE);
 			const request = objectStore.get(resource.path);
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => c(VSBuffer.fromString(request.result || '').buffer);
@@ -135,8 +136,8 @@ export class IndexedDBLogProvider extends Disposable implements IFileSystemProvi
 		}
 		return new Promise(async (c, e) => {
 			const db = await this.database;
-			const transaction = db.transaction([LOGS_OBJECT_STORE], 'readwrite');
-			const objectStore = transaction.objectStore(LOGS_OBJECT_STORE);
+			const transaction = db.transaction([INDEXEDDB_LOGS_OBJECT_STORE], 'readwrite');
+			const objectStore = transaction.objectStore(INDEXEDDB_LOGS_OBJECT_STORE);
 			const request = objectStore.put(VSBuffer.wrap(content).toString(), resource.path);
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
@@ -167,8 +168,8 @@ export class IndexedDBLogProvider extends Disposable implements IFileSystemProvi
 	private hasKey(key: string): Promise<boolean> {
 		return new Promise<boolean>(async (c, e) => {
 			const db = await this.database;
-			const transaction = db.transaction([LOGS_OBJECT_STORE]);
-			const objectStore = transaction.objectStore(LOGS_OBJECT_STORE);
+			const transaction = db.transaction([INDEXEDDB_LOGS_OBJECT_STORE]);
+			const objectStore = transaction.objectStore(INDEXEDDB_LOGS_OBJECT_STORE);
 			const request = objectStore.getKey(key);
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
@@ -180,8 +181,8 @@ export class IndexedDBLogProvider extends Disposable implements IFileSystemProvi
 	private deleteKey(key: string): Promise<void> {
 		return new Promise(async (c, e) => {
 			const db = await this.database;
-			const transaction = db.transaction([LOGS_OBJECT_STORE], 'readwrite');
-			const objectStore = transaction.objectStore(LOGS_OBJECT_STORE);
+			const transaction = db.transaction([INDEXEDDB_LOGS_OBJECT_STORE], 'readwrite');
+			const objectStore = transaction.objectStore(INDEXEDDB_LOGS_OBJECT_STORE);
 			const request = objectStore.delete(key);
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
