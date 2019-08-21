@@ -20,8 +20,8 @@ export class OpenerService extends Disposable implements IOpenerService {
 
 	_serviceBrand!: ServiceIdentifier<any>;
 
-	private readonly _opener = new LinkedList<IOpener>();
-	private readonly _validatorMap = new Map<string, LinkedList<IValidator>>();
+	private readonly _openers = new LinkedList<IOpener>();
+	private readonly _validators = new LinkedList<IValidator>();
 
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
@@ -31,15 +31,12 @@ export class OpenerService extends Disposable implements IOpenerService {
 	}
 
 	registerOpener(opener: IOpener): IDisposable {
-		const remove = this._opener.push(opener);
+		const remove = this._openers.push(opener);
 		return { dispose: remove };
 	}
 
-	registerValidator(uriScheme: string, validator: IValidator): IDisposable {
-		if (!this._validatorMap.has(uriScheme)) {
-			this._validatorMap.set(uriScheme, new LinkedList<IValidator>());
-		}
-		const remove = this._validatorMap.get(uriScheme)!.push(validator);
+	registerValidator(validator: IValidator): IDisposable {
+		const remove = this._validators.push(validator);
 		return { dispose: remove };
 	}
 
@@ -50,17 +47,14 @@ export class OpenerService extends Disposable implements IOpenerService {
 		}
 
 		// check with contributed validators
-		if (this._validatorMap.has(resource.scheme)) {
-			const validators = this._validatorMap.get(resource.scheme)!.toArray();
-			for (const validator of validators) {
-				if (!(await validator.shouldOpen(resource))) {
-					return false;
-				}
+		for (const validator of this._validators.toArray()) {
+			if (!(await validator.shouldOpen(resource))) {
+				return false;
 			}
 		}
 
 		// check with contributed openers
-		for (const opener of this._opener.toArray()) {
+		for (const opener of this._openers.toArray()) {
 			const handled = await opener.open(resource, options);
 			if (handled) {
 				return true;
@@ -132,6 +126,6 @@ export class OpenerService extends Disposable implements IOpenerService {
 	}
 
 	dispose() {
-		this._validatorMap.clear();
+		this._validators.clear();
 	}
 }

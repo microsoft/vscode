@@ -150,15 +150,14 @@ class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IProductService private readonly _productService: IProductService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) {
-		this._openerService.registerValidator('http', { shouldOpen: r => this.validateLink(r) });
-		this._openerService.registerValidator('https', { shouldOpen: r => this.validateLink(r) });
+		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
 	}
 
 	validateLink(resource: URI): Promise<boolean> {
 		const { scheme, authority } = resource;
 
 		if (!equalsIgnoreCase(scheme, Schemas.http) && !equalsIgnoreCase(scheme, Schemas.https)) {
-			return Promise.resolve(false);
+			return Promise.resolve(true);
 		}
 
 		let trustedDomains: string[] = [VSCODE_DOMAIN];

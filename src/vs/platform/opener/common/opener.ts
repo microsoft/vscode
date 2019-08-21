@@ -31,7 +31,7 @@ export interface IOpenerService {
 	 * Register a participant that can validate if the URI resource be opened.
 	 * validators are run before openers.
 	 */
-	registerValidator(uriScheme: string, validator: IValidator): IDisposable;
+	registerValidator(validator: IValidator): IDisposable;
 
 	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.
