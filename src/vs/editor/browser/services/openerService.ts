@@ -21,7 +21,7 @@ export class OpenerService extends Disposable implements IOpenerService {
 	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly _opener = new LinkedList<IOpener>();
-	private readonly _validatorMap = new Map<string, LinkedList<IValidator>>();
+	private readonly _validatorMap: { [k: string]: LinkedList<IValidator> } = {};
 
 	constructor(
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
@@ -36,10 +36,10 @@ export class OpenerService extends Disposable implements IOpenerService {
 	}
 
 	registerValidator(uriScheme: string, validator: IValidator): IDisposable {
-		if (!this._validatorMap.has(uriScheme)) {
-			this._validatorMap.set(uriScheme, new LinkedList<IValidator>());
+		if (!this._validatorMap[uriScheme]) {
+			this._validatorMap[uriScheme] = new LinkedList<IValidator>();
 		}
-		const remove = this._validatorMap.get(uriScheme)!.push(validator);
+		const remove = this._validatorMap[uriScheme].push(validator);
 		return { dispose: remove };
 	}
 
@@ -50,8 +50,8 @@ export class OpenerService extends Disposable implements IOpenerService {
 		}
 
 		// check with contributed validators
-		if (this._validatorMap.has(resource.scheme)) {
-			const validators = this._validatorMap.get(resource.scheme)!.toArray();
+		if (this._validatorMap[resource.scheme]) {
+			const validators = this._validatorMap[resource.scheme].toArray();
 			for (const validator of validators) {
 				if (!(await validator.shouldOpen(resource))) {
 					return false;
@@ -132,6 +132,8 @@ export class OpenerService extends Disposable implements IOpenerService {
 	}
 
 	dispose() {
-		this._validatorMap.clear();
+		for (let key in this._validatorMap) {
+			delete this._validatorMap[key];
+		}
 	}
 }
