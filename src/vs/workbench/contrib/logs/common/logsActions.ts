@@ -15,7 +15,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { startsWith } from 'vs/base/common/strings';
 
 export class OpenLogsFolderAction extends Action {
 
@@ -108,7 +107,7 @@ export class OpenSessionLogFileAction extends Action {
 			const logFileResult = await this.quickInputService.pick(
 				this.getLogFiles(URI.parse(sessionResult.id!)).then(logFiles => logFiles.map(s => (<IQuickPickItem>{
 					id: s.toString(),
-					label: startsWith(basename(s), 'window') ? nls.localize('window', "Window") : basename(s)
+					label: basename(s)
 				}))),
 				{
 					canPickMany: false,

@@ -76,7 +76,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	constructor(readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) {
 		this.args = { _: [] };
 		this.logsPath = options.logsPath.path;
-		this.logFile = joinPath(options.logsPath, `window-${generateUuid()}.log`);
+		this.logFile = joinPath(options.logsPath, 'window.log');
 		this.appRoot = '/web/';
 		this.appNameLong = 'Visual Studio Code - Web';
 
