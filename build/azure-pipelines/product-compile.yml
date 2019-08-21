@@ -30,7 +30,6 @@ steps:
     KeyVaultName: vscode
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
-
 - script: |
     set -e
     cat << EOF > ~/.netrc
@@ -101,6 +100,7 @@ steps:
 
 - script: |
     set -e
+    AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
     ./build/azure-pipelines/common/publish-webview.sh
   displayName: Publish Webview
 
