@@ -65,7 +65,8 @@ import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { WebClientServer } from 'vs/server/webClientServer';
+import { WebClientServer, serveError, serveFile } from 'vs/server/webClientServer';
+import { URI } from 'vs/base/common/uri';
 
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
@@ -239,6 +240,29 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				this._delayShutdown();
 				res.writeHead(200);
 				return res.end('OK');
+			}
+
+			if (req.url === '/vscode-remote2') {
+				// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
+				// These resources could be files shipped with extensions or even workspace files.
+				const parsedUrl = url.parse(req.url, true);
+				if (parsedUrl.query['tkn'] !== this._connectionToken) {
+					return serveError(req, res, 403, `Forbidden.`);
+				}
+
+				const desiredPath = parsedUrl.query['path'];
+				if (typeof desiredPath !== 'string') {
+					return serveError(req, res, 400, `Bad request.`);
+				}
+
+				let filePath: string;
+				try {
+					filePath = URI.from({ scheme: Schemas.file, path: desiredPath }).fsPath;
+				} catch (err) {
+					return serveError(req, res, 400, `Bad request.`);
+				}
+
+				return serveFile(this._logService, req, res, filePath);
 			}
 
 			// workbench web UI

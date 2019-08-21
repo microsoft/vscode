@@ -28,6 +28,32 @@ const textMimeType = {
 	'.svg': 'image/svg+xml',
 } as { [ext: string]: string | undefined };
 
+/**
+ * Return an error to the client.
+ */
+export async function serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCode: number, errorMessage: string): Promise<void> {
+	res.writeHead(errorCode, { 'Content-Type': 'text/plain' });
+	res.end(errorMessage);
+}
+
+/**
+ * Serve a file at a given path or 404 if the file is missing.
+ */
+export async function serveFile(logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, filePath: string, responseHeaders: Record<string, string> = Object.create(null)): Promise<void> {
+	try {
+		responseHeaders['Content-Type'] = textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
+		res.writeHead(200, responseHeaders);
+		const data = await util.promisify(fs.readFile)(filePath);
+		return res.end(data);
+	} catch (error) {
+		logService.error(error);
+		console.error(error.toString());
+
+		res.writeHead(404, { 'Content-Type': 'text/plain' });
+		return res.end('Not found');
+	}
+}
+
 const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 
 export class WebClientServer extends Disposable {
@@ -63,7 +89,7 @@ export class WebClientServer extends Disposable {
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
 		if (!req.url) {
-			return this._serveError(req, res, 400, `Bad request.`);
+			return serveError(req, res, 400, `Bad request.`);
 		}
 
 		try {
@@ -71,12 +97,12 @@ export class WebClientServer extends Disposable {
 			const pathname = parsedUrl.pathname;
 
 			if (!pathname) {
-				return this._serveError(req, res, 400, `Bad request.`);
+				return serveError(req, res, 400, `Bad request.`);
 			}
 
 			if (pathname === '/favicon.ico') {
 				// always server favicon, even without a token
-				return this._serveFile(req, res, path.join(APP_ROOT, 'resources', 'server', 'favicon.ico'));
+				return serveFile(this._logService, req, res, path.join(APP_ROOT, 'resources', 'server', 'favicon.ico'));
 			}
 			if (/^\/static\//.test(pathname)) {
 				// always serve static requests, even without a token
@@ -90,17 +116,13 @@ export class WebClientServer extends Disposable {
 			if (pathname === '/vscode-remote') {
 				return this._handleVSCodeRemoteResource(req, res, parsedUrl);
 			}
-			if (pathname === '/vscode-remote2') {
-				// the token handling is done inside the handler
-				return this._handleVSCodeRemoteResource2(req, res, parsedUrl);
-			}
 
-			return this._serveError(req, res, 404, 'Not found.');
+			return serveError(req, res, 404, 'Not found.');
 		} catch (error) {
 			this._logService.error(error);
 			console.error(error.toString());
 
-			return this._serveError(req, res, 500, 'Internal Server Error.');
+			return serveError(req, res, 500, 'Internal Server Error.');
 		}
 	}
 
@@ -127,15 +149,15 @@ export class WebClientServer extends Disposable {
 		if (client && parsedUrl.pathname !== '/static/out/vs/code/browser/workbench/workbench.js') {
 			// use provided path as client root
 			const filePath = path.join(path.normalize(client), relativeFilePath);
-			return this._serveFile(req, res, filePath, headers);
+			return serveFile(this._logService, req, res, filePath, headers);
 		}
 
 		const filePath = path.join(APP_ROOT, relativeFilePath);
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
-			return this._serveError(req, res, 400, `Bad request.`);
+			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		return this._serveFile(req, res, filePath, headers);
+		return serveFile(this._logService, req, res, filePath, headers);
 	}
 
 	/**
@@ -143,7 +165,7 @@ export class WebClientServer extends Disposable {
 	 */
 	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		if (!req.headers.host) {
-			return this._serveError(req, res, 400, `Bad request.`);
+			return serveError(req, res, 400, `Bad request.`);
 		}
 
 		const queryTkn = parsedUrl.query['tkn'];
@@ -167,7 +189,7 @@ export class WebClientServer extends Disposable {
 		}
 
 		if (!this._hasCorrectTokenCookie(req)) {
-			return this._serveError(req, res, 403, `Forbidden.`);
+			return serveError(req, res, 403, `Forbidden.`);
 		}
 
 		const remoteAuthority = req.headers.host;
@@ -203,7 +225,7 @@ export class WebClientServer extends Disposable {
 	private async _handleVSCodeRemoteResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		const { query } = url.parse(req.url!);
 		if (typeof query !== 'string') {
-			return this._serveError(req, res, 400, `Bad request.`);
+			return serveError(req, res, 400, `Bad request.`);
 		}
 
 		let filePath: string;
@@ -211,7 +233,7 @@ export class WebClientServer extends Disposable {
 			let queryData = JSON.parse(decodeURIComponent(query));
 			filePath = URI.revive(queryData).fsPath;
 		} catch (err) {
-			return this._serveError(req, res, 400, `Bad request.`);
+			return serveError(req, res, 400, `Bad request.`);
 		}
 
 		const responseHeaders: Record<string, string> = Object.create(null);
@@ -222,57 +244,7 @@ export class WebClientServer extends Disposable {
 			responseHeaders['X-VSCode-Extension'] = 'true';
 		}
 
-		return this._serveFile(req, res, filePath, responseHeaders);
-	}
-
-	/**
-	 * Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
-	 * These resources could be files shipped with extensions or even workspace files.
-	 */
-	private async _handleVSCodeRemoteResource2(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		if (parsedUrl.query['tkn'] !== this._connectionToken) {
-			return this._serveError(req, res, 403, `Forbidden.`);
-		}
-
-		const desiredPath = parsedUrl.query['path'];
-		if (typeof desiredPath !== 'string') {
-			return this._serveError(req, res, 400, `Bad request.`);
-		}
-
-		let filePath: string;
-		try {
-			filePath = URI.from({ scheme: Schemas.file, path: desiredPath }).fsPath;
-		} catch (err) {
-			return this._serveError(req, res, 400, `Bad request.`);
-		}
-
-		return this._serveFile(req, res, filePath);
-	}
-
-	/**
-	 * Return an error to the client.
-	 */
-	private async _serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCode: number, errorMessage: string): Promise<void> {
-		res.writeHead(errorCode, { 'Content-Type': 'text/plain' });
-		res.end(errorMessage);
-	}
-
-	/**
-	 * Serve a file at a given path or 404 if the file is missing.
-	 */
-	private async _serveFile(req: http.IncomingMessage, res: http.ServerResponse, filePath: string, responseHeaders: Record<string, string> = Object.create(null)): Promise<void> {
-		try {
-			responseHeaders['Content-Type'] = textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
-			res.writeHead(200, responseHeaders);
-			const data = await util.promisify(fs.readFile)(filePath);
-			return res.end(data);
-		} catch (error) {
-			this._logService.error(error);
-			console.error(error.toString());
-
-			res.writeHead(404, { 'Content-Type': 'text/plain' });
-			return res.end('Not found');
-		}
+		return serveFile(this._logService, req, res, filePath, responseHeaders);
 	}
 
 	private async _getWorkspace(parsedUrl: url.UrlWithParsedQuery): Promise<{ workspacePath?: string, isFolder?: boolean }> {
