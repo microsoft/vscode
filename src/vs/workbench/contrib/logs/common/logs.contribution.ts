@@ -20,6 +20,8 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { dirname } from 'vs/base/common/resources';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 const devCategory = nls.localize('developer', "Developer");
@@ -30,7 +32,8 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILogService private readonly logService: ILogService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		if (isWeb) {
@@ -42,6 +45,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	private registerWebContributions(): void {
 		Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels).registerChannel({ id: Constants.rendererLogChannelId, label: nls.localize('rendererLog', "Window"), file: this.environmentService.logFile, log: true });
+		this.instantiationService.createInstance(LogsDataCleaner);
 	}
 
 	private registerNativeContributions(): void {

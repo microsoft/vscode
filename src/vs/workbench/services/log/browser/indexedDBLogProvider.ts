@@ -9,7 +9,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
-import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { isEqualOrParent, joinPath, relativePath } from 'vs/base/common/resources';
 
 const LOGS_OBJECT_STORE = 'logs';
 export const INDEXEDDB_LOG_SCHEME = 'vscode-logs-indexedbd';
@@ -95,11 +95,14 @@ export class IndexedDBLogProvider extends Disposable implements IFileSystemProvi
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
 				const files: [string, FileType][] = [];
-				const resourceSegments = resource.path.split('/');
 				for (const key of <string[]>request.result) {
-					if (isEqualOrParent(URI.file(key).with({ scheme: INDEXEDDB_LOG_SCHEME }), resource, false)) {
-						const keySegments = key.split('/');
-						files.push([keySegments[resourceSegments.length], resourceSegments.length + 1 === keySegments.length ? FileType.File : FileType.Directory]);
+					const keyResource = this.toResource(key);
+					if (isEqualOrParent(keyResource, resource, false)) {
+						const path = relativePath(resource, keyResource, false);
+						if (path) {
+							const keySegments = path.split('/');
+							files.push([keySegments[0], keySegments.length === 1 ? FileType.File : FileType.Directory]);
+						}
 					}
 				}
 				c(files);
