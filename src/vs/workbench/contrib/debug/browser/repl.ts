@@ -33,7 +33,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IExpressionContainer, IExpression, IReplElementSource, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { createAndBindHistoryNavigationWidgetScopedContextKeyService, ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
@@ -46,23 +46,24 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable, Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Separator, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { FuzzyScore, createMatches, fuzzyScore } from 'vs/base/common/filters';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 const $ = dom.$;
 
@@ -105,7 +106,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
 	private completionItemProvider: IDisposable | undefined;
-
+	private filterAction: FilterAction;
+	private filter: ReplFilter;
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -125,6 +127,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
+		this.filter = new ReplFilter();
+		this.filterAction = new FilterAction(FilterAction.ID, FilterAction.LABEL);
 		this.registerListeners();
 	}
 
@@ -189,6 +193,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
 				this.onDidFontChange();
 			}
+		}));
+
+		this._register(this.filterAction.onDidChange(() => {
+			this.filter.filterText = this.filterAction.filterText;
+			this.tree.refilter();
 		}));
 	}
 
@@ -350,12 +359,16 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		if (action.id === SelectReplAction.ID) {
 			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction);
 		}
+		if (action.id === FilterAction.ID) {
+			return this.instantiationService.createInstance(FilterActionViewItem, this.filterAction);
+		}
 
 		return undefined;
 	}
 
 	getActions(): IAction[] {
 		const result: IAction[] = [];
+		result.push(this.filterAction);
 		if (this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s)).length > 1) {
 			result.push(this.selectReplAction);
 		}
@@ -421,10 +434,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
-				supportDynamicHeights: wordWrap
+				supportDynamicHeights: wordWrap,
+				filter: this.filter
 			});
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
@@ -969,3 +982,64 @@ export class ClearReplAction extends Action {
 		return Promise.resolve(undefined);
 	}
 }
+
+
+class FilterActionViewItem extends BaseActionViewItem {
+	constructor(
+		private readonly action: FilterAction,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		super(null, action);
+	}
+
+	render(container: HTMLElement) {
+		const input = this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {});
+		this._register(attachInputBoxStyler(input, this.themeService));
+		input.onDidChange(() => {
+			this.action.filterText = input.value;
+		});
+	}
+}
+
+class FilterAction extends Action {
+	static readonly ID = 'workbench.action.debug.filter';
+	static LABEL = nls.localize('filterRepl', "Filter Console Output");
+
+	constructor(id: string, label: string) {
+		super(id, label);
+	}
+
+	private _filterText: string;
+	get filterText(): string {
+		return this._filterText;
+	}
+	set filterText(filterText: string) {
+		if (this._filterText !== filterText) {
+			this._filterText = filterText;
+			this._onDidChange.fire({});
+		}
+	}
+}
+
+class ReplFilter implements ITreeFilter<any, any>{
+	filterText = '';
+
+	filter(element: any, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
+		if (!this.filterText) {
+			return true;
+		}
+
+		const score = fuzzyScore(this.filterText, this.filterText.toLowerCase(), 0, element.toString(), element.toString().toLowerCase(), 0, true);
+		if (score) {
+			return { visibility: true, data: score };
+		}
+		else {
+			return false;
+		}
+	}
+
+}
+
