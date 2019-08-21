@@ -943,11 +943,6 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 				explorerService.setEditable(newStat, null);
 				if (success) {
 					onSuccess(value);
-				} else {
-					// Fixes #78153
-					setTimeout(() => {
-						explorerService.select(folder.resource).then(undefined, onUnexpectedError);
-					}, 0);
 				}
 			}
 		});

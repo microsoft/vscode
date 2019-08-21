@@ -345,7 +345,7 @@ export class ExplorerView extends ViewletPanel {
 
 		this._register(this.tree.onDidScroll(e => {
 			let editable = this.explorerService.getEditable();
-			if (editable && this.tree.getRelativeTop(editable.stat) === null) {
+			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
 				editable.data.onFinish('', false);
 			}
 		}));
