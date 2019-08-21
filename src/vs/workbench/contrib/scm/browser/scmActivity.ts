@@ -114,7 +114,11 @@ export class SCMStatusController implements IWorkbenchContribution {
 		this.disposables.push(disposable);
 
 		if (!this.focusedRepository) {
-			this.onDidFocusRepository(repository);
+			if (this.editorService.activeEditor) {
+				this.onDidActiveEditorChange();
+			} else {
+				this.onDidFocusRepository(repository);
+			}
 		}
 	}
 
