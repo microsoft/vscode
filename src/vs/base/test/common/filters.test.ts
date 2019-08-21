@@ -366,6 +366,10 @@ suite('Filters', () => {
 		assertMatches('f', ':foo', ':^foo', fuzzyScore);
 	});
 
+	test('Separator only match should not be weak #79558', function () {
+		assertMatches('.', 'foo.bar', 'foo^.bar', fuzzyScore);
+	});
+
 	test('Cannot set property \'1\' of undefined, #26511', function () {
 		let word = new Array<void>(123).join('a');
 		let pattern = new Array<void>(120).join('a');
