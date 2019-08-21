@@ -29,7 +29,8 @@ export interface ISplitViewOptions {
 	readonly orthogonalStartSash?: Sash;
 	readonly orthogonalEndSash?: Sash;
 	readonly inverseAltBehavior?: boolean;
-	readonly proportionalLayout?: boolean; // default true
+	readonly proportionalLayout?: boolean; // default true,
+	readonly descriptor?: ISplitViewDescriptor;
 }
 
 /**
@@ -201,21 +202,14 @@ export namespace Sizing {
 	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
 }
 
-export interface ISerializedSplitView {
-	views: ISerializedView[];
-	orientation: Orientation;
-}
-
-export interface ISerializedView {
-	data: any;
+export interface ISplitViewDescriptor {
 	size: number;
-	visible?: boolean;
+	views: {
+		visible?: boolean;
+		size: number;
+		view: IView;
+	}[];
 }
-
-export interface IViewDeserializer<T extends ISerializableView> {
-	fromJSON(json: any): T;
-}
-
 
 export class SplitView extends Disposable {
 
@@ -292,6 +286,17 @@ export class SplitView extends Disposable {
 		this.viewContainer = dom.append(this.el, dom.$('.split-view-container'));
 
 		this.style(options.styles || defaultStyles);
+
+		// We have an existing set of view, add them now
+		if (options.descriptor) {
+			this.size = options.descriptor.size;
+			options.descriptor.views.forEach((viewDescriptor, index) => {
+				const sizing = viewDescriptor.visible ? viewDescriptor.size : { type: 'invisible', cachedVisibleSize: viewDescriptor.size } as InvisibleSizing;
+
+				const view = viewDescriptor.view;
+				this.addView(view, sizing, index, true);
+			});
+		}
 	}
 
 	style(styles: ISplitViewStyles): void {
@@ -518,28 +523,6 @@ export class SplitView extends Disposable {
 
 		this.distributeEmptySpace();
 		this.layoutViews();
-	}
-
-	static deserialize<T extends ISerializableView>(container: HTMLElement, json: ISerializedSplitView, deserializer: IViewDeserializer<T>, options: ISplitViewOptions = {}): SplitView {
-		if (typeof json.orientation !== 'number') {
-			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
-		}
-
-		const orientation = json.orientation;
-
-		const result = new SplitView(container, { ...options, orientation });
-		if (!json.views || !json.views.length) {
-			throw new Error('Invalid JSON: \'views\' property must contain at least one view');
-		}
-
-		json.views.forEach((serializedView, index) => {
-			const sizing = serializedView.visible ? serializedView.size : { type: 'invisible', cachedVisibleSize: serializedView.size } as InvisibleSizing;
-
-			const view = deserializer.fromJSON(serializedView.data);
-			result.addView(view, sizing, index, true);
-		});
-
-		return result;
 	}
 
 	private saveProportions(): void {

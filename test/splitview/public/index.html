@@ -208,38 +208,36 @@
 
 				if (testDeserialization) {
 					const splitViewDescriptor = {
-						orientation: 0,
 						views: [
 							{
-								data: { id: 0 },
+								view: views[0],
+								size: 100,
+								visible: true
+							},
+							{
+								view: views[1],
 								size: 100,
 								visible: false
 							},
 							{
-								data: { id: 1 },
+								view: views[2],
+								size: 100,
+								visible: true
+							},
+							{
+								view: views[3],
 								size: 200,
-								visible: false
+								visible: true
 							},
 							{
-								data: { id: 2 },
-								size: 100,
-								visible: false
-							},
-							{
-								data: { id: 3 },
+								view: views[4],
 								size: 200,
-								visible: false
-							},
-							{
-								data: { id: 4 },
-								size: 100,
 								visible: true
 							}
 						]
 					};
 
-					const fromJSON = ({ id }) => views[id];
-					splitview = SplitView.deserialize(container, splitViewDescriptor, { fromJSON }, {});
+					splitview = new SplitView(container, { descriptor: splitViewDescriptor, orientation: 0 });
 					splitview.layout(600);
 				} else {
 					// Create a new split view from scratch

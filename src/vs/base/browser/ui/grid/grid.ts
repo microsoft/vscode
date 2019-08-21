@@ -217,9 +217,17 @@ export class Grid<T extends IView = IView> extends Disposable {
 
 	private didLayout = false;
 
-	constructor(view: T, options: IGridOptions = {}) {
+	constructor(gridview: GridView, options?: IGridOptions);
+	constructor(view: T, options?: IGridOptions);
+	constructor(view: T | GridView, options: IGridOptions = {}) {
 		super();
-		this.gridview = new GridView(options);
+
+		if (view instanceof GridView) {
+			this.gridview = view;
+			this.gridview.getViewMap(this.views);
+		} else {
+			this.gridview = new GridView(options);
+		}
 		this._register(this.gridview);
 
 		this._register(this.gridview.onDidSashReset(this.onDidSashReset, this));
@@ -228,7 +236,9 @@ export class Grid<T extends IView = IView> extends Disposable {
 			? GridViewSizing.Invisible(options.firstViewVisibleCachedSize)
 			: 0;
 
-		this._addView(view, size, [0]);
+		if (!(view instanceof GridView)) {
+			this._addView(view, size, [0]);
+		}
 	}
 
 	style(styles: IGridStyles): void {
@@ -592,6 +602,21 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		result.initialLayoutContext = { width, height, root };
 
 		layoutController.isLayoutEnabled = true;
+		return result;
+	}
+
+	static deserialize2<T extends ISerializableView>(json: ISerializedGrid, deserializer: IViewDeserializer<T>, options: IGridOptions = {}): SerializableGrid<T> {
+		if (typeof json.orientation !== 'number') {
+			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
+		} else if (typeof json.width !== 'number') {
+			throw new Error('Invalid JSON: \'width\' property must be a number.');
+		} else if (typeof json.height !== 'number') {
+			throw new Error('Invalid JSON: \'height\' property must be a number.');
+		}
+
+		const gridview = GridView.deserialize(json, deserializer, options);
+		const result = new SerializableGrid<T>(gridview, options);
+
 		return result;
 	}
 

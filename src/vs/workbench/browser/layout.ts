@@ -786,7 +786,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			};
 
 			const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
-			const workbenchGrid = SerializableGrid.deserialize(
+			const workbenchGrid = SerializableGrid.deserialize2(
 				this.createGridDescriptor(),
 				{ fromJSON },
 				{ proportionalLayout: false }
@@ -1236,7 +1236,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const editorNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.EDITOR_PART },
-			size: this.state.panel.position === Position.BOTTOM ? middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) : editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize)
+			size: this.state.panel.position === Position.BOTTOM ? middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) : editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize),
+			visible: true
 		};
 
 		const panelNode: ISerializedLeafNode = {
