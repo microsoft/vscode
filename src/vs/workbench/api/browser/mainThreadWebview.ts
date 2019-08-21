@@ -304,10 +304,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	}
 
 	private onDidClickLink(handle: WebviewPanelHandle, link: URI): void {
-		if (!link) {
-			return;
-		}
-
 		const webview = this.getWebviewEditorInput(handle);
 		if (this.isSupportedLink(webview, link)) {
 			this._openerService.open(link);
