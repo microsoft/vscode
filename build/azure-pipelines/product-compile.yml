@@ -1,5 +1,10 @@
 steps:
 - script: |
+    set -e
+    ./build/azure-pipelines/common/publish-webview.sh
+  displayName: Publish Webview
+
+- script: |
     mkdir -p .build
     echo -n $BUILD_SOURCEVERSION > .build/commit
     echo -n $VSCODE_QUALITY > .build/quality
@@ -97,12 +102,6 @@ steps:
     ./build/azure-pipelines/common/extract-telemetry.sh
   displayName: Extract Telemetry
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
-- script: |
-    set -e
-    AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
-    ./build/azure-pipelines/common/publish-webview.sh
-  displayName: Publish Webview
 
 - script: |
     set -e
