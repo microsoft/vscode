@@ -97,6 +97,10 @@
 	font-weight: bold;
 }
 
+.monaco-editor .suggest-widget-deprecated span {
+	text-decoration: line-through;
+}
+
 /** Icon styles **/
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
