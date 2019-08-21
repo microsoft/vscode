@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
-import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/webview';
+import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/browser/webview';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindWidget } from '../browser/webviewFindWidget';
@@ -327,12 +327,19 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 					{
 						const rawEvent = event.args[0];
 						const bounds = this._webview.getBoundingClientRect();
-						window.dispatchEvent(new MouseEvent(rawEvent.type, {
-							...rawEvent,
-							clientX: rawEvent.clientX + bounds.left,
-							clientY: rawEvent.clientY + bounds.top,
-						}));
-						return;
+						try {
+							window.dispatchEvent(new MouseEvent(rawEvent.type, {
+								...rawEvent,
+								clientX: rawEvent.clientX + bounds.left,
+								clientY: rawEvent.clientY + bounds.top,
+							}));
+							return;
+						}
+						catch (TypeError) {
+							// CustomEvent was treated as MouseEvent so don't do anything - https://github.com/microsoft/vscode/issues/78915
+							return;
+						}
+
 					}
 
 				case 'did-set-content':
@@ -489,7 +496,11 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		if (!this._webview) {
 			return;
 		}
-		this._webview.focus();
+		try {
+			this._webview.focus();
+		} catch {
+			// noop
+		}
 		this._send('focus');
 
 		// Handle focus change programmatically (do not rely on event from <webview>)

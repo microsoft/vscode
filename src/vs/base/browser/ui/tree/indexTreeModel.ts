@@ -219,7 +219,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		const result = this._setListNodeCollapsed(node, listIndex, revealed, collapsed!, recursive || false);
 
-		if (this.autoExpandSingleChildren && !collapsed! && !recursive) {
+		if (node !== this.root && this.autoExpandSingleChildren && !collapsed! && !recursive) {
 			let onlyVisibleChildIndex = -1;
 
 			for (let i = 0; i < node.children.length; i++) {

@@ -17,6 +17,7 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { env as processEnv } from 'vs/base/common/process';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -74,7 +75,8 @@ export class RawDebugSession {
 		dbgr: IDebugger,
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
-		private readonly windowsService: IWindowsService
+		private readonly windowsService: IWindowsService,
+		private readonly openerService: IOpenerService
 
 	) {
 		this.debugAdapter = debugAdapter;
@@ -652,7 +654,7 @@ export class RawDebugSession {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 			return createErrorWithActions(userMessage, {
 				actions: [new Action('debug.moreInfo', label, undefined, true, () => {
-					window.open(error.url);
+					this.openerService.open(URI.parse(error.url));
 					return Promise.resolve(null);
 				})]
 			});

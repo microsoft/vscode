@@ -321,14 +321,17 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void {
+		const hasPathLabelChanged = this.hasPathLabelChanged(label, options);
+		const clearIconCache = this.clearIconCache(label, options);
+
 		this.label = label;
 		this.options = options;
 
-		if (this.hasPathLabelChanged(label, options)) {
+		if (hasPathLabelChanged) {
 			this.computedPathLabel = undefined; // reset path label due to resource change
 		}
 
-		this.render(this.clearIconCache(label, options));
+		this.render(clearIconCache);
 	}
 
 	private clearIconCache(newLabel: IResourceLabelProps, newOptions?: IResourceLabelOptions): boolean {
@@ -457,6 +460,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		}
+
 		if (this.options && this.options.extraClasses) {
 			iconLabelOptions.extraClasses!.push(...this.options.extraClasses);
 		}

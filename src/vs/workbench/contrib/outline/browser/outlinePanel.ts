@@ -122,7 +122,8 @@ class RequestOracle {
 		let handle: any;
 		let contentListener = codeEditor.onDidChangeModelContent(event => {
 			clearTimeout(handle);
-			handle = setTimeout(() => this._callback(codeEditor!, event), 350);
+			const timeout = OutlineModel.getRequestDelay(codeEditor!.getModel());
+			handle = setTimeout(() => this._callback(codeEditor!, event), timeout);
 		});
 		let modeListener = codeEditor.onDidChangeModelLanguage(_ => {
 			this._callback(codeEditor!, undefined);

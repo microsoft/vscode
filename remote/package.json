@@ -31,6 +31,6 @@
   },
   "optionalDependencies": {
     "vscode-windows-ca-certs": "0.1.0",
-    "vscode-windows-registry": "1.0.1"
+    "vscode-windows-registry": "1.0.2"
   }
 }

@@ -12,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -97,16 +97,7 @@ export class RichEditSupport {
 
 	public get electricCharacter(): BracketElectricCharacterSupport | null {
 		if (!this._electricCharacter) {
-			let autoClosingPairs: IAutoClosingPairConditional[] = [];
-			if (this._conf.autoClosingPairs) {
-				autoClosingPairs = this._conf.autoClosingPairs;
-			} else if (this._conf.brackets) {
-				autoClosingPairs = this._conf.brackets.map(b => {
-					return { open: b[0], close: b[1] };
-				});
-			}
-
-			this._electricCharacter = new BracketElectricCharacterSupport(this.brackets, autoClosingPairs, this._conf.__electricCharacterSupport);
+			this._electricCharacter = new BracketElectricCharacterSupport(this.brackets);
 		}
 		return this._electricCharacter;
 	}
@@ -261,7 +252,7 @@ export class LanguageConfigurationRegistryImpl {
 		return value.characterPair || null;
 	}
 
-	public getAutoClosingPairs(languageId: LanguageId): IAutoClosingPair[] {
+	public getAutoClosingPairs(languageId: LanguageId): StandardAutoClosingPairConditional[] {
 		let characterPairSupport = this._getCharacterPairSupport(languageId);
 		if (!characterPairSupport) {
 			return [];
@@ -285,13 +276,9 @@ export class LanguageConfigurationRegistryImpl {
 		return characterPairSupport.getSurroundingPairs();
 	}
 
-	public shouldAutoClosePair(character: string, context: LineTokens, column: number): boolean {
-		let scopedLineTokens = createScopedLineTokens(context, column - 1);
-		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.languageId);
-		if (!characterPairSupport) {
-			return false;
-		}
-		return characterPairSupport.shouldAutoClosePair(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
+	public shouldAutoClosePair(autoClosingPair: StandardAutoClosingPairConditional, context: LineTokens, column: number): boolean {
+		const scopedLineTokens = createScopedLineTokens(context, column - 1);
+		return CharacterPairSupport.shouldAutoClosePair(autoClosingPair, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
 	}
 
 	// end characterPair

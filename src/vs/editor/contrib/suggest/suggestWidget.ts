@@ -60,6 +60,10 @@ export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: listFocusBackground, light: listFocusBackground, hc: listFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
 
+/**
+ * Suggest widget styles
+ */
+const editorSuggestWidgetDeprecatedClassName = 'suggest-widget-deprecated';
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 function extractColor(item: CompletionItem, out: string[]): boolean {
@@ -191,6 +195,10 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			labelOptions.extraClasses = [
 				`suggest-icon ${completionKindToCssClass(suggestion.kind)}`
 			];
+		}
+
+		if (suggestion.label && suggestion.deprecated) {
+			labelOptions.extraClasses = (labelOptions.extraClasses || []).concat([editorSuggestWidgetDeprecatedClassName]);
 		}
 
 		data.iconLabel.setLabel(suggestion.label, undefined, labelOptions);

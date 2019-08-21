@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { Event } from 'vs/base/common/event';
 
 export class MenubarChannel implements IServerChannel {

@@ -11,6 +11,7 @@ export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
 export interface IOpener {
 	open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean>;
+	open(resource: URI, options?: { openExternal?: boolean }): Promise<boolean>;
 }
 
 export interface IOpenerService {
@@ -29,18 +30,11 @@ export interface IOpenerService {
 	 * @return A promise that resolves when the opening is done.
 	 */
 	open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean>;
-
-	/**
-	 * Opens a URL externally.
-	 *
-	 * @param url A resource to open externally.
-	 */
-	openExternal(resource: URI): Promise<boolean>;
+	open(resource: URI, options?: { openExternal?: boolean }): Promise<boolean>;
 }
 
 export const NullOpenerService: IOpenerService = Object.freeze({
 	_serviceBrand: undefined,
 	registerOpener() { return { dispose() { } }; },
 	open() { return Promise.resolve(false); },
-	openExternal() { return Promise.resolve(false); }
 });

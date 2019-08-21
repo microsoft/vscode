@@ -27,7 +27,7 @@ import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { MenubarControl, NativeMenubarControl, CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
+import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -65,7 +65,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private windowControls: HTMLElement;
 	private maxRestoreControl: HTMLElement;
 	private appIcon: HTMLElement;
-	private menubarPart: MenubarControl;
+	private customMenubar: CustomMenubarControl | undefined;
 	private menubar: HTMLElement;
 	private resizer: HTMLElement;
 	private lastLayoutDimensions: Dimension;
@@ -332,19 +332,16 @@ export class TitlebarPart extends Part implements ITitleService {
 			})));
 		}
 
-		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
-		if ((isMacintosh && !isWeb) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
-			this.menubarPart = this.instantiationService.createInstance(NativeMenubarControl);
-		} else {
-			const customMenubarControl = this.instantiationService.createInstance(CustomMenubarControl);
-			this.menubarPart = customMenubarControl;
+		// Menubar: install a custom menu bar depending on configuration
+		if (getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' && (!isMacintosh || isWeb)) {
+			this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 			this.menubar = append(this.element, $('div.menubar'));
 			this.menubar.setAttribute('role', 'menubar');
 
-			customMenubarControl.create(this.menubar);
+			this.customMenubar.create(this.menubar);
 
-			this._register(customMenubarControl.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
-			this._register(customMenubarControl.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
+			this._register(this.customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+			this._register(this.customMenubar.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
 		}
 
 		// Title
@@ -547,7 +544,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private adjustTitleMarginToCenter(): void {
-		if (this.menubarPart instanceof CustomMenubarControl) {
+		if (this.customMenubar) {
 			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
 			const rightMarker = this.element.clientWidth - (this.windowControls ? this.windowControls.clientWidth : 0) - 10;
 
@@ -588,9 +585,9 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 
-			if (this.menubarPart instanceof CustomMenubarControl) {
+			if (this.customMenubar) {
 				const menubarDimension = new Dimension(0, dimension.height);
-				this.menubarPart.layout(menubarDimension);
+				this.customMenubar.layout(menubarDimension);
 			}
 		}
 	}
