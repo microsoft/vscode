@@ -52,7 +52,7 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 
 const VSCODE_DOMAIN = 'https://code.visualstudio.com';
 
-const configureTrustedDomainsHandler = (
+const configureTrustedDomainsHandler = async (
 	quickInputService: IQuickInputService,
 	storageService: IStorageService,
 	domainToConfigure?: string
@@ -103,21 +103,19 @@ const configureTrustedDomainsHandler = (
 			? specialQuickPickItems
 			: [...specialQuickPickItems, { type: 'separator' }, ...domainQuickPickItems];
 
-	return quickInputService
-		.pick(quickPickItems, {
-			canPickMany: true,
-			activeItem: domainToConfigureItem
-		})
-		.then(result => {
-			if (result) {
-				const pickedDomains: string[] = result.map(r => r.id!);
-				storageService.store('http.trustedDomains', JSON.stringify(pickedDomains), StorageScope.GLOBAL);
+	const pickedResult = await quickInputService.pick(quickPickItems, {
+		canPickMany: true,
+		activeItem: domainToConfigureItem
+	});
 
-				return pickedDomains;
-			}
+	if (pickedResult) {
+		const pickedDomains: string[] = pickedResult.map(r => r.id!);
+		storageService.store('http.trustedDomains', JSON.stringify(pickedDomains), StorageScope.GLOBAL);
 
-			return [];
-		});
+		return pickedDomains;
+	}
+
+	return [];
 };
 
 const configureTrustedDomainCommand = {
@@ -153,11 +151,11 @@ class OpenerValidatorContributions implements IWorkbenchContribution {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
 	}
 
-	validateLink(resource: URI): Promise<boolean> {
+	async validateLink(resource: URI): Promise<boolean> {
 		const { scheme, authority } = resource;
 
 		if (!equalsIgnoreCase(scheme, Schemas.http) && !equalsIgnoreCase(scheme, Schemas.https)) {
-			return Promise.resolve(true);
+			return true;
 		}
 
 		let trustedDomains: string[] = [VSCODE_DOMAIN];
@@ -171,45 +169,40 @@ class OpenerValidatorContributions implements IWorkbenchContribution {
 		const domainToOpen = `${scheme}://${authority}`;
 
 		if (isDomainTrusted(domainToOpen, trustedDomains)) {
-			return Promise.resolve(true);
+			return true;
 		} else {
-			return this._dialogService
-				.show(
-					Severity.Info,
-					localize(
-						'openExternalLinkAt',
-						'Do you want {0} to open the external website?\n{1}',
-						this._productService.nameShort,
-						resource.toString(true)
-					),
-					[
-						localize('openLink', 'Open Link'),
-						localize('cancel', 'Cancel'),
-						localize('configureTrustedDomains', 'Configure Trusted Domains')
-					],
-					{
-						cancelId: 1
-					}
-				)
-				.then(choice => {
-					// Open Link
-					if (choice === 0) {
-						return true;
-					}
-					// Configure Trusted Domains
-					else if (choice === 2) {
-						return configureTrustedDomainsHandler(this._quickInputService, this._storageService, domainToOpen).then(
-							(pickedDomains: string[]) => {
-								if (pickedDomains.indexOf(domainToOpen) !== -1) {
-									return true;
-								}
-								return false;
-							}
-						);
-					}
+			const choice = await this._dialogService.show(
+				Severity.Info,
+				localize(
+					'openExternalLinkAt',
+					'Do you want {0} to open the external website?\n{1}',
+					this._productService.nameShort,
+					resource.toString(true)
+				),
+				[
+					localize('openLink', 'Open Link'),
+					localize('cancel', 'Cancel'),
+					localize('configureTrustedDomains', 'Configure Trusted Domains')
+				],
+				{
+					cancelId: 1
+				}
+			);
 
-					return false;
-				});
+			// Open Link
+			if (choice === 0) {
+				return true;
+			}
+			// Configure Trusted Domains
+			else if (choice === 2) {
+				const pickedDomains = await configureTrustedDomainsHandler(this._quickInputService, this._storageService, domainToOpen);
+				if (pickedDomains.indexOf(domainToOpen) !== -1) {
+					return true;
+				}
+				return false;
+			}
+
+			return false;
 		}
 	}
 }
