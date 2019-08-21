@@ -45,7 +45,6 @@ import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { INMEMORY_LOG_SCHEME, InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
 import { toLocalISOString } from 'vs/base/common/date';
-import { INDEXEDDB_LOG_SCHEME, IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedDBLogProvider';
 
 class CodeRendererMain extends Disposable {
 
@@ -121,7 +120,7 @@ class CodeRendererMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Log
-		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: INDEXEDDB_LOG_SCHEME });
+		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: INMEMORY_LOG_SCHEME });
 		const logService = new BufferLogService();
 		serviceCollection.set(ILogService, logService);
 
@@ -153,7 +152,6 @@ class CodeRendererMain extends Disposable {
 
 		// Logger
 		fileService.registerProvider(INMEMORY_LOG_SCHEME, new InMemoryLogProvider());
-		fileService.registerProvider(INDEXEDDB_LOG_SCHEME, new IndexedDBLogProvider());
 		logService.logger = new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService);
 
 		// Static Extensions
