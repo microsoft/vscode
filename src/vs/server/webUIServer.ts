@@ -19,7 +19,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import product from 'vs/platform/product/node/product';
 
-const textMmimeType = {
+const textMimeType = {
 	'.html': 'text/html',
 	'.js': 'text/javascript',
 	'.json': 'application/json',
@@ -48,6 +48,8 @@ export class WebUIServer extends Disposable {
 	}
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+
+
 		// Workbench
 		try {
 			const headers: Record<string, string> = Object.create(null);
@@ -85,7 +87,7 @@ export class WebUIServer extends Disposable {
 					.replace('{{PRODUCT_CONFIGURATION}}', escapeAttribute(JSON.stringify(product)))
 					.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(this._environmentService.webUserDataHome))));
 
-				res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
+				res.writeHead(200, { 'Content-Type': textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 				return res.end(data);
 			}
 
@@ -141,6 +143,8 @@ export class WebUIServer extends Disposable {
 					res.end(`Bad request.\n${err}`);
 					return;
 				}
+
+				return this._serveFile(req, res, filePath, headers);
 			}
 
 			// Anything else
@@ -166,14 +170,28 @@ export class WebUIServer extends Disposable {
 				filePath += '/index.html';
 			}
 
-			headers['Content-Type'] = textMmimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
-
 			// Allow all service worker requests to control the "max" scope
 			// see: https://www.w3.org/TR/service-workers-1/#extended-http-headers
 			if (req.headers['service-worker']) {
 				headers['Service-Worker-Allowed'] = '/';
 			}
 
+			headers['Content-Type'] = textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
+			res.writeHead(200, headers);
+			const data = await util.promisify(fs.readFile)(filePath);
+			return res.end(data);
+		} catch (error) {
+			this._logService.error(error);
+			console.error(error.toString());
+
+			res.writeHead(404, { 'Content-Type': 'text/plain' });
+			return res.end('Not found');
+		}
+	}
+
+	private async _serveFile(req: http.IncomingMessage, res: http.ServerResponse, filePath: string, headers: Record<string, string>): Promise<void> {
+		try {
+			headers['Content-Type'] = textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
 			res.writeHead(200, headers);
 			const data = await util.promisify(fs.readFile)(filePath);
 			return res.end(data);
@@ -276,7 +294,7 @@ export class WebUIServer extends Disposable {
 				}
 				const filePath = rootPath + (requestUrl.pathname === '/' ? '/index.html' : requestUrl.pathname);
 				const data = await util.promisify(fs.readFile)(filePath);
-				res.writeHead(200, { 'Content-Type': textMmimeType[path.extname(filePath)] || 'text/plain' });
+				res.writeHead(200, { 'Content-Type': textMimeType[path.extname(filePath)] || 'text/plain' });
 				return res.end(data);
 			}
 			catch (error) {
