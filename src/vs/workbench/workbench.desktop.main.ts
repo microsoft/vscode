@@ -95,9 +95,6 @@ registerSingleton(IStaticExtensionsService, class extends StaticExtensionsServic
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
-// Logs
-import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
-
 // Stats
 import 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
 import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';

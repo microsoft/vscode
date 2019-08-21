@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
@@ -99,12 +99,6 @@ export class SimpleExtensionURLHandler implements IExtensionUrlHandler {
 }
 
 registerSingleton(IExtensionUrlHandler, SimpleExtensionURLHandler, true);
-
-//#endregion
-
-//#region Log
-
-export class SimpleLogService extends ConsoleLogService { }
 
 //#endregion
 
