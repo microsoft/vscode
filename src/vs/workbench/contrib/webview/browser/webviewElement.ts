@@ -268,6 +268,10 @@ export class IFrameWebview extends Disposable implements Webview {
 		throw new Error('Method not implemented.');
 	}
 
+	runFindAction(previous: boolean): void {
+		throw new Error('Method not implemented.');
+	}
+
 	public set state(state: string | undefined) {
 		this.content = {
 			html: this.content.html,

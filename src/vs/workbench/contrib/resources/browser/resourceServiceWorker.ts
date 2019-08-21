@@ -34,7 +34,7 @@ self.addEventListener('activate', event => {
 //#region --- fetching/caching
 
 const _cacheName = 'vscode-extension-resources';
-const _resourcePrefix = '/vscode-remote';
+const _resourcePrefix = '/vscode-remote-resource';
 const _pendingFetch = new Map<string, Function>();
 
 self.addEventListener('message', event => {

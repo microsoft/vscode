@@ -530,7 +530,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindNext, FindNe
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Find next', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindNext, FindNext.ID, FindNext.LABEL, {
 	primary: KeyCode.F3,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3, KeyMod.Shift | KeyCode.Enter] }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Find next');
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, FindPrevious.ID_TERMINAL_FOCUS, FindPrevious.LABEL, {
 	primary: KeyMod.Shift | KeyCode.F3,
@@ -538,7 +538,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, Fi
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Find previous', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, FindPrevious.ID, FindPrevious.LABEL, {
 	primary: KeyMod.Shift | KeyCode.F3,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3, KeyCode.Enter] },
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Find previous');
 
 

@@ -640,6 +640,12 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		}
 	}
 
+	public runFindAction(previous: boolean) {
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.find(previous);
+		}
+	}
+
 	public reload() {
 		this.doUpdateContent();
 	}

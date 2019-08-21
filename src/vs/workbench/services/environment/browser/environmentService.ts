@@ -62,11 +62,9 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	termProgram?: string;
 }
 
-export interface IBrowserWindowConfiguration {
+interface IBrowserWorkbenchEnvironemntConstructionOptions extends IWorkbenchConstructionOptions {
 	workspaceId: string;
-	remoteAuthority?: string;
-	webviewEndpoint?: string;
-	connectionToken?: string;
+	logFile: URI;
 }
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
@@ -75,8 +73,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 
-	constructor(workspaceId: string, public readonly options: IWorkbenchConstructionOptions) {
+	constructor(readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) {
 		this.args = { _: [] };
+		this.logFile = options.logFile;
 		this.appRoot = '/web/';
 		this.appNameLong = 'Visual Studio Code - Web';
 
@@ -88,8 +87,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
 		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
 		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
-		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, workspaceId);
-		this.configuration.connectionToken = options.connectionToken || this.getConnectionTokenFromLocation();
+		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, options.workspaceId);
+		this.configuration.connectionToken = options.connectionToken || getCookieValue('vscode-tkn');
 
 		this.logsPath = '/web/logs';
 
@@ -183,6 +182,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	driverVerbose: boolean;
 	webviewEndpoint?: string;
 	galleryMachineIdResource?: URI;
+	readonly logFile: URI;
 
 	get webviewResourceRoot(): string {
 		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource{{resource}}' : 'vscode-resource:{{resource}}';
@@ -191,21 +191,12 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get webviewCspSource(): string {
 		return this.webviewEndpoint ? this.webviewEndpoint : 'vscode-resource:';
 	}
+}
 
-	private getConnectionTokenFromLocation(): string | undefined {
-		// TODO: Check with @alexd where the token will be: search or hash?
-		let connectionToken: string | undefined = undefined;
-		if (document.location.search) {
-			connectionToken = this.getConnectionToken(document.location.search);
-		}
-		if (!connectionToken && document.location.hash) {
-			connectionToken = this.getConnectionToken(document.location.hash);
-		}
-		return connectionToken;
-	}
-
-	private getConnectionToken(str: string): string | undefined {
-		const m = str.match(/[#&?]tkn=([^&]+)/);
-		return m ? m[1] : undefined;
-	}
+/**
+ * See https://stackoverflow.com/a/25490531
+ */
+function getCookieValue(name: string): string | undefined {
+	const m = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)');
+	return m ? m.pop() : undefined;
 }

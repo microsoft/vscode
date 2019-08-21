@@ -1141,4 +1141,15 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Deprecated support
+
+	export interface CompletionItem {
+		/**
+		 * Indicates if this item is deprecated.
+		 */
+		deprecated?: boolean;
+	}
+
+	//#endregion
 }

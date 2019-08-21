@@ -32,6 +32,27 @@ export class HideWebViewEditorFindCommand extends Command {
 	}
 }
 
+export class WebViewEditorFindNextCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.findNext';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = getActiveWebviewEditor(accessor);
+		if (webViewEditor) {
+			webViewEditor.find(false);
+		}
+	}
+}
+
+export class WebViewEditorFindPreviousCommand extends Command {
+	public static readonly ID = 'editor.action.webvieweditor.findPrevious';
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = getActiveWebviewEditor(accessor);
+		if (webViewEditor) {
+			webViewEditor.find(true);
+		}
+	}
+}
 export class ReloadWebviewAction extends Action {
 	static readonly ID = 'workbench.action.webview.reloadWebviewAction';
 	static readonly LABEL = nls.localize('refreshWebviewLabel', "Reload Webviews");

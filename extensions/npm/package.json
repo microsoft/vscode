@@ -18,7 +18,7 @@
     "watch": "gulp watch-extension:npm"
   },
   "dependencies": {
-    "jsonc-parser": "^2.0.2",
+    "jsonc-parser": "^2.1.1",
     "minimatch": "^3.0.4",
     "request-light": "^0.2.4",
     "vscode-nls": "^4.0.0"

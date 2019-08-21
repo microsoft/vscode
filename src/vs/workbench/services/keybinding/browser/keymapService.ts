@@ -176,6 +176,7 @@ export class BrowserKeyboardMapperFactoryBase {
 	}
 
 	setActiveKeyMapping(keymap: IKeyboardMapping | null) {
+		let keymapUpdated = false;
 		let matchedKeyboardLayout = this.getMatchedKeymapInfo(keymap);
 		if (matchedKeyboardLayout) {
 			// let score = matchedKeyboardLayout.score;
@@ -209,18 +210,21 @@ export class BrowserKeyboardMapperFactoryBase {
 
 			if (!this._activeKeymapInfo) {
 				this._activeKeymapInfo = matchedKeyboardLayout.result;
+				keymapUpdated = true;
 			} else if (keymap) {
 				if (matchedKeyboardLayout.result.getScore(keymap) > this._activeKeymapInfo.getScore(keymap)) {
 					this._activeKeymapInfo = matchedKeyboardLayout.result;
+					keymapUpdated = true;
 				}
 			}
 		}
 
 		if (!this._activeKeymapInfo) {
 			this._activeKeymapInfo = this.getUSStandardLayout();
+			keymapUpdated = true;
 		}
 
-		if (!this._activeKeymapInfo) {
+		if (!this._activeKeymapInfo || !keymapUpdated) {
 			return;
 		}
 
