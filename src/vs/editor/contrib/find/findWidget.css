@@ -46,10 +46,8 @@
 
 /* Find widget when replace is toggled on */
 .monaco-editor .find-widget.replaceToggled {
-	top: -74px;
-	/* find input height + replace input height + shadow (10px) */
+	top: -74px; /* find input height + replace input height + shadow (10px) */
 }
-
 .monaco-editor .find-widget.replaceToggled > .replace-part {
 	display: flex;
 	display: -webkit-flex;
@@ -57,7 +55,7 @@
 
 .monaco-editor .find-widget.visible,
 .monaco-editor .find-widget.replaceToggled.visible {
-	top: 0px;
+	top: 0;
 }
 
 /* Multiple line find widget */
