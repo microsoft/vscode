@@ -4561,7 +4561,9 @@ declare namespace monaco.languages {
 		 *
 		 * @deprecated Will be replaced by a better API soon.
 		 */
-		__electricCharacterSupport?: IBracketElectricCharacterContribution;
+		__electricCharacterSupport?: {
+			docComment?: IDocComment;
+		};
 	}
 
 	/**
@@ -4634,10 +4636,6 @@ declare namespace monaco.languages {
 		 * The action to execute.
 		 */
 		action: EnterAction;
-	}
-
-	export interface IBracketElectricCharacterContribution {
-		docComment?: IDocComment;
 	}
 
 	/**
@@ -4816,6 +4814,10 @@ declare namespace monaco.languages {
 		 * an icon is chosen by the editor.
 		 */
 		kind: CompletionItemKind;
+		/**
+		 * Indicates if this item is deprecated.
+		 */
+		deprecated?: boolean;
 		/**
 		 * A human-readable string with additional information
 		 * about this item, like type or symbol information.

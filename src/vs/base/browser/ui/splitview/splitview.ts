@@ -117,12 +117,11 @@ abstract class ViewItem {
 		if (typeof size === 'number') {
 			this._size = size;
 			this._cachedVisibleSize = undefined;
+			dom.addClass(container, 'visible');
 		} else {
 			this._size = 0;
 			this._cachedVisibleSize = size.cachedVisibleSize;
 		}
-
-		dom.addClass(container, 'visible');
 	}
 
 	layout(_orthogonalSize: number | undefined): void {

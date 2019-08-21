@@ -3831,10 +3831,10 @@ growl@1.9.2:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.9.2.tgz#0ea7743715db8d8de2c5ede1775e1b45ac85c02f"
   integrity sha1-Dqd0NxXbjY3ixe3hd14bRayFwC8=
 
-gulp-atom-electron@^1.21.1:
-  version "1.21.1"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.21.1.tgz#4017144bf659fbbf7d0644664fcc47c64efac0f0"
-  integrity sha512-UHEf2pZrJD/u+AAzKCbhdPXaKrReFDa+OEJjBCAdN2SHnD+dfZqSJAz/u2OD6YR/eREuUbQOCw+VWUwex20klQ==
+gulp-atom-electron@^1.22.0:
+  version "1.22.0"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.22.0.tgz#0e2f4fe7c7310145c6c81d5660d0277cd8338d27"
+  integrity sha512-K13Ze2+iRIvC1igl+BIbZdF8M2ZzEIM6LF+/j83oWNGNhe7+en77qT9y9rs6SipYeOyoInlbly+pzbFgvwpSHA==
   dependencies:
     event-stream "3.3.4"
     github-releases-ms "^0.5.0"
@@ -9631,10 +9631,10 @@ vscode-chokidar@2.1.7:
   optionalDependencies:
     vscode-fsevents "1.2.12"
 
-vscode-debugprotocol@1.35.0:
-  version "1.35.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.35.0.tgz#565140cd42945e30c6c85cafb38c631457d4a46c"
-  integrity sha512-+OMm11R1bGYbpIJ5eQIkwoDGFF4GvBz3Ztl6/VM+/RNNb2Gjk2c0Ku+oMmfhlTmTlPCpgHBsH4JqVCbUYhu5bA==
+vscode-debugprotocol@1.36.0-pre.0:
+  version "1.36.0-pre.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.36.0-pre.0.tgz#4f998e143acae9e3ce13c308d4ad322f96841926"
+  integrity sha512-nQhImfsUJFfr73JqA2Uc1bjTvpgZRabqkkKQWUbmrrnTLCPKRCr9AgE44Ehb/vkLXNdo+vPnWjJXWnPGjT10mA==
 
 vscode-fsevents@1.2.12:
   version "1.2.12"

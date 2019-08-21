@@ -93,7 +93,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 			[
 				{
 					label: nls.localize('integrity.moreInformation', "More Information"),
-					run: () => this.openerService.openExternal(URI.parse(product.checksumFailMoreInfoUrl))
+					run: () => this.openerService.open(URI.parse(product.checksumFailMoreInfoUrl))
 				},
 				{
 					label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),

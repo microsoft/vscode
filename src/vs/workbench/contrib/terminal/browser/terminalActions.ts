@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -1034,7 +1034,7 @@ export class RenameTerminalAction extends Action {
 			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 		}).then(name => {
 			if (name) {
-				terminalInstance.setTitle(name, false);
+				terminalInstance.setTitle(name, TitleEventSource.Api);
 			}
 		});
 	}

@@ -289,6 +289,11 @@
 			const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
 			if (!csp) {
 				host.postMessage('no-csp-found');
+			} else {
+				// Rewrite vscode-resource in csp
+				if (data.endpoint) {
+					csp.setAttribute('content', csp.getAttribute('content').replace(/vscode-resource:/g, data.endpoint));
+				}
 			}
 
 			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off

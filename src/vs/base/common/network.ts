@@ -49,6 +49,8 @@ export namespace Schemas {
 
 	export const vscodeRemote: string = 'vscode-remote';
 
+	export const vscodeRemoteResource: string = 'vscode-remote-resource';
+
 	export const userData: string = 'vscode-userdata';
 }
 
@@ -64,7 +66,7 @@ class RemoteAuthoritiesImpl {
 	}
 
 	public set(authority: string, host: string, port: number): void {
-		this._hosts[authority] = (host === 'localhost' ? '127.0.0.1' : host);
+		this._hosts[authority] = host;
 		this._ports[authority] = port;
 	}
 
@@ -76,9 +78,8 @@ class RemoteAuthoritiesImpl {
 		const host = this._hosts[authority];
 		const port = this._ports[authority];
 		const connectionToken = this._connectionTokens[authority];
-		const scheme = (host === '127.0.0.1' ? Schemas.http : Schemas.vscodeRemote);
 		return URI.from({
-			scheme: scheme,
+			scheme: Schemas.vscodeRemoteResource,
 			authority: `${host}:${port}`,
 			path: `/vscode-remote2`,
 			query: `path=${encodeURIComponent(path)}&tkn=${encodeURIComponent(connectionToken)}`

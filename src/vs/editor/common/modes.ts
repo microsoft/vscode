@@ -397,6 +397,10 @@ export interface CompletionItem {
 	 */
 	kind: CompletionItemKind;
 	/**
+	 * Indicates if this item is deprecated.
+	 */
+	deprecated?: boolean;
+	/**
 	 * A human-readable string with additional information
 	 * about this item, like type or symbol information.
 	 */

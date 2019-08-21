@@ -20,6 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IProductService } from 'vs/platform/product/common/product';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface IFeedback {
 	feedback: string;
@@ -27,7 +28,7 @@ export interface IFeedback {
 }
 
 export interface IFeedbackDelegate {
-	submitFeedback(feedback: IFeedback): void;
+	submitFeedback(feedback: IFeedback, openerService: IOpenerService): void;
 	getCharacterLimit(sentiment: number): number;
 }
 
@@ -66,7 +67,8 @@ export class FeedbackDropdown extends Dropdown {
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(container, options);
 
@@ -415,7 +417,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.feedbackDelegate.submitFeedback({
 			feedback: this.feedbackDescriptionInput.value,
 			sentiment: this.sentiment
-		});
+		}, this.openerService);
 
 		this.hide();
 	}

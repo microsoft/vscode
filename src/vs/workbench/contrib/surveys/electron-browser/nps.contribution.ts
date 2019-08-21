@@ -13,6 +13,8 @@ import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { URI } from 'vs/base/common/uri';
 
 const PROBABILITY = 0.15;
 const SESSION_COUNT_KEY = 'nps/sessionCount';
@@ -25,7 +27,8 @@ class NPSContribution implements IWorkbenchContribution {
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IOpenerService openerService: IOpenerService
 	) {
 		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
 		if (skipVersion) {
@@ -64,7 +67,7 @@ class NPSContribution implements IWorkbenchContribution {
 				label: nls.localize('takeSurvey', "Take Survey"),
 				run: () => {
 					telemetryService.getTelemetryInfo().then(info => {
-						window.open(`${product.npsSurveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
+						openerService.open(URI.parse(`${product.npsSurveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`));
 						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 						storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 					});

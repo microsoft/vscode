@@ -113,6 +113,15 @@ export namespace DiagnosticTag {
 		}
 		return undefined;
 	}
+	export function to(value: MarkerTag): vscode.DiagnosticTag | undefined {
+		switch (value) {
+			case MarkerTag.Unnecessary:
+				return types.DiagnosticTag.Unnecessary;
+			case MarkerTag.Deprecated:
+				return types.DiagnosticTag.Deprecated;
+		}
+		return undefined;
+	}
 }
 
 export namespace Diagnostic {
@@ -126,6 +135,15 @@ export namespace Diagnostic {
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
 			tags: Array.isArray(value.tags) ? coalesce(value.tags.map(DiagnosticTag.from)) : undefined,
 		};
+	}
+
+	export function to(value: IMarkerData): vscode.Diagnostic {
+		const res = new types.Diagnostic(Range.to(value), value.message, DiagnosticSeverity.to(value.severity));
+		res.source = value.source;
+		res.code = value.code;
+		res.relatedInformation = value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.to);
+		res.tags = value.tags && coalesce(value.tags.map(DiagnosticTag.to));
+		return res;
 	}
 }
 
