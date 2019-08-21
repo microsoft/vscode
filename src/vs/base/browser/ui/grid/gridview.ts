@@ -228,7 +228,7 @@ class BranchNode implements ISplitView, IDisposable {
 				views: childDescriptors.map(childDescriptor => {
 					return { view: childDescriptor.node, size: childDescriptor.node.size, visible: childDescriptor.node instanceof LeafNode ? childDescriptor.visible : true };
 				}),
-				size
+				size: this.orthogonalSize
 			};
 
 			const options = { proportionalLayout, orientation, styles };
