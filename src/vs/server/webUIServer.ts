@@ -69,6 +69,10 @@ export class WebUIServer extends Disposable {
 			const parsedUrl = url.parse(req.url, true);
 			const pathname = parsedUrl.pathname;
 
+			if (!pathname) {
+				return this._serveError(req, res, 400, `Bad request.`);
+			}
+
 			if (pathname === '/') {
 				return this._handleRoot(req, res, parsedUrl);
 			}
@@ -81,47 +85,47 @@ export class WebUIServer extends Disposable {
 			if (pathname === '/vscode-remote2') {
 				return this._handleVSCodeRemoteResource2(req, res, parsedUrl);
 			}
-
-			// Anything else
-			let validatePath = true;
-			const client = (this._environmentService.args as any)['client'];
-			let clientRoot;
-			if (!client || pathname! === '/out/vs/code/browser/workbench/workbench.js') {
-				clientRoot = APP_ROOT;
-			} else {
-				clientRoot = path.normalize(client); // use provided path as client root
-				validatePath = false; // do not validate path as such
+			if (/^\/static\//.test(pathname)) {
+				// This is a request for a static "core" resource
+				return this._handleStatic(req, res, parsedUrl);
 			}
 
-			let filePath = path.join(clientRoot, path.normalize(pathname!));
-
-			if (validatePath && !isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
-				throw new Error(`Invalid path ${pathname}`); // prevent navigation outside root
-			}
-
-			const stat = await util.promisify(fs.stat)(filePath);
-			if (stat.isDirectory()) {
-				filePath += '/index.html';
-			}
-
-			const headers: Record<string, string> = Object.create(null);
-			// Allow all service worker requests to control the "max" scope
-			// see: https://www.w3.org/TR/service-workers-1/#extended-http-headers
-			if (req.headers['service-worker']) {
-				headers['Service-Worker-Allowed'] = '/';
-			}
-
-			headers['Content-Type'] = textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
-			res.writeHead(200, headers);
-			const data = await util.promisify(fs.readFile)(filePath);
-			return res.end(data);
+			return this._serveError(req, res, 404, 'Not found.');
 		} catch (error) {
 			this._logService.error(error);
 			console.error(error.toString());
 
-			res.writeHead(404, { 'Content-Type': 'text/plain' });
-			return res.end('Not found');
+			return this._serveError(req, res, 500, 'Internal Server Error.');
 		}
+	}
+
+	/**
+	 * Handle HTTP requests for /static/*
+	 */
+	private async _handleStatic(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		const headers: Record<string, string> = Object.create(null);
+		// Allow all service worker requests to control the "max" scope
+		// see: https://www.w3.org/TR/service-workers-1/#extended-http-headers
+		if (req.headers['service-worker']) {
+			headers['Service-Worker-Allowed'] = '/';
+		}
+
+		// Strip `/static/` from the path
+		const relativeFilePath = path.normalize(parsedUrl.pathname!.substr('/static/'.length));
+
+		const client = (this._environmentService.args as any)['client'];
+		if (client && parsedUrl.pathname !== '/static/out/vs/code/browser/workbench/workbench.js') {
+			// use provided path as client root
+			const filePath = path.join(path.normalize(client), relativeFilePath);
+			return this._serveFile(req, res, filePath, headers);
+		}
+
+		const filePath = path.join(APP_ROOT, relativeFilePath);
+		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
+			return this._serveError(req, res, 400, `Bad request.`);
+		}
+
+		return this._serveFile(req, res, filePath, headers);
 	}
 
 	/**
@@ -159,7 +163,8 @@ export class WebUIServer extends Disposable {
 	}
 
 	/**
-	 * Handle HTTP requests for resources from the web client (images, fonts, etc.)
+	 * Handle HTTP requests for resources rendered in the web client (images, fonts, etc.)
+	 * These resources could be files shipped with extensions or even workspace files.
 	 */
 	private async _handleVSCodeRemoteResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		const { query } = url.parse(req.url!);
@@ -187,7 +192,8 @@ export class WebUIServer extends Disposable {
 	}
 
 	/**
-	 * Handle HTTP requests for renderer resources from the rich client (images, fonts, etc.)
+	 * Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
+	 * These resources could be files shipped with extensions or even workspace files.
 	 */
 	private async _handleVSCodeRemoteResource2(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		if (parsedUrl.query['tkn'] !== this._connectionToken) {
