@@ -12,8 +12,8 @@ export function buildReplaceStringWithCasePreserved(matches: string[] | null, pa
 		} else if (matches[0].toLowerCase() === matches[0]) {
 			return pattern.toLowerCase();
 		} else if (strings.containsUppercaseCharacter(matches[0][0])) {
-			if (validateHyphenPattern(matches, pattern)) {
-				return buildReplaceStringForHyphenPatterns(matches, pattern);
+			if (validateSpecificSpecialCharacter(matches, pattern, '-')) {
+				return buildReplaceStringForSpecificSpecialCharacter(matches, pattern, '-');
 			} else {
 				return pattern[0].toUpperCase() + pattern.substr(1);
 			}
@@ -26,19 +26,19 @@ export function buildReplaceStringWithCasePreserved(matches: string[] | null, pa
 	}
 }
 
-function validateHyphenPattern(matches: string[], pattern: string): boolean {
-	const doesConatinHyphen = matches[0].indexOf('-') !== -1 && pattern.indexOf('-') !== -1;
-	const doesConatinSameNumberOfHyphens = matches[0].split('-').length === pattern.split('-').length;
-	return doesConatinHyphen && doesConatinSameNumberOfHyphens;
+function validateSpecificSpecialCharacter(matches: string[], pattern: string, specialCharacter: string): boolean {
+	const doesConatinSpecialCharacter = matches[0].indexOf(specialCharacter) !== -1 && pattern.indexOf(specialCharacter) !== -1;
+	const doesConatinSameNumberOfSpecialCharacters = matches[0].split(specialCharacter).length === pattern.split(specialCharacter).length;
+	return doesConatinSpecialCharacter && doesConatinSameNumberOfSpecialCharacters;
 }
 
-function buildReplaceStringForHyphenPatterns(matches: string[], pattern: string): string {
-	const splitPatternAtHyphen = pattern.split('-');
-	const splitMatchAtHyphen = matches[0].split('-');
+function buildReplaceStringForSpecificSpecialCharacter(matches: string[], pattern: string, specialCharacter: string): string {
+	const splitPatternAtSpecialCharacter = pattern.split(specialCharacter);
+	const splitMatchAtSpecialCharacter = matches[0].split(specialCharacter);
 	let replaceString: string = '';
-
-	splitPatternAtHyphen.forEach((splitValues, index) => {
-		replaceString += buildReplaceStringWithCasePreserved([splitMatchAtHyphen[index]], splitValues) + '-';
+	splitPatternAtSpecialCharacter.forEach((splitValue, index) => {
+		replaceString += buildReplaceStringWithCasePreserved([splitMatchAtSpecialCharacter[index]], splitValue) + specialCharacter;
 	});
+
 	return replaceString.slice(0, -1);
 }
