@@ -46,6 +46,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { Emitter } from 'vs/base/common/event';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -60,6 +61,7 @@ export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 	}
 }
 
+export const explorerRootErrorEmitter = new Emitter<URI>();
 export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
 	constructor(
@@ -87,8 +89,9 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 					// Single folder create a dummy explorer item to show error
 					const placeholder = new ExplorerItem(element.resource, undefined, false);
 					placeholder.isError = true;
-
 					return [placeholder];
+				} else {
+					explorerRootErrorEmitter.fire(element.resource);
 				}
 			} else {
 				// Do not show error for roots since we already use an explorer decoration to notify user
