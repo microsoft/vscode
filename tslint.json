@@ -651,6 +651,12 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/contrib/tasks/browser/terminalTaskSystem.ts",
+				"allowed": [
+					"process"
+				]
+			},
+			{
 				"target": "**/vs/**/{common,browser}/**",
 				"allowed": [ /* none */]
 			}
@@ -661,6 +667,12 @@
 				"target": "**/vs/**/test/{common,node,electron-main}/**",
 				"allowed": [
 					"document",
+					"HTMLElement"
+				]
+			},
+			{
+				"target": "**/vs/workbench/contrib/terminal/common/{terminal.ts,terminalService.ts}",
+				"allowed": [
 					"HTMLElement"
 				]
 			},

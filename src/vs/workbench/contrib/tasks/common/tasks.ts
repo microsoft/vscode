@@ -985,14 +985,14 @@ export namespace KeyedTaskIdentifier {
 	function sortedStringify(literal: any): string {
 		const keys = Object.keys(literal).sort();
 		let result: string = '';
-		for (let position in keys) {
-			let stringified = literal[keys[position]];
+		for (const position of keys) {
+			let stringified = literal[position];
 			if (stringified instanceof Object) {
 				stringified = sortedStringify(stringified);
 			} else if (typeof stringified === 'string') {
 				stringified = stringified.replace(/,/g, ',,');
 			}
-			result += keys[position] + ',' + stringified + ',';
+			result += position + ',' + stringified + ',';
 		}
 		return result;
 	}
