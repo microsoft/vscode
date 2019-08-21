@@ -599,7 +599,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			if (sessions.length === 0) {
 				return Promise.resolve([]);
 			}
-			if (sessions.length > 1 || this.debugService.getViewModel().isMultiSessionView()) {
+			if (sessions.length > 1) {
 				return Promise.resolve(sessions.filter(s => !s.parentSession));
 			}
 
