@@ -29,7 +29,7 @@ const textMimeType = {
 
 const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 
-export class WebUIServer extends Disposable {
+export class WebClientServer extends Disposable {
 
 	private _webviewServer: http.Server | null;
 	private _webviewEndpoint: string | null;

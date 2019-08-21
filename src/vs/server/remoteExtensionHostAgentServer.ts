@@ -65,7 +65,7 @@ import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { WebUIServer } from 'vs/server/webUIServer';
+import { WebClientServer } from 'vs/server/webClientServer';
 
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
@@ -93,7 +93,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	private readonly _uriTransformerCache: { [remoteAuthority: string]: IURITransformer; };
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection; };
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection; };
-	private readonly _webUIServer: WebUIServer | null;
+	private readonly _webClientServer: WebClientServer | null;
 
 	private shutdownTimer: NodeJS.Timer | undefined;
 
@@ -110,9 +110,9 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		const webRootFile = getPathFromAmdModule(require, 'vs/code/browser/workbench/workbench.html');
 		if (fs.existsSync(webRootFile)) {
-			this._webUIServer = this._register(new WebUIServer(this._connectionToken, this._environmentService, this._logService));
+			this._webClientServer = this._register(new WebClientServer(this._connectionToken, this._environmentService, this._logService));
 		} else {
-			this._webUIServer = null;
+			this._webClientServer = null;
 		}
 	}
 
@@ -216,8 +216,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		setTimeout(() => this._cleanupOlderLogs(this._environmentService.logsPath).then(null, err => this._logService.error(err)), 10000);
 
-		if (this._webUIServer) {
-			await this._webUIServer.init(port);
+		if (this._webClientServer) {
+			await this._webClientServer.init(port);
 		}
 
 		const server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
@@ -242,8 +242,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			}
 
 			// workbench web UI
-			if (this._webUIServer) {
-				this._webUIServer.handle(req, res);
+			if (this._webClientServer) {
+				this._webClientServer.handle(req, res);
 				return;
 			}
 
@@ -308,7 +308,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			console.log(`Extension host agent listening on ${typeof address === 'string' ? address : address.port}`);
 			this._logService.info(`Extension host agent listening on ${typeof address === 'string' ? address : address.port}`);
 
-			if (this._webUIServer && typeof address !== 'string') {
+			if (this._webClientServer && typeof address !== 'string') {
 				// ships the web ui!
 				console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/?tkn=${this._connectionToken}`);
 			}
