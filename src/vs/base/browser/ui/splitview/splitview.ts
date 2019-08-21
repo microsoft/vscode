@@ -24,12 +24,12 @@ const defaultStyles: ISplitViewStyles = {
 };
 
 export interface ISplitViewOptions {
-	orientation?: Orientation; // default Orientation.VERTICAL
-	styles?: ISplitViewStyles;
-	orthogonalStartSash?: Sash;
-	orthogonalEndSash?: Sash;
-	inverseAltBehavior?: boolean;
-	proportionalLayout?: boolean; // default true
+	readonly orientation?: Orientation; // default Orientation.VERTICAL
+	readonly styles?: ISplitViewStyles;
+	readonly orthogonalStartSash?: Sash;
+	readonly orthogonalEndSash?: Sash;
+	readonly inverseAltBehavior?: boolean;
+	readonly proportionalLayout?: boolean; // default true
 }
 
 /**
@@ -48,7 +48,7 @@ export interface IView {
 	readonly onDidChange: Event<number | undefined>;
 	readonly priority?: LayoutPriority;
 	readonly snap?: boolean;
-	layout(size: number, orientation: Orientation): void;
+	layout(size: number, orthogonalSize: number | undefined): void;
 	setVisible?(visible: boolean): void;
 }
 
@@ -79,7 +79,7 @@ abstract class ViewItem {
 		return typeof this._cachedVisibleSize === 'undefined';
 	}
 
-	set visible(visible: boolean) {
+	setVisible(visible: boolean, size?: number): void {
 		if (visible === this.visible) {
 			return;
 		}
@@ -88,7 +88,7 @@ abstract class ViewItem {
 			this.size = clamp(this._cachedVisibleSize!, this.viewMinimumSize, this.viewMaximumSize);
 			this._cachedVisibleSize = undefined;
 		} else {
-			this._cachedVisibleSize = this.size;
+			this._cachedVisibleSize = typeof size === 'number' ? size : this.size;
 			this.size = 0;
 		}
 
@@ -117,18 +117,20 @@ abstract class ViewItem {
 		if (typeof size === 'number') {
 			this._size = size;
 			this._cachedVisibleSize = undefined;
+			dom.addClass(container, 'visible');
 		} else {
 			this._size = 0;
 			this._cachedVisibleSize = size.cachedVisibleSize;
 		}
-
-		dom.addClass(container, 'visible');
 	}
 
-	abstract layout(): void;
+	layout(_orthogonalSize: number | undefined): void {
+		this.container.scrollTop = 0;
+		this.container.scrollLeft = 0;
+	}
 
-	layoutView(orientation: Orientation): void {
-		this.view.layout(this.size, orientation);
+	layoutView(orthogonalSize: number | undefined): void {
+		this.view.layout(this.size, orthogonalSize);
 	}
 
 	dispose(): IView {
@@ -139,17 +141,19 @@ abstract class ViewItem {
 
 class VerticalViewItem extends ViewItem {
 
-	layout(): void {
+	layout(orthogonalSize: number | undefined): void {
+		super.layout(orthogonalSize);
 		this.container.style.height = `${this.size}px`;
-		this.layoutView(Orientation.VERTICAL);
+		this.layoutView(orthogonalSize);
 	}
 }
 
 class HorizontalViewItem extends ViewItem {
 
-	layout(): void {
+	layout(orthogonalSize: number | undefined): void {
+		super.layout(orthogonalSize);
 		this.container.style.width = `${this.size}px`;
-		this.layoutView(Orientation.HORIZONTAL);
+		this.layoutView(orthogonalSize);
 	}
 }
 
@@ -161,6 +165,7 @@ interface ISashItem {
 interface ISashDragSnapState {
 	readonly index: number;
 	readonly limitDelta: number;
+	readonly size: number;
 }
 
 interface ISashDragState {
@@ -199,11 +204,12 @@ export class SplitView extends Disposable {
 	private sashContainer: HTMLElement;
 	private viewContainer: HTMLElement;
 	private size = 0;
+	private orthogonalSize: number | undefined;
 	private contentSize = 0;
 	private proportions: undefined | number[] = undefined;
 	private viewItems: ViewItem[] = [];
 	private sashItems: ISashItem[] = [];
-	private sashDragState: ISashDragState;
+	private sashDragState: ISashDragState | undefined;
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
 	private proportionalLayout: boolean;
@@ -414,9 +420,10 @@ export class SplitView extends Disposable {
 			throw new Error('Cant modify splitview');
 		}
 
-		const size = this.getViewSize(from);
+		const cachedVisibleSize = this.getViewCachedVisibleSize(from);
+		const sizing = typeof cachedVisibleSize === 'undefined' ? this.getViewSize(from) : Sizing.Invisible(cachedVisibleSize);
 		const view = this.removeView(from);
-		this.addView(view, size, to);
+		this.addView(view, sizing, to);
 	}
 
 	swapViews(from: number, to: number): void {
@@ -452,10 +459,11 @@ export class SplitView extends Disposable {
 		}
 
 		const viewItem = this.viewItems[index];
-		viewItem.visible = visible;
+		viewItem.setVisible(visible);
 
 		this.distributeEmptySpace(index);
 		this.layoutViews();
+		this.saveProportions();
 	}
 
 	getViewCachedVisibleSize(index: number): number | undefined {
@@ -467,9 +475,10 @@ export class SplitView extends Disposable {
 		return viewItem.cachedVisibleSize;
 	}
 
-	layout(size: number): void {
+	layout(size: number, orthogonalSize?: number): void {
 		const previousSize = Math.max(this.size, this.contentSize);
 		this.size = size;
+		this.orthogonalSize = orthogonalSize;
 
 		if (!this.proportions) {
 			const indexes = range(this.viewItems.length);
@@ -499,8 +508,8 @@ export class SplitView extends Disposable {
 
 		// This way, we can press Alt while we resize a sash, macOS style!
 		const disposable = combinedDisposable(
-			domEvent(document.body, 'keydown')(e => resetSashDragState(this.sashDragState.current, e.altKey)),
-			domEvent(document.body, 'keyup')(() => resetSashDragState(this.sashDragState.current, false))
+			domEvent(document.body, 'keydown')(e => resetSashDragState(this.sashDragState!.current, e.altKey)),
+			domEvent(document.body, 'keyup')(() => resetSashDragState(this.sashDragState!.current, false))
 		);
 
 		const resetSashDragState = (start: number, alt: boolean) => {
@@ -550,7 +559,8 @@ export class SplitView extends Disposable {
 
 					snapBefore = {
 						index: snapBeforeIndex,
-						limitDelta: viewItem.visible ? minDelta - halfSize : minDelta + halfSize
+						limitDelta: viewItem.visible ? minDelta - halfSize : minDelta + halfSize,
+						size: viewItem.size
 					};
 				}
 
@@ -560,7 +570,8 @@ export class SplitView extends Disposable {
 
 					snapAfter = {
 						index: snapAfterIndex,
-						limitDelta: viewItem.visible ? maxDelta + halfSize : maxDelta - halfSize
+						limitDelta: viewItem.visible ? maxDelta + halfSize : maxDelta - halfSize,
+						size: viewItem.size
 					};
 				}
 			}
@@ -572,8 +583,8 @@ export class SplitView extends Disposable {
 	}
 
 	private onSashChange({ current }: ISashEvent): void {
-		const { index, start, sizes, alt, minDelta, maxDelta, snapBefore, snapAfter } = this.sashDragState;
-		this.sashDragState.current = current;
+		const { index, start, sizes, alt, minDelta, maxDelta, snapBefore, snapAfter } = this.sashDragState!;
+		this.sashDragState!.current = current;
 
 		const delta = current - start;
 		const newDelta = this.resize(index, delta, sizes, undefined, undefined, minDelta, maxDelta, snapBefore, snapAfter);
@@ -596,7 +607,7 @@ export class SplitView extends Disposable {
 
 	private onSashEnd(index: number): void {
 		this._onDidSashChange.fire(index);
-		this.sashDragState.disposable.dispose();
+		this.sashDragState!.disposable.dispose();
 		this.saveProportions();
 	}
 
@@ -738,14 +749,14 @@ export class SplitView extends Disposable {
 			const snapView = this.viewItems[snapBefore.index];
 			const visible = delta >= snapBefore.limitDelta;
 			snapped = visible !== snapView.visible;
-			snapView.visible = visible;
+			snapView.setVisible(visible, snapBefore.size);
 		}
 
 		if (!snapped && snapAfter) {
 			const snapView = this.viewItems[snapAfter.index];
 			const visible = delta < snapAfter.limitDelta;
 			snapped = visible !== snapView.visible;
-			snapView.visible = visible;
+			snapView.setVisible(visible, snapAfter.size);
 		}
 
 		if (snapped) {
@@ -810,7 +821,7 @@ export class SplitView extends Disposable {
 		this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 
 		// Layout views
-		this.viewItems.forEach(item => item.layout());
+		this.viewItems.forEach(item => item.layout(this.orthogonalSize));
 
 		// Layout sashes
 		this.sashItems.forEach(item => item.sash.layout());

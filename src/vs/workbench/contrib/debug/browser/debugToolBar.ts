@@ -55,10 +55,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
-	private disposeOnUpdate: IDisposable;
+	private disposeOnUpdate: IDisposable | undefined;
 
-	private isVisible: boolean;
-	private isBuilt: boolean;
+	private isVisible = false;
+	private isBuilt = false;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -126,7 +126,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.registerListeners();
 
 		this.hide();
-		this.isBuilt = false;
 	}
 
 	private registerListeners(): void {

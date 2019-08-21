@@ -34,8 +34,8 @@ export interface ILine {
 
 export class RenderedLinesCollection<T extends ILine> {
 	private readonly _createLine: () => T;
-	private _lines: T[];
-	private _rendLineNumberStart: number;
+	private _lines!: T[];
+	private _rendLineNumberStart!: number;
 
 	constructor(createLine: () => T) {
 		this._createLine = createLine;

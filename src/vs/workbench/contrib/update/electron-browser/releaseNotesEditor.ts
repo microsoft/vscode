@@ -28,24 +28,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { generateUuid } from 'vs/base/common/uuid';
 
-function renderBody(
-	body: string,
-	css: string
-): string {
-	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
-	return `<!DOCTYPE html>
-		<html>
-			<head>
-				<base href="https://code.visualstudio.com/raw/">
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-resource: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
-				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
-				<style>${css}</style>
-			</head>
-			<body>${body}</body>
-		</html>`;
-}
-
 export class ReleaseNotesManager {
 
 	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
@@ -188,8 +170,18 @@ export class ReleaseNotesManager {
 		const content = await this.renderContent(text);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
-		const body = renderBody(content, css);
-		return body;
+		const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-resource://');
+		return `<!DOCTYPE html>
+		<html>
+			<head>
+				<base href="https://code.visualstudio.com/raw/">
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-resource: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
+				<style>${css}</style>
+			</head>
+			<body>${content}</body>
+		</html>`;
 	}
 
 	private async renderContent(text: string): Promise<string> {

@@ -27,7 +27,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class WindowsService extends Disposable implements IWindowsService, IURLHandler {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly disposables = this._register(new DisposableStore());
 

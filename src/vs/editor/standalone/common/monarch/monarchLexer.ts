@@ -228,8 +228,6 @@ class MonarchLineState implements modes.IState {
 	}
 }
 
-const hasOwnProperty = Object.hasOwnProperty;
-
 interface IMonarchTokensCollector {
 	enterMode(startOffset: number, modeId: string): void;
 	emit(startOffset: number, type: string): void;
@@ -423,22 +421,24 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	public getLoadStatus(): ILoadStatus {
 		let promises: Thenable<any>[] = [];
 		for (let nestedModeId in this._embeddedModes) {
-			const tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
-			if (tokenizationSupport) {
-				// The nested mode is already loaded
-				if (tokenizationSupport instanceof MonarchTokenizer) {
-					const nestedModeStatus = tokenizationSupport.getLoadStatus();
-					if (nestedModeStatus.loaded === false) {
-						promises.push(nestedModeStatus.promise);
+			if (this._embeddedModes.hasOwnProperty(nestedModeId)) {
+				const tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
+				if (tokenizationSupport) {
+					// The nested mode is already loaded
+					if (tokenizationSupport instanceof MonarchTokenizer) {
+						const nestedModeStatus = tokenizationSupport.getLoadStatus();
+						if (nestedModeStatus.loaded === false) {
+							promises.push(nestedModeStatus.promise);
+						}
 					}
+					continue;
 				}
-				continue;
-			}
 
-			const tokenizationSupportPromise = modes.TokenizationRegistry.getPromise(nestedModeId);
-			if (tokenizationSupportPromise) {
-				// The nested mode is in the process of being loaded
-				promises.push(tokenizationSupportPromise);
+				const tokenizationSupportPromise = modes.TokenizationRegistry.getPromise(nestedModeId);
+				if (tokenizationSupportPromise) {
+					// The nested mode is in the process of being loaded
+					promises.push(tokenizationSupportPromise);
+				}
 			}
 		}
 
@@ -490,11 +490,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		let popOffset = -1;
 		let hasEmbeddedPopRule = false;
 
-		for (let idx in rules) {
-			if (!hasOwnProperty.call(rules, idx)) {
-				continue;
-			}
-			let rule: monarchCommon.IRule = rules[idx];
+		for (const rule of rules) {
 			if (!monarchCommon.isIAction(rule.action) || rule.action.nextEmbedded !== '@pop') {
 				continue;
 			}
@@ -619,16 +615,13 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 				// try each rule until we match
 				let restOfLine = line.substr(pos);
-				for (let idx in rules) {
-					if (hasOwnProperty.call(rules, idx)) {
-						let rule: monarchCommon.IRule = rules[idx];
-						if (pos === 0 || !rule.matchOnlyAtLineStart) {
-							matches = restOfLine.match(rule.regex);
-							if (matches) {
-								matched = matches[0];
-								action = rule.action;
-								break;
-							}
+				for (const rule of rules) {
+					if (pos === 0 || !rule.matchOnlyAtLineStart) {
+						matches = restOfLine.match(rule.regex);
+						if (matches) {
+							matched = matches[0];
+							action = rule.action;
+							break;
 						}
 					}
 				}

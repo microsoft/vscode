@@ -8,10 +8,10 @@ import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle'
 const WIDGET_HEIGHT = 29;
 
 export class TerminalWidgetManager implements IDisposable {
-	private _container: HTMLElement | null;
-	private _xtermViewport: HTMLElement | null;
+	private _container: HTMLElement | undefined;
+	private _xtermViewport: HTMLElement | undefined;
 
-	private _messageWidget: MessageWidget;
+	private _messageWidget: MessageWidget | undefined;
 	private readonly _messageListeners = new DisposableStore();
 
 	constructor(
@@ -27,9 +27,9 @@ export class TerminalWidgetManager implements IDisposable {
 	public dispose(): void {
 		if (this._container && this._container.parentElement) {
 			this._container.parentElement.removeChild(this._container);
-			this._container = null;
+			this._container = undefined;
 		}
-		this._xtermViewport = null;
+		this._xtermViewport = undefined;
 		this._messageListeners.dispose();
 	}
 

@@ -41,6 +41,9 @@ const vscodeWebResources = [
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 
+	// Extension Worker
+	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
+
 	// Excludes
 	'!out-build/vs/**/{node,electron-browser,electron-main}/**',
 	'!out-build/vs/editor/standalone/**',
@@ -53,6 +56,7 @@ const buildfile = require('../src/buildfile');
 const vscodeWebEntryPoints = [
 	buildfile.workbenchWeb,
 	buildfile.serviceWorker,
+	buildfile.workerExtensionHost,
 	buildfile.keyboardMaps,
 	buildfile.base
 ];

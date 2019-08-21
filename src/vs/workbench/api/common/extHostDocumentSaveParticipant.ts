@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { sequence } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
-import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, ResourceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, IResourceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
 import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -142,7 +142,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 		}).then(values => {
 
-			const resourceEdit: ResourceTextEditDto = {
+			const resourceEdit: IResourceTextEditDto = {
 				resource: document.uri,
 				edits: []
 			};
@@ -153,7 +153,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 						resourceEdit.edits.push({
 							range: range && Range.from(range),
 							text: newText,
-							eol: EndOfLine.from(newEol)
+							eol: newEol && EndOfLine.from(newEol)
 						});
 					}
 				}

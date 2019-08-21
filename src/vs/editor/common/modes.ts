@@ -1292,7 +1292,7 @@ export interface CommentThread {
 	threadId: string;
 	resource: string | null;
 	range: IRange;
-	label: string;
+	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
@@ -1300,7 +1300,7 @@ export interface CommentThread {
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<IRange>;
-	onDidChangeLabel: Event<string>;
+	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
 	isDisposed: boolean;
 }

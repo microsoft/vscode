@@ -127,8 +127,7 @@ export class DisposableStore implements IDisposable {
 
 		markTracked(t);
 		if (this._isDisposed) {
-			console.warn(new Error('Registering disposable on object that has already been disposed of').stack);
-			t.dispose();
+			console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
 		} else {
 			this._toDispose.add(t);
 		}

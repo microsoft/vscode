@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as minimist from 'minimist';
+import * as minimist from 'vscode-minimist';
 import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -69,6 +69,7 @@ export const options: Option[] = [
 	{ id: 'locate-extension', type: 'string' },
 	{ id: 'extensionDevelopmentPath', type: 'string' },
 	{ id: 'extensionTestsPath', type: 'string' },
+	{ id: 'extension-development-confirm-save', type: 'boolean' },
 	{ id: 'debugId', type: 'string' },
 	{ id: 'inspect-search', type: 'string', deprecates: 'debugSearch' },
 	{ id: 'inspect-brk-search', type: 'string', deprecates: 'debugBrkSearch' },
@@ -132,6 +133,10 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 			delete parsedArgs[o.deprecates];
 		}
 	}
+
+	// https://github.com/microsoft/vscode/issues/58177
+	parsedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
+
 	return parsedArgs;
 }
 

@@ -11,7 +11,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -20,6 +20,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { toResource } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class OpenFileAction extends Action {
 
@@ -305,3 +308,19 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		return this.windowService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
 	}
 }
+
+// --- Menu Registration
+
+const workspacesCategory = nls.localize('workspaces', "Workspaces");
+
+CommandsRegistry.registerCommand(OpenWorkspaceConfigFileAction.ID, serviceAccessor => {
+	serviceAccessor.get(IInstantiationService).createInstance(OpenWorkspaceConfigFileAction, OpenWorkspaceConfigFileAction.ID, OpenWorkspaceConfigFileAction.LABEL).run();
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: OpenWorkspaceConfigFileAction.ID,
+		title: { value: `${workspacesCategory}: ${OpenWorkspaceConfigFileAction.LABEL}`, original: 'Workspaces: Open Workspace Configuration File' },
+	},
+	when: WorkbenchStateContext.isEqualTo('workspace')
+});

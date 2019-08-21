@@ -534,8 +534,10 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		const span1 = dom.append(container, dom.$('span'));
 		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
 		const link = dom.append(container, dom.$('a.messageAction'));
-		link.textContent = localize('clearFilter', "Clear Filter.");
+		link.textContent = localize('clearFilter', "Clear Filter");
 		link.setAttribute('tabIndex', '0');
+		const span2 = dom.append(container, dom.$('span'));
+		span2.textContent = '.';
 		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.filterAction.filterText = '');
 		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {

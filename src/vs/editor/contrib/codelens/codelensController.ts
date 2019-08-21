@@ -32,7 +32,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	private _currentCodeLensModel: CodeLensModel | undefined;
 	private _modelChangeCounter: number = 0;
 	private _currentResolveCodeLensSymbolsPromise: CancelablePromise<any> | undefined;
-	private _detectVisibleLenses: RunOnceScheduler;
+	private _detectVisibleLenses!: RunOnceScheduler;
 
 	constructor(
 		private readonly _editor: editorBrowser.ICodeEditor,

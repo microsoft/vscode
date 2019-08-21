@@ -17,7 +17,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { Emitter } from 'vs/base/common/event';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -31,6 +31,7 @@ export abstract class AbstractRemoteAgentService extends Disposable {
 		@IEnvironmentService protected readonly _environmentService: IEnvironmentService
 	) {
 		super();
+		this._environment = null;
 	}
 
 	abstract getConnection(): IRemoteAgentConnection | null;
@@ -84,7 +85,6 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 		remoteAuthority: string,
 		private readonly _commit: string | undefined,
 		private readonly _socketFactory: ISocketFactory,
-		private readonly _environmentService: IEnvironmentService,
 		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		private readonly _signService: ISignService
 	) {
@@ -111,7 +111,6 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	private async _createConnection(): Promise<Client<RemoteAgentConnectionContext>> {
 		let firstCall = true;
 		const options: IConnectionOptions = {
-			isBuilt: this._environmentService.isBuilt,
 			commit: this._commit,
 			socketFactory: this._socketFactory,
 			addressProvider: {

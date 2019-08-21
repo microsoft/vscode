@@ -27,7 +27,7 @@ import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer as ipc } from 'electron';
-import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService, IProgress, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -85,7 +85,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 				group: '6_close',
 				command: {
 					id: CLOSE_REMOTE_COMMAND_ID,
-					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "C&&lose Remote Connection")
+					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "Close Re&&mote Connection")
 				},
 				order: 3.5
 			});
@@ -284,6 +284,26 @@ class ProgressReporter {
 	}
 }
 
+class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteAuthorityResolverService remoteResolverService: IRemoteAuthorityResolverService,
+		@IExtensionService extensionService: IExtensionService
+	) {
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			connection.onDidStateChange(async e => {
+				if (e.type === PersistentConnectionEventType.ConnectionGain) {
+					const resolveResult = await remoteResolverService.resolveAuthority(connection.remoteAuthority);
+					if (resolveResult.options && resolveResult.options.extensionHostEnv) {
+						await extensionService.setRemoteEnvironment(resolveResult.options.extensionHostEnv);
+					}
+				}
+			});
+		}
+	}
+}
+
 class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -440,6 +460,7 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);

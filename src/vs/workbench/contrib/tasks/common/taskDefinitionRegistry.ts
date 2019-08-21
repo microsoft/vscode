@@ -89,7 +89,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
 	private readyPromise: Promise<void>;
-	private _schema: IJSONSchema;
+	private _schema: IJSONSchema | undefined;
 
 	constructor() {
 		this.taskTypes = Object.create(null);

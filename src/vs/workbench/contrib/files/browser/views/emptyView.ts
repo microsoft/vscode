@@ -32,9 +32,9 @@ export class EmptyView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.emptyView';
 	static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 
-	private button: Button;
-	private messageElement: HTMLElement;
-	private titleElement: HTMLElement;
+	private button!: Button;
+	private messageElement!: HTMLElement;
+	private titleElement!: HTMLElement;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -59,7 +59,6 @@ export class EmptyView extends ViewletPanel {
 		container.appendChild(titleContainer);
 
 		this.titleElement = document.createElement('span');
-		this.titleElement.textContent = name;
 		titleContainer.appendChild(this.titleElement);
 	}
 

@@ -20,8 +20,8 @@
 	let loadCode = function (moduleId: string) {
 		require([moduleId], function (ws) {
 			setTimeout(function () {
-				let messageHandler = ws.create((msg: any) => {
-					(<any>self).postMessage(msg);
+				let messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
+					(<any>self).postMessage(msg, transfer);
 				}, null);
 
 				self.onmessage = (e) => messageHandler.onmessage(e.data);

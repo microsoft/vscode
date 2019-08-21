@@ -29,7 +29,7 @@ export class BaseDropdown extends ActionRunner {
 	private boxContainer?: HTMLElement;
 	private _label?: HTMLElement;
 	private contents?: HTMLElement;
-	private visible: boolean;
+	private visible: boolean | undefined;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();
@@ -109,7 +109,7 @@ export class BaseDropdown extends ActionRunner {
 	}
 
 	isVisible(): boolean {
-		return this.visible;
+		return !!this.visible;
 	}
 
 	protected onEvent(e: Event, activeElement: HTMLElement): void {
@@ -272,7 +272,7 @@ export class DropdownMenu extends BaseDropdown {
 
 export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	private menuActionsOrProvider: any;
-	private dropdownMenu: DropdownMenu;
+	private dropdownMenu: DropdownMenu | undefined;
 	private contextMenuProvider: IContextMenuProvider;
 	private actionViewItemProvider?: IActionViewItemProvider;
 	private keybindings?: (action: IAction) => ResolvedKeybinding | undefined;
@@ -281,7 +281,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 
 	constructor(action: IAction, menuActions: ReadonlyArray<IAction>, contextMenuProvider: IContextMenuProvider, actionViewItemProvider: IActionViewItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding | undefined) | undefined, clazz: string | undefined, anchorAlignmentProvider?: () => AnchorAlignment);
 	constructor(action: IAction, actionProvider: IActionProvider, contextMenuProvider: IContextMenuProvider, actionViewItemProvider: IActionViewItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding) | undefined, clazz: string | undefined, anchorAlignmentProvider?: () => AnchorAlignment);
-	constructor(action: IAction, menuActionsOrProvider: any, contextMenuProvider: IContextMenuProvider, actionViewItemProvider: IActionViewItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding | undefined) | undefined, clazz: string | undefined, anchorAlignmentProvider?: () => AnchorAlignment) {
+	constructor(action: IAction, menuActionsOrProvider: ReadonlyArray<IAction> | IActionProvider, contextMenuProvider: IContextMenuProvider, actionViewItemProvider: IActionViewItemProvider | undefined, actionRunner: IActionRunner, keybindings: ((action: IAction) => ResolvedKeybinding | undefined) | undefined, clazz: string | undefined, anchorAlignmentProvider?: () => AnchorAlignment) {
 		super(null, action);
 
 		this.menuActionsOrProvider = menuActionsOrProvider;

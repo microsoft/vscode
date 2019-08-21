@@ -46,6 +46,9 @@ steps:
 - script: |
     DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
   displayName: Run Unit Tests
+- script: |
+    DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
+  displayName: Run Integration Tests
 - task: PublishTestResults@2
   displayName: Publish Tests Results
   inputs:

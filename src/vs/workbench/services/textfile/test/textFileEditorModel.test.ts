@@ -219,6 +219,33 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isDirty());
 	});
 
+	test('Make Dirty', async function () {
+		let eventCounter = 0;
+
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		model.makeDirty();
+		assert.ok(!model.isDirty()); // needs to be resolved
+
+		await model.load();
+		model.textEditorModel!.setValue('foo');
+		assert.ok(model.isDirty());
+
+		await model.revert(true /* soft revert */);
+		assert.ok(!model.isDirty());
+
+		model.onDidStateChange(e => {
+			if (e === StateChange.DIRTY) {
+				eventCounter++;
+			}
+		});
+
+		model.makeDirty();
+		assert.ok(model.isDirty());
+		assert.equal(eventCounter, 1);
+		model.dispose();
+	});
+
 	test('File not modified error is handled gracefully', async function () {
 		let model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 

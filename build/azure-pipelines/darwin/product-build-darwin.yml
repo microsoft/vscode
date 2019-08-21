@@ -2,11 +2,12 @@ steps:
 - script: |
     mkdir -p .build
     echo -n $BUILD_SOURCEVERSION > .build/commit
+    echo -n $VSCODE_QUALITY > .build/quality
   displayName: Prepare cache flag
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .build/commit'
+    keyfile: 'build/.cachesalt, .build/commit, .build/quality'
     targetfolder: '.build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
@@ -104,6 +105,16 @@ steps:
     set -e
     ./scripts/test-integration.sh --build --tfs "Integration Tests"
   displayName: Run integration tests
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    cd test/smoke
+    yarn compile
+    cd -
+    yarn smoketest --web --headless
+  continueOnError: true
+  displayName: Run web smoke tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |

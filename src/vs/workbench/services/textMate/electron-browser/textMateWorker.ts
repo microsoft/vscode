@@ -80,7 +80,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 
 		const languageId = this._languageId;
 		this._worker.getOrCreateGrammar(languageId).then((r) => {
-			if (this._isDisposed || languageId !== this._languageId) {
+			if (this._isDisposed || languageId !== this._languageId || !r) {
 				return;
 			}
 
@@ -118,7 +118,7 @@ export class TextMateWorker {
 	private readonly _host: TextMateWorkerHost;
 	private readonly _models: { [uri: string]: TextMateWorkerModel; };
 	private readonly _grammarCache: Promise<ICreateGrammarResult>[];
-	private readonly _grammarFactory: TMGrammarFactory;
+	private readonly _grammarFactory: TMGrammarFactory | null;
 
 	constructor(ctx: IWorkerContext<TextMateWorkerHost>, createData: ICreateData) {
 		this._host = ctx.host;
@@ -135,23 +135,23 @@ export class TextMateWorker {
 			};
 		});
 
-		let vscodeTextmate: typeof import('vscode-textmate');
 		const globalDefine = (<any>self).define;
 		try {
 			(<any>self).define.amd = undefined;
-			vscodeTextmate = require.__$__nodeRequire('vscode-textmate');
+			const vscodeTextmate = <typeof import('vscode-textmate')>require.__$__nodeRequire('vscode-textmate');
+
+			this._grammarFactory = new TMGrammarFactory({
+				logTrace: (msg: string) => {/* console.log(msg) */ },
+				logError: (msg: string, err: any) => console.error(msg, err),
+				readFile: (resource: URI) => this._host.readFile(resource)
+			}, grammarDefinitions, vscodeTextmate, undefined);
 		} catch (err) {
 			console.error(err);
+			this._grammarFactory = null;
 			return;
 		} finally {
 			(<any>self).define = globalDefine;
 		}
-
-		this._grammarFactory = new TMGrammarFactory({
-			logTrace: (msg: string) => {/* console.log(msg) */ },
-			logError: (msg: string, err: any) => console.error(msg, err),
-			readFile: (resource: URI) => this._host.readFile(resource)
-		}, grammarDefinitions, vscodeTextmate, undefined);
 	}
 
 	public acceptNewModel(data: IRawModelData): void {
@@ -175,7 +175,10 @@ export class TextMateWorker {
 		}
 	}
 
-	public getOrCreateGrammar(languageId: LanguageId): Promise<ICreateGrammarResult> {
+	public getOrCreateGrammar(languageId: LanguageId): Promise<ICreateGrammarResult | null> {
+		if (!this._grammarFactory) {
+			return Promise.resolve(null);
+		}
 		if (!this._grammarCache[languageId]) {
 			this._grammarCache[languageId] = this._grammarFactory.createGrammar(languageId);
 		}
@@ -183,7 +186,9 @@ export class TextMateWorker {
 	}
 
 	public acceptTheme(theme: IRawTheme): void {
-		this._grammarFactory.setTheme(theme);
+		if (this._grammarFactory) {
+			this._grammarFactory.setTheme(theme);
+		}
 	}
 
 	public _setTokens(resource: URI, versionId: number, tokens: Uint8Array): void {

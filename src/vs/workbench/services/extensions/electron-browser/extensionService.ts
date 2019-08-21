@@ -34,6 +34,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IProductService } from 'vs/platform/product/common/product';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
+import { flatten } from 'vs/base/common/arrays';
+import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -64,6 +66,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWindowService protected readonly _windowService: IWindowService,
+		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
 	) {
 		super(
 			instantiationService,
@@ -72,7 +75,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			telemetryService,
 			extensionEnablementService,
 			fileService,
-			productService,
+			productService
 		);
 
 		if (this._extensionEnablementService.allUserExtensionsDisabled) {
@@ -349,6 +352,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 
 		const result: ExtensionHostProcessManager[] = [];
+
 		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, autoStart, extensions, this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, true, extHostProcessWorker, null, initialActivationEvents);
 		result.push(extHostProcessManager);
@@ -431,7 +435,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
 		const extensionHost = this._extensionHostProcessManagers[0];
 
-		let localExtensions = await this._extensionScanner.scannedExtensions;
+		let localExtensions = flatten(await Promise.all([this._extensionScanner.scannedExtensions, this._staticExtensions.getExtensions()]));
 
 		// enable or disable proposed API per extension
 		this._checkEnableProposedApi(localExtensions);
@@ -457,7 +461,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				this._remoteAuthorityResolverService.setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost(extensionHost, localExtensions);
+				await this._startLocalExtensionHost(extensionHost, localExtensions, localExtensions.map(extension => extension.identifier));
 				return;
 			}
 
@@ -502,20 +506,18 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			// save for remote extension's init data
 			this._remoteExtensionsEnvironmentData.set(remoteAuthority, remoteEnv);
 
-			this._handleExtensionPoints((<IExtensionDescription[]>[]).concat(remoteEnv.extensions).concat(localExtensions));
-			extensionHost.start(localExtensions.map(extension => extension.identifier));
-
+			await this._startLocalExtensionHost(extensionHost, remoteEnv.extensions.concat(localExtensions), localExtensions.map(extension => extension.identifier));
 		} else {
-			await this._startLocalExtensionHost(extensionHost, localExtensions);
+			await this._startLocalExtensionHost(extensionHost, localExtensions, localExtensions.map(extension => extension.identifier));
 		}
 	}
 
-	private async _startLocalExtensionHost(extensionHost: ExtensionHostProcessManager, localExtensions: IExtensionDescription[]): Promise<void> {
-		this._handleExtensionPoints(localExtensions);
-		extensionHost.start(localExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
+	private async _startLocalExtensionHost(extensionHost: ExtensionHostProcessManager, allExtensions: IExtensionDescription[], localExtensions: ExtensionIdentifier[]): Promise<void> {
+		this._registerAndHandleExtensions(allExtensions);
+		extensionHost.start(localExtensions.filter(id => this._registry.containsExtension(id)));
 	}
 
-	private _handleExtensionPoints(allExtensions: IExtensionDescription[]): void {
+	private _registerAndHandleExtensions(allExtensions: IExtensionDescription[]): void {
 		const result = this._registry.deltaExtensions(allExtensions, []);
 		if (result.removedDueToLooping.length > 0) {
 			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));

@@ -68,7 +68,7 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 });
 
 const sepRegexp = /\//g;
-const labelMatchingRegexp = /\$\{(scheme|authority|path|(qs)\.(.+?))\}/g;
+const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
 
 function hasDriveLetter(path: string): boolean {
 	return !!(isWindows && path && path[2] === ':');
@@ -228,7 +228,7 @@ export class LabelService implements ILabelService {
 				case 'authority': return resource.authority;
 				case 'path': return resource.path;
 				default: {
-					if (qsToken === 'qs') {
+					if (qsToken === 'query') {
 						const { query } = resource;
 						if (query && query[0] === '{' && query[query.length - 1] === '}') {
 							try {

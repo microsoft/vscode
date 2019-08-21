@@ -55,8 +55,8 @@ export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
-	private tree: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
-	private filter: FilesFilter;
+	private tree!: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
+	private filter!: FilesFilter;
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
@@ -66,7 +66,7 @@ export class ExplorerView extends ViewletPanel {
 
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
-	private dragHandler: DelayedDragHandler;
+	private dragHandler!: DelayedDragHandler;
 	private autoReveal = false;
 
 	constructor(
@@ -301,7 +301,8 @@ export class ExplorerView extends ViewletPanel {
 				filter: this.filter,
 				sorter: this.instantiationService.createInstance(FileSorter),
 				dnd: this.instantiationService.createInstance(FileDragAndDrop),
-				autoExpandSingleChildren: true
+				autoExpandSingleChildren: true,
+				additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT
 			});
 		this._register(this.tree);
 

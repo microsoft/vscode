@@ -346,7 +346,7 @@ export class RemoteInstallAction extends InstallInOtherServerAction {
 	}
 
 	protected getInstallLabel(): string {
-		return this.extensionManagementServerService.remoteExtensionManagementServer ? localize('Install on Server', "Install on {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label) : InstallInOtherServerAction.INSTALL_LABEL;
+		return this.extensionManagementServerService.remoteExtensionManagementServer ? localize('Install on Server', "Install in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label) : InstallInOtherServerAction.INSTALL_LABEL;
 	}
 
 }
@@ -692,7 +692,13 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		]);
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
-		groups.push([this.instantiationService.createInstance(ExtensionInfoAction), this.instantiationService.createInstance(ExtensionSettingsAction)]);
+
+		const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(ExtensionInfoAction)];
+		if (this.extension.local && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.configuration) {
+			extensionActions.push(this.instantiationService.createInstance(ExtensionSettingsAction));
+		}
+
+		groups.push(extensionActions);
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 
@@ -3014,9 +3020,12 @@ interface IExtensionPickItem extends IQuickPickItem {
 	extension?: IExtension;
 }
 
-export class InstallLocalExtensionsOnRemoteAction extends Action {
+export class InstallLocalExtensionsInRemoteAction extends Action {
+
+	private extensions: IExtension[] | undefined = undefined;
 
 	constructor(
+		private readonly selectAndInstall: boolean,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
@@ -3026,34 +3035,58 @@ export class InstallLocalExtensionsOnRemoteAction extends Action {
 		@IProgressService private readonly progressService: IProgressService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super('workbench.extensions.actions.installLocalExtensionsOnRemote');
+		super('workbench.extensions.actions.installLocalExtensionsInRemote');
 		this.update();
-		this._register(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.extensionsWorkbenchService.queryLocal().then(() => this.updateExtensions());
+		this._register(this.extensionsWorkbenchService.onChange(() => {
+			if (this.extensions) {
+				this.updateExtensions();
+			}
+		}));
 	}
 
 	get label(): string {
-		return this.extensionManagementServerService.remoteExtensionManagementServer ?
-			localize('install local extensions', "Install Local Extensions on {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label) : '';
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return this.selectAndInstall ?
+				localize('select and install local extensions', "Install Local Extensions in {0}...", this.extensionManagementServerService.remoteExtensionManagementServer.label)
+				: localize('install local extensions', "Install Local Extensions in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+		}
+		return '';
+	}
+
+	private updateExtensions(): void {
+		this.extensions = this.extensionsWorkbenchService.local;
+		this.update();
 	}
 
 	private update(): void {
-		this.enabled = this.getLocalExtensionsToInstall().length > 0;
+		this.enabled = !!this.extensions && this.getExtensionsToInstall(this.extensions).length > 0;
+		this.tooltip = this.label;
 	}
 
-	private getLocalExtensionsToInstall(): IExtension[] {
-		return this.extensionsWorkbenchService.local.filter(extension => {
+	async run(): Promise<void> {
+		if (this.selectAndInstall) {
+			return this.selectAndInstallLocalExtensions();
+		} else {
+			const extensionsToInstall = await this.queryExtensionsToInstall();
+			return this.installLocalExtensions(extensionsToInstall);
+		}
+	}
+
+	private async queryExtensionsToInstall(): Promise<IExtension[]> {
+		const local = await this.extensionsWorkbenchService.queryLocal();
+		return this.getExtensionsToInstall(local);
+	}
+
+	private getExtensionsToInstall(local: IExtension[]): IExtension[] {
+		return local.filter(extension => {
 			const action = this.instantiationService.createInstance(RemoteInstallAction);
 			action.extension = extension;
 			return action.enabled;
 		});
 	}
 
-	async run(): Promise<void> {
-		this.selectAndInstallLocalExtensions();
-		return Promise.resolve();
-	}
-
-	private selectAndInstallLocalExtensions(): void {
+	private async selectAndInstallLocalExtensions(): Promise<void> {
 		const quickPick = this.quickInputService.createQuickPick<IExtensionPickItem>();
 		quickPick.busy = true;
 		const disposable = quickPick.onDidAccept(() => {
@@ -3063,9 +3096,10 @@ export class InstallLocalExtensionsOnRemoteAction extends Action {
 			this.onDidAccept(quickPick.selectedItems);
 		});
 		quickPick.show();
-		const localExtensionsToInstall = this.getLocalExtensionsToInstall();
+		const localExtensionsToInstall = await this.queryExtensionsToInstall();
 		quickPick.busy = false;
 		if (localExtensionsToInstall.length) {
+			quickPick.title = localize('install local extensions title', "Install Local Extensions in {0}", this.extensionManagementServerService.remoteExtensionManagementServer!.label);
 			quickPick.placeholder = localize('select extensions to install', "Select extensions to install");
 			quickPick.canSelectMany = true;
 			localExtensionsToInstall.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
@@ -3114,9 +3148,9 @@ export class InstallLocalExtensionsOnRemoteAction extends Action {
 
 		this.notificationService.notify({
 			severity: Severity.Info,
-			message: localize('finished installing', "Completed installing the extensions. Please reload the window now."),
+			message: localize('finished installing', "Successfully installed extensions in {0}. Please reload the window to enable them.", this.extensionManagementServerService.remoteExtensionManagementServer!.label),
 			actions: {
-				primary: [new Action('realod', localize('reload', "Realod Window"), '', true,
+				primary: [new Action('realod', localize('reload', "Reload Window"), '', true,
 					() => this.windowService.reloadWindow())]
 			}
 		});

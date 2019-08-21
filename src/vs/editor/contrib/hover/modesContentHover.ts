@@ -70,6 +70,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 		private readonly _markerDecorationsService: IMarkerDecorationsService
 	) {
 		this._editor = editor;
+		this._result = [];
 	}
 
 	setRange(range: Range): void {
@@ -213,6 +214,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._computer = new ModesContentComputer(this._editor, markerDecorationsService);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
+		this._shouldFocus = false;
+		this._colorPicker = null;
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,

@@ -151,11 +151,11 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 	private _proxy: MainThreadTextEditorsShape;
 	private _id: string;
 
-	private _tabSize: number;
-	private _indentSize: number;
-	private _insertSpaces: boolean;
-	private _cursorStyle: TextEditorCursorStyle;
-	private _lineNumbers: TextEditorLineNumbersStyle;
+	private _tabSize!: number;
+	private _indentSize!: number;
+	private _insertSpaces!: boolean;
+	private _cursorStyle!: TextEditorCursorStyle;
+	private _lineNumbers!: TextEditorLineNumbersStyle;
 
 	constructor(proxy: MainThreadTextEditorsShape, id: string, source: IResolvedTextEditorConfiguration) {
 		this._proxy = proxy;

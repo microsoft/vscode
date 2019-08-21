@@ -18,7 +18,7 @@ export class SharedProcess implements ISharedProcess {
 
 	private barrier = new Barrier();
 
-	private window: Electron.BrowserWindow | null;
+	private window: Electron.BrowserWindow | null = null;
 
 	constructor(
 		private readonly machineId: string,

@@ -131,7 +131,7 @@ export const enum LifecycleMainPhase {
 
 export class LifecycleService extends Disposable implements ILifecycleService {
 
-	_serviceBrand: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
 
 	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 

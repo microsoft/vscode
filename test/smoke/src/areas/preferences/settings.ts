@@ -30,7 +30,7 @@ export class SettingsEditor {
 
 	async clearUserSettings(): Promise<void> {
 		const settingsPath = path.join(this.userDataPath, 'User', 'settings.json');
-		await new Promise((c, e) => fs.writeFile(settingsPath, '{}', 'utf8', err => err ? e(err) : c()));
+		await new Promise((c, e) => fs.writeFile(settingsPath, '{\n}', 'utf8', err => err ? e(err) : c()));
 
 		await this.openSettings();
 		await this.editor.waitForEditorContents('settings.json', c => c === '{}');

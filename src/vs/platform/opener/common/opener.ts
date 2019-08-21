@@ -9,15 +9,18 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
-
 export interface IOpener {
 	open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean>;
+	open(resource: URI, options?: { openExternal?: boolean }): Promise<boolean>;
 }
 
 export interface IOpenerService {
 
 	_serviceBrand: any;
 
+	/**
+	 * Register a participant that can handle the open() call.
+	 */
 	registerOpener(opener: IOpener): IDisposable;
 
 	/**
@@ -27,10 +30,11 @@ export interface IOpenerService {
 	 * @return A promise that resolves when the opening is done.
 	 */
 	open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean>;
+	open(resource: URI, options?: { openExternal?: boolean }): Promise<boolean>;
 }
 
 export const NullOpenerService: IOpenerService = Object.freeze({
 	_serviceBrand: undefined,
 	registerOpener() { return { dispose() { } }; },
-	open() { return Promise.resolve(false); }
+	open() { return Promise.resolve(false); },
 });

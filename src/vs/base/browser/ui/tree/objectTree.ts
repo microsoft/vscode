@@ -17,7 +17,7 @@ export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTree
 
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
-	protected model: IObjectTreeModel<T, TFilterData>;
+	protected model!: IObjectTreeModel<T, TFilterData>;
 
 	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
 

@@ -16,10 +16,11 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { URI } from 'vs/base/common/uri';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
-const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
 	const vscodePortable = process.env['VSCODE_PORTABLE'];
@@ -76,7 +77,7 @@ function getCLIPath(execPath: string, appRoot: string, isBuilt: boolean): string
 
 export class EnvironmentService implements IEnvironmentService {
 
-	_serviceBrand: any;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	get args(): ParsedArgs { return this._args; }
 

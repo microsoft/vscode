@@ -370,6 +370,10 @@ export class SuggestController implements IEditorContribution {
 		this._widget.getValue().toggleDetails();
 	}
 
+	toggleExplainMode(): void {
+		this._widget.getValue().toggleExplainMode();
+	}
+
 	toggleSuggestionFocus(): void {
 		this._widget.getValue().toggleDetailsFocus();
 	}
@@ -518,6 +522,16 @@ registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+	}
+}));
+
+registerEditorCommand(new SuggestCommand({
+	id: 'toggleExplainMode',
+	precondition: SuggestContext.Visible,
+	handler: x => x.toggleExplainMode(),
+	kbOpts: {
+		weight: KeybindingWeight.EditorContrib,
+		primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
 	}
 }));
 
