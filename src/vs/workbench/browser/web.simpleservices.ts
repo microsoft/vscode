@@ -8,7 +8,6 @@ import * as browser from 'vs/base/browser/browser';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -38,45 +37,6 @@ import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns
 import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
-
-//#region Extension Tips
-
-export class SimpleExtensionTipsService implements IExtensionTipsService {
-	_serviceBrand: any;
-
-	onRecommendationChange = Event.None;
-
-	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason; reasonText: string; }; } {
-		return Object.create(null);
-	}
-
-	getFileBasedRecommendations(): IExtensionRecommendation[] {
-		return [];
-	}
-
-	getOtherRecommendations(): Promise<IExtensionRecommendation[]> {
-		return Promise.resolve([]);
-	}
-
-	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]> {
-		return Promise.resolve([]);
-	}
-
-	getKeymapRecommendations(): IExtensionRecommendation[] {
-		return [];
-	}
-
-	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void {
-	}
-
-	getAllIgnoredRecommendations(): { global: string[]; workspace: string[]; } {
-		return { global: [], workspace: [] };
-	}
-}
-
-registerSingleton(IExtensionTipsService, SimpleExtensionTipsService, true);
-
-//#endregion
 
 //#region Extension URL Handler
 
