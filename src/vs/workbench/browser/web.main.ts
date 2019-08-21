@@ -44,6 +44,7 @@ import { StaticExtensionsService, IStaticExtensionsService } from 'vs/workbench/
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { INMEMORY_LOG_SCHEME, InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
+import { toLocalISOString } from 'vs/base/common/date';
 
 class CodeRendererMain extends Disposable {
 
@@ -119,14 +120,14 @@ class CodeRendererMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Log
-		const logFile = URI.file(`window.log`).with({ scheme: INMEMORY_LOG_SCHEME });
+		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: INMEMORY_LOG_SCHEME });
 		const logService = new BufferLogService();
 		serviceCollection.set(ILogService, logService);
 
 		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		// Environment
-		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logFile, ...this.configuration });
+		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration });
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
@@ -151,7 +152,7 @@ class CodeRendererMain extends Disposable {
 
 		// InMemory Log
 		fileService.registerProvider(INMEMORY_LOG_SCHEME, new InMemoryLogProvider());
-		logService.logger = new FileLogService('window', logFile, logService.getLevel(), fileService);
+		logService.logger = new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService);
 
 		// Static Extensions
 		const staticExtensions = new StaticExtensionsService(this.configuration.staticExtensions || []);
