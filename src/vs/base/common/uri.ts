@@ -284,6 +284,17 @@ export class URI implements UriComponents {
 		if (!match) {
 			return new _URI(_empty, _empty, _empty, _empty, _empty);
 		}
+		// fix #79474, if http/https resource save query string to avoid decoding/encoding
+		if (match[2] && (match[2] === 'http' || match[2] === 'https')) {
+			return new _URI(
+				match[2] || _empty,
+				decodeURIComponent(match[4] || _empty),
+				decodeURIComponent(match[5] || _empty),
+				match[7],
+				decodeURIComponent(match[9] || _empty),
+				_strict
+			);
+		}
 		return new _URI(
 			match[2] || _empty,
 			decodeURIComponent(match[4] || _empty),
@@ -659,7 +670,11 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 	}
 	if (query) {
 		res += '?';
-		res += encoder(query, false);
+		if (scheme === 'http' || scheme === 'https') {
+			res += query;
+		} else {
+			res += encoder(query, false);
+		}
 	}
 	if (fragment) {
 		res += '#';

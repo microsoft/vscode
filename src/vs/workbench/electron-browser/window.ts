@@ -373,7 +373,13 @@ export class ElectronWindow extends Disposable {
 				const scheme = resource.scheme.toLowerCase();
 				const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
 				if ((options && options.openExternal) || preferOpenExternal) {
-					const success = await $this.windowsService.openExternal(encodeURI(resource.toString(true)));
+					let resourceUri: string = encodeURI(resource.toString(true));
+
+					// don't decode resource if http/https resource
+					if (scheme === 'http' || scheme === 'https') {
+						resourceUri = resource.toString(true);
+					}
+					const success = await $this.windowsService.openExternal(resourceUri);
 					if (!success && resource.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
 						await $this.windowsService.showItemInFolder(resource);
