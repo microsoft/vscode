@@ -581,6 +581,10 @@ export enum CompletionItemKind {
 	Snippet = 25
 }
 
+export enum CompletionItemKindModifier {
+	Deprecated = 1
+}
+
 export enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
