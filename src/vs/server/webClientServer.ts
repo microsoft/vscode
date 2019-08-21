@@ -7,6 +7,7 @@ import * as http from 'http';
 import * as path from 'path';
 import * as url from 'url';
 import * as util from 'util';
+import * as cookie from 'cookie';
 import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getMediaMime } from 'vs/base/common/mime';
@@ -73,21 +74,25 @@ export class WebClientServer extends Disposable {
 				return this._serveError(req, res, 400, `Bad request.`);
 			}
 
-			if (pathname === '/') {
-				return this._handleRoot(req, res, parsedUrl);
-			}
 			if (pathname === '/favicon.ico') {
+				// always server favicon, even without a token
 				return this._serveFile(req, res, path.join(APP_ROOT, 'resources', 'server', 'favicon.ico'));
+			}
+			if (/^\/static\//.test(pathname)) {
+				// always serve static requests, even without a token
+				return this._handleStatic(req, res, parsedUrl);
+			}
+
+			if (pathname === '/') {
+				// the token handling is done inside the handler
+				return this._handleRoot(req, res, parsedUrl);
 			}
 			if (pathname === '/vscode-remote') {
 				return this._handleVSCodeRemoteResource(req, res, parsedUrl);
 			}
 			if (pathname === '/vscode-remote2') {
+				// the token handling is done inside the handler
 				return this._handleVSCodeRemoteResource2(req, res, parsedUrl);
-			}
-			if (/^\/static\//.test(pathname)) {
-				// This is a request for a static "core" resource
-				return this._handleStatic(req, res, parsedUrl);
 			}
 
 			return this._serveError(req, res, 404, 'Not found.');
@@ -97,6 +102,11 @@ export class WebClientServer extends Disposable {
 
 			return this._serveError(req, res, 500, 'Internal Server Error.');
 		}
+	}
+
+	private _hasCorrectTokenCookie(req: http.IncomingMessage): boolean {
+		const cookies = cookie.parse(req.headers.cookie || '');
+		return (cookies['vscode-tkn'] === this._connectionToken);
 	}
 
 	/**
@@ -134,6 +144,30 @@ export class WebClientServer extends Disposable {
 	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		if (!req.headers.host) {
 			return this._serveError(req, res, 400, `Bad request.`);
+		}
+
+		const queryTkn = parsedUrl.query['tkn'];
+		if (typeof queryTkn === 'string') {
+			// tkn came in via a query string
+			// => set a cookie and redirect to url without tkn
+			const responseHeaders: Record<string, string> = Object.create(null);
+			responseHeaders['Set-Cookie'] = cookie.serialize('vscode-tkn', queryTkn, { maxAge: 60 * 60 * 24 * 7 /* 1 week */ });
+
+			const newQuery = Object.create(null);
+			for (let key in parsedUrl.query) {
+				if (key !== 'tkn') {
+					newQuery[key] = parsedUrl.query[key];
+				}
+			}
+			const newLocation = url.format({ pathname: '/', query: newQuery });
+			responseHeaders['Location'] = newLocation;
+
+			res.writeHead(302, responseHeaders);
+			return res.end();
+		}
+
+		if (!this._hasCorrectTokenCookie(req)) {
+			return this._serveError(req, res, 403, `Forbidden.`);
 		}
 
 		const remoteAuthority = req.headers.host;
