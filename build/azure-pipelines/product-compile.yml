@@ -30,10 +30,6 @@ steps:
     KeyVaultName: vscode
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
-- script: |
-    set -e
-    ./build/azure-pipelines/common/publish-webview.sh
-  displayName: Publish Webview
 
 - script: |
     set -e
@@ -102,6 +98,11 @@ steps:
     ./build/azure-pipelines/common/extract-telemetry.sh
   displayName: Extract Telemetry
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- script: |
+    set -e
+    ./build/azure-pipelines/common/publish-webview.sh
+  displayName: Publish Webview
 
 - script: |
     set -e
