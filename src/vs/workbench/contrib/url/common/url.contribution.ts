@@ -14,17 +14,24 @@ import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IProductService } from 'vs/platform/product/common/product';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
+import Severity from 'vs/base/common/severity';
 
 export class OpenUrlAction extends Action {
-
 	static readonly ID = 'workbench.action.url.openUrl';
-	static readonly LABEL = localize('openUrl', "Open URL");
+	static readonly LABEL = localize('openUrl', 'Open URL');
 
 	constructor(
 		id: string,
 		label: string,
 		@IURLService private readonly urlService: IURLService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(id, label);
 	}
@@ -66,7 +73,7 @@ const configureTrustedDomainsHandler = (
 				type: 'item',
 				label: d,
 				id: d,
-				picked: true,
+				picked: true
 			};
 		});
 
@@ -91,23 +98,26 @@ const configureTrustedDomainsHandler = (
 		specialQuickPickItems.push(<IQuickPickItem>domainToConfigureItem);
 	}
 
-	const quickPickItems: (IQuickPickItem | IQuickPickSeparator)[] = domainQuickPickItems.length === 0
-		? specialQuickPickItems
-		: [...specialQuickPickItems, { type: 'separator' }, ...domainQuickPickItems];
+	const quickPickItems: (IQuickPickItem | IQuickPickSeparator)[] =
+		domainQuickPickItems.length === 0
+			? specialQuickPickItems
+			: [...specialQuickPickItems, { type: 'separator' }, ...domainQuickPickItems];
 
-	return quickInputService.pick(quickPickItems, {
-		canPickMany: true,
-		activeItem: domainToConfigureItem
-	}).then(result => {
-		if (result) {
-			const pickedDomains = result.map(r => r.id);
-			storageService.store('http.trustedDomains', JSON.stringify(pickedDomains), StorageScope.GLOBAL);
+	return quickInputService
+		.pick(quickPickItems, {
+			canPickMany: true,
+			activeItem: domainToConfigureItem
+		})
+		.then(result => {
+			if (result) {
+				const pickedDomains: string[] = result.map(r => r.id!);
+				storageService.store('http.trustedDomains', JSON.stringify(pickedDomains), StorageScope.GLOBAL);
 
-			return pickedDomains;
-		}
+				return pickedDomains;
+			}
 
-		return [];
-	});
+			return [];
+		});
 };
 
 const configureTrustedDomainCommand = {
@@ -131,3 +141,99 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: configureTrustedDomainCommand.description.description
 	}
 });
+
+class OpenerValidatorContributions implements IWorkbenchContribution {
+	constructor(
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IProductService private readonly _productService: IProductService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService
+	) {
+		this._openerService.registerValidator('http', { shouldOpen: r => this.validateLink(r) });
+		this._openerService.registerValidator('https', { shouldOpen: r => this.validateLink(r) });
+	}
+
+	validateLink(resource: URI): Promise<boolean> {
+		const { scheme, authority } = resource;
+
+		if (!equalsIgnoreCase(scheme, Schemas.http) && !equalsIgnoreCase(scheme, Schemas.https)) {
+			return Promise.resolve(false);
+		}
+
+		let trustedDomains: string[] = [VSCODE_DOMAIN];
+		try {
+			const trustedDomainsSrc = this._storageService.get('http.trustedDomains', StorageScope.GLOBAL);
+			if (trustedDomainsSrc) {
+				trustedDomains = JSON.parse(trustedDomainsSrc);
+			}
+		} catch (err) { }
+
+		const domainToOpen = `${scheme}://${authority}`;
+
+		if (isDomainTrusted(domainToOpen, trustedDomains)) {
+			return Promise.resolve(true);
+		} else {
+			return this._dialogService
+				.show(
+					Severity.Info,
+					localize(
+						'openExternalLinkAt',
+						'Do you want {0} to open the external website?\n{1}',
+						this._productService.nameShort,
+						resource.toString(true)
+					),
+					[
+						localize('openLink', 'Open Link'),
+						localize('cancel', 'Cancel'),
+						localize('configureTrustedDomains', 'Configure Trusted Domains')
+					],
+					{
+						cancelId: 1
+					}
+				)
+				.then(choice => {
+					// Open Link
+					if (choice === 0) {
+						return true;
+					}
+					// Configure Trusted Domains
+					else if (choice === 2) {
+						return configureTrustedDomainsHandler(this._quickInputService, this._storageService, domainToOpen).then(
+							(pickedDomains: string[]) => {
+								if (pickedDomains.indexOf(domainToOpen) !== -1) {
+									return true;
+								}
+								return false;
+							}
+						);
+					}
+
+					return false;
+				});
+		}
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	OpenerValidatorContributions,
+	LifecyclePhase.Restored
+);
+
+/**
+ * Check whether a domain like https://www.microsoft.com matches
+ * the list of trusted domains.
+ */
+function isDomainTrusted(domain: string, trustedDomains: string[]) {
+	for (let i = 0; i < trustedDomains.length; i++) {
+		if (trustedDomains[i] === '*') {
+			return true;
+		}
+
+		if (trustedDomains[i] === domain) {
+			return true;
+		}
+	}
+
+	return false;
+}
