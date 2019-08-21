@@ -173,6 +173,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._buildDomNode();
 		this._updateButtons();
 		this._tryUpdateWidgetWidth();
+		this._findInput.inputBox.layout();
 
 		this._register(this._codeEditor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.readOnly) {
@@ -288,6 +289,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
 		if (e.searchString) {
+			if (this._state.searchString.indexOf('\n') >= 0) {
+				dom.addClass(this._domNode, 'multipleline');
+			} else {
+				dom.removeClass(this._domNode, 'multipleline');
+			}
+
 			try {
 				this._ignoreChangeEvent = true;
 				this._findInput.setValue(this._state.searchString);
@@ -312,6 +319,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					this._isReplaceVisible = true;
 					this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
 					this._updateButtons();
+					this._replaceInput.inputBox.layout();
 				}
 			} else {
 				if (this._isReplaceVisible) {
