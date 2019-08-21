@@ -10,6 +10,7 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ReplaceInput, IReplaceInputOptions } from 'vs/base/browser/ui/findinput/replaceInput';
 
 export const HistoryNavigationWidgetContext = 'historyNavigationWidget';
 export const HistoryNavigationEnablementContext = 'historyNavigationEnabled';
@@ -58,6 +59,16 @@ export class ContextScopedFindInput extends FindInput {
 		@IContextKeyService contextKeyService: IContextKeyService, showFindOptions: boolean = false
 	) {
 		super(container, contextViewProvider, showFindOptions, options);
+		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
+	}
+}
+
+export class ContextScopedReplaceInput extends ReplaceInput {
+
+	constructor(container: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: IReplaceInputOptions,
+		@IContextKeyService contextKeyService: IContextKeyService, showReplaceOptions: boolean = false
+	) {
+		super(container, contextViewProvider, showReplaceOptions, options);
 		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
 	}
 
