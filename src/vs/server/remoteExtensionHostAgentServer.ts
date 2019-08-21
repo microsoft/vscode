@@ -14,6 +14,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
 import { readdir, rimraf } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
+import * as platform from 'vs/base/common/platform';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -67,6 +68,7 @@ import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { WebClientServer, serveError, serveFile } from 'vs/server/webClientServer';
 import { URI } from 'vs/base/common/uri';
+import { isEqualOrParent } from 'vs/base/common/extpath';
 
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
@@ -229,23 +231,33 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				return res.end(`Unsupported method ${req.method}`);
 			}
 
+			if (!req.url) {
+				return serveError(req, res, 400, `Bad request.`);
+			}
+
+			const parsedUrl = url.parse(req.url, true);
+			const pathname = parsedUrl.pathname;
+
+			if (!pathname) {
+				return serveError(req, res, 400, `Bad request.`);
+			}
+
 			// Version
-			if (req.url === '/version') {
+			if (pathname === '/version') {
 				res.writeHead(200, { 'Content-Type': 'text/plain' });
 				return res.end(product.commit || '');
 			}
 
 			// Delay shutdown
-			if (req.url === '/delay-shutdown') {
+			if (pathname === '/delay-shutdown') {
 				this._delayShutdown();
 				res.writeHead(200);
 				return res.end('OK');
 			}
 
-			if (req.url === '/vscode-remote2') {
+			if (pathname === '/vscode-remote-resource') {
 				// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 				// These resources could be files shipped with extensions or even workspace files.
-				const parsedUrl = url.parse(req.url, true);
 				if (parsedUrl.query['tkn'] !== this._connectionToken) {
 					return serveError(req, res, 403, `Forbidden.`);
 				}
@@ -262,12 +274,21 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					return serveError(req, res, 400, `Bad request.`);
 				}
 
-				return serveFile(this._logService, req, res, filePath);
+				const responseHeaders: Record<string, string> = Object.create(null);
+				if (this._environmentService.isBuilt) {
+					if (isEqualOrParent(filePath, this._environmentService.builtinExtensionsPath, !platform.isLinux)
+						|| isEqualOrParent(filePath, this._environmentService.extensionsPath, !platform.isLinux)
+					) {
+						responseHeaders['Cache-Control'] = 'public, max-age=31536000';
+						responseHeaders['X-VSCode-Extension'] = 'true';
+					}
+				}
+				return serveFile(this._logService, req, res, filePath, responseHeaders);
 			}
 
 			// workbench web UI
 			if (this._webClientServer) {
-				this._webClientServer.handle(req, res);
+				this._webClientServer.handle(req, res, parsedUrl);
 				return;
 			}
 

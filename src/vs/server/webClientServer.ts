@@ -87,18 +87,9 @@ export class WebClientServer extends Disposable {
 			: (webviewServerAddress.address === '::' ? 'localhost' : webviewServerAddress.address) + ':' + webviewServerAddress.port);
 	}
 
-	async handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-		if (!req.url) {
-			return serveError(req, res, 400, `Bad request.`);
-		}
-
+	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		try {
-			const parsedUrl = url.parse(req.url, true);
-			const pathname = parsedUrl.pathname;
-
-			if (!pathname) {
-				return serveError(req, res, 400, `Bad request.`);
-			}
+			const pathname = parsedUrl.pathname!;
 
 			if (pathname === '/favicon.ico') {
 				// always server favicon, even without a token
@@ -108,13 +99,9 @@ export class WebClientServer extends Disposable {
 				// always serve static requests, even without a token
 				return this._handleStatic(req, res, parsedUrl);
 			}
-
 			if (pathname === '/') {
 				// the token handling is done inside the handler
 				return this._handleRoot(req, res, parsedUrl);
-			}
-			if (pathname === '/vscode-remote') {
-				return this._handleVSCodeRemoteResource(req, res, parsedUrl);
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -188,7 +175,7 @@ export class WebClientServer extends Disposable {
 			return res.end();
 		}
 
-		if (!this._hasCorrectTokenCookie(req)) {
+		if (this._environmentService.isBuilt && !this._hasCorrectTokenCookie(req)) {
 			return serveError(req, res, 403, `Forbidden.`);
 		}
 
@@ -216,35 +203,6 @@ export class WebClientServer extends Disposable {
 
 		res.writeHead(200, { 'Content-Type': textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
 		return res.end(data);
-	}
-
-	/**
-	 * Handle HTTP requests for resources rendered in the web client (images, fonts, etc.)
-	 * These resources could be files shipped with extensions or even workspace files.
-	 */
-	private async _handleVSCodeRemoteResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		const { query } = url.parse(req.url!);
-		if (typeof query !== 'string') {
-			return serveError(req, res, 400, `Bad request.`);
-		}
-
-		let filePath: string;
-		try {
-			let queryData = JSON.parse(decodeURIComponent(query));
-			filePath = URI.revive(queryData).fsPath;
-		} catch (err) {
-			return serveError(req, res, 400, `Bad request.`);
-		}
-
-		const responseHeaders: Record<string, string> = Object.create(null);
-		if (isEqualOrParent(filePath, this._environmentService.builtinExtensionsPath, !isLinux)
-			|| isEqualOrParent(filePath, this._environmentService.extensionsPath, !isLinux)
-		) {
-			responseHeaders['Cache-Control'] = 'public, max-age=31536000';
-			responseHeaders['X-VSCode-Extension'] = 'true';
-		}
-
-		return serveFile(this._logService, req, res, filePath, responseHeaders);
 	}
 
 	private async _getWorkspace(parsedUrl: url.UrlWithParsedQuery): Promise<{ workspacePath?: string, isFolder?: boolean }> {

@@ -1186,22 +1186,14 @@ export function animate(fn: () => void): IDisposable {
 	return toDisposable(() => stepDisposable.dispose());
 }
 
-
-
-const _location = URI.parse(window.location.href);
+RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
 
 export function asDomUri(uri: URI): URI {
 	if (!uri) {
 		return uri;
 	}
 	if (Schemas.vscodeRemote === uri.scheme) {
-		if (platform.isWeb) {
-			// rewrite vscode-remote-uris to uris of the window location
-			// so that they can be intercepted by the service worker
-			return _location.with({ path: '/vscode-remote', query: JSON.stringify(uri) });
-		} else {
-			return RemoteAuthorities.rewrite(uri.authority, uri.path);
-		}
+		return RemoteAuthorities.rewrite(uri.authority, uri.path);
 	}
 	return uri;
 }
