@@ -40,7 +40,7 @@ async function publish(commit: string, files: readonly string[]): Promise<void> 
 
 	console.log('Publishing...');
 	console.log('Commit:', commit);
-
+	console.log(process.env);
 	const storageAccount = process.env['AZURE_WEBVIEW_STORAGE_ACCOUNT']!;
 
 	const blobService = azure.createBlobService(storageAccount, process.env['AZURE_WEBVIEW_STORAGE_ACCESS_KEY']!)
