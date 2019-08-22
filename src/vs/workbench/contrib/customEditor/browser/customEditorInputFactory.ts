@@ -45,6 +45,10 @@ export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 			id: data.extensionId
 		} : undefined, data.group);
 
-		return this._instantiationService.createInstance(CustomFileEditorInput, URI.from((data as any).editorResource), data.viewType, generateUuid(), new UnownedDisposable(webviewInput.webview));
+		const customInput = this._instantiationService.createInstance(CustomFileEditorInput, URI.from((data as any).editorResource), data.viewType, generateUuid(), new UnownedDisposable(webviewInput.webview));
+		if (typeof data.group === 'number') {
+			customInput.updateGroup(data.group);
+		}
+		return customInput;
 	}
 }
