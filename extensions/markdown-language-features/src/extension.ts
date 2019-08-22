@@ -83,6 +83,7 @@ function registerMarkdownCommands(
 	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
 	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
 	commandManager.register(new commands.ToggleLockCommand(previewManager));
+	commandManager.register(new commands.RenderDocument(engine));
 	return commandManager;
 }
 

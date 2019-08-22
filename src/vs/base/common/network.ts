@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import * as platform from 'vs/base/common/platform';
 
 export namespace Schemas {
 
@@ -49,6 +50,8 @@ export namespace Schemas {
 
 	export const vscodeRemote: string = 'vscode-remote';
 
+	export const vscodeRemoteResource: string = 'vscode-remote-resource';
+
 	export const userData: string = 'vscode-userdata';
 }
 
@@ -56,15 +59,21 @@ class RemoteAuthoritiesImpl {
 	private readonly _hosts: { [authority: string]: string; };
 	private readonly _ports: { [authority: string]: number; };
 	private readonly _connectionTokens: { [authority: string]: string; };
+	private _preferredWebSchema: 'http' | 'https';
 
 	constructor() {
 		this._hosts = Object.create(null);
 		this._ports = Object.create(null);
 		this._connectionTokens = Object.create(null);
+		this._preferredWebSchema = 'http';
+	}
+
+	public setPreferredWebSchema(schema: 'http' | 'https') {
+		this._preferredWebSchema = schema;
 	}
 
 	public set(authority: string, host: string, port: number): void {
-		this._hosts[authority] = (host === 'localhost' ? '127.0.0.1' : host);
+		this._hosts[authority] = host;
 		this._ports[authority] = port;
 	}
 
@@ -76,11 +85,10 @@ class RemoteAuthoritiesImpl {
 		const host = this._hosts[authority];
 		const port = this._ports[authority];
 		const connectionToken = this._connectionTokens[authority];
-		const scheme = (host === '127.0.0.1' ? Schemas.http : Schemas.vscodeRemote);
 		return URI.from({
-			scheme: scheme,
+			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
 			authority: `${host}:${port}`,
-			path: `/vscode-remote2`,
+			path: `/vscode-remote-resource`,
 			query: `path=${encodeURIComponent(path)}&tkn=${encodeURIComponent(connectionToken)}`
 		});
 	}

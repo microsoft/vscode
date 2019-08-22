@@ -400,6 +400,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.scrollTop = scrollTop;
 	}
 
+	get scrollLeft(): number {
+		return this.tree.scrollLeft;
+	}
+
+	set scrollLeft(scrollLeft: number) {
+		this.tree.scrollLeft = scrollLeft;
+	}
+
 	get scrollHeight(): number {
 		return this.tree.scrollHeight;
 	}

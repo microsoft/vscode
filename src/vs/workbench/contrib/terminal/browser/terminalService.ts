@@ -26,6 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export class TerminalService extends CommonTerminalService implements ITerminalService {
 	private _configHelper: IBrowserTerminalConfigHelper;
+	private _terminalContainer: HTMLElement | undefined;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 

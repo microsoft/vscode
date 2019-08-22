@@ -50,10 +50,11 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';
+import { URI } from 'vs/base/common/uri';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
@@ -185,7 +186,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
-		@IWebviewService private readonly webviewService: IWebviewService,
+		@IWebviewService private readonly webviewService: IWebviewService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -354,8 +355,8 @@ export class ExtensionEditor extends BaseEditor {
 		toggleClass(template.publisher, 'clickable', !!extension.url);
 		toggleClass(template.rating, 'clickable', !!extension.url);
 		if (extension.url) {
-			this.transientDisposables.add(this.onClick(template.name, () => window.open(extension.url)));
-			this.transientDisposables.add(this.onClick(template.rating, () => window.open(`${extension.url}#review-details`)));
+			this.transientDisposables.add(this.onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
+			this.transientDisposables.add(this.onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}#review-details`))));
 			this.transientDisposables.add(this.onClick(template.publisher, () => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
@@ -363,7 +364,7 @@ export class ExtensionEditor extends BaseEditor {
 			}));
 
 			if (extension.licenseUrl) {
-				this.transientDisposables.add(this.onClick(template.license, () => window.open(extension.licenseUrl)));
+				this.transientDisposables.add(this.onClick(template.license, () => this.openerService.open(URI.parse(extension.licenseUrl!))));
 				template.license.style.display = 'initial';
 			} else {
 				template.license.style.display = 'none';
@@ -373,7 +374,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		if (extension.repository) {
-			this.transientDisposables.add(this.onClick(template.repository, () => window.open(extension.repository)));
+			this.transientDisposables.add(this.onClick(template.repository, () => this.openerService.open(URI.parse(extension.repository!))));
 			template.repository.style.display = 'initial';
 		}
 		else {
@@ -521,6 +522,12 @@ export class ExtensionEditor extends BaseEditor {
 	showFind(): void {
 		if (this.activeElement && (<Webview>this.activeElement).showFind) {
 			(<Webview>this.activeElement).showFind();
+		}
+	}
+
+	runFindAction(previous: boolean): void {
+		if (this.activeElement && (<Webview>this.activeElement).runFindAction) {
+			(<Webview>this.activeElement).runFindAction(previous);
 		}
 	}
 
@@ -1313,28 +1320,66 @@ export class ExtensionEditor extends BaseEditor {
 	}
 }
 
+const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), ContextKeyExpr.not('editorFocus'));
 class ShowExtensionEditorFindCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
+		const extensionEditor = getExtensionEditor(accessor);
 		if (extensionEditor) {
 			extensionEditor.showFind();
 		}
 	}
-
-	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
-		const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
-		if (activeControl instanceof ExtensionEditor) {
-			return activeControl;
-		}
-		return null;
-	}
 }
-const showCommand = new ShowExtensionEditorFindCommand({
+(new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.showfind',
-	precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), ContextKeyExpr.not('editorFocus')),
+	precondition: contextKeyExpr,
 	kbOpts: {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 		weight: KeybindingWeight.EditorContrib
 	}
-});
-showCommand.register();
+})).register();
+
+class StartExtensionEditorFindNextCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = getExtensionEditor(accessor);
+		if (extensionEditor) {
+			extensionEditor.runFindAction(false);
+		}
+	}
+}
+(new StartExtensionEditorFindNextCommand({
+	id: 'editor.action.extensioneditor.findNext',
+	precondition: ContextKeyExpr.and(
+		contextKeyExpr,
+		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+	kbOpts: {
+		primary: KeyCode.Enter,
+		weight: KeybindingWeight.EditorContrib
+	}
+})).register();
+
+class StartExtensionEditorFindPreviousCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = getExtensionEditor(accessor);
+		if (extensionEditor) {
+			extensionEditor.runFindAction(true);
+		}
+	}
+}
+(new StartExtensionEditorFindPreviousCommand({
+	id: 'editor.action.extensioneditor.findPrevious',
+	precondition: ContextKeyExpr.and(
+		contextKeyExpr,
+		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+	kbOpts: {
+		primary: KeyMod.Shift | KeyCode.Enter,
+		weight: KeybindingWeight.EditorContrib
+	}
+})).register();
+
+function getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
+	const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
+	if (activeControl instanceof ExtensionEditor) {
+		return activeControl;
+	}
+	return null;
+}

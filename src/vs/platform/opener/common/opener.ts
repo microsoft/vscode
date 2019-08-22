@@ -11,6 +11,11 @@ export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
 export interface IOpener {
 	open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean>;
+	open(resource: URI, options?: { openExternal?: boolean }): Promise<boolean>;
+}
+
+export interface IValidator {
+	shouldOpen(resource: URI): Promise<boolean>;
 }
 
 export interface IOpenerService {
@@ -23,24 +28,24 @@ export interface IOpenerService {
 	registerOpener(opener: IOpener): IDisposable;
 
 	/**
+	 * Register a participant that can validate if the URI resource be opened.
+	 * validators are run before openers.
+	 */
+	registerValidator(validator: IValidator): IDisposable;
+
+	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.
 	 *
 	 * @param resource A resource
 	 * @return A promise that resolves when the opening is done.
 	 */
 	open(resource: URI, options?: { openToSide?: boolean }): Promise<boolean>;
-
-	/**
-	 * Opens a URL externally.
-	 *
-	 * @param url A resource to open externally.
-	 */
-	openExternal(resource: URI): Promise<boolean>;
+	open(resource: URI, options?: { openExternal?: boolean }): Promise<boolean>;
 }
 
 export const NullOpenerService: IOpenerService = Object.freeze({
 	_serviceBrand: undefined,
 	registerOpener() { return { dispose() { } }; },
+	registerValidator() { return { dispose() { } }; },
 	open() { return Promise.resolve(false); },
-	openExternal() { return Promise.resolve(false); }
 });

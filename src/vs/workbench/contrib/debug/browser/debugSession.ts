@@ -31,6 +31,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
 
 export class DebugSession implements IDebugSession {
 
@@ -66,7 +68,8 @@ export class DebugSession implements IDebugSession {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IWindowsService private readonly windowsService: IWindowsService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		this.id = generateUuid();
 		this.repl = new ReplModel(this);
@@ -167,7 +170,7 @@ export class DebugSession implements IDebugSession {
 
 			return dbgr.createDebugAdapter(this).then(debugAdapter => {
 
-				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.windowsService);
+				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.windowsService, this.openerService);
 
 				return this.raw.start().then(() => {
 
@@ -552,7 +555,8 @@ export class DebugSession implements IDebugSession {
 								insertText: item.text || item.label,
 								kind: completionKindFromString(item.type || 'property'),
 								filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
-								range: Range.fromPositions(position.delta(0, -(item.length || overwriteBefore)), position)
+								range: Range.fromPositions(position.delta(0, -(item.length || overwriteBefore)), position),
+								sortText: item.sortText
 							});
 						}
 					});
@@ -903,12 +907,13 @@ export class DebugSession implements IDebugSession {
 		this._onDidChangeREPLElements.fire();
 	}
 
-	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
+	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
 		const viewModel = this.debugService.getViewModel();
-		return this.repl.addReplExpression(stackFrame, name)
-			.then(() => this._onDidChangeREPLElements.fire())
-			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-			.then(() => this.debugService.focusStackFrame(viewModel.focusedStackFrame, viewModel.focusedThread, viewModel.focusedSession));
+		await this.repl.addReplExpression(stackFrame, name);
+		this._onDidChangeREPLElements.fire();
+		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
+		this.debugService.focusStackFrame(viewModel.focusedStackFrame, viewModel.focusedThread, viewModel.focusedSession);
+		variableSetEmitter.fire();
 	}
 
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
