@@ -1030,15 +1030,6 @@ declare module 'vscode' {
 		 */
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
-
-	export interface TreeViewOptions2<T> extends TreeViewOptions<T> {
-		/**
-		 * Whether the tree supports multi-select. When the tree supports multi-select and a command is executed from the tree,
-		 * the first argument to the command is the tree item that the command was executed on and the second argument is an
-		 * array containing the other selected tree items.
-		 */
-		canSelectMany?: boolean;
-	}
 	//#endregion
 
 	//#region CustomExecution
