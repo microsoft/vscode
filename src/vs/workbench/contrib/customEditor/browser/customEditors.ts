@@ -5,7 +5,6 @@
 
 import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
-import { endsWith } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -98,6 +97,10 @@ export class CustomEditorService implements ICustomEditorService {
 	}
 }
 
+export const customEditorsConfigurationKey = 'workbench.editor.custom';
+
+type CustomEditorsConfiguration = { readonly [glob: string]: string };
+
 export class CustomEditorContribution implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -108,10 +111,10 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 	}
 
 	private getConfiguredCustomEditor(resource: URI): string | undefined {
-		const config = this.configurationService.getValue<{ [key: string]: string }>('workbench.editor.custom') || {};
-		for (const ext of Object.keys(config)) {
-			if (endsWith(resource.toString(), ext)) {
-				return config[ext];
+		const config = this.configurationService.getValue<CustomEditorsConfiguration>(customEditorsConfigurationKey) || {};
+		for (const filePattern of Object.keys(config)) {
+			if (glob.match(filePattern, resource.toString())) {
+				return config[filePattern];
 			}
 		}
 		return undefined;

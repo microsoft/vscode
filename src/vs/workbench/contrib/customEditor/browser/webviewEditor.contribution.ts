@@ -11,18 +11,18 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { CustomEditoInputFactory } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import './commands';
 import { CustomFileEditorInput } from './customEditorInput';
-import { CustomEditorContribution, CustomEditorService } from './customEditors';
-import { IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
-import { CustomEditoInputFactory } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
+import { CustomEditorContribution, customEditorsConfigurationKey, CustomEditorService } from './customEditors';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(CustomEditorContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(CustomEditorContribution, LifecyclePhase.Starting);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
@@ -37,21 +37,17 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	CustomEditoInputFactory.ID,
 	CustomEditoInputFactory);
 
-// Configuration
-(function registerConfiguration(): void {
-	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	// Telemetry
-	registry.registerConfiguration({
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
 		'id': 'workbench',
 		'order': 7,
 		'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
 		'type': 'object',
 		'properties': {
-			'workbench.editor.custom': {
+			[customEditorsConfigurationKey]: {
 				'type': 'object',
 				'description': nls.localize('editor.custom', "TODO."),
 				'default': {}
 			}
 		}
 	});
-})();
