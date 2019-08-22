@@ -77,6 +77,7 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 			}
 
 			if (token.count > MAX_FILES) {
+				token.count += files.length;
 				token.maxReached = true;
 				return done(results);
 			}
