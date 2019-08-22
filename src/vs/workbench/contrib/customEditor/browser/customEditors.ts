@@ -33,6 +33,7 @@ import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webv
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class CustomFileEditorInput extends WebviewEditorInput {
 	private name?: string;
@@ -161,6 +162,9 @@ export class CustomEditorService implements ICustomEditorService {
 		const id = generateUuid();
 		const webview = this.webviewService.createWebviewEditorOverlay(id, {}, {});
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, customEditorViewType, id, new UnownedDisposable(webview));
+		if (group) {
+			input.updateGroup(group!.id);
+		}
 		return this.editorService.openEditor(input, options, group);
 	}
 }
@@ -201,6 +205,14 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		const customEditors = this.customEditorService.getCustomEditorsForResource(resource);
 		if (!customEditors.length) {
 			return;
+		}
+
+		for (const input of group.editors) {
+			if (input instanceof CustomFileEditorInput && input.editorResource.toString() === resource.toString()) {
+				return {
+					override: group.openEditor(input, options).then(withNullAsUndefined)
+				};
+			}
 		}
 
 		return {
