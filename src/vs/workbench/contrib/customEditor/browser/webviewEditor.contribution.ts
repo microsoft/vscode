@@ -14,7 +14,8 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import './commands';
-import { CustomEditorContribution, CustomEditorService, CustomFileEditorInput } from './customEditors';
+import { CustomFileEditorInput } from './customEditorInput';
+import { CustomEditorContribution, CustomEditorService } from './customEditors';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
