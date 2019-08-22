@@ -26,16 +26,16 @@ const webviewEditorsContribution: IJSONSchema = {
 		],
 		properties: {
 			viewType: {
-				description: nls.localize('vscode.extension.contributes.webviewEditors-viewType', 'XXX.'),
+				description: nls.localize('vscode.extension.contributes.webviewEditors-viewType', 'Unique identifier of the custom editor.'),
 				type: 'string'
 			},
 			displayName: {
-				description: nls.localize('vscode.extension.contributes.webviewEditors-displayName', 'XXX.'),
+				description: nls.localize('vscode.extension.contributes.webviewEditors-displayName', 'Name of the custom editor displayed to users.'),
 				type: 'string'
 			},
 			filePatterns: {
 				type: 'array',
-				description: nls.localize('vscode.extension.contributes.webviewEditors-filenamePatterns', 'XXX.'),
+				description: nls.localize('vscode.extension.contributes.webviewEditors-filenamePatterns', 'Set of globs that the custom editor is enabled for.'),
 			}
 		}
 	}
