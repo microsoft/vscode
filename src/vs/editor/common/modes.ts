@@ -404,7 +404,7 @@ export interface CompletionItem {
 	 * A modifier to the `kind` which affect how the item
 	 * is rendered, e.g. Deprecated is rendered with a strikeout
 	 */
-	kindModifier?: CompletionItemKindModifier;
+	kindModifier?: Set<CompletionItemKindModifier>;
 	/**
 	 * A human-readable string with additional information
 	 * about this item, like type or symbol information.

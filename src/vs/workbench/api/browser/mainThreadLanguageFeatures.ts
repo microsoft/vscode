@@ -330,7 +330,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return {
 			label: data.a,
 			kind: data.b,
-			kindModifier: data.n ? modes.CompletionItemKindModifier.Deprecated : undefined,
+			kindModifier: data.n ? new Set<modes.CompletionItemKindModifier>().add(modes.CompletionItemKindModifier.Deprecated) : undefined,
 			detail: data.c,
 			documentation: data.d,
 			sortText: data.e,
