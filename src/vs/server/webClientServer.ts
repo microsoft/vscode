@@ -12,7 +12,7 @@ import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { findFreePort } from 'vs/base/node/ports';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
@@ -60,6 +60,7 @@ export class WebClientServer extends Disposable {
 
 	private _webviewServer: http.Server | null;
 	private _webviewEndpoint: string | null;
+	private _mapCallbackUriToRequestId: Map<string, UriComponents> = new Map();
 
 	constructor(
 		private readonly _connectionToken: string,
@@ -102,6 +103,14 @@ export class WebClientServer extends Disposable {
 			if (pathname === '/') {
 				// the token handling is done inside the handler
 				return this._handleRoot(req, res, parsedUrl);
+			}
+			if (pathname === '/callback') {
+				// callback support
+				return this._handleCallback(req, res, parsedUrl);
+			}
+			if (pathname === '/fetch-callback') {
+				// callback fetch support
+				return this._handleFetchCallback(req, res, parsedUrl);
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -256,6 +265,80 @@ export class WebClientServer extends Disposable {
 	private _getFirstQueryValue(parsedUrl: url.UrlWithParsedQuery, key: string): string | undefined {
 		const result = parsedUrl.query[key];
 		return Array.isArray(result) ? result[0] : result;
+	}
+
+	private _getFirstQueryValues(parsedUrl: url.UrlWithParsedQuery, ignoreKeys?: string[]): Map<string, string> {
+		const queryValues = new Map<string, string>();
+
+		for (const key in parsedUrl.query) {
+			if (ignoreKeys && ignoreKeys.indexOf(key) >= 0) {
+				continue;
+			}
+
+			const value = this._getFirstQueryValue(parsedUrl, key);
+			if (typeof value === 'string') {
+				queryValues.set(key, value);
+			}
+		}
+
+		return queryValues;
+	}
+
+	/**
+	 * Handle HTTP requests for /callback
+	 */
+	private async _handleCallback(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		const wellKnownKeys = ['vscode-requestId', 'vscode-scheme', 'vscode-authority', 'vscode-path', 'vscode-query', 'vscode-fragment'];
+		const [requestId, vscodeScheme, vscodeAuthority, vscodePath, vscodeQuery, vscodeFragment] = wellKnownKeys.map(key => {
+			const value = this._getFirstQueryValue(parsedUrl, key);
+			if (value) {
+				return decodeURIComponent(value);
+			}
+
+			return value;
+		});
+
+		if (!requestId) {
+			res.writeHead(400, { 'Content-Type': 'text/plain' });
+			return res.end(`Bad request.`);
+		}
+
+		// merge over additional query values that we got
+		let query: string | undefined = vscodeQuery;
+		let index = 0;
+		this._getFirstQueryValues(parsedUrl, wellKnownKeys).forEach((value, key) => {
+			if (!query) {
+				query = '';
+			}
+
+			const prefix = (index++ === 0) ? '' : '&';
+			query = `${prefix}${key}=${value}`;
+		});
+
+		// add to map of known callbacks
+		this._mapCallbackUriToRequestId.set(requestId, URI.from({ scheme: vscodeScheme || product.urlProtocol, authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }).toJSON());
+
+		res.writeHead(200, { 'Content-Type': 'text/html' });
+		return res.end('Please close this browser tab.');
+	}
+
+	/**
+	 * Handle HTTP requests for /fetch-callback
+	 */
+	private async _handleFetchCallback(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		const requestId = this._getFirstQueryValue(parsedUrl, 'vscode-requestId')!;
+		if (!requestId) {
+			res.writeHead(400, { 'Content-Type': 'text/plain' });
+			return res.end(`Bad request.`);
+		}
+
+		const knownCallbackUri = this._mapCallbackUriToRequestId.get(requestId);
+		if (knownCallbackUri) {
+			this._mapCallbackUriToRequestId.delete(requestId);
+		}
+
+		res.writeHead(200, { 'Content-Type': 'text/json' });
+		return res.end(JSON.stringify(knownCallbackUri));
 	}
 
 	private spawnWebviewServer(webviewPort: number): http.Server {
