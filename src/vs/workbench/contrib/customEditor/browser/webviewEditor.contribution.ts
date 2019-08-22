@@ -16,6 +16,8 @@ import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEdito
 import './commands';
 import { CustomFileEditorInput } from './customEditorInput';
 import { CustomEditorContribution, CustomEditorService } from './customEditors';
+import { IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { CustomEditoInputFactory } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
@@ -30,6 +32,10 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	), [
 		new SyncDescriptor(CustomFileEditorInput)
 	]);
+
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
+	CustomEditoInputFactory.ID,
+	CustomEditoInputFactory);
 
 // Configuration
 (function registerConfiguration(): void {

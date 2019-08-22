@@ -12,9 +12,6 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
-/**
- * Handles the creation of webview elements.
- */
 export interface ICustomEditorService {
 	_serviceBrand: any;
 
