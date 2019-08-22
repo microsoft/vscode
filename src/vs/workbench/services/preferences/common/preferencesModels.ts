@@ -1028,6 +1028,67 @@ class SettingsContentBuilder {
 }
 
 export function createValidator(prop: IConfigurationPropertySchema): (value: any) => (string | null) {
+	// Only for array of string
+	if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type === 'string') {
+		const propItems = prop.items;
+		if (propItems && !isArray(propItems) && propItems.type === 'string') {
+			const withQuotes = (s: string) => `'` + s + `'`;
+
+			return value => {
+				if (!value) {
+					return null;
+				}
+
+				let message = '';
+
+				const stringArrayValue = value as string[];
+
+				if (prop.minItems && stringArrayValue.length < prop.minItems) {
+					message += nls.localize('validations.stringArrayMinItem', 'Array must have at least {0} items', prop.minItems);
+					message += '\n';
+				}
+
+				if (prop.maxItems && stringArrayValue.length > prop.maxItems) {
+					message += nls.localize('validations.stringArrayMaxItem', 'Array must have less than {0} items', prop.maxItems);
+					message += '\n';
+				}
+
+				if (typeof propItems.pattern === 'string') {
+					const patternRegex = new RegExp(propItems.pattern);
+					stringArrayValue.forEach(v => {
+						if (!patternRegex.test(v)) {
+							message +=
+								propItems.patternErrorMessage ||
+								nls.localize(
+									'validations.stringArrayItemPattern',
+									'Value {0} must match regex {1}.',
+									withQuotes(v),
+									withQuotes(propItems.pattern!)
+								);
+						}
+					});
+				}
+
+				const propItemsEnum = propItems.enum;
+				if (propItemsEnum) {
+					stringArrayValue.forEach(v => {
+						if (propItemsEnum.indexOf(v) === -1) {
+							message += nls.localize(
+								'validations.stringArrayItemEnum',
+								'Value {0} is not one of {1}',
+								withQuotes(v),
+								'[' + propItemsEnum.map(withQuotes).join(', ') + ']'
+							);
+							message += '\n';
+						}
+					});
+				}
+
+				return message;
+			};
+		}
+	}
+
 	return value => {
 		let exclusiveMax: number | undefined;
 		let exclusiveMin: number | undefined;
