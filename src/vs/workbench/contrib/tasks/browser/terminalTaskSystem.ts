@@ -44,6 +44,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -1376,8 +1377,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return command;
 		}
 		if (cwd === undefined) {
-			// tslint:disable-next-line: no-nodejs-globals
-			cwd = process.cwd();
+			cwd = processCwd();
 		}
 		const dir = path.dirname(command);
 		if (dir !== '.') {
@@ -1385,10 +1385,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		// tslint:disable-next-line: no-nodejs-globals
-		if (paths === undefined && Types.isString(process.env.PATH)) {
-			// tslint:disable-next-line: no-nodejs-globals
-			paths = process.env.PATH.split(path.delimiter);
+		if (paths === undefined && Types.isString(processEnv.PATH)) {
+			paths = processEnv.PATH.split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
 		if (paths === undefined || paths.length === 0) {
