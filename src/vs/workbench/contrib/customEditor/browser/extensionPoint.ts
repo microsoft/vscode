@@ -11,7 +11,7 @@ import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchMo
 interface IWebviewEditorsExtensionPoint {
 	readonly viewType: string;
 	readonly displayName: string;
-	readonly extensions?: readonly string[];
+	readonly filePatterns?: readonly string[];
 }
 
 const webviewEditorsContribution: IJSONSchema = {
@@ -33,9 +33,9 @@ const webviewEditorsContribution: IJSONSchema = {
 				description: nls.localize('vscode.extension.contributes.webviewEditors-displayName', 'XXX.'),
 				type: 'string'
 			},
-			extensions: {
+			filePatterns: {
 				type: 'array',
-				description: nls.localize('vscode.extension.contributes.webviewEditors-extensions', 'XXX.'),
+				description: nls.localize('vscode.extension.contributes.webviewEditors-filenamePatterns', 'XXX.'),
 			}
 		}
 	}

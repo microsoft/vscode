@@ -22,11 +22,12 @@ import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { CustomFileEditorInput } from './customEditorInput';
+import * as glob from 'vs/base/common/glob';
 
 export class CustomEditorService implements ICustomEditorService {
 	_serviceBrand: any;
 
-	private readonly customEditors: Array<CustomEditorInfo & { extensions: readonly string[] }> = [];
+	private readonly customEditors: Array<CustomEditorInfo & { filePatterns: readonly string[] }> = [];
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -40,7 +41,7 @@ export class CustomEditorService implements ICustomEditorService {
 					this.customEditors.push({
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
-						extensions: webviewEditorContribution.extensions || []
+						filePatterns: webviewEditorContribution.filePatterns || []
 					});
 				}
 			}
@@ -48,14 +49,8 @@ export class CustomEditorService implements ICustomEditorService {
 	}
 
 	public getCustomEditorsForResource(resource: URI): readonly CustomEditorInfo[] {
-		const out: CustomEditorInfo[] = [];
-		for (const customEditor of this.customEditors) {
-			if (customEditor.extensions.some(extension => endsWith(resource.toString(), extension))) {
-				out.push(customEditor);
-			}
-		}
-
-		return out;
+		return this.customEditors.filter(customEditor =>
+			customEditor.filePatterns.some(pattern => glob.match(pattern, resource.toString())));
 	}
 
 	public async promptOpenWith(
