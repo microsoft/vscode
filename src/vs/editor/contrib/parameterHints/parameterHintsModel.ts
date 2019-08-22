@@ -52,7 +52,7 @@ export class ParameterHintsModel extends Disposable {
 	public readonly onChangedHints = this._onChangedHints.event;
 
 	private readonly editor: ICodeEditor;
-	private enabled: boolean;
+	private triggerOnType = false;
 	private _state: ParameterHintState.State = ParameterHintState.Default;
 	private readonly _lastSignatureHelpResult = this._register(new MutableDisposable<modes.SignatureHelpResult>());
 	private triggerChars = new CharacterSet();
@@ -68,7 +68,6 @@ export class ParameterHintsModel extends Disposable {
 		super();
 
 		this.editor = editor;
-		this.enabled = false;
 
 		this.throttledDelayer = new Delayer(delay);
 
@@ -242,7 +241,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private onDidType(text: string) {
-		if (!this.enabled) {
+		if (!this.triggerOnType) {
 			return;
 		}
 
@@ -272,9 +271,9 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private onEditorConfigurationChange(): void {
-		this.enabled = this.editor.getConfiguration().contribInfo.parameterHints.enabled;
+		this.triggerOnType = this.editor.getConfiguration().contribInfo.parameterHints.enabled;
 
-		if (!this.enabled) {
+		if (!this.triggerOnType) {
 			this.cancel();
 		}
 	}
