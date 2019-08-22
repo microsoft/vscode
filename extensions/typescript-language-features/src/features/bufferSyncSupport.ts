@@ -310,6 +310,8 @@ export default class BufferSyncSupport extends Disposable {
 
 	private readonly client: ITypeScriptServiceClient;
 
+	private _validateJavaScript: boolean = true;
+	private _validateTypeScript: boolean = true;
 	private readonly modeIds: Set<string>;
 	private readonly syncedBuffers: SyncedBufferMap;
 	private readonly pendingDiagnostics: PendingDiagnostics;
@@ -332,6 +334,9 @@ export default class BufferSyncSupport extends Disposable {
 		this.syncedBuffers = new SyncedBufferMap(pathNormalizer);
 		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer);
 		this.synchronizer = new BufferSynchronizer(client);
+
+		this.updateConfiguration();
+		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
 	}
 
 	private readonly _onDelete = this._register(new vscode.EventEmitter<vscode.Uri>());
@@ -506,20 +511,22 @@ export default class BufferSyncSupport extends Disposable {
 		this.pendingDiagnostics.clear();
 	}
 
+	private updateConfiguration() {
+		const jsConfig = vscode.workspace.getConfiguration('javascript', null);
+		const tsConfig = vscode.workspace.getConfiguration('typescript', null);
+
+		this._validateJavaScript = jsConfig.get<boolean>('validate.enable', true);
+		this._validateTypeScript = tsConfig.get<boolean>('validate.enable', true);
+	}
+
 	private shouldValidate(buffer: SyncedBuffer) {
 		switch (buffer.kind) {
 			case BufferKind.JavaScript:
-				{
-					const config = vscode.workspace.getConfiguration('javascript', buffer.resource);
-					return config.get<boolean>('validate.enable', true);
-				}
+				return this._validateJavaScript;
 
 			case BufferKind.TypeScript:
 			default:
-				{
-					const config = vscode.workspace.getConfiguration('typescript', buffer.resource);
-					return config.get<boolean>('validate.enable', true);
-				}
+				return this._validateTypeScript;
 		}
 	}
 }
