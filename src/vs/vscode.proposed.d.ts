@@ -1142,13 +1142,18 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Deprecated support
+	//#region Joh - CompletionItemKindModifier, https://github.com/microsoft/vscode/issues/23927
+
+	export enum CompletionItemKindModifier {
+		Deprecated = 1
+	}
 
 	export interface CompletionItem {
+
 		/**
-		 * Indicates if this item is deprecated.
+		 *
 		 */
-		deprecated?: boolean;
+		kind2?: CompletionItemKind | { base: CompletionItemKind, modifier: ReadonlyArray<CompletionItemKindModifier> };
 	}
 
 	//#endregion

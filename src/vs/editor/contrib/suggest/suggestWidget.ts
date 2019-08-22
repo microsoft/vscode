@@ -194,7 +194,8 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		}
 
 		if (suggestion.kindModifier && suggestion.kindModifier.has(CompletionItemKindModifier.Deprecated)) {
-			labelOptions.extraClasses = (labelOptions.extraClasses || []).concat(['suggest-widget-deprecated']);
+			labelOptions.extraClasses = (labelOptions.extraClasses || []).concat(['deprecated']);
+			labelOptions.matches = [];
 		}
 
 		data.iconLabel.setLabel(suggestion.label, undefined, labelOptions);

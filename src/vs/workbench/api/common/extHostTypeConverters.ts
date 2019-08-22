@@ -681,6 +681,21 @@ export namespace CompletionContext {
 	}
 }
 
+export namespace CompletionItemKindModifier {
+
+	export function from(kind: types.CompletionItemKindModifier): modes.CompletionItemKindModifier {
+		switch (kind) {
+			case types.CompletionItemKindModifier.Deprecated: return modes.CompletionItemKindModifier.Deprecated;
+		}
+	}
+
+	export function to(kind: modes.CompletionItemKindModifier): types.CompletionItemKindModifier {
+		switch (kind) {
+			case modes.CompletionItemKindModifier.Deprecated: return types.CompletionItemKindModifier.Deprecated;
+		}
+	}
+}
+
 export namespace CompletionItemKind {
 
 	export function from(kind: types.CompletionItemKind | undefined): modes.CompletionItemKind {

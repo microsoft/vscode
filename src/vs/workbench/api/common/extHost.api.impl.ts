@@ -803,6 +803,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CommentMode: extHostTypes.CommentMode,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
+			CompletionItemKindModifier: extHostTypes.CompletionItemKindModifier,
 			CompletionList: extHostTypes.CompletionList,
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
