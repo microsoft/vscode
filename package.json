@@ -60,6 +60,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
+    "@types/cookie": "^0.3.3",
     "@types/keytar": "^4.4.0",
     "@types/mocha": "2.2.39",
     "@types/node": "^10.12.12",
