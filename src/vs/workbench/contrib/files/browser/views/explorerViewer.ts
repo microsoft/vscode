@@ -130,7 +130,7 @@ export class ExplorerDataSource extends Disposable implements IAsyncDataSource<E
 							nestingPatterns.push([parentName.key, childPattern]);
 						});
 						//we will need to set isVirtualDirectory later, only if it has at least one child
-						virtualDirectories[parentName.key] = child;
+						virtualDirectories.set(parentName.key, child);
 					}
 				});
 			});
@@ -155,7 +155,10 @@ export class ExplorerDataSource extends Disposable implements IAsyncDataSource<E
 						}
 
 						//Show as virtual directory only if it has nested items inside
-						virtualDirectories[parentName].isVirtualDirectory = true;
+						let virtualDir = virtualDirectories.get(parentName);//.isVirtualDirectory = true;
+						if (virtualDir) {
+							virtualDir.isVirtualDirectory = true;
+						}
 						break;
 					}
 				}
