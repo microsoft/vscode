@@ -312,7 +312,7 @@ export class WebClientServer extends Disposable {
 			}
 
 			const prefix = (index++ === 0) ? '' : '&';
-			query = `${prefix}${key}=${value}`;
+			query += `${prefix}${key}=${value}`;
 		});
 
 		// add to map of known callbacks
