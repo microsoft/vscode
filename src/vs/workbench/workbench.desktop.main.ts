@@ -30,7 +30,6 @@ import 'vs/workbench/electron-browser/desktop.main';
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
-import 'vs/workbench/services/extensions/common/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/search/node/searchService';
 import 'vs/workbench/services/output/node/outputChannelModelService';
 import 'vs/workbench/services/textfile/node/textFileService';
@@ -49,6 +48,7 @@ import 'vs/workbench/services/accessibility/node/accessibilityService';
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/credentials/node/credentialsService';
+import 'vs/workbench/services/url/electron-browser/urlService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -70,8 +70,6 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-browser/workspacesService';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { RelayURLService } from 'vs/platform/url/electron-browser/urlService';
 import { StaticExtensionsService, IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 
 registerSingleton(IClipboardService, ClipboardService, true);
@@ -84,7 +82,6 @@ registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
 registerSingleton(IWorkspacesService, WorkspacesService);
 registerSingleton(IMenubarService, MenubarService);
-registerSingleton(IURLService, RelayURLService);
 registerSingleton(IStaticExtensionsService, class extends StaticExtensionsService { constructor() { super([]); } });
 
 //#endregion

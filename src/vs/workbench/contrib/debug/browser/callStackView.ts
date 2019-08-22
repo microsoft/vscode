@@ -590,7 +590,12 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 	constructor(private debugService: IDebugService) { }
 
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
-		return isDebugModel(element) || isDebugSession(element) || (element instanceof Thread && element.stopped);
+		if (isDebugSession(element)) {
+			const threads = element.getAllThreads();
+			return (threads.length > 1) || (threads.length === 1 && threads[0].stopped) || (this.debugService.getModel().getSessions().filter(s => s.parentSession === element).length > 0);
+		}
+
+		return isDebugModel(element) || (element instanceof Thread && element.stopped);
 	}
 
 	async getChildren(element: IDebugModel | CallStackItem): Promise<CallStackItem[]> {

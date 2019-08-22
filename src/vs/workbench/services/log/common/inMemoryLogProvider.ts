@@ -6,16 +6,9 @@
 import { KeyValueLogProvider } from 'vs/workbench/services/log/common/keyValueLogProvider';
 import { keys } from 'vs/base/common/map';
 
-export const INMEMORY_LOG_SCHEME = 'vscode-logs-inmemory';
-
 export class InMemoryLogProvider extends KeyValueLogProvider {
 
 	private readonly logs: Map<string, string> = new Map<string, string>();
-
-	constructor(
-	) {
-		super(INMEMORY_LOG_SCHEME);
-	}
 
 	protected async getAllKeys(): Promise<string[]> {
 		return keys(this.logs);
