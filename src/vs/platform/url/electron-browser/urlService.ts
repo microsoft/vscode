@@ -27,12 +27,16 @@ export class RelayURLService extends URLService implements IURLHandler {
 		openerService.registerOpener(this);
 	}
 
-	async open(uri: URI): Promise<boolean> {
-		if (uri.scheme !== product.urlProtocol) {
+	async open(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
+		if (options && options.openExternal) {
 			return false;
 		}
 
-		return await this.urlService.open(uri);
+		if (resource.scheme !== product.urlProtocol) {
+			return false;
+		}
+
+		return await this.urlService.open(resource);
 	}
 
 	handleURL(uri: URI): Promise<boolean> {

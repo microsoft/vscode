@@ -319,7 +319,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 					return;
 
 				case 'did-click-link':
-					let [uri] = event.args;
+					const [uri] = event.args;
 					this._onDidClickLink.fire(URI.parse(uri));
 					return;
 
@@ -327,12 +327,17 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 					{
 						const rawEvent = event.args[0];
 						const bounds = this._webview.getBoundingClientRect();
-						window.dispatchEvent(new MouseEvent(rawEvent.type, {
-							...rawEvent,
-							clientX: rawEvent.clientX + bounds.left,
-							clientY: rawEvent.clientY + bounds.top,
-						}));
-						return;
+						try {
+							window.dispatchEvent(new MouseEvent(rawEvent.type, {
+								...rawEvent,
+								clientX: rawEvent.clientX + bounds.left,
+								clientY: rawEvent.clientY + bounds.top,
+							}));
+							return;
+						} catch {
+							// CustomEvent was treated as MouseEvent so don't do anything - https://github.com/microsoft/vscode/issues/78915
+							return;
+						}
 					}
 
 				case 'did-set-content':
@@ -489,7 +494,11 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		if (!this._webview) {
 			return;
 		}
-		this._webview.focus();
+		try {
+			this._webview.focus();
+		} catch {
+			// noop
+		}
 		this._send('focus');
 
 		// Handle focus change programmatically (do not rely on event from <webview>)
@@ -626,6 +635,12 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 	public hideFind() {
 		if (this._webviewFindWidget) {
 			this._webviewFindWidget.hide();
+		}
+	}
+
+	public runFindAction(previous: boolean) {
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.find(previous);
 		}
 	}
 

@@ -8,6 +8,8 @@ import * as nls from 'vs/nls';
 import product from 'vs/platform/product/node/product';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { URI } from 'vs/base/common/uri';
 
 export class KeybindingsReferenceAction extends Action {
 
@@ -19,13 +21,14 @@ export class KeybindingsReferenceAction extends Action {
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		window.open(KeybindingsReferenceAction.URL);
+		this.openerService.open(URI.parse(KeybindingsReferenceAction.URL));
 
 		return Promise.resolve();
 	}
@@ -41,13 +44,14 @@ export class OpenDocumentationUrlAction extends Action {
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		window.open(OpenDocumentationUrlAction.URL);
+		this.openerService.open(URI.parse(OpenDocumentationUrlAction.URL));
 
 		return Promise.resolve();
 	}
@@ -63,13 +67,14 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		window.open(OpenIntroductoryVideosUrlAction.URL);
+		this.openerService.open(URI.parse(OpenIntroductoryVideosUrlAction.URL));
 
 		return Promise.resolve();
 	}
@@ -85,13 +90,14 @@ export class OpenTipsAndTricksUrlAction extends Action {
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		window.open(OpenTipsAndTricksUrlAction.URL);
+		this.openerService.open(URI.parse(OpenTipsAndTricksUrlAction.URL));
 		return Promise.resolve();
 	}
 }
@@ -107,6 +113,7 @@ export class OpenNewsletterSignupUrlAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(id, label);
@@ -116,7 +123,7 @@ export class OpenNewsletterSignupUrlAction extends Action {
 	async run(): Promise<void> {
 		const info = await this.telemetryService.getTelemetryInfo();
 
-		window.open(`${OpenNewsletterSignupUrlAction.URL}?machineId=${encodeURIComponent(info.machineId)}`);
+		this.openerService.open(URI.parse(`${OpenNewsletterSignupUrlAction.URL}?machineId=${encodeURIComponent(info.machineId)}`));
 	}
 }
 
@@ -127,14 +134,15 @@ export class OpenTwitterUrlAction extends Action {
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
 		if (product.twitterUrl) {
-			window.open(product.twitterUrl);
+			this.openerService.open(URI.parse(product.twitterUrl));
 		}
 
 		return Promise.resolve();
@@ -148,14 +156,15 @@ export class OpenRequestFeatureUrlAction extends Action {
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
 		if (product.requestFeatureUrl) {
-			window.open(product.requestFeatureUrl);
+			this.openerService.open(URI.parse(product.requestFeatureUrl));
 		}
 
 		return Promise.resolve();
@@ -169,7 +178,8 @@ export class OpenLicenseUrlAction extends Action {
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(id, label);
 	}
@@ -178,9 +188,9 @@ export class OpenLicenseUrlAction extends Action {
 		if (product.licenseUrl) {
 			if (language) {
 				const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-				window.open(`${product.licenseUrl}${queryArgChar}lang=${language}`);
+				this.openerService.open(URI.parse(`${product.licenseUrl}${queryArgChar}lang=${language}`));
 			} else {
-				window.open(product.licenseUrl);
+				this.openerService.open(URI.parse(product.licenseUrl));
 			}
 		}
 
@@ -195,7 +205,8 @@ export class OpenPrivacyStatementUrlAction extends Action {
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(id, label);
 	}
@@ -204,9 +215,9 @@ export class OpenPrivacyStatementUrlAction extends Action {
 		if (product.privacyStatementUrl) {
 			if (language) {
 				const queryArgChar = product.privacyStatementUrl.indexOf('?') > 0 ? '&' : '?';
-				window.open(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`);
+				this.openerService.open(URI.parse(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`));
 			} else {
-				window.open(product.privacyStatementUrl);
+				this.openerService.open(URI.parse(product.privacyStatementUrl));
 			}
 		}
 

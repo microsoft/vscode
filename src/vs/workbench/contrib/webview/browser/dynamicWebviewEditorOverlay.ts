@@ -153,6 +153,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	reload(): void { this.withWebview(webview => webview.reload()); }
 	showFind(): void { this.withWebview(webview => webview.showFind()); }
 	hideFind(): void { this.withWebview(webview => webview.hideFind()); }
+	runFindAction(previous: boolean): void { this.withWebview(webview => webview.runFindAction(previous)); }
 
 	public getInnerWebview() {
 		return this._webview.value;

@@ -54,6 +54,8 @@ import { IPreferencesService } from '../services/preferences/common/preferences'
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/node/menubar';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Schemas } from 'vs/base/common/network';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -101,7 +103,8 @@ export class ElectronWindow extends Disposable {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 
@@ -312,13 +315,8 @@ export class ElectronWindow extends Disposable {
 			this._register(this.instantiationService.createInstance(NativeMenubarControl));
 		}
 
-		// Handle window.open() calls
-		const $this = this;
-		window.open = function (url: string, target: string, features: string, replace: boolean): Window | null {
-			$this.windowsService.openExternal(url);
-
-			return null;
-		};
+		// Handle open calls
+		this.setupOpenHandlers();
 
 		// Emit event when vscode is ready
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.windowService.windowId));
@@ -354,6 +352,39 @@ export class ElectronWindow extends Disposable {
 		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp && this.configurationService.getValue('telemetry.enableCrashReporter')) {
 			this.setupCrashReporter();
 		}
+	}
+
+	private setupOpenHandlers(): void {
+
+		// Block window.open() calls
+		const $this = this;
+		window.open = function (): Window | null {
+			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
+		};
+
+		// Handle internal open() calls
+		this.openerService.registerOpener({
+			async open(resource: URI, options?: { openToSide?: boolean; openExternal?: boolean; } | undefined): Promise<boolean> {
+
+				// If either the caller wants to open externally or the
+				// scheme is one where we prefer to open externally
+				// we handle this resource by delegating the opening to
+				// the main process to prevent window focus issues.
+				const scheme = resource.scheme.toLowerCase();
+				const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
+				if ((options && options.openExternal) || preferOpenExternal) {
+					const success = await $this.windowsService.openExternal(encodeURI(resource.toString(true)));
+					if (!success && resource.scheme === Schemas.file) {
+						// if opening failed, and this is a file, we can still try to reveal it
+						await $this.windowsService.showItemInFolder(resource);
+					}
+
+					return true;
+				}
+
+				return false; // not handled by us
+			}
+		});
 	}
 
 	private updateTouchbarMenu(): void {

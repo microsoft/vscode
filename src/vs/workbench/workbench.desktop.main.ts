@@ -48,7 +48,6 @@ import 'vs/workbench/services/extensionManagement/node/extensionManagementServic
 import 'vs/workbench/services/accessibility/node/accessibilityService';
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
-import 'vs/workbench/services/opener/electron-browser/openerService';
 import 'vs/workbench/services/credentials/node/credentialsService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -95,9 +94,6 @@ registerSingleton(IStaticExtensionsService, class extends StaticExtensionsServic
 
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
-
-// Logs
-import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
 
 // Stats
 import 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';

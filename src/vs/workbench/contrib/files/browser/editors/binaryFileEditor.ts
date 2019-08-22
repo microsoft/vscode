@@ -38,7 +38,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			BinaryFileEditor.ID,
 			{
 				openInternal: (input, options) => this.openInternal(input, options),
-				openExternal: resource => this.openerService.openExternal(resource)
+				openExternal: resource => this.openerService.open(resource, { openExternal: true })
 			},
 			telemetryService,
 			themeService,

@@ -688,9 +688,9 @@ export class CodeApplication extends Disposable {
 	}
 
 	private handleRemoteAuthorities(): void {
-		protocol.registerHttpProtocol(Schemas.vscodeRemote, (request, callback) => {
+		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
 			callback({
-				url: request.url.replace(/^vscode-remote:/, 'http:'),
+				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
 				method: request.method
 			});
 		});
