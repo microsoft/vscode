@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { endsWith } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -22,7 +23,6 @@ import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { CustomFileEditorInput } from './customEditorInput';
-import * as glob from 'vs/base/common/glob';
 
 export class CustomEditorService implements ICustomEditorService {
 	_serviceBrand: any;
@@ -57,7 +57,7 @@ export class CustomEditorService implements ICustomEditorService {
 		resource: URI,
 		options?: ITextEditorOptions,
 		group?: IEditorGroup,
-	): Promise<void> {
+	): Promise<IEditor | undefined> {
 		const preferredEditors = await this.getCustomEditorsForResource(resource);
 		const pick = await this.quickInputService.pick([
 			{
@@ -76,9 +76,9 @@ export class CustomEditorService implements ICustomEditorService {
 
 		if (pick.id === TEXT_FILE_EDITOR_ID) {
 			const editor = this.instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
-			this.editorService.openEditor(editor, options, group);
+			return this.editorService.openEditor(editor, options, group);
 		} else {
-			this.openWith(resource, pick.id!, options, group);
+			return this.openWith(resource, pick.id!, options, group);
 		}
 	}
 
@@ -150,9 +150,18 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 				if (preferedViewType) {
 					return this.customEditorService.openWith(resource, preferedViewType, options, group);
 				} else {
-					// prompt the user for which editor they wish to use
-					this.customEditorService.promptOpenWith(resource, options, group);
-					return undefined; // TODO: open normal editor here during prompt
+					// Open default editor but prompt user to see if they wish to use a custom one instead
+					const standardEditor = await this.editorService.openEditor(editor, { ...options, ignoreOverrides: true }, group);
+					const selectedEditor = await this.customEditorService.promptOpenWith(resource, options, group);
+					if (selectedEditor && selectedEditor.input) {
+						await group.replaceEditors([{
+							editor,
+							replacement: selectedEditor.input
+						}]);
+						return selectedEditor;
+					}
+
+					return standardEditor;
 				}
 			})()
 		};

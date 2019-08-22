@@ -18,7 +18,7 @@ export interface ICustomEditorService {
 	getCustomEditorsForResource(resource: URI): readonly CustomEditorInfo[];
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
-	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<void>;
+	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 }
 
 export interface CustomEditorInfo {
