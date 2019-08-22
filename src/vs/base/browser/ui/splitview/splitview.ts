@@ -878,9 +878,12 @@ export class SplitView extends Disposable {
 				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
 				const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
 
-				if (typeof snapBeforeIndex === 'number' && !this.viewItems[snapBeforeIndex].visible) {
+				const snappedBefore = typeof snapBeforeIndex === 'number' && !this.viewItems[snapBeforeIndex].visible;
+				const snappedAfter = typeof snapAfterIndex === 'number' && !this.viewItems[snapAfterIndex].visible;
+
+				if (snappedBefore && collapsesUp[index]) {
 					sash.state = SashState.Minimum;
-				} else if (typeof snapAfterIndex === 'number' && !this.viewItems[snapAfterIndex].visible) {
+				} else if (snappedAfter && collapsesDown[index]) {
 					sash.state = SashState.Maximum;
 				} else {
 					sash.state = SashState.Disabled;
