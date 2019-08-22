@@ -6,7 +6,7 @@
 import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, addDisposableListener, EventType, addClass } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
@@ -44,7 +44,8 @@ import { StaticExtensionsService, IStaticExtensionsService } from 'vs/workbench/
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
 import { toLocalISOString } from 'vs/base/common/date';
-import { INDEXEDDB_LOG_SCHEME, IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedDBLogProvider';
+import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedDBLogProvider';
+import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 
 class CodeRendererMain extends Disposable {
 
@@ -120,7 +121,7 @@ class CodeRendererMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Log
-		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: INDEXEDDB_LOG_SCHEME });
+		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'vscode-log' });
 		const logService = new BufferLogService();
 		serviceCollection.set(ILogService, logService);
 
@@ -151,8 +152,19 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IFileService, fileService);
 
 		// Logger
-		fileService.registerProvider(INDEXEDDB_LOG_SCHEME, new IndexedDBLogProvider());
-		logService.logger = new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService);
+		const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
+		indexedDBLogProvider.database.then(
+			() => fileService.registerProvider(logsPath.scheme, indexedDBLogProvider),
+			e => {
+				(<ILogService>logService).info('Error while creating indexedDB log provider. Falling back to in memory log provider.');
+				(<ILogService>logService).error(e);
+				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
+			}
+		).then(() => {
+			const consoleLogService = new ConsoleLogService(logService.getLevel());
+			const fileLogService = new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService);
+			logService.logger = new MultiplexLogService([consoleLogService, fileLogService]);
+		});
 
 		// Static Extensions
 		const staticExtensions = new StaticExtensionsService(this.configuration.staticExtensions || []);

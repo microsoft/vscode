@@ -5,23 +5,21 @@
 
 import { KeyValueLogProvider } from 'vs/workbench/services/log/common/keyValueLogProvider';
 
-export const INDEXEDDB_LOG_SCHEME = 'vscode-logs-indexedbd';
-export const INDEXEDDB_LOGS_DB = 'vscode-logs-db';
+export const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
 export const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
 
 export class IndexedDBLogProvider extends KeyValueLogProvider {
 
-	private readonly database: Promise<IDBDatabase>;
+	readonly database: Promise<IDBDatabase>;
 
-	constructor(
-	) {
-		super(INDEXEDDB_LOG_SCHEME);
+	constructor(scheme: string) {
+		super(scheme);
 		this.database = this.openDatabase(1);
 	}
 
 	private openDatabase(version: number): Promise<IDBDatabase> {
 		return new Promise((c, e) => {
-			const request = window.indexedDB.open(INDEXEDDB_LOGS_DB, version);
+			const request = window.indexedDB.open(INDEXEDDB_VSCODE_DB, version);
 			request.onerror = (err) => e(request.error);
 			request.onsuccess = () => {
 				const db = request.result;
