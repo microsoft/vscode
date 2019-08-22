@@ -867,6 +867,9 @@ export const enum SymbolKind {
 	TypeParameter = 25
 }
 
+export const enum SymbolKindTag {
+	Deprecated = 1,
+}
 
 /**
  * @internal
@@ -910,6 +913,7 @@ export interface DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
+	kindTags: SymbolKindTag[];
 	containerName?: string;
 	range: IRange;
 	selectionRange: IRange;

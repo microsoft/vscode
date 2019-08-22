@@ -582,7 +582,8 @@ export namespace DocumentSymbol {
 			detail: info.detail,
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
-			kind: SymbolKind.from(info.kind)
+			kind: SymbolKind.from(info.kind),
+			kindTags: []
 		};
 		if (info.children) {
 			result.children = info.children.map(from);

@@ -70,6 +70,7 @@ class DocumentSymbolAdapter {
 			const element = <modes.DocumentSymbol>{
 				name: info.name || '!!MISSING: name!!',
 				kind: typeConvert.SymbolKind.from(info.kind),
+				kindTags: [],
 				detail: undefined!, // Strict null override — avoid changing behavior
 				containerName: info.containerName,
 				range: typeConvert.Range.from(info.location.range),

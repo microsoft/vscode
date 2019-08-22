@@ -661,3 +661,7 @@ export enum SymbolKind {
 	Operator = 24,
 	TypeParameter = 25
 }
+
+export enum SymbolKindTag {
+	Deprecated = 1
+}
