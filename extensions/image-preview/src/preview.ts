@@ -12,6 +12,8 @@ export class Preview extends Disposable {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
+	private _active = true;
+
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
 		resource: vscode.Uri,
@@ -56,11 +58,18 @@ export class Preview extends Disposable {
 		this._register(webviewEditor.onDidChangeViewState(() => {
 			this.update();
 		}));
+		this._register(webviewEditor.onDidDispose(() => {
+			if (this._active) {
+				this.sizeStatusBarEntry.hide();
+				this.zoomStatusBarEntry.hide();
+			}
+		}));
 		this.update();
 	}
 
 	private update() {
-		if (this.webviewEditor.visible) {
+		this._active = this.webviewEditor.active;
+		if (this._active) {
 			this.sizeStatusBarEntry.show();
 			this.zoomStatusBarEntry.show();
 		} else {
