@@ -29,7 +29,7 @@ export class LogsDataCleaner extends Disposable {
 			readdir(logsRoot).then(children => {
 				const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
 				const oldSessions = allSessions.sort().filter((d, i) => d !== currentLog);
-				const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 49));
+				const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
 
 				return Promise.all(toDelete.map(name => rimraf(join(logsRoot, name))));
 			}).then(null, onUnexpectedError);
