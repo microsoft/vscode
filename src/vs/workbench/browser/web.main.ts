@@ -156,7 +156,7 @@ class CodeRendererMain extends Disposable {
 		indexedDBLogProvider.database.then(
 			() => fileService.registerProvider(logsPath.scheme, indexedDBLogProvider),
 			e => {
-				(<ILogService>logService).info('Error while creating indexedDB log provider. Falling back to in memory log provider.');
+				(<ILogService>logService).info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
 				(<ILogService>logService).error(e);
 				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
 			}
