@@ -10,6 +10,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
 import { isEqualOrParent, joinPath, relativePath } from 'vs/base/common/resources';
+import { values } from 'vs/base/common/map';
 
 export abstract class KeyValueLogProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
@@ -61,18 +62,18 @@ export abstract class KeyValueLogProvider extends Disposable implements IFileSys
 			return Promise.reject(new FileSystemError(resource, FileSystemProviderErrorCode.FileNotADirectory));
 		}
 		const keys = await this.getAllKeys();
-		const files: [string, FileType][] = [];
+		const files: Map<string, [string, FileType]> = new Map<string, [string, FileType]>();
 		for (const key of keys) {
 			const keyResource = this.toResource(key);
 			if (isEqualOrParent(keyResource, resource, false)) {
 				const path = relativePath(resource, keyResource, false);
 				if (path) {
 					const keySegments = path.split('/');
-					files.push([keySegments[0], keySegments.length === 1 ? FileType.File : FileType.Directory]);
+					files.set(keySegments[0], [keySegments[0], keySegments.length === 1 ? FileType.File : FileType.Directory]);
 				}
 			}
 		}
-		return files;
+		return values(files);
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
