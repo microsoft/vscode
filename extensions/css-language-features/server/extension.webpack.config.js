@@ -18,5 +18,8 @@ module.exports = withDefaults({
 	output: {
 		filename: 'cssServerMain.js',
 		path: path.join(__dirname, 'dist')
-	}
+	},
+	externals: {
+		'requireresolveproxy': 'commonjs requireresolveproxy',
+	},
 });

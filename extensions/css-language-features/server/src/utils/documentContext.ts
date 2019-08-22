@@ -10,6 +10,7 @@ import { WorkspaceFolder } from 'vscode-languageserver';
 import URI from 'vscode-uri';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
+import resolve from 'requireresolveproxy';
 
 function getModuleNameFromPath(path: string) {
 	// If a scoped module (starts with @) then get up until second instance of '/', otherwise get until first isntance of '/'
@@ -19,14 +20,19 @@ function getModuleNameFromPath(path: string) {
 	return path.substring(0, path.indexOf('/'));
 }
 
-function resolvePathToModule(_moduleName: string, _relativeTo: string): string | undefined {
-	// resolve the module relative to the document. We can't use `require` here as the code is webpacked.
-	const documentFolder = dirname(URI.parse(_relativeTo).fsPath);
-	const packPath = join(documentFolder, 'node_modules', _moduleName, 'package.json');
-	if (existsSync(packPath)) {
-		return URI.file(packPath).toString();
+function resolvePathToModule(moduleName: string, relativeTo: string): string | undefined {
+	let resolved;
+	try {
+		// We can't use `require` here directly as the code is webpacked, see #78894.
+		// If we require.resolve('my-module') then it will follow the main property in the linked package.json
+		// but we want the root of the module so resolve to the package.json and then trim
+		resolved = resolve(`${moduleName}/package.json`, { paths: [relativeTo] });
 	}
-	return undefined;
+	catch (ex) {
+		return undefined;
+	}
+	// remove trailing `package.json`, which is just used to ensure we resolve to the root directory, as above
+	return resolved.slice(0, -12);
 }
 
 export function getDocumentContext(documentUri: string, workspaceFolders: WorkspaceFolder[]): DocumentContext {
