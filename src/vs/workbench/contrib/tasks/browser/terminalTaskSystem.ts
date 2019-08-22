@@ -339,6 +339,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
+			// tslint:disable-next-line: no-for-in-array
 			for (let index in task.configurationProperties.dependsOn) {
 				const dependency = task.configurationProperties.dependsOn[index];
 				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
@@ -1375,6 +1376,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return command;
 		}
 		if (cwd === undefined) {
+			// tslint:disable-next-line: no-nodejs-globals
 			cwd = process.cwd();
 		}
 		const dir = path.dirname(command);
@@ -1383,7 +1385,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
+		// tslint:disable-next-line: no-nodejs-globals
 		if (paths === undefined && Types.isString(process.env.PATH)) {
+			// tslint:disable-next-line: no-nodejs-globals
 			paths = process.env.PATH.split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
