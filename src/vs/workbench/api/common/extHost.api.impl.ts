@@ -73,14 +73,6 @@ export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
 }
 
-function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
-	if (extension.enableProposedApi) {
-		return fn;
-	} else {
-		return throwProposedApiError.bind(null, extension) as any as T;
-	}
-}
-
 /**
  * This method instantiates and returns the extension API surface
  */
@@ -206,7 +198,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					});
 				});
 			},
-			registerDiffInformationCommand: proposedApiFunction(extension, (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
+			registerDiffInformationCommand: (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
+				checkProposedApiEnabled(extension);
 				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
 					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
@@ -217,7 +210,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					const diff = await extHostEditors.getDiffInformation(activeTextEditor.id);
 					callback.apply(thisArg, [diff, ...args]);
 				});
-			}),
+			},
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
 				return extHostCommands.executeCommand<T>(id, ...args);
 			},
@@ -530,9 +523,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			},
-			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
+			registerDecorationProvider(provider: vscode.DecorationProvider) {
+				checkProposedApiEnabled(extension);
 				return extHostDecorations.registerDecorationProvider(provider, extension.identifier);
-			}),
+			},
 			registerUriHandler(handler: vscode.UriHandler) {
 				return extHostUrls.registerUriHandler(extension.identifier, handler);
 			},
@@ -667,24 +661,30 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get fs() {
 				return extHostFileSystem.fileSystem;
 			},
-			registerFileSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.FileSearchProvider) => {
+			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
+				checkProposedApiEnabled(extension);
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
-			}),
-			registerTextSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.TextSearchProvider) => {
+			},
+			registerTextSearchProvider: (scheme: string, provider: vscode.TextSearchProvider) => {
+				checkProposedApiEnabled(extension);
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
-			}),
-			registerRemoteAuthorityResolver: proposedApiFunction(extension, (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
+			},
+			registerRemoteAuthorityResolver: (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
+				checkProposedApiEnabled(extension);
 				return extensionService.registerRemoteAuthorityResolver(authorityPrefix, resolver);
-			}),
-			registerResourceLabelFormatter: proposedApiFunction(extension, (formatter: vscode.ResourceLabelFormatter) => {
+			},
+			registerResourceLabelFormatter: (formatter: vscode.ResourceLabelFormatter) => {
+				checkProposedApiEnabled(extension);
 				return extHostLabelService.$registerResourceLabelFormatter(formatter);
-			}),
-			onDidRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			},
+			onDidRenameFile: (listener: (e: vscode.FileRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
-			}),
-			onWillRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			},
+			onWillRenameFile: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
-			})
+			}
 		};
 
 		// namespace: scm
