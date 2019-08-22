@@ -8,7 +8,6 @@ import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHost
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { endsWith, startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
 
@@ -128,7 +127,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			const next = joinPath(parent, '..', ensureSuffix(mod, '.js'));
 			moduleStack.push(next);
 			const trap = ExportsTrap.Instance.add(next.toString());
-			importScripts(asDomUri(next).toString(true));
+			importScripts(next.toString(true));
 			moduleStack.pop();
 
 			return trap.claim();
@@ -139,7 +138,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			module = module.with({ path: ensureSuffix(module.path, '.js') });
 			moduleStack.push(module);
 			const trap = ExportsTrap.Instance.add(module.toString());
-			importScripts(asDomUri(module).toString(true));
+			importScripts(module.toString(true));
 			moduleStack.pop();
 			return Promise.resolve<T>(trap.claim());
 
@@ -151,16 +150,6 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	async $setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> {
 		throw new Error('Not supported');
 	}
-}
-
-// todo@joh this is a copy of `dom.ts#asDomUri`
-function asDomUri(uri: URI): URI {
-	if (Schemas.vscodeRemote === uri.scheme) {
-		// rewrite vscode-remote-uris to uris of the window location
-		// so that they can be intercepted by the service worker
-		return URI.parse(window.location.href).with({ path: '/vscode-remote', query: JSON.stringify(uri) });
-	}
-	return uri;
 }
 
 function ensureSuffix(path: string, suffix: string): string {

@@ -19,18 +19,23 @@ class AbstractGlobalsRuleWalker extends Lint.RuleWalker {
             const checker = this.program.getTypeChecker();
             const symbol = checker.getSymbolAtLocation(node);
             if (symbol) {
-                const valueDeclaration = symbol.valueDeclaration;
-                if (valueDeclaration) {
-                    const parent = valueDeclaration.parent;
-                    if (parent) {
-                        const sourceFile = parent.getSourceFile();
-                        if (sourceFile) {
-                            const fileName = sourceFile.fileName;
-                            if (fileName && fileName.indexOf(this.getDefinitionPattern()) >= 0) {
-                                this.addFailureAtNode(node, `Cannot use global '${node.text}' in '${this._config.target}'`);
+                const declarations = symbol.declarations;
+                if (Array.isArray(declarations) && symbol.declarations.some(declaration => {
+                    if (declaration) {
+                        const parent = declaration.parent;
+                        if (parent) {
+                            const sourceFile = parent.getSourceFile();
+                            if (sourceFile) {
+                                const fileName = sourceFile.fileName;
+                                if (fileName && fileName.indexOf(this.getDefinitionPattern()) >= 0) {
+                                    return true;
+                                }
                             }
                         }
                     }
+                    return false;
+                })) {
+                    this.addFailureAtNode(node, `Cannot use global '${node.text}' in '${this._config.target}'`);
                 }
             }
         }

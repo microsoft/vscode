@@ -25,7 +25,6 @@ export class WebviewEditor extends BaseEditor {
 
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean>;
-
 	private _editorFrame?: HTMLElement;
 	private _content?: HTMLElement;
 
@@ -77,6 +76,12 @@ export class WebviewEditor extends BaseEditor {
 	public hideFind() {
 		this._findWidgetVisible.reset();
 		this.withWebview(webview => webview.hideFind());
+	}
+
+	public find(previous: boolean) {
+		this.withWebview(webview => {
+			webview.runFindAction(previous);
+		});
 	}
 
 	public reload() {

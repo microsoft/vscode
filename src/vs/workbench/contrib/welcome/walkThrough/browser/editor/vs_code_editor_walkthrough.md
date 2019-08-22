@@ -5,7 +5,6 @@ The core editor in VS Code is packed with features.  This page highlights a numb
 * [IntelliSense](#intellisense) - get code assistance and parameter suggestions for your code and external modules.
 * [Line Actions](#line-actions) - quickly move lines around to re-order your code.
 * [Rename Refactoring](#rename-refactoring) - quickly rename symbols across your code base.
-* [Refactoring via Extraction](#refactoring-via-extraction) - quickly extract common code into a separate function or constant.
 * [Formatting](#formatting) - keep your code looking great with inbuilt document & selection formatting.
 * [Code Folding](#code-folding) - focus on the most relevant parts of your code by folding other areas.
 * [Errors and Warnings](#errors-and-warnings) - see errors and warning as you type.
@@ -88,21 +87,6 @@ function Book(title, author) {
 ```
 
 > **JSDoc Tip:** VS Code's IntelliSense uses JSDoc comments to provide richer suggestions. The types and documentation from JSDoc comments show up when you hover over a reference to `Book` or in IntelliSense when you create a new instance of `Book`.
-
-
-### Refactoring via Extraction
-Sometimes you want to refactor already written code into a separate function or constant to reuse it later. Select the lines you want to refactor out and press kb(editor.action.quickFix) or click the little light bulb and choose one of the respective `Extract to...` options. Try it by selecting the code inside the `if`-clause on line 3 or any other common code you want to refactor out.
-
-```js
-function findFirstEvenNumber(arr) {
-    for (const el of arr) {
-        if (typeof el === 'number' && el % 2 === 0) {
-            return el;
-        }
-    }
-    return null;
-}
-```
 
 
 ### Formatting

@@ -1,0 +1,30 @@
+pool:
+  vmImage: 'Ubuntu-16.04'
+
+trigger:
+  branches:
+    include: ['master']
+pr:
+  branches:
+    include: ['master']
+
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+
+- script: |
+    set -e
+
+    cat << EOF > ~/.netrc
+
+    git config user.email "vscode@microsoft.com"
+    git config user.name "VSCode"
+
+    git checkout origin/ben/electron-test
+    git merge origin/master
+
+    # Push master branch into exploration branch
+    git push origin HEAD:ben/electron-test
+
+  displayName: Sync & Merge Exploration

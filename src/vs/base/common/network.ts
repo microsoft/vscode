@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import * as platform from 'vs/base/common/platform';
 
 export namespace Schemas {
 
@@ -58,11 +59,17 @@ class RemoteAuthoritiesImpl {
 	private readonly _hosts: { [authority: string]: string; };
 	private readonly _ports: { [authority: string]: number; };
 	private readonly _connectionTokens: { [authority: string]: string; };
+	private _preferredWebSchema: 'http' | 'https';
 
 	constructor() {
 		this._hosts = Object.create(null);
 		this._ports = Object.create(null);
 		this._connectionTokens = Object.create(null);
+		this._preferredWebSchema = 'http';
+	}
+
+	public setPreferredWebSchema(schema: 'http' | 'https') {
+		this._preferredWebSchema = schema;
 	}
 
 	public set(authority: string, host: string, port: number): void {
@@ -79,9 +86,9 @@ class RemoteAuthoritiesImpl {
 		const port = this._ports[authority];
 		const connectionToken = this._connectionTokens[authority];
 		return URI.from({
-			scheme: Schemas.vscodeRemoteResource,
+			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
 			authority: `${host}:${port}`,
-			path: `/vscode-remote2`,
+			path: `/vscode-remote-resource`,
 			query: `path=${encodeURIComponent(path)}&tkn=${encodeURIComponent(connectionToken)}`
 		});
 	}

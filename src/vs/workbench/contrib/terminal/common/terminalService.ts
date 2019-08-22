@@ -35,7 +35,6 @@ export abstract class TerminalService implements ITerminalService {
 	protected _isShuttingDown: boolean;
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 	protected _findWidgetVisible: IContextKey<boolean>;
-	protected _terminalContainer: HTMLElement | undefined;
 	protected _terminalTabs: ITerminalTab[] = [];
 	protected _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	protected get _terminalInstances(): ITerminalInstance[] {
