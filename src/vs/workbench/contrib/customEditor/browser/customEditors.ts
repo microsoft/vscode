@@ -3,40 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
 import { endsWith } from 'vs/base/common/strings';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorModel, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, EditorOptions, IEditor, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { IEditor, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CustomEditorInfo, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IWebviewService, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class CustomFileEditorInput extends WebviewEditorInput {
 	private name?: string;
+
+	private _hasResolved = false;
 
 	constructor(
 		resource: URI,
@@ -44,6 +39,8 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 		id: string,
 		webview: UnownedDisposable<WebviewEditorOverlay>,
 		@ILabelService private readonly labelService: ILabelService,
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super(id, viewType, '', undefined, webview, resource);
 	}
@@ -56,9 +53,10 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 	}
 
 	matches(other: IEditorInput): boolean {
-		return super.matches(other)
-			&& other instanceof CustomFileEditorInput
-			&& this.viewType === other.viewType;
+		return this === other || (
+			other instanceof CustomFileEditorInput
+			&& this.viewType === other.viewType
+			&& this.editorResource.toString() === other.editorResource.toString());
 	}
 
 	@memoize
@@ -86,6 +84,14 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 			case Verbosity.LONG:
 				return this.longTitle;
 		}
+	}
+	public async resolve(): Promise<IEditorModel> {
+		if (!this._hasResolved) {
+			this._hasResolved = true;
+			this._extensionService.activateByEvent(`onWebviewEditor:${this.viewType}`);
+			await this._webviewEditorService.resolveWebview(this);
+		}
+		return super.resolve();
 	}
 }
 
@@ -227,37 +233,5 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 				}
 			})()
 		};
-	}
-}
-
-export class CustomWebviewEditor extends WebviewEditor {
-
-	public static readonly ID = 'CustomWebviewEditor';
-
-	constructor(
-		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService editorService: IEditorService,
-		@IWindowService windowService: IWindowService,
-		@IStorageService storageService: IStorageService,
-	) {
-		super(telemetryService, themeService, contextKeyService, editorService, windowService, storageService);
-	}
-
-	async setInput(
-		input: EditorInput,
-		options: EditorOptions,
-		token: CancellationToken
-	): Promise<void> {
-		if (input instanceof CustomFileEditorInput) {
-			const viewType = input.viewType;
-			this._extensionService.activateByEvent(`onWebviewEditor:${viewType}`);
-			await this._webviewEditorService.resolveWebview(input);
-		}
-
-		await super.setInput(input, options, token);
 	}
 }

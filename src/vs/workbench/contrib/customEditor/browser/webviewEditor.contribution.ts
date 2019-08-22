@@ -12,8 +12,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import './commands';
-import { CustomEditorContribution, CustomEditorService, CustomFileEditorInput, CustomWebviewEditor } from './customEditors';
+import { CustomEditorContribution, CustomEditorService, CustomFileEditorInput } from './customEditors';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
@@ -22,9 +23,9 @@ workbenchContributionsRegistry.registerWorkbenchContribution(CustomEditorContrib
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		CustomWebviewEditor,
-		CustomWebviewEditor.ID,
-		'Custom Editor',
+		WebviewEditor,
+		WebviewEditor.ID,
+		'Webview Editor',
 	), [
 		new SyncDescriptor(CustomFileEditorInput)
 	]);
