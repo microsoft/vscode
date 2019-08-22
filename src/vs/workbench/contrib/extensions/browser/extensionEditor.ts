@@ -50,7 +50,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
 import { isUndefined } from 'vs/base/common/types';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';
@@ -522,6 +522,12 @@ export class ExtensionEditor extends BaseEditor {
 	showFind(): void {
 		if (this.activeElement && (<Webview>this.activeElement).showFind) {
 			(<Webview>this.activeElement).showFind();
+		}
+	}
+
+	runFindAction(previous: boolean): void {
+		if (this.activeElement && (<Webview>this.activeElement).runFindAction) {
+			(<Webview>this.activeElement).runFindAction(previous);
 		}
 	}
 
@@ -1314,28 +1320,66 @@ export class ExtensionEditor extends BaseEditor {
 	}
 }
 
+const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), ContextKeyExpr.not('editorFocus'));
 class ShowExtensionEditorFindCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
+		const extensionEditor = getExtensionEditor(accessor);
 		if (extensionEditor) {
 			extensionEditor.showFind();
 		}
 	}
-
-	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
-		const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
-		if (activeControl instanceof ExtensionEditor) {
-			return activeControl;
-		}
-		return null;
-	}
 }
-const showCommand = new ShowExtensionEditorFindCommand({
+(new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.showfind',
-	precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), ContextKeyExpr.not('editorFocus')),
+	precondition: contextKeyExpr,
 	kbOpts: {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 		weight: KeybindingWeight.EditorContrib
 	}
-});
-showCommand.register();
+})).register();
+
+class StartExtensionEditorFindNextCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = getExtensionEditor(accessor);
+		if (extensionEditor) {
+			extensionEditor.runFindAction(false);
+		}
+	}
+}
+(new StartExtensionEditorFindNextCommand({
+	id: 'editor.action.extensioneditor.findNext',
+	precondition: ContextKeyExpr.and(
+		contextKeyExpr,
+		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+	kbOpts: {
+		primary: KeyCode.Enter,
+		weight: KeybindingWeight.EditorContrib
+	}
+})).register();
+
+class StartExtensionEditorFindPreviousCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = getExtensionEditor(accessor);
+		if (extensionEditor) {
+			extensionEditor.runFindAction(true);
+		}
+	}
+}
+(new StartExtensionEditorFindPreviousCommand({
+	id: 'editor.action.extensioneditor.findPrevious',
+	precondition: ContextKeyExpr.and(
+		contextKeyExpr,
+		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+	kbOpts: {
+		primary: KeyMod.Shift | KeyCode.Enter,
+		weight: KeybindingWeight.EditorContrib
+	}
+})).register();
+
+function getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
+	const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
+	if (activeControl instanceof ExtensionEditor) {
+		return activeControl;
+	}
+	return null;
+}

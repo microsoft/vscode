@@ -248,6 +248,7 @@ export interface ITerminalService {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
+	// tslint:disable-next-line: no-dom-globals
 	createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
@@ -279,6 +280,7 @@ export interface ITerminalService {
 
 	selectDefaultWindowsShell(): Promise<void>;
 
+	// tslint:disable-next-line: no-dom-globals
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
 
@@ -337,6 +339,7 @@ export interface ITerminalTab {
 	focusNextPane(): void;
 	resizePane(direction: Direction): void;
 	setActiveInstanceByIndex(index: number): void;
+	// tslint:disable-next-line: no-dom-globals
 	attachToElement(element: HTMLElement): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
@@ -611,6 +614,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param container The element to attach the terminal instance to.
 	 */
+	// tslint:disable-next-line: no-dom-globals
 	attachToElement(container: HTMLElement): void;
 
 	/**

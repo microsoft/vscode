@@ -3025,7 +3025,6 @@ export class InstallLocalExtensionsInRemoteAction extends Action {
 	private extensions: IExtension[] | undefined = undefined;
 
 	constructor(
-		private readonly selectAndInstall: boolean,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
@@ -3047,9 +3046,7 @@ export class InstallLocalExtensionsInRemoteAction extends Action {
 
 	get label(): string {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.selectAndInstall ?
-				localize('select and install local extensions', "Install Local Extensions in {0}...", this.extensionManagementServerService.remoteExtensionManagementServer.label)
-				: localize('install local extensions', "Install Local Extensions in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+			return localize('select and install local extensions', "Install Local Extensions in {0}...", this.extensionManagementServerService.remoteExtensionManagementServer.label);
 		}
 		return '';
 	}
@@ -3065,12 +3062,7 @@ export class InstallLocalExtensionsInRemoteAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		if (this.selectAndInstall) {
-			return this.selectAndInstallLocalExtensions();
-		} else {
-			const extensionsToInstall = await this.queryExtensionsToInstall();
-			return this.installLocalExtensions(extensionsToInstall);
-		}
+		return this.selectAndInstallLocalExtensions();
 	}
 
 	private async queryExtensionsToInstall(): Promise<IExtension[]> {

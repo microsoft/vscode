@@ -60,6 +60,8 @@
 	display: block;
 	-ms-overflow-style: none; /* IE 10+ */
 	overflow: -moz-scrollbars-none; /* Firefox */
+	scrollbar-width: none; /* Firefox ^64 */
+	outline: none;
 }
 
 .monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {

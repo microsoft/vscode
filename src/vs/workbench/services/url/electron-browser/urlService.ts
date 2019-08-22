@@ -7,9 +7,10 @@ import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { URI } from 'vs/base/common/uri';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { URLServiceChannelClient, URLHandlerChannel } from 'vs/platform/url/node/urlIpc';
-import { URLService } from 'vs/platform/url/common/urlService';
+import { URLService } from 'vs/platform/url/node/urlService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import product from 'vs/platform/product/node/product';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class RelayURLService extends URLService implements IURLHandler {
 
@@ -43,3 +44,5 @@ export class RelayURLService extends URLService implements IURLHandler {
 		return super.open(uri);
 	}
 }
+
+registerSingleton(IURLService, RelayURLService);

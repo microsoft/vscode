@@ -205,7 +205,7 @@ gulp.task('tslint', () => {
 			.pipe(filter(tslintExtensionsFilter))
 			.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
 			.pipe(gulptslint.default.report({ emitError: true }))
-	]);
+	]).pipe(es.through());
 });
 
 function hygiene(some) {

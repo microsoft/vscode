@@ -985,6 +985,7 @@ export namespace KeyedTaskIdentifier {
 	function sortedStringify(literal: any): string {
 		const keys = Object.keys(literal).sort();
 		let result: string = '';
+		// tslint:disable-next-line: no-for-in-array
 		for (let position in keys) {
 			let stringified = literal[keys[position]];
 			if (stringified instanceof Object) {

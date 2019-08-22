@@ -247,9 +247,14 @@ export class ExplorerItem {
 			// Resolve metadata only when the mtime is needed since this can be expensive
 			// Mtime is only used when the sort order is 'modified'
 			const resolveMetadata = explorerService.sortOrder === 'modified';
-			const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-			const resolved = ExplorerItem.create(stat, this);
-			ExplorerItem.mergeLocalWithDisk(resolved, this);
+			try {
+				const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
+				const resolved = ExplorerItem.create(stat, this);
+				ExplorerItem.mergeLocalWithDisk(resolved, this);
+			} catch (e) {
+				this.isError = true;
+				throw e;
+			}
 			this._isDirectoryResolved = true;
 		}
 

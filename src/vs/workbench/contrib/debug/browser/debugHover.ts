@@ -245,6 +245,9 @@ export class DebugHoverWidget implements IContentWidget {
 			this.layoutTreeAndContainer();
 			this.editor.layoutContentWidget(this);
 			this.scrollbar.scanDomNode();
+			this.tree.scrollTop = 0;
+			this.tree.scrollLeft = 0;
+
 			if (focus) {
 				this.editor.render();
 				this.tree.domFocus();

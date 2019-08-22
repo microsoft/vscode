@@ -272,7 +272,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Respect option to reveal an editor if it is already visible in any group
 			if (options && options.revealIfVisible) {
 				for (const group of groupsByLastActive) {
-					if (input.matches(group.activeEditor)) {
+					if (group.isActive(input)) {
 						targetGroup = group;
 						break;
 					}
@@ -280,12 +280,30 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 
 			// Respect option to reveal an editor if it is open (not necessarily visible)
-			if ((options && options.revealIfOpened) || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
-				for (const group of groupsByLastActive) {
-					if (group.isOpened(input)) {
-						targetGroup = group;
-						break;
+			// Still prefer to reveal an editor in a group where the editor is active though.
+			if (!targetGroup) {
+				if ((options && options.revealIfOpened) || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
+					let groupWithInputActive: IEditorGroup | undefined = undefined;
+					let groupWithInputOpened: IEditorGroup | undefined = undefined;
+
+					for (const group of groupsByLastActive) {
+						if (group.isOpened(input)) {
+							if (!groupWithInputOpened) {
+								groupWithInputOpened = group;
+							}
+
+							if (!groupWithInputActive && group.isActive(input)) {
+								groupWithInputActive = group;
+							}
+						}
+
+						if (groupWithInputOpened && groupWithInputActive) {
+							break; // we found all groups we wanted
+						}
 					}
+
+					// Prefer a target group where the input is visible
+					targetGroup = groupWithInputActive || groupWithInputOpened;
 				}
 			}
 		}

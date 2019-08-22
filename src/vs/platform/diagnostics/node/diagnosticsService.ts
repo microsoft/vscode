@@ -76,16 +76,27 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 				return done(results);
 			}
 
+			if (token.count > MAX_FILES) {
+				token.count += files.length;
+				token.maxReached = true;
+				return done(results);
+			}
+
 			let pending = files.length;
 			if (pending === 0) {
 				return done(results);
 			}
 
-			for (const file of files) {
-				if (token.maxReached) {
-					return done(results);
-				}
+			let filesToRead = files;
+			if (token.count + files.length > MAX_FILES) {
+				token.maxReached = true;
+				pending = MAX_FILES - token.count;
+				filesToRead = files.slice(0, pending);
+			}
 
+			token.count += files.length;
+
+			for (const file of filesToRead) {
 				stat(join(dir, file), (err, stats) => {
 					// Ignore files that can't be read
 					if (err) {
@@ -108,11 +119,6 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 								}
 							}
 						} else {
-							if (token.count >= MAX_FILES) {
-								token.maxReached = true;
-							}
-
-							token.count++;
 							results.push(file);
 
 							if (--pending === 0) {

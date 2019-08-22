@@ -64,7 +64,7 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 
 interface IBrowserWorkbenchEnvironemntConstructionOptions extends IWorkbenchConstructionOptions {
 	workspaceId: string;
-	logFile: URI;
+	logsPath: URI;
 }
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
@@ -75,7 +75,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	constructor(readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) {
 		this.args = { _: [] };
-		this.logFile = options.logFile;
+		this.logsPath = options.logsPath.path;
+		this.logFile = joinPath(options.logsPath, 'window.log');
 		this.appRoot = '/web/';
 		this.appNameLong = 'Visual Studio Code - Web';
 
@@ -89,8 +90,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
 		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, options.workspaceId);
 		this.configuration.connectionToken = options.connectionToken || getCookieValue('vscode-tkn');
-
-		this.logsPath = '/web/logs';
 
 		this.debugExtensionHost = {
 			port: null,

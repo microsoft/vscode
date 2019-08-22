@@ -21,6 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
+import { fromArray } from 'vs/base/common/map';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -330,6 +331,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return {
 			label: data.a,
 			kind: data.b,
+			kindModifier: data.n && fromArray(data.n),
 			detail: data.c,
 			documentation: data.d,
 			sortText: data.e,
@@ -341,7 +343,6 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			commitCharacters: data.k,
 			additionalTextEdits: data.l,
 			command: data.m,
-			deprecated: data.n,
 			// not-standard
 			_id: data.x,
 		};
@@ -366,7 +367,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		};
 		if (supportsResolveDetails) {
 			provider.resolveCompletionItem = (model, position, suggestion, token) => {
-				return this._proxy.$resolveCompletionItem(handle, model.uri, position, suggestion._id, token).then(result => {
+				return this._proxy.$resolveCompletionItem(handle, model.uri, position, suggestion._id!, token).then(result => {
 					if (!result) {
 						return suggestion;
 					}
