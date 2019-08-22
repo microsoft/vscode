@@ -40,6 +40,8 @@ import { BrowserStorageService } from 'vs/platform/storage/browser/storageServic
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
+import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
+import { StaticExtensionsService, IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 
 class CodeRendererMain extends Disposable {
 
@@ -81,6 +83,11 @@ class CodeRendererMain extends Disposable {
 			this.saveBaseTheme();
 		}));
 		this._register(workbench.onShutdown(() => this.dispose()));
+
+		// Driver
+		if (this.configuration.driver) {
+			registerWindowDriver().then(d => this._register(d));
+		}
 
 		// Startup
 		workbench.startup();
@@ -138,6 +145,10 @@ class CodeRendererMain extends Disposable {
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
+
+		// Static Extensions
+		const staticExtensions = new StaticExtensionsService(this.configuration.staticExtensions || []);
+		serviceCollection.set(IStaticExtensionsService, staticExtensions);
 
 		let userDataProvider: IFileSystemProvider | undefined = this.configuration.userDataProvider;
 		const connection = remoteAgentService.getConnection();

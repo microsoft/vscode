@@ -161,6 +161,12 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return this.install(zipLocation, type).then(local => local.identifier);
 	}
 
+	async getManifest(vsix: URI): Promise<IExtensionManifest> {
+		const downloadLocation = await this.downloadVsix(vsix);
+		const zipPath = path.resolve(downloadLocation.fsPath);
+		return getManifest(zipPath);
+	}
+
 	private collectFiles(extension: ILocalExtension): Promise<IFile[]> {
 
 		const collectFilesFromDirectory = async (dir: string): Promise<string[]> => {

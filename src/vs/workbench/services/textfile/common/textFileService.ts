@@ -107,7 +107,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(event.reason)));
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Files configuration changes
@@ -118,7 +118,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		}));
 	}
 
-	protected beforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
 
 		// Dirty files need treatment on shutdown
 		const dirty = this.getDirty();

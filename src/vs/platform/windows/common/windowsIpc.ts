@@ -12,14 +12,14 @@ import { IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/commo
 
 export class WindowsChannel implements IServerChannel {
 
-	private onWindowOpen: Event<number>;
-	private onWindowFocus: Event<number>;
-	private onWindowBlur: Event<number>;
-	private onWindowMaximize: Event<number>;
-	private onWindowUnmaximize: Event<number>;
-	private onRecentlyOpenedChange: Event<void>;
+	private readonly onWindowOpen: Event<number>;
+	private readonly onWindowFocus: Event<number>;
+	private readonly onWindowBlur: Event<number>;
+	private readonly onWindowMaximize: Event<number>;
+	private readonly onWindowUnmaximize: Event<number>;
+	private readonly onRecentlyOpenedChange: Event<void>;
 
-	constructor(private service: IWindowsService) {
+	constructor(private readonly service: IWindowsService) {
 		this.onWindowOpen = Event.buffer(service.onWindowOpen, true);
 		this.onWindowFocus = Event.buffer(service.onWindowFocus, true);
 		this.onWindowBlur = Event.buffer(service.onWindowBlur, true);

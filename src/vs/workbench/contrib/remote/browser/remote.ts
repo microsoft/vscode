@@ -386,6 +386,10 @@ export class RemoteViewlet extends ViewContainerViewlet implements IViewModel {
 	}
 
 	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
+		if (!extension.description.enableProposedApi) {
+			return;
+		}
+
 		if (!extension.value.documentation && !extension.value.feedback && !extension.value.getStarted && !extension.value.issues) {
 			return;
 		}

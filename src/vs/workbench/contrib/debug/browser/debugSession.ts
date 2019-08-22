@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -321,6 +321,34 @@ export class DebugSession implements IDebugSession {
 		if (this.raw) {
 			if (this.raw.readyForBreakpoints) {
 				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) }).then(() => undefined);
+			}
+			return Promise.resolve(undefined);
+		}
+		return Promise.reject(new Error('no debug adapter'));
+	}
+
+	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean }> {
+		if (this.raw) {
+			if (this.raw.readyForBreakpoints) {
+				return this.raw.dataBreakpointInfo({ name, variablesReference }).then(response => response.body);
+			}
+			return Promise.reject(new Error(nls.localize('sessionNotReadyForBreakpoints', "Session is not ready for breakpoints")));
+		}
+		return Promise.reject(new Error('no debug adapter'));
+	}
+
+	sendDataBreakpoints(dataBreakpoints: IDataBreakpoint[]): Promise<void> {
+		if (this.raw) {
+			if (this.raw.readyForBreakpoints) {
+				return this.raw.setDataBreakpoints({ breakpoints: dataBreakpoints }).then(response => {
+					if (response && response.body) {
+						const data = new Map<string, DebugProtocol.Breakpoint>();
+						for (let i = 0; i < dataBreakpoints.length; i++) {
+							data.set(dataBreakpoints[i].getId(), response.body.breakpoints[i]);
+						}
+						this.model.setBreakpointSessionData(this.getId(), data);
+					}
+				});
 			}
 			return Promise.resolve(undefined);
 		}

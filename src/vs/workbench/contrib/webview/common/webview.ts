@@ -41,7 +41,6 @@ export interface IWebviewService {
 export const WebviewResourceScheme = 'vscode-resource';
 
 export interface WebviewOptions {
-	readonly allowSvgs?: boolean;
 	readonly extension?: {
 		readonly location: URI;
 		readonly id?: ExtensionIdentifier;
@@ -53,7 +52,6 @@ export interface WebviewOptions {
 
 export interface WebviewContentOptions {
 	readonly allowScripts?: boolean;
-	readonly svgWhiteList?: string[];
 	readonly localResourceRoots?: ReadonlyArray<URI>;
 	readonly portMapping?: ReadonlyArray<modes.IWebviewPortMapping>;
 	readonly enableCommandUris?: boolean;

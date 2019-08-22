@@ -46,7 +46,6 @@ export interface IProductConfiguration {
 	readonly extensionImportantTips: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
 	readonly exeBasedExtensionTips: { [id: string]: IExeBasedExtensionTip; };
 	readonly extensionKeywords: { [extension: string]: readonly string[]; };
-	readonly extensionAllowedBadgeProviders: readonly string[];
 	readonly extensionAllowedProposedApi: readonly string[];
 	readonly keymapExtensionTips: readonly string[];
 	readonly crashReporter: {
