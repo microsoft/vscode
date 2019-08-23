@@ -216,11 +216,11 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 	if (fullPath === undefined) {
 		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
 	}
+	fullPath = normalize(fullPath);
 	fullPath = fullPath.replace(/\\/g, '/');
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
-	fullPath = normalize(fullPath);
 	if (matcher.uriProvider !== undefined) {
 		return matcher.uriProvider(fullPath);
 	} else {
