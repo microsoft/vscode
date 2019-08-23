@@ -581,7 +581,7 @@ export enum CompletionItemKind {
 	Snippet = 25
 }
 
-export enum CompletionItemKindModifier {
+export enum CompletionItemKindTag {
 	Deprecated = 1
 }
 

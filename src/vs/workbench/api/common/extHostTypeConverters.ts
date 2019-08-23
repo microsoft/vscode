@@ -682,17 +682,17 @@ export namespace CompletionContext {
 	}
 }
 
-export namespace CompletionItemKindModifier {
+export namespace CompletionItemKindTag {
 
-	export function from(kind: types.CompletionItemKindModifier): modes.CompletionItemKindModifier {
+	export function from(kind: types.CompletionItemKindTag): modes.CompletionItemKindTag {
 		switch (kind) {
-			case types.CompletionItemKindModifier.Deprecated: return modes.CompletionItemKindModifier.Deprecated;
+			case types.CompletionItemKindTag.Deprecated: return modes.CompletionItemKindTag.Deprecated;
 		}
 	}
 
-	export function to(kind: modes.CompletionItemKindModifier): types.CompletionItemKindModifier {
+	export function to(kind: modes.CompletionItemKindTag): types.CompletionItemKindTag {
 		switch (kind) {
-			case modes.CompletionItemKindModifier.Deprecated: return types.CompletionItemKindModifier.Deprecated;
+			case modes.CompletionItemKindTag.Deprecated: return types.CompletionItemKindTag.Deprecated;
 		}
 	}
 }

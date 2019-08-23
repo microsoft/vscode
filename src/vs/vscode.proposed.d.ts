@@ -1138,9 +1138,9 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh - CompletionItemKindModifier, https://github.com/microsoft/vscode/issues/23927
+	//#region Joh - CompletionItemKindTag, https://github.com/microsoft/vscode/issues/23927
 
-	export enum CompletionItemKindModifier {
+	export enum CompletionItemKindTag {
 		Deprecated = 1
 	}
 
@@ -1149,7 +1149,7 @@ declare module 'vscode' {
 		/**
 		 *
 		 */
-		kind2?: CompletionItemKind | { base: CompletionItemKind, modifier: ReadonlyArray<CompletionItemKindModifier> };
+		kind2?: CompletionItemKind | { kind: CompletionItemKind, tags: ReadonlyArray<CompletionItemKindTag> };
 	}
 
 	//#endregion

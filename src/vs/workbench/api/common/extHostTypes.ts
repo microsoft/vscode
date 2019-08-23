@@ -1308,7 +1308,7 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
-export enum CompletionItemKindModifier {
+export enum CompletionItemKindTag {
 	Deprecated = 1,
 }
 
@@ -1317,7 +1317,7 @@ export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
 	kind?: CompletionItemKind;
-	kind2?: CompletionItemKind | { base: CompletionItemKind, modifier: CompletionItemKindModifier[] };
+	kind2?: CompletionItemKind | { kind: CompletionItemKind, tags: CompletionItemKindTag[] };
 	detail?: string;
 	documentation?: string | MarkdownString;
 	sortText?: string;
