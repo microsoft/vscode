@@ -582,7 +582,8 @@ export namespace DocumentSymbol {
 			detail: info.detail,
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
-			kind: SymbolKind.from(info.kind)
+			kind: SymbolKind.from(info.kind),
+			kindTags: []
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
@@ -678,6 +679,21 @@ export namespace CompletionContext {
 			triggerKind: CompletionTriggerKind.to(context.triggerKind),
 			triggerCharacter: context.triggerCharacter
 		};
+	}
+}
+
+export namespace CompletionItemKindModifier {
+
+	export function from(kind: types.CompletionItemKindModifier): modes.CompletionItemKindModifier {
+		switch (kind) {
+			case types.CompletionItemKindModifier.Deprecated: return modes.CompletionItemKindModifier.Deprecated;
+		}
+	}
+
+	export function to(kind: modes.CompletionItemKindModifier): types.CompletionItemKindModifier {
+		switch (kind) {
+			case modes.CompletionItemKindModifier.Deprecated: return types.CompletionItemKindModifier.Deprecated;
+		}
 	}
 }
 

@@ -52,6 +52,7 @@ import 'vs/workbench/browser/parts/views/views';
 
 //#region --- workbench services
 
+import 'vs/workbench/services/extensions/common/inactiveExtensionUrlHandler';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';

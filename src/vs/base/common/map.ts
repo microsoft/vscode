@@ -7,6 +7,15 @@ import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
 import { Iterator, IteratorResult, FIN } from './iterator';
 
+
+export function fromArray<T>(array: readonly T[]): Set<T> {
+	const result = new Set<T>();
+	for (const element of array) {
+		result.add(element);
+	}
+	return result;
+}
+
 export function values<V = any>(set: Set<V>): V[];
 export function values<K = any, V = any>(map: Map<K, V>): V[];
 export function values<V>(forEachable: { forEach(callback: (value: V, ...more: any[]) => any): void }): V[] {

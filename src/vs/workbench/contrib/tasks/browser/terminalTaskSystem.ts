@@ -44,6 +44,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -339,6 +340,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
+			// tslint:disable-next-line: no-for-in-array
 			for (let index in task.configurationProperties.dependsOn) {
 				const dependency = task.configurationProperties.dependsOn[index];
 				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
@@ -1375,7 +1377,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return command;
 		}
 		if (cwd === undefined) {
-			cwd = process.cwd();
+			cwd = processCwd();
 		}
 		const dir = path.dirname(command);
 		if (dir !== '.') {
@@ -1383,8 +1385,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		if (paths === undefined && Types.isString(process.env.PATH)) {
-			paths = process.env.PATH.split(path.delimiter);
+		if (paths === undefined && Types.isString(processEnv.PATH)) {
+			paths = processEnv.PATH.split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
 		if (paths === undefined || paths.length === 0) {
