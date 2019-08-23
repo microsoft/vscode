@@ -7,7 +7,6 @@ import { DocumentContext } from 'vscode-css-languageservice';
 import { endsWith, startsWith } from '../utils/strings';
 import * as url from 'url';
 import { WorkspaceFolder } from 'vscode-languageserver';
-
 import URI from 'vscode-uri';
 import { existsSync } from 'fs';
 
