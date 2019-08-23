@@ -340,9 +340,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
-			// tslint:disable-next-line: no-for-in-array
-			for (let index in task.configurationProperties.dependsOn) {
-				const dependency = task.configurationProperties.dependsOn[index];
+			for (const dependency of task.configurationProperties.dependsOn) {
 				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
 				if (dependencyTask) {
 					let key = dependencyTask.getMapKey();
