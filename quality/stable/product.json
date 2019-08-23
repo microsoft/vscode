@@ -721,13 +721,6 @@
 			"userProbability": 0.15
 		},
 		{
-			"surveyId": "python.1",
-			"surveyUrl": "https://www.research.net/r/G7ZBPW7",
-			"languageId": "python",
-			"editCount": 10,
-			"userProbability": 0.15
-		},
-		{
 			"surveyId": "java.2",
 			"surveyUrl": "https://www.research.net/r/vscodejava",
 			"languageId": "java",
