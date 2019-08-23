@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getCSSLanguageService } from 'vscode-css-languageservice';
-import { ClientCapabilities, DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, SelectionRange } from 'vscode-html-languageservice';
-import { Color, ColorInformation, ColorPresentation, WorkspaceFolder } from 'vscode-languageserver';
-import { CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions, Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextDocument, TextEdit } from 'vscode-languageserver-types';
+import { getLanguageService as getHTMLLanguageService, DocumentContext, IHTMLDataProvider, SelectionRange } from 'vscode-html-languageservice';
+import {
+	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
+	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation, FoldingRange
+} from 'vscode-languageserver-types';
+import { ColorInformation, ColorPresentation, Color, WorkspaceFolder } from 'vscode-languageserver';
+
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
-import { getCSSMode } from './cssMode';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
-import { getHTMLMode } from './htmlMode';
+import { getCSSMode } from './cssMode';
 import { getJavaScriptMode } from './javascriptMode';
+import { getHTMLMode } from './htmlMode';
 
 export { ColorInformation, ColorPresentation, Color };
 
@@ -63,9 +66,8 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, clientCapabilities: ClientCapabilities, customDataProviders?: IHTMLDataProvider[]): LanguageModes {
-	const htmlLanguageService = getHTMLLanguageService({ customDataProviders, clientCapabilities });
-	const cssLanguageService = getCSSLanguageService({ clientCapabilities });
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, customDataProviders?: IHTMLDataProvider[]): LanguageModes {
+	const htmlLanguageService = getHTMLLanguageService({ customDataProviders });
 
 	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
 
@@ -75,7 +77,7 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	let modes = Object.create(null);
 	modes['html'] = getHTMLMode(htmlLanguageService, workspace);
 	if (supportedLanguages['css']) {
-		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
+		modes['css'] = getCSSMode(documentRegions, workspace);
 	}
 	if (supportedLanguages['javascript']) {
 		modes['javascript'] = getJavaScriptMode(documentRegions);

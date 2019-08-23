@@ -40,34 +40,31 @@ export class DialogService implements IDialogService {
 			buttons.push(nls.localize('cancelButton', "Cancel"));
 		}
 
-		const dialogDisposables = new DisposableStore();
-		const dialog = new Dialog(
-			this.layoutService.container,
-			confirmation.message,
-			buttons,
-			{
-				detail: confirmation.detail,
-				cancelId: 1,
-				type: confirmation.type,
-				keyEventProcessor: (event: StandardKeyboardEvent) => {
-					EventHelper.stop(event, true);
-				},
-				checkboxChecked: confirmation.checkbox ? confirmation.checkbox.checked : undefined,
-				checkboxLabel: confirmation.checkbox ? confirmation.checkbox.label : undefined
-			});
+		const severity = this.getSeverity(confirmation.type || 'none');
+		const result = await this.show(severity, confirmation.message, buttons, { cancelId: 1, detail: confirmation.detail });
 
-		dialogDisposables.add(dialog);
-		dialogDisposables.add(attachDialogStyler(dialog, this.themeService));
+		return { confirmed: result === 0 };
+	}
 
-		const result = await dialog.show();
-		dialogDisposables.dispose();
-
-		return { confirmed: result.button === 0, checkboxChecked: result.checkboxChecked };
+	private getSeverity(type: DialogType): Severity {
+		switch (type) {
+			case 'error':
+				return Severity.Error;
+			case 'warning':
+				return Severity.Warning;
+			case 'question':
+			case 'info':
+				return Severity.Info;
+			case 'none':
+			default:
+				return Severity.Ignore;
+		}
 	}
 
 	private getDialogType(severity: Severity): DialogType {
 		return (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none';
 	}
+
 
 	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number> {
 		this.logService.trace('DialogService#show', message);
@@ -89,9 +86,9 @@ export class DialogService implements IDialogService {
 		dialogDisposables.add(dialog);
 		dialogDisposables.add(attachDialogStyler(dialog, this.themeService));
 
-		const result = await dialog.show();
+		const choice = await dialog.show();
 		dialogDisposables.dispose();
 
-		return result.button;
+		return choice;
 	}
 }

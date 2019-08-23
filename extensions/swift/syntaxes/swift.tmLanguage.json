@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/swift.tmbundle/commit/bdc8ae07562060a566b33da3f62601bb5aababd1",
+	"version": "https://github.com/textmate/swift.tmbundle/commit/cec27af6662e3799120b208e64483efdfe5521f5",
 	"name": "Swift",
 	"scopeName": "source.swift",
 	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
@@ -46,7 +46,7 @@
 									"name": "constant.numeric.swift"
 								}
 							},
-							"match": "\\b(swift|(?:iOS|macOS|OSX|watchOS|tvOS|UIKitForMac)(?:ApplicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))?"
+							"match": "\\b((?:iOS|macOS|OSX|watchOS|tvOS)(?:ApplicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))?"
 						},
 						{
 							"begin": "\\b(introduced|deprecated|obsoleted)\\s*(:)\\s*",
@@ -587,24 +587,7 @@
 							"match": "\\b(os)\\s*(\\()\\s*(?:(macOS|OSX|iOS|tvOS|watchOS|Android|Linux|FreeBSD|Windows|PS4)|\\w+)\\s*(\\))"
 						},
 						{
-							"captures": {
-								"1": {
-									"name": "keyword.other.condition.swift"
-								},
-								"2": {
-									"name": "punctuation.definition.parameters.begin.swift"
-								},
-								"3": {
-									"name": "entity.name.type.module.swift"
-								},
-								"4": {
-									"name": "punctuation.definition.parameters.end.swift"
-								}
-							},
-							"match": "\\b(canImport)\\s*(\\()([\\p{L}_][\\p{L}_\\p{N}\\p{M}]*)(\\))"
-						},
-						{
-							"begin": "\\b(targetEnvironment)\\s*(\\()",
+							"begin": "\\b(swift)\\s*(\\()",
 							"beginCaptures": {
 								"1": {
 									"name": "keyword.other.condition.swift"
@@ -621,30 +604,7 @@
 							},
 							"patterns": [
 								{
-									"match": "\\b(simulator|UIKitForMac)\\b",
-									"name": "support.constant.platform.environment.swift"
-								}
-							]
-						},
-						{
-							"begin": "\\b(swift|compiler)\\s*(\\()",
-							"beginCaptures": {
-								"1": {
-									"name": "keyword.other.condition.swift"
-								},
-								"2": {
-									"name": "punctuation.definition.parameters.begin.swift"
-								}
-							},
-							"end": "(\\))|$",
-							"endCaptures": {
-								"1": {
-									"name": "punctuation.definition.parameters.end.swift"
-								}
-							},
-							"patterns": [
-								{
-									"match": ">=|<",
+									"match": ">=",
 									"name": "keyword.operator.comparison.swift"
 								},
 								{
@@ -2017,27 +1977,22 @@
 									"include": "#comments"
 								},
 								{
-									"begin": "(?x)\n\t\t\t\t\t\t\t\t\t\t(?:(_)|((?<q1>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*\\k<q1>))\n\t\t\t\t\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t\t\t\t\t(((?<q2>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*\\k<q2>))\n\t\t\t\t\t\t\t\t\t\t\\s*(:)",
-									"beginCaptures": {
+									"captures": {
 										"1": {
-											"name": "entity.name.function.swift"
-										},
-										"2": {
 											"name": "invalid.illegal.distinct-labels-not-allowed.swift"
 										},
-										"5": {
+										"3": {
+											"name": "entity.name.function.swift"
+										},
+										"4": {
 											"name": "variable.parameter.function.swift"
 										},
-										"7": {
+										"6": {
 											"name": "punctuation.separator.argument-label.swift"
 										}
 									},
 									"end": "(?=[,)\\]])",
-									"patterns": [
-										{
-											"include": "#available-types"
-										}
-									]
+									"match": "(?x)\n\t\t\t\t\t\t\t\t\t\t((?<q1>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*\\k<q1>)\n\t\t\t\t\t\t\t\t\t\t\\s+\n\t\t\t\t\t\t\t\t\t\t(((?<q2>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*\\k<q2>))\n\t\t\t\t\t\t\t\t\t\t\\s*(:)"
 								},
 								{
 									"begin": "(((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*\\k<q>))\\s*(:)",
@@ -2324,7 +2279,7 @@
 									"name": "constant.numeric.swift"
 								}
 							},
-							"match": "\\s*\\b((?:iOS|macOS|OSX|watchOS|tvOS|UIKitForMac)(?:ApplicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))"
+							"match": "\\s*\\b((?:iOS|macOS|OSX|watchOS|tvOS)(?:ApplicationExtension)?)\\b(?:\\s+([0-9]+(?:\\.[0-9]+)*\\b))"
 						},
 						{
 							"captures": {

@@ -57,8 +57,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: lifecycle.IDisposable[];
 	private hoverWidget: DebugHoverWidget;
-	private nonDebugHoverPosition: Position | undefined;
-	private hoverRange: Range | null = null;
+	private nonDebugHoverPosition: Position;
+	private hoverRange: Range;
 	private mouseDown = false;
 
 	private breakpointHintDecoration: string[];
@@ -68,7 +68,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private exceptionWidget: ExceptionWidget | undefined;
 
-	private configurationWidget: FloatingClickWidget | undefined;
+	private configurationWidget: FloatingClickWidget;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -377,11 +377,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get showHoverScheduler(): RunOnceScheduler {
-		const scheduler = new RunOnceScheduler(() => {
-			if (this.hoverRange) {
-				this.showHover(this.hoverRange, false);
-			}
-		}, HOVER_DELAY);
+		const scheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
@@ -389,11 +385,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get hideHoverScheduler(): RunOnceScheduler {
-		const scheduler = new RunOnceScheduler(() => {
-			if (!this.hoverWidget.isHovered()) {
-				this.hoverWidget.hide();
-			}
-		}, 2 * HOVER_DELAY);
+		const scheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), 2 * HOVER_DELAY);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
@@ -402,7 +394,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	@memoize
 	private get provideNonDebugHoverScheduler(): RunOnceScheduler {
 		const scheduler = new RunOnceScheduler(() => {
-			if (this.editor.hasModel() && this.nonDebugHoverPosition) {
+			if (this.editor.hasModel()) {
 				getHover(this.editor.getModel(), this.nonDebugHoverPosition, CancellationToken.None);
 			}
 		}, HOVER_DELAY);

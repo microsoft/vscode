@@ -5,7 +5,7 @@
 
 import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, ITerminalNativeService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalService as CommonTerminalService } from 'vs/workbench/contrib/terminal/common/terminalService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -26,7 +26,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export class TerminalService extends CommonTerminalService implements ITerminalService {
 	private _configHelper: IBrowserTerminalConfigHelper;
-	private _terminalContainer: HTMLElement | undefined;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
@@ -50,15 +49,18 @@ export class TerminalService extends CommonTerminalService implements ITerminalS
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, this.terminalNativeService.linuxDistro);
 	}
 
-	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
-		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalFocusContextKey, this._configHelper, container, shellLaunchConfig);
+	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
+		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig);
 		this._onInstanceCreated.fire(instance);
 		return instance;
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
 		if (shell.hideFromUser) {
-			const instance = this.createInstance(undefined, shell);
+			const instance = this.createInstance(this._terminalFocusContextKey,
+				this.configHelper,
+				undefined,
+				shell);
 			this._backgroundedTerminalInstances.push(instance);
 			this._initInstanceListeners(instance);
 			return instance;
@@ -135,7 +137,7 @@ export class TerminalService extends CommonTerminalService implements ITerminalS
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
-		this._terminalTabs.forEach(tab => tab.attachToElement(terminalContainer));
+		this._terminalTabs.forEach(tab => tab.attachToElement(this._terminalContainer));
 	}
 
 	public hidePanel(): void {

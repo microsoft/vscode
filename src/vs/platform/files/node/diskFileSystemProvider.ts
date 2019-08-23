@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir, open, close, read, write, fdatasync } from 'fs';
+import { mkdir, open, close, read, write, fdatasync, Dirent, Stats } from 'fs';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { statLink, readdir, unlink, move, copy, readFile, truncate, rimraf, RimRafMode, exists } from 'vs/base/node/pfs';
+import { statLink, unlink, move, copy, readFile, truncate, rimraf, RimRafMode, exists, readdirWithFileTypes } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -62,15 +62,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 			const { stat, isSymbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
-			let type: number;
-			if (isSymbolicLink) {
-				type = FileType.SymbolicLink | (stat.isDirectory() ? FileType.Directory : FileType.File);
-			} else {
-				type = stat.isFile() ? FileType.File : stat.isDirectory() ? FileType.Directory : FileType.Unknown;
-			}
-
 			return {
-				type,
+				type: this.toType(stat, isSymbolicLink),
 				ctime: stat.ctime.getTime(),
 				mtime: stat.mtime.getTime(),
 				size: stat.size
@@ -82,13 +75,19 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		try {
-			const children = await readdir(this.toFilePath(resource));
+			const children = await readdirWithFileTypes(this.toFilePath(resource));
 
 			const result: [string, FileType][] = [];
 			await Promise.all(children.map(async child => {
 				try {
-					const stat = await this.stat(joinPath(resource, child));
-					result.push([child, stat.type]);
+					let type: FileType;
+					if (child.isSymbolicLink()) {
+						type = (await this.stat(joinPath(resource, child.name))).type; // always resolve target the link points to if any
+					} else {
+						type = this.toType(child);
+					}
+
+					result.push([child.name, type]);
 				} catch (error) {
 					this.logService.trace(error); // ignore errors for individual entries that can arise from permission denied
 				}
@@ -98,6 +97,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
+	}
+
+	private toType(entry: Stats | Dirent, isSymbolicLink = entry.isSymbolicLink()): FileType {
+		if (isSymbolicLink) {
+			return FileType.SymbolicLink | (entry.isDirectory() ? FileType.Directory : FileType.File);
+		}
+
+		return entry.isFile() ? FileType.File : entry.isDirectory() ? FileType.Directory : FileType.Unknown;
 	}
 
 	//#endregion
@@ -141,8 +148,6 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 	}
 
-	private mapHandleToPos: Map<number, number> = new Map();
-
 	private writeHandles: Set<number> = new Set();
 	private canFlush: boolean = true;
 
@@ -182,13 +187,6 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 			const handle = await promisify(open)(filePath, flags);
 
-			// remember this handle to track file position of the handle
-			// we init the position to 0 since the file descriptor was
-			// just created and the position was not moved so far (see
-			// also http://man7.org/linux/man-pages/man2/open.2.html -
-			// "The file offset is set to the beginning of the file.")
-			this.mapHandleToPos.set(handle, 0);
-
 			// remember that this handle was used for writing
 			if (opts.create) {
 				this.writeHandles.add(handle);
@@ -202,10 +200,6 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	async close(fd: number): Promise<void> {
 		try {
-
-			// remove this handle from map of positions
-			this.mapHandleToPos.delete(fd);
-
 			// if a handle is closed that was used for writing, ensure
 			// to flush the contents to disk if possible.
 			if (this.writeHandles.delete(fd) && this.canFlush) {
@@ -226,81 +220,15 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		const normalizedPos = this.normalizePos(fd, pos);
-
-		let bytesRead: number | null = null;
 		try {
-			const result = await promisify(read)(fd, data, offset, length, normalizedPos);
-
+			const result = await promisify(read)(fd, data, offset, length, pos);
 			if (typeof result === 'number') {
-				bytesRead = result; // node.d.ts fail
-			} else {
-				bytesRead = result.bytesRead;
+				return result; // node.d.ts fail
 			}
 
-			return bytesRead;
+			return result.bytesRead;
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
-		} finally {
-			this.updatePos(fd, normalizedPos, bytesRead);
-		}
-	}
-
-	private normalizePos(fd: number, pos: number): number | null {
-
-		// when calling fs.read/write we try to avoid passing in the "pos" argument and
-		// rather prefer to pass in "null" because this avoids an extra seek(pos)
-		// call that in some cases can even fail (e.g. when opening a file over FTP -
-		// see https://github.com/microsoft/vscode/issues/73884).
-		//
-		// as such, we compare the passed in position argument with our last known
-		// position for the file descriptor and use "null" if they match.
-		if (pos === this.mapHandleToPos.get(fd)) {
-			return null;
-		}
-
-		return pos;
-	}
-
-	private updatePos(fd: number, pos: number | null, bytesLength: number | null): void {
-		const lastKnownPos = this.mapHandleToPos.get(fd);
-		if (typeof lastKnownPos === 'number') {
-
-			// pos !== null signals that previously a position was used that is
-			// not null. node.js documentation explains, that in this case
-			// the internal file pointer is not moving and as such we do not move
-			// our position pointer.
-			//
-			// Docs: "If position is null, data will be read from the current file position,
-			// and the file position will be updated. If position is an integer, the file position
-			// will remain unchanged."
-			if (typeof pos === 'number') {
-				// do not modify the position
-			}
-
-			// bytesLength = number is a signal that the read/write operation was
-			// successful and as such we need to advance the position in the Map
-			//
-			// Docs (http://man7.org/linux/man-pages/man2/read.2.html):
-			// "On files that support seeking, the read operation commences at the
-			// file offset, and the file offset is incremented by the number of
-			// bytes read."
-			//
-			// Docs (http://man7.org/linux/man-pages/man2/write.2.html):
-			// "For a seekable file (i.e., one to which lseek(2) may be applied, for
-			// example, a regular file) writing takes place at the file offset, and
-			// the file offset is incremented by the number of bytes actually
-			// written."
-			else if (typeof bytesLength === 'number') {
-				this.mapHandleToPos.set(fd, lastKnownPos + bytesLength);
-			}
-
-			// bytesLength = null signals an error in the read/write operation
-			// and as such we drop the handle from the Map because the position
-			// is unspecificed at this point.
-			else {
-				this.mapHandleToPos.delete(fd);
-			}
 		}
 	}
 
@@ -312,23 +240,15 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	private async doWrite(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		const normalizedPos = this.normalizePos(fd, pos);
-
-		let bytesWritten: number | null = null;
 		try {
-			const result = await promisify(write)(fd, data, offset, length, normalizedPos);
-
+			const result = await promisify(write)(fd, data, offset, length, pos);
 			if (typeof result === 'number') {
-				bytesWritten = result; // node.d.ts fail
-			} else {
-				bytesWritten = result.bytesWritten;
+				return result; // node.d.ts fail
 			}
 
-			return bytesWritten;
+			return result.bytesWritten;
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
-		} finally {
-			this.updatePos(fd, normalizedPos, bytesWritten);
 		}
 	}
 
@@ -521,17 +441,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 						watcherOptions?: IWatcherOptions
 					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
 				};
+				let watcherOptions = undefined;
 
-				let watcherOptions: IWatcherOptions | undefined = undefined;
-
-				// requires a polling watcher
 				if (this.watcherOptions && this.watcherOptions.usePolling) {
+					// requires a polling watcher
 					watcherImpl = UnixWatcherService;
 					watcherOptions = this.watcherOptions;
-				}
-
-				// Single Folder Watcher
-				else {
+				} else {
+					// Single Folder Watcher
 					if (this.recursiveFoldersToWatch.length === 1) {
 						if (isWindows) {
 							watcherImpl = WindowsWatcherService;
@@ -554,7 +471,6 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 						if (msg.type === 'error') {
 							this._onDidWatchErrorOccur.fire(msg.message);
 						}
-
 						this.logService[msg.type](msg.message);
 					},
 					this.logService.getLevel() === LogLevel.Trace,
@@ -562,7 +478,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				);
 
 				if (!this.recursiveWatcherLogLevelListener) {
-					this.recursiveWatcherLogLevelListener = this.logService.onDidChangeLogLevel(() => {
+					this.recursiveWatcherLogLevelListener = this.logService.onDidChangeLogLevel(_ => {
 						if (this.recursiveWatcher) {
 							this.recursiveWatcher.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
 						}
@@ -580,13 +496,11 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				if (msg.type === 'error') {
 					this._onDidWatchErrorOccur.fire(msg.message);
 				}
-
 				this.logService[msg.type](msg.message);
 			},
 			this.logService.getLevel() === LogLevel.Trace
 		);
-
-		const logLevelListener = this.logService.onDidChangeLogLevel(() => {
+		const logLevelListener = this.logService.onDidChangeLogLevel(_ => {
 			watcherService.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
 		});
 

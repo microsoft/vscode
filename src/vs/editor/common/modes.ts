@@ -367,10 +367,6 @@ export let completionKindFromString: {
 	};
 })();
 
-export const enum CompletionItemTag {
-	Deprecated = 1
-}
-
 export const enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
@@ -400,11 +396,6 @@ export interface CompletionItem {
 	 * an icon is chosen by the editor.
 	 */
 	kind: CompletionItemKind;
-	/**
-	 * A modifier to the `kind` which affect how the item
-	 * is rendered, e.g. Deprecated is rendered with a strikeout
-	 */
-	tags?: ReadonlyArray<CompletionItemTag>;
 	/**
 	 * A human-readable string with additional information
 	 * about this item, like type or symbol information.
@@ -473,7 +464,7 @@ export interface CompletionItem {
 	/**
 	 * @internal
 	 */
-	_id?: [number, number];
+	[key: string]: any;
 }
 
 export interface CompletionList {
@@ -867,9 +858,6 @@ export const enum SymbolKind {
 	TypeParameter = 25
 }
 
-export const enum SymbolTag {
-	Deprecated = 1,
-}
 
 /**
  * @internal
@@ -913,7 +901,6 @@ export interface DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
-	tags: ReadonlyArray<SymbolTag>;
 	containerName?: string;
 	range: IRange;
 	selectionRange: IRange;
@@ -1301,7 +1288,7 @@ export interface CommentThread {
 	threadId: string;
 	resource: string | null;
 	range: IRange;
-	label: string | undefined;
+	label: string;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
@@ -1309,7 +1296,7 @@ export interface CommentThread {
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<IRange>;
-	onDidChangeLabel: Event<string | undefined>;
+	onDidChangeLabel: Event<string>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
 	isDisposed: boolean;
 }

@@ -11,7 +11,6 @@ import { getLanguageModes } from '../modes/languageModes';
 import { TextDocument, Range, FormattingOptions } from 'vscode-languageserver-types';
 
 import { format } from '../modes/formatting';
-import { ClientCapabilities } from 'vscode-html-languageservice';
 
 suite('HTML Embedded Formatting', () => {
 
@@ -20,7 +19,7 @@ suite('HTML Embedded Formatting', () => {
 			settings: options,
 			folders: [{ name: 'foo', uri: 'test://foo' }]
 		};
-		var languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
+		var languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
 
 		let rangeStartOffset = value.indexOf('|');
 		let rangeEndOffset;

@@ -27,10 +27,10 @@ import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer as ipc } from 'electron';
-import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService, IProgress, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { PersistentConnectionEventType, ReconnectionWaitEvent } from 'vs/platform/remote/common/remoteAgentConnection';
+import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import Severity from 'vs/base/common/severity';
@@ -73,8 +73,6 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && windowService.openNewWindow({ reuseWindow: true })));
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
-		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.remoteAuthority || '');
-
 		if (this.remoteAuthority) {
 			// Pending entry until extensions are ready
 			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
@@ -85,7 +83,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 				group: '6_close',
 				command: {
 					id: CLOSE_REMOTE_COMMAND_ID,
-					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "Close Re&&mote Connection")
+					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "C&&lose Remote Connection")
 				},
 				order: 3.5
 			});
@@ -123,7 +121,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		if (this.connectionState !== newState) {
 			this.connectionState = newState;
 			RemoteConnectionState.bindTo(this.contextKeyService).set(this.connectionState);
-			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(isDisconnected ? `disconnected/${this.remoteAuthority!}` : this.remoteAuthority!);
+			Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(isDisconnected ? 'disconnected/${this.remoteAuthority!}' : this.remoteAuthority!);
 			this.updateWindowIndicator();
 		}
 	}
@@ -284,26 +282,6 @@ class ProgressReporter {
 	}
 }
 
-class RemoteExtensionHostEnvironmentUpdater implements IWorkbenchContribution {
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IRemoteAuthorityResolverService remoteResolverService: IRemoteAuthorityResolverService,
-		@IExtensionService extensionService: IExtensionService
-	) {
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			connection.onDidStateChange(async e => {
-				if (e.type === PersistentConnectionEventType.ConnectionGain) {
-					const resolveResult = await remoteResolverService.resolveAuthority(connection.remoteAuthority);
-					if (resolveResult.options && resolveResult.options.extensionHostEnv) {
-						await extensionService.setRemoteEnvironment(resolveResult.options.extensionHostEnv);
-					}
-				}
-			});
-		}
-	}
-}
-
 class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -315,58 +293,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 		if (connection) {
 			let currentProgressPromiseResolve: (() => void) | null = null;
 			let progressReporter: ProgressReporter | null = null;
-			let lastLocation: ProgressLocation | null = null;
 			let currentTimer: ReconnectionTimer | null = null;
-			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
-
-			function showProgress(location: ProgressLocation, buttons?: string[]) {
-				if (currentProgressPromiseResolve) {
-					currentProgressPromiseResolve();
-				}
-
-				const promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
-				lastLocation = location;
-
-				if (location === ProgressLocation.Dialog) {
-					// Show dialog
-					progressService!.withProgress(
-						{ location: ProgressLocation.Dialog, buttons },
-						(progress) => { progressReporter = new ProgressReporter(progress); return promise; },
-						(choice?) => {
-							// Handle choice from dialog
-							if (choice === 0 && buttons && reconnectWaitEvent) {
-								reconnectWaitEvent.skipWait();
-							} else {
-								showProgress(ProgressLocation.Notification, buttons);
-							}
-
-							progressReporter!.report();
-						});
-				} else {
-					// Show notification
-					progressService!.withProgress(
-						{ location: ProgressLocation.Notification, buttons },
-						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
-						(choice?) => {
-							// Handle choice from notification
-							if (choice === 0 && buttons && reconnectWaitEvent) {
-								reconnectWaitEvent.skipWait();
-								progressReporter!.report();
-							} else {
-								hideProgress();
-							}
-						});
-				}
-			}
-
-			function hideProgress() {
-				if (currentProgressPromiseResolve) {
-					currentProgressPromiseResolve();
-				}
-
-				currentProgressPromiseResolve = null;
-				progressReporter = null;
-			}
 
 			connection.onDidStateChange((e) => {
 				if (currentTimer) {
@@ -376,24 +303,31 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				switch (e.type) {
 					case PersistentConnectionEventType.ConnectionLost:
 						if (!currentProgressPromiseResolve) {
-							showProgress(ProgressLocation.Dialog, [nls.localize('reconnectNow', "Reconnect Now")]);
+							let promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
+							progressService!.withProgress(
+								{ location: ProgressLocation.Dialog },
+								(progress: IProgress<IProgressStep> | null) => { progressReporter = new ProgressReporter(progress!); return promise; },
+								() => {
+									currentProgressPromiseResolve!();
+									promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
+									progressService!.withProgress({ location: ProgressLocation.Notification }, (progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; });
+									progressReporter!.report();
+								}
+							);
 						}
 
 						progressReporter!.report(nls.localize('connectionLost', "Connection Lost"));
 						break;
 					case PersistentConnectionEventType.ReconnectionWait:
-						hideProgress();
-						reconnectWaitEvent = e;
-						showProgress(lastLocation || ProgressLocation.Notification, [nls.localize('reconnectNow', "Reconnect Now")]);
 						currentTimer = new ReconnectionTimer(progressReporter!, Date.now() + 1000 * e.durationSeconds);
 						break;
 					case PersistentConnectionEventType.ReconnectionRunning:
-						hideProgress();
-						showProgress(lastLocation || ProgressLocation.Notification);
 						progressReporter!.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
 						break;
 					case PersistentConnectionEventType.ReconnectionPermanentFailure:
-						hideProgress();
+						currentProgressPromiseResolve!();
+						currentProgressPromiseResolve = null;
+						progressReporter = null;
 
 						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(choice => {
 							// Reload the window
@@ -403,7 +337,9 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						});
 						break;
 					case PersistentConnectionEventType.ConnectionGain:
-						hideProgress();
+						currentProgressPromiseResolve!();
+						currentProgressPromiseResolve = null;
+						progressReporter = null;
 						break;
 				}
 			});
@@ -502,7 +438,6 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentDiagnosticListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteExtensionHostEnvironmentUpdater, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);

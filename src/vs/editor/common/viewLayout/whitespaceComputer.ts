@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-
 export interface IEditorWhitespace {
-	readonly id: string;
+	readonly id: number;
 	readonly afterLineNumber: number;
 	readonly heightInLines: number;
 }
@@ -16,10 +14,6 @@ export interface IEditorWhitespace {
  * The whitespaces are sorted ascending by `afterLineNumber`.
  */
 export class WhitespaceComputer {
-
-	private static INSTANCE_COUNT = 0;
-
-	private readonly _instanceId: string;
 
 	/**
 	 * heights[i] is the height in pixels for whitespace at index i
@@ -54,7 +48,7 @@ export class WhitespaceComputer {
 	/**
 	 * ids[i] is the whitespace id of whitespace at index i
 	 */
-	private readonly _ids: string[];
+	private readonly _ids: number[];
 
 	/**
 	 * index at which a whitespace is positioned (inside heights, afterLineNumbers, prefixSum members)
@@ -71,7 +65,6 @@ export class WhitespaceComputer {
 	private _minWidth: number;
 
 	constructor() {
-		this._instanceId = strings.singleLetterHash(++WhitespaceComputer.INSTANCE_COUNT);
 		this._heights = [];
 		this._minWidths = [];
 		this._ids = [];
@@ -120,20 +113,21 @@ export class WhitespaceComputer {
 	 * @param heightInPx The height of the whitespace, in pixels.
 	 * @return An id that can be used later to mutate or delete the whitespace
 	 */
-	public insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string {
+	public insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): number {
 		afterLineNumber = afterLineNumber | 0;
 		ordinal = ordinal | 0;
 		heightInPx = heightInPx | 0;
 		minWidth = minWidth | 0;
 
-		let id = this._instanceId + (++this._lastWhitespaceId);
+		let id = (++this._lastWhitespaceId);
 		let insertionIndex = WhitespaceComputer.findInsertionIndex(this._afterLineNumbers, afterLineNumber, this._ordinals, ordinal);
 		this._insertWhitespaceAtIndex(id, insertionIndex, afterLineNumber, ordinal, heightInPx, minWidth);
 		this._minWidth = -1; /* marker for not being computed */
 		return id;
 	}
 
-	private _insertWhitespaceAtIndex(id: string, insertIndex: number, afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): void {
+	private _insertWhitespaceAtIndex(id: number, insertIndex: number, afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): void {
+		id = id | 0;
 		insertIndex = insertIndex | 0;
 		afterLineNumber = afterLineNumber | 0;
 		ordinal = ordinal | 0;
@@ -156,14 +150,15 @@ export class WhitespaceComputer {
 			}
 		}
 
-		this._whitespaceId2Index[id] = insertIndex;
+		this._whitespaceId2Index[id.toString()] = insertIndex;
 		this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, insertIndex - 1);
 	}
 
 	/**
 	 * Change properties associated with a certain whitespace.
 	 */
-	public changeWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean {
+	public changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean {
+		id = id | 0;
 		newAfterLineNumber = newAfterLineNumber | 0;
 		newHeight = newHeight | 0;
 
@@ -180,11 +175,13 @@ export class WhitespaceComputer {
 	 * @param newHeightInPx The new height of the whitespace, in pixels
 	 * @return Returns true if the whitespace is found and if the new height is different than the old height
 	 */
-	public changeWhitespaceHeight(id: string, newHeightInPx: number): boolean {
+	public changeWhitespaceHeight(id: number, newHeightInPx: number): boolean {
+		id = id | 0;
 		newHeightInPx = newHeightInPx | 0;
 
-		if (this._whitespaceId2Index.hasOwnProperty(id)) {
-			let index = this._whitespaceId2Index[id];
+		let sid = id.toString();
+		if (this._whitespaceId2Index.hasOwnProperty(sid)) {
+			let index = this._whitespaceId2Index[sid];
 			if (this._heights[index] !== newHeightInPx) {
 				this._heights[index] = newHeightInPx;
 				this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, index - 1);
@@ -201,11 +198,13 @@ export class WhitespaceComputer {
 	 * @param newAfterLineNumber The new line number the whitespace will follow
 	 * @return Returns true if the whitespace is found and if the new line number is different than the old line number
 	 */
-	public changeWhitespaceAfterLineNumber(id: string, newAfterLineNumber: number): boolean {
+	public changeWhitespaceAfterLineNumber(id: number, newAfterLineNumber: number): boolean {
+		id = id | 0;
 		newAfterLineNumber = newAfterLineNumber | 0;
 
-		if (this._whitespaceId2Index.hasOwnProperty(id)) {
-			let index = this._whitespaceId2Index[id];
+		let sid = id.toString();
+		if (this._whitespaceId2Index.hasOwnProperty(sid)) {
+			let index = this._whitespaceId2Index[sid];
 			if (this._afterLineNumbers[index] !== newAfterLineNumber) {
 				// `afterLineNumber` changed for this whitespace
 
@@ -237,10 +236,14 @@ export class WhitespaceComputer {
 	 * @param id The whitespace to remove
 	 * @return Returns true if the whitespace is found and it is removed.
 	 */
-	public removeWhitespace(id: string): boolean {
-		if (this._whitespaceId2Index.hasOwnProperty(id)) {
-			let index = this._whitespaceId2Index[id];
-			delete this._whitespaceId2Index[id];
+	public removeWhitespace(id: number): boolean {
+		id = id | 0;
+
+		let sid = id.toString();
+
+		if (this._whitespaceId2Index.hasOwnProperty(sid)) {
+			let index = this._whitespaceId2Index[sid];
+			delete this._whitespaceId2Index[sid];
 			this._removeWhitespaceAtIndex(index);
 			this._minWidth = -1; /* marker for not being computed */
 			return true;
@@ -456,7 +459,7 @@ export class WhitespaceComputer {
 	 * @param index The index of the whitespace.
 	 * @return `id` of whitespace at `index`.
 	 */
-	public getIdForWhitespaceIndex(index: number): string {
+	public getIdForWhitespaceIndex(index: number): number {
 		index = index | 0;
 
 		return this._ids[index];

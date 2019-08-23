@@ -29,10 +29,8 @@ export interface ICompletionStats {
 }
 
 export class LineContext {
-	constructor(
-		readonly leadingLineContent: string,
-		readonly characterCountDelta: number,
-	) { }
+	leadingLineContent: string;
+	characterCountDelta: number;
 }
 
 const enum Refilter {
@@ -51,9 +49,9 @@ export class CompletionModel {
 
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
-	private _filteredItems?: StrictCompletionItem[];
-	private _isIncomplete?: Set<CompletionItemProvider>;
-	private _stats?: ICompletionStats;
+	private _filteredItems: StrictCompletionItem[];
+	private _isIncomplete: Set<CompletionItemProvider>;
+	private _stats: ICompletionStats;
 
 	constructor(
 		items: CompletionItem[],
@@ -91,12 +89,12 @@ export class CompletionModel {
 
 	get items(): CompletionItem[] {
 		this._ensureCachedState();
-		return this._filteredItems!;
+		return this._filteredItems;
 	}
 
 	get incomplete(): Set<CompletionItemProvider> {
 		this._ensureCachedState();
-		return this._isIncomplete!;
+		return this._isIncomplete;
 	}
 
 	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
@@ -119,7 +117,7 @@ export class CompletionModel {
 
 	get stats(): ICompletionStats {
 		this._ensureCachedState();
-		return this._stats!;
+		return this._stats;
 	}
 
 	private _ensureCachedState(): void {
@@ -138,7 +136,7 @@ export class CompletionModel {
 		let wordLow = '';
 
 		// incrementally filter less
-		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems!;
+		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems;
 		const target: StrictCompletionItem[] = [];
 
 		// picks a score function based on the number of

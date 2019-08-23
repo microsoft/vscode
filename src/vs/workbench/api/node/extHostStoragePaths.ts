@@ -8,24 +8,23 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { IEnvironment, IStaticWorkspaceData } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
-export class ExtensionStoragePaths implements IExtensionStoragePaths {
-
-	readonly _serviceBrand: undefined;
+export class ExtensionStoragePaths {
 
 	private readonly _workspace?: IStaticWorkspaceData;
 	private readonly _environment: IEnvironment;
 
-	readonly whenReady: Promise<string | undefined>;
+	private readonly _ready: Promise<string | undefined>;
 	private _value?: string;
 
-	constructor(@IExtHostInitDataService initData: IExtHostInitDataService) {
-		this._workspace = withNullAsUndefined(initData.workspace);
-		this._environment = initData.environment;
-		this.whenReady = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
+	constructor(workspace: IStaticWorkspaceData | undefined, environment: IEnvironment) {
+		this._workspace = workspace;
+		this._environment = environment;
+		this._ready = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
+	}
+
+	get whenReady(): Promise<any> {
+		return this._ready;
 	}
 
 	workspaceValue(extension: IExtensionDescription): string | undefined {

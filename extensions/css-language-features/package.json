@@ -730,12 +730,6 @@
           }
         }
       }
-    ],
-    "jsonValidation": [
-      {
-        "fileMatch": "*.css-data.json",
-        "url": "https://raw.githubusercontent.com/Microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
-      }
     ]
   },
   "dependencies": {

@@ -24,7 +24,6 @@
 		"onCommand:markdown.showLockedPreviewToSide",
 		"onCommand:markdown.showSource",
 		"onCommand:markdown.showPreviewSecuritySelector",
-		"onCommand:markdown.api.render",
 		"onWebviewPanel:markdown.preview"
 	],
 	"contributes": {
@@ -310,7 +309,7 @@
 	},
 	"dependencies": {
 		"highlight.js": "9.15.8",
-		"markdown-it": "^9.1.0",
+		"markdown-it": "^8.4.2",
 		"markdown-it-front-matter": "^0.1.2",
 		"vscode-extension-telemetry": "0.1.1",
 		"vscode-nls": "^4.0.0"

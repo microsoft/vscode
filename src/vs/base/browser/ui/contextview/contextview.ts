@@ -5,7 +5,7 @@
 
 import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
-import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
 
 export interface IAnchor {
@@ -100,11 +100,11 @@ export class ContextView extends Disposable {
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
 	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
 
-	private container: HTMLElement | null = null;
+	private container: HTMLElement | null;
 	private view: HTMLElement;
-	private delegate: IDelegate | null = null;
-	private toDisposeOnClean: IDisposable = Disposable.None;
-	private toDisposeOnSetContainer: IDisposable = Disposable.None;
+	private delegate: IDelegate | null;
+	private toDisposeOnClean: IDisposable | null;
+	private toDisposeOnSetContainer: IDisposable;
 
 	constructor(container: HTMLElement) {
 		super();
@@ -120,7 +120,7 @@ export class ContextView extends Disposable {
 
 	setContainer(container: HTMLElement | null): void {
 		if (this.container) {
-			this.toDisposeOnSetContainer.dispose();
+			dispose(this.toDisposeOnSetContainer);
 			this.container.removeChild(this.view);
 			this.container = null;
 		}
@@ -159,7 +159,7 @@ export class ContextView extends Disposable {
 		DOM.show(this.view);
 
 		// Render content
-		this.toDisposeOnClean = delegate.render(this.view) || Disposable.None;
+		this.toDisposeOnClean = delegate.render(this.view);
 
 		// Set active delegate
 		this.delegate = delegate;
@@ -267,7 +267,10 @@ export class ContextView extends Disposable {
 			delegate.onHide(data);
 		}
 
-		this.toDisposeOnClean.dispose();
+		if (this.toDisposeOnClean) {
+			this.toDisposeOnClean.dispose();
+			this.toDisposeOnClean = null;
+		}
 
 		DOM.hide(this.view);
 	}

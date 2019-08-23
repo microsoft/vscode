@@ -5,10 +5,10 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto
+	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
 } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import severity from 'vs/base/common/severity';
@@ -110,16 +110,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			// send all breakpoints
 			const bps = this.debugService.getModel().getBreakpoints();
 			const fbps = this.debugService.getModel().getFunctionBreakpoints();
-			const dbps = this.debugService.getModel().getDataBreakpoints();
 			if (bps.length > 0 || fbps.length > 0) {
 				this._proxy.$acceptBreakpointsDelta({
-					added: this.convertToDto(bps).concat(this.convertToDto(fbps)).concat(this.convertToDto(dbps))
+					added: this.convertToDto(bps).concat(this.convertToDto(fbps))
 				});
 			}
 		}
 	}
 
-	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void> {
+	public $registerBreakpoints(DTOs: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto>): Promise<void> {
 
 		for (let dto of DTOs) {
 			if (dto.type === 'sourceMulti') {
@@ -137,17 +136,14 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps, 'extension');
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
-			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist);
 			}
 		}
 		return Promise.resolve();
 	}
 
-	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]): Promise<void> {
+	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Promise<void> {
 		breakpointIds.forEach(id => this.debugService.removeBreakpoints(id));
 		functionBreakpointIds.forEach(id => this.debugService.removeFunctionBreakpoints(id));
-		dataBreakpointIds.forEach(id => this.debugService.removeDataBreakpoints(id));
 		return Promise.resolve();
 	}
 
@@ -157,13 +153,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			type: debugType
 		};
 		if (hasProvide) {
-			provider.provideDebugConfigurations = (folder, token) => {
-				return this._proxy.$provideDebugConfigurations(handle, folder, token);
+			provider.provideDebugConfigurations = (folder) => {
+				return this._proxy.$provideDebugConfigurations(handle, folder);
 			};
 		}
 		if (hasResolve) {
-			provider.resolveDebugConfiguration = (folder, config, token) => {
-				return this._proxy.$resolveDebugConfiguration(handle, folder, config, token);
+			provider.resolveDebugConfiguration = (folder, config) => {
+				return this._proxy.$resolveDebugConfiguration(handle, folder, config);
 			};
 		}
 		if (hasProvideDebugAdapter) {
@@ -298,7 +294,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return undefined;
 	}
 
-	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>)): Array<ISourceBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto> {
+	private convertToDto(bps: (ReadonlyArray<IBreakpoint | IFunctionBreakpoint>)): Array<ISourceBreakpointDto | IFunctionBreakpointDto> {
 		return bps.map(bp => {
 			if ('name' in bp) {
 				const fbp = <IFunctionBreakpoint>bp;
@@ -310,19 +306,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					hitCondition: fbp.hitCondition,
 					logMessage: fbp.logMessage,
 					functionName: fbp.name
-				};
-			} else if ('dataId' in bp) {
-				const dbp = <IDataBreakpoint>bp;
-				return <IDataBreakpointDto>{
-					type: 'data',
-					id: dbp.getId(),
-					dataId: dbp.dataId,
-					enabled: dbp.enabled,
-					condition: dbp.condition,
-					hitCondition: dbp.hitCondition,
-					logMessage: dbp.logMessage,
-					label: dbp.label,
-					canPersist: dbp.canPersist
 				};
 			} else {
 				const sbp = <IBreakpoint>bp;

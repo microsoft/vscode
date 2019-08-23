@@ -17,12 +17,11 @@ import { join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 abstract class RepoInfo {
-	abstract get base(): string;
-	abstract get owner(): string;
-	abstract get repo(): string;
+	readonly base: string;
+	readonly owner: string;
+	readonly repo: string;
 
 	static fromExtension(desc: IExtensionDescription): RepoInfo | undefined {
 
@@ -118,7 +117,6 @@ class ReportExtensionSlowAction extends Action {
 		readonly repoInfo: RepoInfo,
 		readonly profile: IExtensionHostProfile,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super('report.slow', localize('cmd.report', "Report Issue"));
 	}
@@ -142,7 +140,7 @@ class ReportExtensionSlowAction extends Action {
 - VSCode version: \`${pkg.version}\`\n\n${message}`);
 
 		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues/new/?body=${body}&title=${title}`;
-		this._openerService.open(URI.parse(url));
+		window.open(url);
 
 		this._dialogService.show(
 			Severity.Info,
@@ -160,7 +158,6 @@ class ShowExtensionSlowAction extends Action {
 		readonly repoInfo: RepoInfo,
 		readonly profile: IExtensionHostProfile,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super('show.slow', localize('cmd.show', "Show Issues"));
 	}
@@ -175,7 +172,7 @@ class ShowExtensionSlowAction extends Action {
 
 		// show issues
 		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues?utf8=✓&q=is%3Aissue+state%3Aopen+%22Extension+causes+high+cpu+load%22`;
-		this._openerService.open(URI.parse(url));
+		window.open(url);
 
 		this._dialogService.show(
 			Severity.Info,

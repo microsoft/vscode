@@ -12,7 +12,6 @@ import { RunOnOptions, Task, TaskRunSource } from 'vs/workbench/contrib/tasks/co
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
 
@@ -132,27 +131,38 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 
 }
 
-export class ManageAutomaticTaskRunning extends Action {
+export class AllowAutomaticTaskRunning extends Action {
 
-	public static readonly ID = 'workbench.action.tasks.manageAutomaticRunning';
-	public static readonly LABEL = nls.localize('workbench.action.tasks.manageAutomaticRunning', "Manage Automatic Tasks in Folder");
+	public static readonly ID = 'workbench.action.tasks.allowAutomaticRunning';
+	public static readonly LABEL = nls.localize('workbench.action.tasks.allowAutomaticRunning', "Allow Automatic Tasks in Folder");
 
 	constructor(
 		id: string, label: string,
-		@IStorageService private readonly storageService: IStorageService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(id, label);
 	}
 
-	public async run(event?: any): Promise<any> {
-		const allowItem: IQuickPickItem = { label: nls.localize('workbench.action.tasks.allowAutomaticTasks', "Allow Automatic Tasks in Folder") };
-		const disallowItem: IQuickPickItem = { label: nls.localize('workbench.action.tasks.disallowAutomaticTasks', "Disallow Automatic Tasks in Folder") };
-		const value = await this.quickInputService.pick([allowItem, disallowItem], { canPickMany: false });
-		if (!value) {
-			return;
-		}
+	public run(event?: any): Promise<any> {
+		this.storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, true, StorageScope.WORKSPACE);
+		return Promise.resolve(undefined);
+	}
+}
 
-		this.storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, value === allowItem, StorageScope.WORKSPACE);
+export class DisallowAutomaticTaskRunning extends Action {
+
+	public static readonly ID = 'workbench.action.tasks.disallowAutomaticRunning';
+	public static readonly LABEL = nls.localize('workbench.action.tasks.disallowAutomaticRunning', "Disallow Automatic Tasks in Folder");
+
+	constructor(
+		id: string, label: string,
+		@IStorageService private readonly storageService: IStorageService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): Promise<any> {
+		this.storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, false, StorageScope.WORKSPACE);
+		return Promise.resolve(undefined);
 	}
 }

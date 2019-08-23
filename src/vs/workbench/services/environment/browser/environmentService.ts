@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWindowConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
-import { IExtensionHostDebugParams, IDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, IExtensionHostDebugParams, IDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -13,9 +13,6 @@ import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { joinPath } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
-import { generateUuid } from 'vs/base/common/uuid';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
@@ -35,13 +32,11 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	nodeCachedDataDir?: string;
 
 	backupPath?: string;
-	backupWorkspaceResource?: URI;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 
-	remoteAuthority?: string;
-	connectionToken?: string;
+	remoteAuthority: string;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
@@ -62,41 +57,39 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	termProgram?: string;
 }
 
-interface IBrowserWorkbenchEnvironemntConstructionOptions extends IWorkbenchConstructionOptions {
+export interface IBrowserWindowConfiguration {
 	workspaceId: string;
-	logsPath: URI;
+	remoteAuthority?: string;
+	webviewEndpoint?: string;
 }
 
-export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
-
-	_serviceBrand!: ServiceIdentifier<IWorkbenchEnvironmentService>;
+export class BrowserWorkbenchEnvironmentService implements IEnvironmentService {
+	_serviceBrand: ServiceIdentifier<IEnvironmentService>;
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 
-	constructor(readonly options: IBrowserWorkbenchEnvironemntConstructionOptions) {
+	constructor(configuration: IBrowserWindowConfiguration) {
 		this.args = { _: [] };
-		this.logsPath = options.logsPath.path;
-		this.logFile = joinPath(options.logsPath, 'window.log');
 		this.appRoot = '/web/';
 		this.appNameLong = 'Visual Studio Code - Web';
 
-		this.configuration.remoteAuthority = options.remoteAuthority;
-		this.configuration.machineId = generateUuid();
+		this.configuration.remoteAuthority = configuration.remoteAuthority;
 		this.userRoamingDataHome = URI.file('/User').with({ scheme: Schemas.userData });
 		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
 		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
 		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
 		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
 		this.backupHome = joinPath(this.userRoamingDataHome, BACKUPS);
-		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, options.workspaceId);
-		this.configuration.connectionToken = options.connectionToken || getCookieValue('vscode-tkn');
+		this.configuration.backupWorkspaceResource = joinPath(this.backupHome, configuration.workspaceId);
+
+		this.logsPath = '/web/logs';
 
 		this.debugExtensionHost = {
 			port: null,
 			break: false
 		};
 
-		this.webviewEndpoint = options.webviewEndpoint;
+		this.webviewEndpoint = configuration.webviewEndpoint;
 		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
 
 		if (document && document.location && document.location.search) {
@@ -107,7 +100,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			for (let p of vars) {
 				const pair = p.split('=');
 				if (pair.length >= 2) {
-					map.set(pair[0], decodeURIComponent(pair[1]));
+					map.set(decodeURIComponent(pair[0]), decodeURIComponent(pair[1]));
 				}
 			}
 
@@ -181,7 +174,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	driverVerbose: boolean;
 	webviewEndpoint?: string;
 	galleryMachineIdResource?: URI;
-	readonly logFile: URI;
 
 	get webviewResourceRoot(): string {
 		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource{{resource}}' : 'vscode-resource:{{resource}}';
@@ -190,12 +182,4 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get webviewCspSource(): string {
 		return this.webviewEndpoint ? this.webviewEndpoint : 'vscode-resource:';
 	}
-}
-
-/**
- * See https://stackoverflow.com/a/25490531
- */
-function getCookieValue(name: string): string | undefined {
-	const m = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)');
-	return m ? m.pop() : undefined;
 }

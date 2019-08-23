@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { memoize } from 'vs/base/common/decorators';
+import { basename } from 'vs/base/common/path';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
@@ -146,14 +147,14 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	getName(): string {
 		if (!this.name) {
-			this.name = this.labelService.getUriBasenameLabel(this.resource);
+			this.name = basename(this.labelService.getUriLabel(this.resource));
 		}
 
 		return this.decorateLabel(this.name);
 	}
 
 	private get shortDescription(): string {
-		return this.labelService.getUriBasenameLabel(dirname(this.resource));
+		return basename(this.labelService.getUriLabel(dirname(this.resource)));
 	}
 
 	private get mediumDescription(): string {
@@ -202,20 +203,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				title = this.shortTitle;
-				// already decorated by getName()
 				break;
 			default:
 			case Verbosity.MEDIUM:
 				title = this.mediumTitle;
-				title = this.decorateLabel(title);
 				break;
 			case Verbosity.LONG:
 				title = this.longTitle;
-				title = this.decorateLabel(title);
 				break;
 		}
 
-		return title;
+		return this.decorateLabel(title);
 	}
 
 	private decorateLabel(label: string): string {

@@ -5,12 +5,13 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { TextDocument, Position, Range, CompletionList } from 'vscode-languageserver-types';
-import { Stylesheet, FoldingRange, LanguageService as CSSLanguageService } from 'vscode-css-languageservice';
+import { getCSSLanguageService, Stylesheet, FoldingRange } from 'vscode-css-languageservice';
 import { LanguageMode, Workspace } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 import { Color } from 'vscode-languageserver';
 
-export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
+export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
+	let cssLanguageService = getCSSLanguageService();
 	let embeddedCSSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('css'));
 	let cssStylesheets = getLanguageModelCache<Stylesheet>(10, 60, document => cssLanguageService.parseStylesheet(document));
 

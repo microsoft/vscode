@@ -46,10 +46,10 @@ export interface ICompositeBarOptions {
 
 export class CompositeBar extends Widget implements ICompositeBar {
 
-	private dimension: Dimension | undefined;
+	private dimension: Dimension;
 
-	private compositeSwitcherBar!: ActionBar;
-	private compositeOverflowAction: CompositeOverflowActivityAction | undefined;
+	private compositeSwitcherBar: ActionBar;
+	private compositeOverflowAction: CompositeOverflowActivityAction | null;
 	private compositeOverflowActionViewItem: CompositeOverflowActivityActionViewItem | undefined;
 
 	private model: CompositeBarModel;
@@ -343,7 +343,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.compositeSwitcherBar.pull(this.compositeSwitcherBar.length() - 1);
 
 			this.compositeOverflowAction.dispose();
-			this.compositeOverflowAction = undefined;
+			this.compositeOverflowAction = null;
 
 			if (this.compositeOverflowActionViewItem) {
 				this.compositeOverflowActionViewItem.dispose();
@@ -460,7 +460,7 @@ interface ICompositeBarModelItem extends ICompositeBarItem {
 
 class CompositeBarModel {
 
-	private _items: ICompositeBarModelItem[] = [];
+	private _items: ICompositeBarModelItem[];
 	private readonly options: ICompositeBarOptions;
 	activeItem?: ICompositeBarModelItem;
 

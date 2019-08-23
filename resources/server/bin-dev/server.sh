@@ -13,13 +13,10 @@ function code() {
 	# Sync built-in extensions
 	yarn download-builtin-extensions
 
+	# Load remote node
+	yarn gulp node
+
 	NODE=$(node build/lib/node.js)
-
-	# Download nodejs
-	if [ ! -f $NODE ]; then
-		yarn gulp node
-	fi
-
 
 	NODE_ENV=development \
 	VSCODE_DEV=1 \

@@ -63,8 +63,7 @@ export class DeleteOperations {
 			const lineText = model.getLineContent(position.lineNumber);
 			const character = lineText[position.column - 2];
 
-			const autoClosingPairCandidates = config.autoClosingPairsOpen2.get(character);
-			if (!autoClosingPairCandidates) {
+			if (!config.autoClosingPairsOpen.hasOwnProperty(character)) {
 				return false;
 			}
 
@@ -79,14 +78,9 @@ export class DeleteOperations {
 			}
 
 			const afterCharacter = lineText[position.column - 1];
+			const closeCharacter = config.autoClosingPairsOpen[character];
 
-			let foundAutoClosingPair = false;
-			for (const autoClosingPairCandidate of autoClosingPairCandidates) {
-				if (autoClosingPairCandidate.open === character && autoClosingPairCandidate.close === afterCharacter) {
-					foundAutoClosingPair = true;
-				}
-			}
-			if (!foundAutoClosingPair) {
+			if (afterCharacter !== closeCharacter) {
 				return false;
 			}
 		}

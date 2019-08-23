@@ -635,7 +635,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 	return expandedText;
 }
 
-export function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
+function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
 	const mappedModes = getMappingForIncludedLanguages();
 	const language: string = args['language'];
 	const parentMode: string = args['parentMode'];

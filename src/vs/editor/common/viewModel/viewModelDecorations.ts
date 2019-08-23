@@ -42,8 +42,7 @@ export class ViewModelDecorations implements IDisposable {
 		this._linesCollection = linesCollection;
 		this._coordinatesConverter = coordinatesConverter;
 		this._decorationsCache = Object.create(null);
-		this._cachedModelDecorationsResolver = null;
-		this._cachedModelDecorationsResolverViewRange = null;
+		this._clearCachedModelDecorationsResolver();
 	}
 
 	private _clearCachedModelDecorationsResolver(): void {

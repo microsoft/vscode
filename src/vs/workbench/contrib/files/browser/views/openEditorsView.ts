@@ -51,16 +51,16 @@ export class OpenEditorsView extends ViewletPanel {
 	static readonly ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
-	private dirtyCountElement!: HTMLElement;
+	private dirtyCountElement: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler;
 	private structuralRefreshDelay: number;
-	private list!: WorkbenchList<OpenEditor | IEditorGroup>;
-	private listLabels: ResourceLabels | undefined;
-	private contributedContextMenu!: IMenu;
-	private needsRefresh = false;
-	private resourceContext!: ResourceContextKey;
-	private groupFocusedContext!: IContextKey<boolean>;
-	private dirtyEditorFocusedContext!: IContextKey<boolean>;
+	private list: WorkbenchList<OpenEditor | IEditorGroup>;
+	private listLabels: ResourceLabels;
+	private contributedContextMenu: IMenu;
+	private needsRefresh: boolean;
+	private resourceContext: ResourceContextKey;
+	private groupFocusedContext: IContextKey<boolean>;
+	private dirtyEditorFocusedContext: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -80,7 +80,7 @@ export class OpenEditorsView extends ViewletPanel {
 		super({
 			...(options as IViewletPanelOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService, contextKeyService);
+		}, keybindingService, contextMenuService, configurationService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
@@ -129,7 +129,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
-					case GroupChangeKind.GROUP_INDEX: {
+					case GroupChangeKind.GROUP_LABEL: {
 						if (this.showGroups) {
 							this.list.splice(index, 1, [group]);
 						}
@@ -466,13 +466,9 @@ interface IEditorGroupTemplateData {
 }
 
 class OpenEditorActionRunner extends ActionRunner {
-	public editor: OpenEditor | undefined;
+	public editor: OpenEditor;
 
 	run(action: IAction, context?: any): Promise<void> {
-		if (!this.editor) {
-			return Promise.resolve();
-		}
-
 		return super.run(action, { groupId: this.editor.groupId, editorIndex: this.editor.editorIndex });
 	}
 }

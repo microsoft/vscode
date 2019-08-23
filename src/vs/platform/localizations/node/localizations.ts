@@ -93,7 +93,7 @@ class LanguagePacksCache extends Disposable {
 	private languagePacks: { [language: string]: ILanguagePack } = {};
 	private languagePacksFilePath: string;
 	private languagePacksFileLimiter: Queue<any>;
-	private initializedCache: boolean | undefined;
+	private initializedCache: boolean;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,

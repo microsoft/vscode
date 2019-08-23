@@ -209,7 +209,8 @@ export class InMemoryUserDataProvider extends Disposable implements IFileSystemP
 	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChangeFile.event;
 
 	private _bufferedChanges: IFileChange[] = [];
-	private _fireSoonHandle?: any;
+	private _fireSoonHandle?: NodeJS.Timer;
+
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		// ignore, fires for all changes...

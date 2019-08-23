@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteAuthorities } from 'vs/base/common/network';
 
 export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
 
@@ -16,14 +15,13 @@ export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverS
 	resolveAuthority(authority: string): Promise<ResolverResult> {
 		if (authority.indexOf(':') >= 0) {
 			const pieces = authority.split(':');
-			return Promise.resolve(this._createResolvedAuthority(authority, pieces[0], parseInt(pieces[1], 10)));
+			return Promise.resolve({
+				authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10) }
+			});
 		}
-		return Promise.resolve(this._createResolvedAuthority(authority, authority, 80));
-	}
-
-	private _createResolvedAuthority(authority: string, host: string, port: number): ResolverResult {
-		RemoteAuthorities.set(authority, host, port);
-		return { authority: { authority, host, port } };
+		return Promise.resolve({
+			authority: { authority, host: authority, port: 80 }
+		});
 	}
 
 	clearResolvedAuthority(authority: string): void {

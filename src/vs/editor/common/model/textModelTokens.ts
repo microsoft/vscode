@@ -15,7 +15,38 @@ import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
+import { CharCode } from 'vs/base/common/charCode';
+import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
+
+export function countEOL(text: string): [number, number] {
+	let eolCount = 0;
+	let firstLineLength = 0;
+	for (let i = 0, len = text.length; i < len; i++) {
+		const chr = text.charCodeAt(i);
+
+		if (chr === CharCode.CarriageReturn) {
+			if (eolCount === 0) {
+				firstLineLength = i;
+			}
+			eolCount++;
+			if (i + 1 < len && text.charCodeAt(i + 1) === CharCode.LineFeed) {
+				// \r\n... case
+				i++; // skip \n
+			} else {
+				// \r... case
+			}
+		} else if (chr === CharCode.LineFeed) {
+			if (eolCount === 0) {
+				firstLineLength = i;
+			}
+			eolCount++;
+		}
+	}
+	if (eolCount === 0) {
+		firstLineLength = text.length;
+	}
+	return [eolCount, firstLineLength];
+}
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
@@ -28,10 +59,7 @@ export class TokenizationStateStore {
 	private _invalidLineStartIndex: number;
 
 	constructor() {
-		this._beginState = [];
-		this._valid = [];
-		this._len = 0;
-		this._invalidLineStartIndex = 0;
+		this._reset(null);
 	}
 
 	private _reset(initialState: IState | null): void {
@@ -88,9 +116,6 @@ export class TokenizationStateStore {
 	private _deleteLines(start: number, deleteCount: number): void {
 		if (deleteCount === 0) {
 			return;
-		}
-		if (start + deleteCount > this._len) {
-			deleteCount = this._len - start;
 		}
 		this._beginState.splice(start, deleteCount);
 		this._valid.splice(start, deleteCount);

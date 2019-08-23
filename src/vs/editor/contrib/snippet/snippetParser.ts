@@ -56,8 +56,12 @@ export class Scanner {
 			|| (ch >= CharCode.A && ch <= CharCode.Z);
 	}
 
-	value: string = '';
-	pos: number = 0;
+	value: string;
+	pos: number;
+
+	constructor() {
+		this.text('');
+	}
 
 	text(value: string) {
 		this.value = value;
@@ -131,7 +135,7 @@ export abstract class Marker {
 
 	readonly _markerBrand: any;
 
-	public parent!: Marker;
+	public parent: Marker;
 	protected _children: Marker[] = [];
 
 	appendChild(child: Marker): this {
@@ -215,7 +219,7 @@ export class Text extends Marker {
 }
 
 export abstract class TransformableMarker extends Marker {
-	public transform?: Transform;
+	public transform: Transform;
 }
 
 export class Placeholder extends TransformableMarker {
@@ -310,7 +314,7 @@ export class Choice extends Marker {
 
 export class Transform extends Marker {
 
-	regexp: RegExp = new RegExp('');
+	regexp: RegExp;
 
 	resolve(value: string): string {
 		const _this = this;
@@ -586,8 +590,8 @@ export class SnippetParser {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
 
-	private _scanner: Scanner = new Scanner();
-	private _token: Token = { type: TokenType.EOF, pos: 0, len: 0 };
+	private _scanner = new Scanner();
+	private _token: Token;
 
 	text(value: string): string {
 		return this.parse(value).toString();
@@ -667,24 +671,16 @@ export class SnippetParser {
 		if (this._token.type === TokenType.EOF) {
 			return false;
 		}
-		let res = '';
-		let pos = this._token.pos;
-		let prevToken = <Token>{ type: TokenType.EOF, pos: 0, len: 0 };
-
-		while (this._token.type !== type || prevToken.type === TokenType.Backslash) {
-			if (this._token.type === type) {
-				res += this._scanner.value.substring(pos, prevToken.pos);
-				pos = this._token.pos;
-			}
-			prevToken = this._token;
+		let start = this._token;
+		while (this._token.type !== type) {
 			this._token = this._scanner.next();
 			if (this._token.type === TokenType.EOF) {
 				return false;
 			}
 		}
-		res += this._scanner.value.substring(pos, this._token.pos);
+		let value = this._scanner.value.substring(start.pos, this._token.pos);
 		this._token = this._scanner.next();
-		return res;
+		return value;
 	}
 
 	private _parse(marker: Marker): boolean {

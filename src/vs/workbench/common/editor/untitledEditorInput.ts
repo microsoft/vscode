@@ -7,6 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
 import { memoize } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { basename } from 'vs/base/common/path';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
@@ -63,7 +64,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get shortDescription(): string {
-		return this.labelService.getUriBasenameLabel(dirname(this.resource));
+		return basename(this.labelService.getUriLabel(dirname(this.resource)));
 	}
 
 	@memoize

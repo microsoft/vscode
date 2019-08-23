@@ -12,13 +12,12 @@ export class Query {
 	}
 
 	static suggestions(query: string): string[] {
-		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext', 'id'];
+		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext'];
 		const subcommands = {
 			'sort': ['installs', 'rating', 'name'],
 			'category': ['"programming languages"', 'snippets', 'linters', 'themes', 'debuggers', 'formatters', 'keymaps', '"scm providers"', 'other', '"extension packs"', '"language packs"'],
 			'tag': [''],
-			'ext': [''],
-			'id': ['']
+			'ext': ['']
 		};
 
 		let queryContains = (substr: string) => query.indexOf(substr) > -1;

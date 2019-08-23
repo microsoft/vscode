@@ -59,13 +59,7 @@ export const enum GroupsArrangement {
 	/**
 	 * Size all groups evenly.
 	 */
-	EVEN,
-
-	/**
-	 * Will behave like MINIMIZE_OTHERS if the active
-	 * group is not already maximized and EVEN otherwise
-	 */
-	TOGGLE
+	EVEN
 }
 
 export interface GroupLayoutArgument {
@@ -183,14 +177,9 @@ export interface IEditorGroupsService {
 	readonly onDidLayout: Event<IDimension>;
 
 	/**
-	 * An event for when the index of a group changes.
-	 */
-	readonly onDidGroupIndexChange: Event<IEditorGroup>;
-
-	/**
 	 * The size of the editor groups area.
 	 */
-	readonly contentDimension: IDimension;
+	readonly dimension: IDimension;
 
 	/**
 	 * An active group is the default location for new editors to open.
@@ -354,7 +343,7 @@ export const enum GroupChangeKind {
 
 	/* Group Changes */
 	GROUP_ACTIVE,
-	GROUP_INDEX,
+	GROUP_LABEL,
 
 	/* Editor Changes */
 	EDITOR_OPEN,
@@ -384,14 +373,6 @@ export interface IEditorGroup {
 	 * group is moved to different locations.
 	 */
 	readonly id: GroupIdentifier;
-
-	/**
-	 * A number that indicates the position of this group in the visual
-	 * order of groups from left to right and top to bottom. The lowest
-	 * index will likely be top-left while the largest index in most
-	 * cases should be bottom-right, but that depends on the grid.
-	 */
-	readonly index: number;
 
 	/**
 	 * A human readable label for the group. This label can change depending

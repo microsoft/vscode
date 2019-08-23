@@ -91,7 +91,6 @@
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container {
 	display: none;
-	height: 22px;
 }
 
 .monaco-workbench .notifications-list-container .notification-list-item:hover .notification-list-item-toolbar-container,

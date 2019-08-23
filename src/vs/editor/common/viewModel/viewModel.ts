@@ -17,7 +17,7 @@ import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceCompute
 import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IViewWhitespaceViewportData {
-	readonly id: string;
+	readonly id: number;
 	readonly afterLineNumber: number;
 	readonly verticalOffset: number;
 	readonly height: number;
@@ -74,15 +74,15 @@ export interface IViewLayout {
 	 * Reserve rendering space.
 	 * @return an identifier that can be later used to remove or change the whitespace.
 	 */
-	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): string;
+	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): number;
 	/**
 	 * Change the properties of a whitespace.
 	 */
-	changeWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean;
+	changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean;
 	/**
 	 * Remove rendering space
 	 */
-	removeWhitespace(id: string): boolean;
+	removeWhitespace(id: number): boolean;
 	/**
 	 * Get the layout information for whitespaces currently in the viewport
 	 */

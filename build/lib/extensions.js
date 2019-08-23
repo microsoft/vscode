@@ -29,18 +29,12 @@ const commit = util.getVersion(root);
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
 function fromLocal(extensionPath) {
     const webpackFilename = path.join(extensionPath, 'extension.webpack.config.js');
-    const input = fs.existsSync(webpackFilename)
-        ? fromLocalWebpack(extensionPath)
-        : fromLocalNormal(extensionPath);
-    const tmLanguageJsonFilter = filter('**/*.tmLanguage.json', { restore: true });
-    return input
-        .pipe(tmLanguageJsonFilter)
-        .pipe(buffer())
-        .pipe(es.mapSync((f) => {
-        f.contents = Buffer.from(JSON.stringify(JSON.parse(f.contents.toString('utf8'))));
-        return f;
-    }))
-        .pipe(tmLanguageJsonFilter.restore);
+    if (fs.existsSync(webpackFilename)) {
+        return fromLocalWebpack(extensionPath);
+    }
+    else {
+        return fromLocalNormal(extensionPath);
+    }
 }
 function fromLocalWebpack(extensionPath) {
     const result = es.through();

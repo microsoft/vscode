@@ -13,29 +13,28 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 
 export class TrimTrailingWhitespaceCommand implements ICommand {
 
-	private readonly _selection: Selection;
-	private _selectionId: string | null;
-	private readonly _cursors: Position[];
+	private readonly selection: Selection;
+	private selectionId: string;
+	private readonly cursors: Position[];
 
 	constructor(selection: Selection, cursors: Position[]) {
-		this._selection = selection;
-		this._cursors = cursors;
-		this._selectionId = null;
+		this.selection = selection;
+		this.cursors = cursors;
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		let ops = trimTrailingWhitespace(model, this._cursors);
+		let ops = trimTrailingWhitespace(model, this.cursors);
 		for (let i = 0, len = ops.length; i < len; i++) {
 			let op = ops[i];
 
 			builder.addEditOperation(op.range, op.text);
 		}
 
-		this._selectionId = builder.trackSelection(this._selection);
+		this.selectionId = builder.trackSelection(this.selection);
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this._selectionId!);
+		return helper.getTrackedSelection(this.selectionId);
 	}
 }
 

@@ -269,10 +269,6 @@
 		{
 			"name": "vs/workbench/services/preferences",
 			"project": "vscode-preferences"
-		},
-		{
-			"name": "vs/workbench/services/notification",
-			"project": "vscode-workbench"
 		}
 	]
 }

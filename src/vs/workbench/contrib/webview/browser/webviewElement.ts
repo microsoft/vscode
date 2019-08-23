@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -202,8 +202,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._send('content', {
 			contents: this.content.html,
 			options: this.content.options,
-			state: this.content.state,
-			endpoint: this.endpoint,
+			state: this.content.state
 		});
 	}
 
@@ -214,7 +213,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		}
 	}
 
-	initialScrollProgress: number = 0;
+	initialScrollProgress: number;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocus.event;
@@ -265,10 +264,6 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	hideFind(): void {
-		throw new Error('Method not implemented.');
-	}
-
-	runFindAction(previous: boolean): void {
 		throw new Error('Method not implemented.');
 	}
 

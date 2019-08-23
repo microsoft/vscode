@@ -111,7 +111,7 @@ export class ExtensionHostConnection {
 			}
 			console.log('Got start params:', startParams);
 			const opts = {
-				env: <{ [key: string]: string }>{
+				env: {
 					...processEnv,
 					...userShellEnv,
 					...{
@@ -122,13 +122,13 @@ export class ExtensionHostConnection {
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
 						VSCODE_LOG_STACK: 'false',
 						VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig, undefined, 0),
+						PATH
 					},
 					...(startParams.env || {})
 				},
 				execArgv,
 				silent: true
 			};
-			setCaseInsensitive(opts.env, 'PATH', PATH);
 			removeNulls(opts.env);
 
 			// Run Extension Host as fork of current process
@@ -188,12 +188,6 @@ export class ExtensionHostConnection {
 			}
 		}
 	}
-}
-
-function setCaseInsensitive(env: { [key: string]: string }, key: string, value: string): void {
-	const pathKeys = Object.keys(env).filter(k => k.toLowerCase() === key.toLowerCase());
-	const pathKey = pathKeys.length > 0 ? pathKeys[0] : key;
-	env[pathKey] = value;
 }
 
 function removeNulls(env: { [key: string]: string | null }): void {

@@ -9,8 +9,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
-import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable } from './driver';
-import { connect as connectPuppeteerDriver, launch } from './puppeteerDriver';
+import { IDriver, connect as connectDriver, IDisposable, IElement, Thenable } from './driver';
 import { Logger } from '../logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
@@ -63,7 +62,7 @@ function getBuildOutPath(root: string): string {
 	}
 }
 
-async function connect(connectDriver: typeof connectElectronDriver, child: cp.ChildProcess | undefined, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
+async function connect(child: cp.ChildProcess, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
 	let errCount = 0;
 
 	while (true) {
@@ -72,9 +71,7 @@ async function connect(connectDriver: typeof connectElectronDriver, child: cp.Ch
 			return new Code(client, driver, logger);
 		} catch (err) {
 			if (++errCount > 50) {
-				if (child) {
-					child.kill();
-				}
+				child.kill();
 				throw err;
 			}
 
@@ -97,12 +94,7 @@ export interface SpawnOptions {
 	verbose?: boolean;
 	extraArgs?: string[];
 	log?: string;
-	/** Run in the test resolver */
 	remote?: boolean;
-	/** Run in the web */
-	web?: boolean;
-	/** Run in headless mode (only applies when web is true) */
-	headless?: boolean;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -169,20 +161,14 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		args.push(...options.extraArgs);
 	}
 
-	let child: cp.ChildProcess | undefined;
-	let connectDriver: typeof connectElectronDriver;
+	const spawnOptions: cp.SpawnOptions = { env };
 
-	if (options.web) {
-		await launch(args);
-		connectDriver = connectPuppeteerDriver.bind(connectPuppeteerDriver, !!options.headless);
-	} else {
-		const spawnOptions: cp.SpawnOptions = { env };
-		child = cp.spawn(electronPath, args, spawnOptions);
-		instances.add(child);
-		child.once('exit', () => instances.delete(child!));
-		connectDriver = connectElectronDriver;
-	}
-	return connect(connectDriver, child, outPath, handle, options.logger);
+	const child = cp.spawn(electronPath, args, spawnOptions);
+
+	instances.add(child);
+	child.once('exit', () => instances.delete(child));
+
+	return connect(child, outPath, handle, options.logger);
 }
 
 async function poll<T>(

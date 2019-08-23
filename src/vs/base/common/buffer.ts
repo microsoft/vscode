@@ -105,7 +105,7 @@ export class VSBuffer {
 	}
 }
 
-export function readUInt32BE(source: Uint8Array, offset: number): number {
+function readUInt32BE(source: Uint8Array, offset: number): number {
 	return (
 		source[offset] * 2 ** 24
 		+ source[offset + 1] * 2 ** 16
@@ -114,7 +114,7 @@ export function readUInt32BE(source: Uint8Array, offset: number): number {
 	);
 }
 
-export function writeUInt32BE(destination: Uint8Array, value: number, offset: number): void {
+function writeUInt32BE(destination: Uint8Array, value: number, offset: number): void {
 	destination[offset + 3] = value;
 	value = value >>> 8;
 	destination[offset + 2] = value;

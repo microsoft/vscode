@@ -6,7 +6,7 @@
 import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
-import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElementForFragment } from './scroll-sync';
+import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine } from './scroll-sync';
 import { getSettings, getData } from './settings';
 import throttle = require('lodash.throttle');
 
@@ -19,7 +19,7 @@ const settings = getSettings();
 const vscode = acquireVsCodeApi();
 
 // Set VS Code state
-let state = getData<{ line: number, fragment: string }>('data-state');
+let state = getData<{ line: number }>('data-state');
 vscode.setState(state);
 
 const messaging = createPosterForVsCode(vscode);
@@ -34,19 +34,10 @@ window.onload = () => {
 onceDocumentLoaded(() => {
 	if (settings.scrollPreviewWithEditor) {
 		setTimeout(() => {
-			// Try to scroll to fragment if available
-			if (state.fragment) {
-				const element = getLineElementForFragment(state.fragment);
-				if (element) {
-					scrollDisabled = true;
-					scrollToRevealSourceLine(element.line);
-				}
-			} else {
-				const initialLine = +settings.line;
-				if (!isNaN(initialLine)) {
-					scrollDisabled = true;
-					scrollToRevealSourceLine(initialLine);
-				}
+			const initialLine = +settings.line;
+			if (!isNaN(initialLine)) {
+				scrollDisabled = true;
+				scrollToRevealSourceLine(initialLine);
 			}
 		}, 0);
 	}

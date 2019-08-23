@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 
 export interface WebviewFindDelegate {
 	find(value: string, previous: boolean): void;
@@ -16,7 +15,6 @@ export interface WebviewFindDelegate {
 }
 
 export class WebviewFindWidget extends SimpleFindWidget {
-	protected _findWidgetFocused: IContextKey<boolean>;
 
 	constructor(
 		private readonly _delegate: WebviewFindDelegate,
@@ -24,7 +22,6 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(contextViewService, contextKeyService);
-		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 	}
 
 	public find(previous: boolean) {
@@ -50,17 +47,11 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		return false;
 	}
 
-	protected onFocusTrackerFocus() {
-		this._findWidgetFocused.set(true);
-	}
+	protected onFocusTrackerFocus() { }
 
-	protected onFocusTrackerBlur() {
-		this._findWidgetFocused.reset();
-	}
+	protected onFocusTrackerBlur() { }
 
 	protected onFindInputFocusTrackerFocus() { }
 
 	protected onFindInputFocusTrackerBlur() { }
-
-	protected findFirst() { }
 }

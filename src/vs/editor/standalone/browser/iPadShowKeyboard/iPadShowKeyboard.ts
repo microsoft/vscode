@@ -21,7 +21,6 @@ export class IPadShowKeyboard extends Disposable implements IEditorContribution 
 	constructor(editor: ICodeEditor) {
 		super();
 		this.editor = editor;
-		this.widget = null;
 		if (browser.isIPad) {
 			this._register(editor.onDidChangeConfiguration(() => this.update()));
 			this.update();

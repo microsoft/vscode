@@ -8,7 +8,7 @@ import {
 	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -17,8 +17,6 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { localize } from 'vs/nls';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IProductService } from 'vs/platform/product/common/product';
-import { Schemas } from 'vs/base/common/network';
-import { IDownloadService } from 'vs/platform/download/common/download';
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -36,7 +34,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IProductService protected readonly productService: IProductService,
-		@IDownloadService protected readonly downloadService: IDownloadService,
 	) {
 		super();
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
@@ -145,41 +142,13 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	async install(vsix: URI): Promise<ILocalExtension> {
-		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const manifest = await this.getManifest(vsix);
-			if (isLanguagePackExtension(manifest)) {
-				// Install on both servers
-				const [local] = await Promise.all(this.servers.map(server => this.installVSIX(vsix, server)));
-				return local;
-			}
-			if (isUIExtension(manifest, this.productService, this.configurationService)) {
-				// Install only on local server
-				return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer);
-			}
-			// Install only on remote server
-			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer);
-		}
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer);
+			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.install(vsix);
 		}
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer);
+			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.install(vsix);
 		}
 		return Promise.reject('No Servers to Install');
-	}
-
-	protected installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
-		return server.extensionManagementService.install(vsix);
-	}
-
-	getManifest(vsix: URI): Promise<IExtensionManifest> {
-		if (vsix.scheme === Schemas.file && this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getManifest(vsix);
-		}
-		if (vsix.scheme === Schemas.vscodeRemote && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getManifest(vsix);
-		}
-		return Promise.reject('No Servers');
 	}
 
 	async installFromGallery(gallery: IGalleryExtension): Promise<ILocalExtension> {

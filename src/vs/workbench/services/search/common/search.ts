@@ -251,23 +251,20 @@ export class TextSearchMatch implements ITextSearchMatch {
 	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions) {
 		this.ranges = range;
 
-		if (previewOptions && previewOptions.matchLines === 1 && (!Array.isArray(range) || range.length === 1)) {
-			const oneRange = Array.isArray(range) ? range[0] : range;
-
+		if (previewOptions && previewOptions.matchLines === 1 && !Array.isArray(range)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const previewStart = Math.max(oneRange.startColumn - leadingChars, 0);
+			const previewStart = Math.max(range.startColumn - leadingChars, 0);
 			const previewText = text.substring(previewStart, previewOptions.charsPerLine + previewStart);
 
-			const endColInPreview = (oneRange.endLineNumber - oneRange.startLineNumber + 1) <= previewOptions.matchLines ?
-				Math.min(previewText.length, oneRange.endColumn - previewStart) :  // if number of match lines will not be trimmed by previewOptions
+			const endColInPreview = (range.endLineNumber - range.startLineNumber + 1) <= previewOptions.matchLines ?
+				Math.min(previewText.length, range.endColumn - previewStart) :  // if number of match lines will not be trimmed by previewOptions
 				previewText.length; // if number of lines is trimmed
 
-			const oneLineRange = new OneLineRange(0, oneRange.startColumn - previewStart, endColInPreview);
 			this.preview = {
 				text: previewText,
-				matches: Array.isArray(range) ? [oneLineRange] : oneLineRange
+				matches: new OneLineRange(0, range.startColumn - previewStart, endColInPreview)
 			};
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;

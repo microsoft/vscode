@@ -11,7 +11,7 @@ import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiatio
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand: ServiceIdentifier<ILifecycleService>;
 
 	constructor(
 		@ILogService readonly logService: ILogService
@@ -22,12 +22,10 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		// Note: we cannot change this to window.addEventListener('beforeUnload')
-		// because it seems that mechanism does not allow for preventing the unload
-		window.onbeforeunload = () => this.onBeforeUnload();
+		window.onbeforeunload = () => this.beforeUnload();
 	}
 
-	private onBeforeUnload(): string | null {
+	private beforeUnload(): string | null {
 		let veto = false;
 
 		// Before Shutdown
@@ -36,7 +34,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 				if (value === true) {
 					veto = true;
 				} else if (value instanceof Promise && !veto) {
-					console.warn(new Error('Long running onBeforeShutdown currently not supported in the web'));
+					console.warn(new Error('Long running onBeforeShutdown currently not supported'));
 					veto = true;
 				}
 			},
@@ -51,13 +49,10 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// No Veto: continue with Will Shutdown
 		this._onWillShutdown.fire({
 			join() {
-				console.warn(new Error('Long running onWillShutdown currently not supported in the web'));
+				console.warn(new Error('Long running onWillShutdown currently not supported'));
 			},
 			reason: ShutdownReason.QUIT
 		});
-
-		// Finally end with Shutdown event
-		this._onShutdown.fire();
 
 		return null;
 	}

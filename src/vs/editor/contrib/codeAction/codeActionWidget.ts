@@ -30,7 +30,6 @@ export class CodeActionWidget extends Disposable {
 		private readonly _delegate: CodeActionWidgetDelegate,
 	) {
 		super();
-		this._visible = false;
 	}
 
 	public async show(codeActions: CodeActionSet, at?: IAnchor | IPosition): Promise<void> {

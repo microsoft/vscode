@@ -11,7 +11,6 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { IWebSocketFactory, BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { ILogService } from 'vs/platform/log/common/log';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 
@@ -24,13 +23,12 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ISignService signService: ISignService,
-		@ILogService logService: ILogService
+		@ISignService signService: ISignService
 	) {
 		super(environmentService);
 
 		this.socketFactory = new BrowserSocketFactory(webSocketFactory);
-		this._connection = this._register(new RemoteAgentConnection(environmentService.configuration.remoteAuthority!, productService.commit, this.socketFactory, remoteAuthorityResolverService, signService, logService));
+		this._connection = this._register(new RemoteAgentConnection(environmentService.configuration.remoteAuthority!, productService.commit, this.socketFactory, environmentService, remoteAuthorityResolverService, signService));
 	}
 
 	getConnection(): IRemoteAgentConnection | null {

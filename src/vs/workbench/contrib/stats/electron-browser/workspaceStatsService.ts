@@ -5,11 +5,12 @@
 
 import * as crypto from 'crypto';
 import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { INotificationService, NeverShowAgainScope, INeverShowAgainOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -17,9 +18,11 @@ import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspa
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { joinPath } from 'vs/base/common/resources';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
-import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export type Tags = { [index: string]: boolean | number | string | undefined };
+
+const DISABLE_WORKSPACE_PROMPT_KEY = 'workspaces.dontPromptToOpen';
 
 const ModulesToLookFor = [
 	// Packages that suggest a node server
@@ -44,22 +47,7 @@ const ModulesToLookFor = [
 	'azure-storage',
 	'firebase',
 	'@google-cloud/common',
-	'heroku-cli',
-	//Office and Sharepoint packages
-	'@microsoft/office-js',
-	'@microsoft/office-js-helpers',
-	'@types/office-js',
-	'@types/office-runtime',
-	'office-ui-fabric-react',
-	'@uifabric/icons',
-	'@uifabric/merge-styles',
-	'@uifabric/styling',
-	'@uifabric/experiments',
-	'@uifabric/utilities',
-	'@microsoft/rush',
-	'lerna',
-	'just-task',
-	'beachball'
+	'heroku-cli'
 ];
 const PyModulesToLookFor = [
 	'azure',
@@ -89,6 +77,14 @@ const PyModulesToLookFor = [
 	'botframework-connector'
 ];
 
+export const IWorkspaceStatsService = createDecorator<IWorkspaceStatsService>('workspaceStatsService');
+
+export interface IWorkspaceStatsService {
+	_serviceBrand: any;
+	getTags(): Promise<Tags>;
+}
+
+
 export class WorkspaceStatsService implements IWorkspaceStatsService {
 	_serviceBrand: any;
 	private _tags: Tags;
@@ -100,6 +96,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		@IWindowService private readonly windowService: IWindowService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
@@ -109,42 +106,6 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		}
 
 		return this._tags;
-	}
-
-	public getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
-		function createHash(uri: URI): string {
-			return crypto.createHash('sha1').update(uri.scheme === Schemas.file ? uri.fsPath : uri.toString()).digest('hex');
-		}
-
-		let workspaceId: string | undefined;
-		switch (state) {
-			case WorkbenchState.EMPTY:
-				workspaceId = undefined;
-				break;
-			case WorkbenchState.FOLDER:
-				workspaceId = createHash(workspace.folders[0].uri);
-				break;
-			case WorkbenchState.WORKSPACE:
-				if (workspace.configuration) {
-					workspaceId = createHash(workspace.configuration);
-				}
-		}
-
-		return workspaceId;
-	}
-
-	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit: boolean = false): Promise<string[]> {
-		const path = workspaceUri.path;
-		const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-		return this.fileService.exists(uri).then(exists => {
-			if (!exists) {
-				return [];
-			}
-			return this.textFileService.read(uri, { acceptTextOnly: true }).then(
-				content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
-				err => [] // ignore missing or binary file
-			);
-		});
 	}
 
 	/* __GDPR__FRAGMENT__
@@ -182,20 +143,6 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 			"workspace.npm.@google-cloud/common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.firebase" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.heroku-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@microsoft/office-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@microsoft/office-js-helpers" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@types/office-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@types/office-runtime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.office-ui-fabric-react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@uifabric/icons" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@uifabric/merge-styles" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@uifabric/styling" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@uifabric/experiments" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@uifabric/utilities" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@microsoft/rush" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.lerna" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.just-task" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.beachball" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.cordova.high" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -241,6 +188,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 			"workspace.py.botbuilder-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.botbuilder-schema" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.botframework-connector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+
 		}
 	*/
 	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): Promise<Tags> {
@@ -249,7 +197,25 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
 
-		tags['workspace.id'] = this.getTelemetryWorkspaceId(workspace, state);
+		function createHash(uri: URI): string {
+			return crypto.createHash('sha1').update(uri.scheme === Schemas.file ? uri.fsPath : uri.toString()).digest('hex');
+		}
+
+		let workspaceId: string | undefined;
+		switch (state) {
+			case WorkbenchState.EMPTY:
+				workspaceId = undefined;
+				break;
+			case WorkbenchState.FOLDER:
+				workspaceId = createHash(workspace.folders[0].uri);
+				break;
+			case WorkbenchState.WORKSPACE:
+				if (workspace.configuration) {
+					workspaceId = createHash(workspace.configuration);
+				}
+		}
+
+		tags['workspace.id'] = workspaceId;
 
 		const { filesToOpenOrCreate, filesToDiff } = configuration;
 		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
@@ -445,7 +411,15 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 	}
 
 	private doHandleWorkspaceFiles(folder: URI, workspaces: string[]): void {
-		const neverShowAgain: INeverShowAgainOptions = { id: 'workspaces.dontPromptToOpen', scope: NeverShowAgainScope.WORKSPACE, isSecondary: true };
+		if (this.storageService.getBoolean(DISABLE_WORKSPACE_PROMPT_KEY, StorageScope.WORKSPACE)) {
+			return; // prompt disabled by user
+		}
+
+		const doNotShowAgain: IPromptChoice = {
+			label: localize('never again', "Don't Show Again"),
+			isSecondary: true,
+			run: () => this.storageService.store(DISABLE_WORKSPACE_PROMPT_KEY, true, StorageScope.WORKSPACE)
+		};
 
 		// Prompt to open one workspace
 		if (workspaces.length === 1) {
@@ -454,7 +428,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
 				run: () => this.windowService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
-			}], { neverShowAgain });
+			}, doNotShowAgain]);
 		}
 
 		// Prompt to select a workspace from many
@@ -470,7 +444,7 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 							}
 						});
 				}
-			}], { neverShowAgain });
+			}, doNotShowAgain]);
 		}
 	}
 
@@ -501,5 +475,3 @@ export class WorkspaceStatsService implements IWorkspaceStatsService {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 }
-
-registerSingleton(IWorkspaceStatsService, WorkspaceStatsService, true);

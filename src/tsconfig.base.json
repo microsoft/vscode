@@ -17,6 +17,14 @@
 			"vs/*": [
 				"./vs/*"
 			]
-		}
+		},
+		"types": [
+			"keytar",
+			"minimist",
+			"mocha",
+			"semver",
+			"sinon",
+			"winreg"
+		]
 	}
 }

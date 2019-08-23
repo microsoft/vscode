@@ -56,7 +56,7 @@ class WindowManager {
 	}
 
 	// --- Fullscreen
-	private _fullscreen: boolean = false;
+	private _fullscreen: boolean;
 	private readonly _onDidChangeFullscreen = new Emitter<void>();
 
 	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;

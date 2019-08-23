@@ -6,7 +6,7 @@
 import { SplitView, Orientation, ISplitViewStyles, IView as ISplitViewView } from 'vs/base/browser/ui/splitview/splitview';
 import { $ } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
-import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
+import { IView, IViewSize } from 'vs/base/browser/ui/grid/gridview';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 
@@ -20,12 +20,10 @@ const GOLDEN_RATIO = {
 	rightMarginRatio: 0.1909
 };
 
-function createEmptyView(background: Color | undefined): ISplitViewView {
+function createEmptyView(background: Color): ISplitViewView {
 	const element = $('.centered-layout-margin');
 	element.style.height = '100%';
-	if (background) {
-		element.style.backgroundColor = background.toString();
-	}
+	element.style.backgroundColor = background.toString();
 
 	return {
 		element,
@@ -55,7 +53,7 @@ export class CenteredViewLayout implements IDisposable {
 	private splitView?: SplitView;
 	private width: number = 0;
 	private height: number = 0;
-	private style!: ICenteredViewStyles;
+	private style: ICenteredViewStyles;
 	private didLayout = false;
 	private emptyViews: ISplitViewView[] | undefined;
 	private readonly splitViewDisposables = new DisposableStore();
@@ -134,8 +132,7 @@ export class CenteredViewLayout implements IDisposable {
 
 			this.splitView.layout(this.width);
 			this.splitView.addView(toSplitViewView(this.view, () => this.height), 0);
-			const backgroundColor = this.style ? this.style.background : undefined;
-			this.emptyViews = [createEmptyView(backgroundColor), createEmptyView(backgroundColor)];
+			this.emptyViews = [createEmptyView(this.style.background), createEmptyView(this.style.background)];
 			this.splitView.addView(this.emptyViews[0], this.state.leftMarginRatio * this.width, 0);
 			this.splitView.addView(this.emptyViews[1], this.state.rightMarginRatio * this.width, 2);
 		} else {

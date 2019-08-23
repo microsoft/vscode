@@ -11,10 +11,11 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 
 export class ToggleReactionsAction extends Action {
 	static readonly ID = 'toolbar.toggle.pickReactions';
-	private _menuActions: IAction[] = [];
+	private _menuActions: IAction[];
 	private toggleDropdownMenu: () => void;
 	constructor(toggleDropdownMenu: () => void, title?: string) {
-		super(ToggleReactionsAction.ID, title || nls.localize('pickReactions', "Pick Reactions..."), 'toggle-reactions', true);
+		title = title || nls.localize('pickReactions', "Pick Reactions...");
+		super(ToggleReactionsAction.ID, title, 'toggle-reactions', true);
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
 	run(): Promise<any> {

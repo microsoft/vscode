@@ -6,7 +6,7 @@
 import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
@@ -38,7 +38,7 @@ export class CLIServer {
 	private _server: http.Server;
 	private _ipcHandlePath: string | undefined;
 
-	constructor(@IExtHostCommands private _commands: IExtHostCommands) {
+	constructor(private _commands: ExtHostCommands) {
 		this._server = http.createServer((req, res) => this.onRequest(req, res));
 		this.setup().catch(err => {
 			console.error(err);

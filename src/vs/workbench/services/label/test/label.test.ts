@@ -33,11 +33,9 @@ suite('URI Label', () => {
 		const uri1 = TestWorkspace.folders[0].uri.with({ path: TestWorkspace.folders[0].uri.path.concat('/a/b/c/d') });
 		assert.equal(labelService.getUriLabel(uri1, { relative: true }), isWindows ? 'a\\b\\c\\d' : 'a/b/c/d');
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), isWindows ? 'C:\\testWorkspace\\a\\b\\c\\d' : '/testWorkspace/a/b/c/d');
-		assert.equal(labelService.getUriBasenameLabel(uri1), 'd');
 
 		const uri2 = URI.file('c:\\1/2/3');
 		assert.equal(labelService.getUriLabel(uri2, { relative: false }), isWindows ? 'C:\\1\\2\\3' : '/c:\\1/2/3');
-		assert.equal(labelService.getUriBasenameLabel(uri2), '3');
 	});
 
 	test('custom scheme', function () {
@@ -53,23 +51,6 @@ suite('URI Label', () => {
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
-		assert.equal(labelService.getUriBasenameLabel(uri1), 'END');
-	});
-
-	test('separator', function () {
-		labelService.registerFormatter({
-			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL\\${path}\\${authority}\\END',
-				separator: '\\',
-				tildify: true,
-				normalizeDriveLetter: true
-			}
-		});
-
-		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL\\\\1\\2\\3\\4\\5\\microsoft.com\\END');
-		assert.equal(labelService.getUriBasenameLabel(uri1), 'END');
 	});
 
 	test('custom authority', function () {
@@ -84,7 +65,6 @@ suite('URI Label', () => {
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
-		assert.equal(labelService.getUriBasenameLabel(uri1), 'END');
 	});
 
 	test('mulitple authority', function () {
@@ -116,66 +96,5 @@ suite('URI Label', () => {
 		// Make sure the most specific authority is picked
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'second');
-		assert.equal(labelService.getUriBasenameLabel(uri1), 'second');
-	});
-
-	test('custom query', function () {
-		labelService.registerFormatter({
-			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL${query.prefix}: ${query.path}/END',
-				separator: '/',
-				tildify: true,
-				normalizeDriveLetter: true
-			}
-		});
-
-		const uri1 = URI.parse(`vscode://microsoft.com/1/2/3/4/5?${encodeURIComponent(JSON.stringify({ prefix: 'prefix', path: 'path' }))}`);
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABELprefix: path/END');
-	});
-
-	test('custom query without value', function () {
-		labelService.registerFormatter({
-			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL${query.prefix}: ${query.path}/END',
-				separator: '/',
-				tildify: true,
-				normalizeDriveLetter: true
-			}
-		});
-
-		const uri1 = URI.parse(`vscode://microsoft.com/1/2/3/4/5?${encodeURIComponent(JSON.stringify({ path: 'path' }))}`);
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: path/END');
-	});
-
-	test('custom query without query json', function () {
-		labelService.registerFormatter({
-			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL${query.prefix}: ${query.path}/END',
-				separator: '/',
-				tildify: true,
-				normalizeDriveLetter: true
-			}
-		});
-
-		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5?path=foo');
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
-	});
-
-	test('custom query without query', function () {
-		labelService.registerFormatter({
-			scheme: 'vscode',
-			formatting: {
-				label: 'LABEL${query.prefix}: ${query.path}/END',
-				separator: '/',
-				tildify: true,
-				normalizeDriveLetter: true
-			}
-		});
-
-		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
 	});
 });

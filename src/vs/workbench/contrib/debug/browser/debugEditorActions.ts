@@ -35,23 +35,19 @@ class ToggleBreakpointAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
-		if (editor.hasModel()) {
-			const debugService = accessor.get(IDebugService);
-			const modelUri = editor.getModel().uri;
-			const canSet = debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel());
-			// Does not account for multi line selections, Set to remove multiple cursor on the same line
-			const lineNumbers = [...new Set(editor.getSelections().map(s => s.getPosition().lineNumber))];
+		const debugService = accessor.get(IDebugService);
 
-			return Promise.all(lineNumbers.map(line => {
-				const bps = debugService.getModel().getBreakpoints({ lineNumber: line, uri: modelUri });
-				if (bps.length) {
-					return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
-				} else if (canSet) {
-					return (debugService.addBreakpoints(modelUri, [{ lineNumber: line }], 'debugEditorActions.toggleBreakpointAction'));
-				} else {
-					return Promise.resolve([]);
-				}
-			}));
+		const position = editor.getPosition();
+		if (editor.hasModel() && position) {
+			const modelUri = editor.getModel().uri;
+			const bps = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri });
+
+			if (bps.length) {
+				return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
+			}
+			if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }], 'debugEditorActions.toggleBreakpointAction');
+			}
 		}
 
 		return Promise.resolve();
@@ -169,7 +165,7 @@ class SelectionToReplAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const panelService = accessor.get(IPanelService);
 		const viewModel = debugService.getViewModel();
@@ -179,8 +175,9 @@ class SelectionToReplAction extends EditorAction {
 		}
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
-		await session.addReplExpression(viewModel.focusedStackFrame!, text);
-		await panelService.openPanel(REPL_ID, true);
+		return session.addReplExpression(viewModel.focusedStackFrame!, text)
+			.then(() => panelService.openPanel(REPL_ID, true))
+			.then(_ => undefined);
 	}
 }
 

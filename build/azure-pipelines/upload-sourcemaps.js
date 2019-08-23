@@ -13,37 +13,19 @@ const util = require('../lib/util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 
-// optionally allow to pass in explicit base/maps to upload
-const [, , base, maps] = process.argv;
-
-const fetch = function (base, maps = `${base}/**/*.map`) {
-	return vfs.src(maps, { base })
+function main() {
+	const vs = vfs.src('out-vscode-min/**/*.map', { base: 'out-vscode-min' }) // client source-maps only
 		.pipe(es.mapSync(f => {
 			f.path = `${f.base}/core/${f.relative}`;
 			return f;
 		}));
-};
 
-function main() {
-	const sources = [];
+	const extensionsOut = vfs.src(['.build/extensions/**/*.js.map', '!**/node_modules/**'], { base: '.build' });
 
-	// vscode client maps (default)
-	if (!base) {
-		const vs = fetch('out-vscode-min'); // client source-maps only
-		sources.push(vs);
-
-		const extensionsOut = vfs.src(['.build/extensions/**/*.js.map', '!**/node_modules/**'], { base: '.build' });
-		sources.push(extensionsOut);
-	}
-
-	// specific client base/maps
-	else {
-		sources.push(fetch(base, maps));
-	}
-
-	return es.merge(...sources)
+	return es.merge(vs, extensionsOut)
 		.pipe(es.through(function (data) {
-			console.log('Uploading Sourcemap', data.relative); // debug
+			// debug
+			console.log('Uploading Sourcemap', data.relative);
 			this.emit('data', data);
 		}))
 		.pipe(azure.upload({

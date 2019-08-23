@@ -47,7 +47,6 @@ const BUILD_TARGETS = [
 	{ platform: 'linux', arch: 'ia32', pkgTarget: 'node8-linux-x86' },
 	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
 	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
-	{ platform: 'linux', arch: 'arm64', pkgTarget: 'node8-linux-arm64' },
 	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
 ];
 
@@ -79,9 +78,6 @@ const serverResources = [
 
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-
-	// Extension Worker
-	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
 
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
@@ -135,7 +131,6 @@ const serverWithWebEntryPoints = [
 	// Include workbench web
 	buildfile.workbenchWeb,
 	buildfile.serviceWorker,
-	buildfile.workerExtensionHost,
 	buildfile.keyboardMaps,
 	buildfile.base
 ];

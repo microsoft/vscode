@@ -154,13 +154,9 @@ export class ExtensionHostProcessManager extends Disposable {
 	private async _measureUp(proxy: ExtHostExtensionServiceShape): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		let buff = VSBuffer.alloc(SIZE);
-		let value = Math.ceil(Math.random() * 256);
-		for (let i = 0; i < buff.byteLength; i++) {
-			buff.writeUInt8(i, value);
-		}
+		let b = Buffer.alloc(SIZE, Math.random() % 256);
 		const sw = StopWatch.create(true);
-		await proxy.$test_up(buff);
+		await proxy.$test_up(VSBuffer.wrap(b));
 		sw.stop();
 		return ExtensionHostProcessManager._convert(SIZE, sw.elapsed());
 	}
@@ -291,15 +287,6 @@ export class ExtensionHostProcessManager extends Disposable {
 			return;
 		}
 		return proxy.$deltaExtensions(toAdd, toRemove);
-	}
-
-	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
-		const proxy = await this._getExtensionHostProcessProxy();
-		if (!proxy) {
-			return;
-		}
-
-		return proxy.$setRemoteEnvironment(env);
 	}
 }
 

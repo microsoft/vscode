@@ -128,6 +128,22 @@ export class View extends ViewEventHandler {
 		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this.createTextAreaHandlerHelper());
 		this.viewParts.push(this._textAreaHandler);
 
+		this.createViewParts();
+		this._setLayout();
+
+		// Pointer handler
+		this.pointerHandler = this._register(new PointerHandler(this._context, viewController, this.createPointerHandlerHelper()));
+
+		this._register(model.addEventListener((events: viewEvents.ViewEvent[]) => {
+			this.eventDispatcher.emitMany(events);
+		}));
+
+		this._register(this._cursor.addEventListener((events: viewEvents.ViewEvent[]) => {
+			this.eventDispatcher.emitMany(events);
+		}));
+	}
+
+	private createViewParts(): void {
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this.linesContent = createFastDomNode(document.createElement('div'));
 		this.linesContent.setClassName('lines-content' + ' monaco-editor-background');
@@ -217,19 +233,6 @@ export class View extends ViewEventHandler {
 		this.overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this.overflowGuardContainer);
 		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
-
-		this._setLayout();
-
-		// Pointer handler
-		this.pointerHandler = this._register(new PointerHandler(this._context, viewController, this.createPointerHandlerHelper()));
-
-		this._register(model.addEventListener((events: viewEvents.ViewEvent[]) => {
-			this.eventDispatcher.emitMany(events);
-		}));
-
-		this._register(this._cursor.addEventListener((events: viewEvents.ViewEvent[]) => {
-			this.eventDispatcher.emitMany(events);
-		}));
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
@@ -248,7 +251,7 @@ export class View extends ViewEventHandler {
 			getLastViewCursorsRenderData: () => {
 				return this.viewCursors.getLastRenderData() || [];
 			},
-			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
+			shouldSuppressMouseDownOnViewZone: (viewZoneId: number) => {
 				return this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
 			},
 			shouldSuppressMouseDownOnWidget: (widgetId: string) => {
@@ -473,17 +476,17 @@ export class View extends ViewEventHandler {
 
 		this._renderOnce(() => {
 			const changeAccessor: editorBrowser.IViewZoneChangeAccessor = {
-				addZone: (zone: editorBrowser.IViewZone): string => {
+				addZone: (zone: editorBrowser.IViewZone): number => {
 					zonesHaveChanged = true;
 					return this.viewZones.addZone(zone);
 				},
-				removeZone: (id: string): void => {
+				removeZone: (id: number): void => {
 					if (!id) {
 						return;
 					}
 					zonesHaveChanged = this.viewZones.removeZone(id) || zonesHaveChanged;
 				},
-				layoutZone: (id: string): void => {
+				layoutZone: (id: number): void => {
 					if (!id) {
 						return;
 					}
@@ -538,7 +541,7 @@ export class View extends ViewEventHandler {
 
 	public layoutContentWidget(widgetData: IContentWidgetData): void {
 		const newPosition = widgetData.position ? widgetData.position.position : null;
-		const newRange = widgetData.position ? widgetData.position.range || null : null;
+		const newRange = widgetData.position ? widgetData.position.range : null;
 		const newPreference = widgetData.position ? widgetData.position.preference : null;
 		this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newRange, newPreference);
 		this._scheduleRender();

@@ -1149,10 +1149,9 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 				}
 			}
 
-			// Linux/Windows: by default we open files in the new window unless triggered via DIALOG / MENU context
-			// or from the integrated terminal where we assume the user prefers to open in the current window
+			// Linux/Windows: by default we open files in the new window unless triggered via DIALOG or MENU context
 			else {
-				if (openConfig.context !== OpenContext.DIALOG && openConfig.context !== OpenContext.MENU && !(openConfig.userEnv && openConfig.userEnv['TERM_PROGRAM'] === 'vscode')) {
+				if (openConfig.context !== OpenContext.DIALOG && openConfig.context !== OpenContext.MENU) {
 					openFilesInNewWindow = true;
 				}
 			}
@@ -1256,9 +1255,10 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		openConfig.cli['file-uri'] = fileUris;
 
 		// if there are no files or folders cli args left, use the "remote" cli argument
-		const noFilesOrFolders = !cliArgs.length && !folderUris.length && !fileUris.length;
-		if (noFilesOrFolders && authority) {
-			openConfig.cli.remote = authority;
+		if (!cliArgs.length && !folderUris.length && !fileUris.length) {
+			if (authority) {
+				openConfig.cli.remote = authority;
+			}
 		}
 
 		// Open it
@@ -1266,7 +1266,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			context: openConfig.context,
 			cli: openConfig.cli,
 			forceNewWindow: true,
-			forceEmpty: noFilesOrFolders,
+			forceEmpty: !cliArgs.length && !folderUris.length && !fileUris.length,
 			userEnv: openConfig.userEnv,
 			noRecentEntry: true,
 			waitMarkerFileURI: openConfig.waitMarkerFileURI

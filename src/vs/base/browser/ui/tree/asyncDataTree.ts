@@ -238,8 +238,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
 			)
 		),
-		ariaProvider: undefined,
-		additionalScrollHeight: options.additionalScrollHeight
+		ariaProvider: undefined
 	};
 }
 
@@ -400,14 +399,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.scrollTop = scrollTop;
 	}
 
-	get scrollLeft(): number {
-		return this.tree.scrollLeft;
-	}
-
-	set scrollLeft(scrollLeft: number) {
-		this.tree.scrollLeft = scrollLeft;
-	}
-
 	get scrollHeight(): number {
 		return this.tree.scrollHeight;
 	}
@@ -486,7 +477,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	// View
 
 	rerender(element?: T): void {
-		if (element === undefined || element === this.root.element) {
+		if (element === undefined) {
 			this.tree.rerender();
 			return;
 		}
@@ -611,9 +602,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return nodes.map(n => n!.element as T);
 	}
 
-	open(elements: T[], browserEvent?: UIEvent): void {
+	open(elements: T[]): void {
 		const nodes = elements.map(e => this.getDataNode(e));
-		this.tree.open(nodes, browserEvent);
+		this.tree.open(nodes);
 	}
 
 	reveal(element: T, relativeTop?: number): void {

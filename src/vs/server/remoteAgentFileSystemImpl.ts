@@ -104,6 +104,7 @@ export class RemoteAgentFileSystemChannel extends Disposable implements IServerC
 			case 'open': return this._open(uriTransformer, arg[0], arg[1]);
 			case 'close': return this._close(arg[0]);
 			case 'read': return this._read(arg[0], arg[1], arg[2]);
+			case 'readFile': return this._readFile(uriTransformer, arg[0]);
 			case 'write': return this._write(arg[0], arg[1], arg[2], arg[3], arg[4]);
 			case 'rename': return this._rename(uriTransformer, arg[0], arg[1], arg[2]);
 			case 'copy': return this._copy(uriTransformer, arg[0], arg[1], arg[2]);
@@ -175,6 +176,13 @@ export class RemoteAgentFileSystemChannel extends Disposable implements IServerC
 
 	private _write(fd: number, pos: number, data: VSBuffer, offset: number, length: number): Promise<number> {
 		return this._fsProvider.write(fd, pos, data.buffer, offset, length);
+	}
+
+	// TODO@alex remove me once electron-main no longer calls this directly
+	private async _readFile(uriTransformer: IURITransformer, _resource: UriComponents): Promise<VSBuffer> {
+		const resource = this._transformIncoming(uriTransformer, _resource, true);
+		const buff = await this._fsProvider.readFile(resource);
+		return VSBuffer.wrap(buff);
 	}
 
 	private _rename(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: FileOverwriteOptions): Promise<void> {

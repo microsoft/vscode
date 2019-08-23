@@ -109,7 +109,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService, storageService);
 		this.delayedFiltering = new Delayer<void>(300);
-		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(!!this.keybindingFocusContextKey.get())));
+		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(true)));
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
@@ -537,7 +537,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					}
 					this.unAssignedKeybindingItemToRevealAndFocus = null;
 				} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
-					this.selectEntry(currentSelectedIndex, preserveFocus);
+					this.selectEntry(currentSelectedIndex);
 				} else if (this.editorService.activeControl === this && !preserveFocus) {
 					this.focus();
 				}
@@ -597,13 +597,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return -1;
 	}
 
-	private selectEntry(keybindingItemEntry: IKeybindingItemEntry | number, focus: boolean = true): void {
+	private selectEntry(keybindingItemEntry: IKeybindingItemEntry | number): void {
 		const index = typeof keybindingItemEntry === 'number' ? keybindingItemEntry : this.getIndexOf(keybindingItemEntry);
 		if (index !== -1) {
-			if (focus) {
-				this.keybindingsList.getHTMLElement().focus();
-				this.keybindingsList.setFocus([index]);
-			}
+			this.keybindingsList.getHTMLElement().focus();
+			this.keybindingsList.setFocus([index]);
 			this.keybindingsList.setSelection([index]);
 		}
 	}
@@ -791,7 +789,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 	get templateId(): string { return KEYBINDING_ENTRY_TEMPLATE_ID; }
 
 	constructor(
-		private keybindingsEditor: KeybindingsEditor,
+		private keybindingsEditor: IKeybindingsEditor,
 		private instantiationService: IInstantiationService
 	) { }
 

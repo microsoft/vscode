@@ -13,10 +13,9 @@ import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
-import { NullOpenerService } from 'vs/platform/opener/common/opener';
 
 function createMockSession(model: DebugModel, name = 'mockSession', parentSession?: DebugSession | undefined): DebugSession {
-	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, parentSession, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
+	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, parentSession, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
 }
 
 suite('Debug - Model', () => {
@@ -24,7 +23,7 @@ suite('Debug - Model', () => {
 	let rawSession: MockRawSession;
 
 	setup(() => {
-		model = new DebugModel([], true, [], [], [], [], <any>{ isDirty: (e: any) => false });
+		model = new DebugModel([], true, [], [], [], <any>{ isDirty: (e: any) => false });
 		rawSession = new MockRawSession();
 	});
 
@@ -428,7 +427,7 @@ suite('Debug - Model', () => {
 	// Repl output
 
 	test('repl output', () => {
-		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
+		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
 		const repl = new ReplModel(session);
 		repl.appendToRepl('first line\n', severity.Error);
 		repl.appendToRepl('second line ', severity.Error);

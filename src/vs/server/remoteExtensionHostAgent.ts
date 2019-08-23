@@ -4,7 +4,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import * as minimist from 'vscode-minimist';
+import * as minimist from 'minimist';
 import * as fs from 'fs';
 import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -14,14 +14,11 @@ import { RemoteExtensionHostAgentServer } from 'vs/server/remoteExtensionHostAge
 import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { generateUuid } from 'vs/base/common/uuid';
 
 const args = minimist(process.argv.slice(2), {
 	string: [
 		'port',
 		'disable-telemetry',
-		'connectionToken',
-		'host',
 		'folder',
 		'extensions-dir'
 	]
@@ -37,8 +34,6 @@ const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 const BUILTIN_EXTENSIONS_FOLDER_PATH = path.join(APP_ROOT, 'extensions');
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
 const PORT = (args as any)['port'] || 8000;
-const CONNECTION_AUTH_TOKEN = (args as any)['connectionToken'] || generateUuid();
-const HOST = (args as any)['host'];
 
 args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER, 'extensions');
 
@@ -79,8 +74,8 @@ if (shouldSpawnCli(args)) {
 `;
 	logService.info(license);
 	console.log(license);
-	const server = new RemoteExtensionHostAgentServer(CONNECTION_AUTH_TOKEN, environmentService, logService);
-	server.start(HOST, PORT);
+	const server = new RemoteExtensionHostAgentServer(environmentService, logService);
+	server.start(PORT);
 	process.on('exit', () => {
 		server.dispose();
 	});

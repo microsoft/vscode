@@ -124,12 +124,12 @@ export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptio
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
-	protected container!: HTMLElement;
-	protected label!: HTMLElement;
-	protected badge!: HTMLElement;
-	protected options!: IActivityActionViewItemOptions;
+	protected container: HTMLElement;
+	protected label: HTMLElement;
+	protected badge: HTMLElement;
+	protected options: IActivityActionViewItemOptions;
 
-	private badgeContent: HTMLElement | undefined;
+	private badgeContent: HTMLElement;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private mouseUpTimeout: any;
 
@@ -347,7 +347,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 }
 
 export class CompositeOverflowActivityActionViewItem extends ActivityActionViewItem {
-	private actions: Action[] | undefined;
+	private actions: Action[];
 
 	constructor(
 		action: ActivityAction,
@@ -371,8 +371,8 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.element!,
-			getActions: () => this.actions!,
-			onHide: () => dispose(this.actions!)
+			getActions: () => this.actions,
+			onHide: () => dispose(this.actions)
 		});
 	}
 
@@ -402,9 +402,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 	dispose(): void {
 		super.dispose();
 
-		if (this.actions) {
-			this.actions = dispose(this.actions);
-		}
+		this.actions = dispose(this.actions);
 	}
 }
 
@@ -433,7 +431,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
 
-	private compositeActivity: IActivity | undefined;
+	private compositeActivity: IActivity | null;
 	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier>;
 
 	constructor(
@@ -456,7 +454,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
 		}
 
-		this._register(compositeActivityAction.onDidChangeActivity(() => { this.compositeActivity = undefined; this.updateActivity(); }, this));
+		this._register(compositeActivityAction.onDidChangeActivity(() => { this.compositeActivity = null; this.updateActivity(); }, this));
 	}
 
 	protected get activity(): IActivity {

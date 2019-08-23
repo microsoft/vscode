@@ -99,7 +99,7 @@ interface IRecentlyClosedFile {
 
 export class HistoryService extends Disposable implements IHistoryService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private static readonly STORAGE_KEY = 'history.entries';
 	private static readonly MAX_HISTORY_ITEMS = 200;
@@ -115,10 +115,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private stack: IStackEntry[];
 	private index: number;
 	private lastIndex: number;
-	private navigatingInStack = false;
-	private currentTextEditorState: TextEditorState | null = null;
+	private navigatingInStack: boolean;
+	private currentTextEditorState: TextEditorState | null;
 
-	private lastEditLocation: IStackEntry | undefined;
+	private lastEditLocation: IStackEntry;
 
 	private history: Array<IEditorInput | IResourceInput>;
 	private recentlyClosedFiles: IRecentlyClosedFile[];
@@ -453,7 +453,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.doNavigate(this.stack[this.index], !acrossEditors).finally(() => this.navigatingInStack = false);
 	}
 
-	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor | undefined> {
+	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor | null> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true // support to navigate across editor groups
 		};

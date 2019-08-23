@@ -30,20 +30,11 @@ const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${
 
 function fromLocal(extensionPath: string): Stream {
 	const webpackFilename = path.join(extensionPath, 'extension.webpack.config.js');
-	const input = fs.existsSync(webpackFilename)
-		? fromLocalWebpack(extensionPath)
-		: fromLocalNormal(extensionPath);
-
-	const tmLanguageJsonFilter = filter('**/*.tmLanguage.json', { restore: true });
-
-	return input
-		.pipe(tmLanguageJsonFilter)
-		.pipe(buffer())
-		.pipe(es.mapSync((f: File) => {
-			f.contents = Buffer.from(JSON.stringify(JSON.parse(f.contents.toString('utf8'))));
-			return f;
-		}))
-		.pipe(tmLanguageJsonFilter.restore);
+	if (fs.existsSync(webpackFilename)) {
+		return fromLocalWebpack(extensionPath);
+	} else {
+		return fromLocalNormal(extensionPath);
+	}
 }
 
 function fromLocalWebpack(extensionPath: string): Stream {

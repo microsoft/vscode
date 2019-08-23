@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assign } from 'vs/base/common/objects';
-import { IssueType, ISettingSearchResult, IssueReporterExtensionData } from 'vs/platform/issue/node/issue';
-import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
+import { IssueType, ISettingSearchResult, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
+import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
 
 export interface IssueReporterData {
 	issueType: IssueType;

@@ -84,8 +84,6 @@ import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/n
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { NodeTextFileService } from 'vs/workbench/services/textfile/node/textFileService';
 import { Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/product';
-import product from 'vs/platform/product/node/product';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -476,10 +474,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 		return true;
 	}
 
-	getDimension(_part: Parts): Dimension {
-		return new Dimension(0, 0);
-	}
-
 	public getContainer(_part: Parts): HTMLElement {
 		return null!;
 	}
@@ -667,14 +661,13 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
-	onDidGroupIndexChange: Event<IEditorGroup> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	willRestoreEditors = false;
 
-	contentDimension = { width: 800, height: 600 };
+	dimension = { width: 800, height: 600 };
 
 	get activeGroup(): IEditorGroup {
 		return this.groups[0];
@@ -764,16 +757,12 @@ export class TestEditorGroup implements IEditorGroupView {
 	disposed: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label: string;
-	index: number;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	element: HTMLElement;
 	minimumWidth: number;
 	maximumWidth: number;
 	minimumHeight: number;
 	maximumHeight: number;
-
-	isEmpty = true;
-	isMinimized = false;
 
 	onWillDispose: Event<void> = Event.None;
 	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
@@ -844,8 +833,9 @@ export class TestEditorGroup implements IEditorGroupView {
 		throw new Error('not implemented');
 	}
 
+	isEmpty(): boolean { return true; }
 	setActive(_isActive: boolean): void { }
-	notifyIndexChanged(_index: number): void { }
+	setLabel(_label: string): void { }
 	dispose(): void { }
 	toJSON(): object { return Object.create(null); }
 	layout(_width: number, _height: number): void { }
@@ -1340,12 +1330,12 @@ export class TestWindowsService implements IWindowsService {
 
 	public windowCount = 1;
 
-	readonly onWindowOpen: Event<number> = Event.None;
-	readonly onWindowFocus: Event<number> = Event.None;
-	readonly onWindowBlur: Event<number> = Event.None;
-	readonly onWindowMaximize: Event<number> = Event.None;
-	readonly onWindowUnmaximize: Event<number> = Event.None;
-	readonly onRecentlyOpenedChange: Event<void> = Event.None;
+	onWindowOpen: Event<number>;
+	onWindowFocus: Event<number>;
+	onWindowBlur: Event<number>;
+	onWindowMaximize: Event<number>;
+	onWindowUnmaximize: Event<number>;
+	onRecentlyOpenedChange: Event<void>;
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(false);
@@ -1483,7 +1473,7 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve(this.windowCount);
 	}
 
-	log(_severity: string, _args: string[]): Promise<void> {
+	log(_severity: string, ..._messages: string[]): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1633,5 +1623,3 @@ export class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	private toFileResource(resource: URI): URI { return resource.with({ scheme: Schemas.file, authority: '' }); }
 }
-
-export const productService: IProductService = { _serviceBrand: undefined, ...product };

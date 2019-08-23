@@ -13,13 +13,16 @@ import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class WindowsService implements IWindowsService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	private channel: IChannel;
+
+	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
+		this.channel = mainProcessService.getChannel('windows');
+	}
 
 	get onWindowOpen(): Event<number> { return this.channel.listen('onWindowOpen'); }
 	get onWindowFocus(): Event<number> { return this.channel.listen('onWindowFocus'); }
@@ -27,10 +30,6 @@ export class WindowsService implements IWindowsService {
 	get onWindowMaximize(): Event<number> { return this.channel.listen('onWindowMaximize'); }
 	get onWindowUnmaximize(): Event<number> { return this.channel.listen('onWindowUnmaximize'); }
 	get onRecentlyOpenedChange(): Event<void> { return this.channel.listen('onRecentlyOpenedChange'); }
-
-	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		this.channel = mainProcessService.getChannel('windows');
-	}
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		return this.channel.call('pickFileFolderAndOpen', options);
@@ -227,8 +226,8 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('getWindowCount');
 	}
 
-	log(severity: string, args: string[]): Promise<void> {
-		return this.channel.call('log', [severity, args]);
+	log(severity: string, ...messages: string[]): Promise<void> {
+		return this.channel.call('log', [severity, messages]);
 	}
 
 	showItemInFolder(path: URI): Promise<void> {

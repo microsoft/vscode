@@ -238,6 +238,5 @@ export const enum GitErrorCodes {
 	CantLockRef = 'CantLockRef',
 	CantRebaseMultipleBranches = 'CantRebaseMultipleBranches',
 	PatchDoesNotApply = 'PatchDoesNotApply',
-	NoPathFound = 'NoPathFound',
-	UnknownPath = 'UnknownPath',
+	NoPathFound = 'NoPathFound'
 }

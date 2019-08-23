@@ -13,8 +13,7 @@
 			"scope": [
 				"entity.name.function",
 				"support.function",
-				"support.constant.handlebars",
-				"source.powershell variable.other.member"
+				"support.constant.handlebars"
 			],
 			"settings": {
 				"foreground": "#DCDCAA"

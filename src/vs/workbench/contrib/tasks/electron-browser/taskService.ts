@@ -13,8 +13,7 @@ import * as TaskConfig from '../common/taskConfiguration';
 import { ProcessTaskSystem } from 'vs/workbench/contrib/tasks/node/processTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/contrib/tasks/node/processRunnerDetector';
 import { AbstractTaskService } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { TaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { TaskFilter } from 'vs/workbench/contrib/tasks/common/taskService';
 
 interface WorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -134,5 +133,3 @@ export class TaskService extends AbstractTaskService {
 		return result;
 	}
 }
-
-registerSingleton(ITaskService, TaskService, true);

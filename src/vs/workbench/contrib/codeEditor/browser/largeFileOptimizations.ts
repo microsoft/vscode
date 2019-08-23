@@ -11,6 +11,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 /**
  * Shows a message when opening a large file which has been memory optimized (and features disabled).
@@ -19,17 +20,24 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 
 	private static readonly ID = 'editor.contrib.largeFileOptimizationsWarner';
 
+	private _isDisabled: boolean;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
+		this._isDisabled = Boolean(this._storageService.getBoolean('editor.neverPromptForLargeFiles', StorageScope.GLOBAL, false));
 
 		this._register(this._editor.onDidChangeModel((e) => {
 			const model = this._editor.getModel();
 			if (!model) {
+				return;
+			}
+			if (this._isDisabled) {
 				return;
 			}
 
@@ -47,6 +55,13 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 
 				this._notificationService.prompt(Severity.Info, message, [
 					{
+						label: nls.localize('dontShowAgain', "Don't Show Again"),
+						run: () => {
+							this._isDisabled = true;
+							this._storageService.store('editor.neverPromptForLargeFiles', true, StorageScope.GLOBAL);
+						}
+					},
+					{
 						label: nls.localize('removeOptimizations', "Forcefully enable features"),
 						run: () => {
 							this._configurationService.updateValue(`editor.largeFileOptimizations`, false).then(() => {
@@ -56,7 +71,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 							});
 						}
 					}
-				], { neverShowAgain: { id: 'editor.contrib.largeFileOptimizationsWarner' } });
+				]);
 			}
 		}));
 	}

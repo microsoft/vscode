@@ -14,8 +14,6 @@ import product from 'vs/platform/product/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -57,7 +55,7 @@ class IntegrityStorage {
 
 export class IntegrityServiceImpl implements IIntegrityService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	private _storage: IntegrityStorage;
 	private _isPurePromise: Promise<IntegrityTestResult>;
@@ -65,8 +63,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		this._storage = new IntegrityStorage(storageService);
 
@@ -93,7 +90,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 			[
 				{
 					label: nls.localize('integrity.moreInformation', "More Information"),
-					run: () => this.openerService.open(URI.parse(product.checksumFailMoreInfoUrl))
+					run: () => window.open(URI.parse(product.checksumFailMoreInfoUrl).toString(true))
 				},
 				{
 					label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),

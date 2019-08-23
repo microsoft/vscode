@@ -273,7 +273,8 @@ export namespace PresentationOptions {
 export enum RuntimeType {
 	Shell = 1,
 	Process = 2,
-	CustomExecution2 = 3
+	CustomExecution = 3,
+	CustomExecution2 = 4
 }
 
 export namespace RuntimeType {
@@ -283,6 +284,8 @@ export namespace RuntimeType {
 				return RuntimeType.Shell;
 			case 'process':
 				return RuntimeType.Process;
+			case 'customExecution':
+				return RuntimeType.CustomExecution;
 			case 'customExecution2':
 				return RuntimeType.CustomExecution2;
 			default:
@@ -518,7 +521,7 @@ export abstract class CommonTask {
 	/**
 	 * The cached label.
 	 */
-	_label: string = '';
+	_label: string;
 
 	type?: string;
 
@@ -614,7 +617,7 @@ export abstract class CommonTask {
 
 export class CustomTask extends CommonTask {
 
-	type!: '$customized'; // CUSTOMIZED_TASK_TYPE
+	type: '$customized'; // CUSTOMIZED_TASK_TYPE
 
 	/**
 	 * Indicated the source of the task (e.g. tasks.json or extension)
@@ -626,7 +629,7 @@ export class CustomTask extends CommonTask {
 	/**
 	 * The command configuration
 	 */
-	command: CommandConfiguration = {};
+	command: CommandConfiguration;
 
 	public constructor(id: string, source: WorkspaceTaskSource, label: string, type: string, command: CommandConfiguration | undefined,
 		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
@@ -658,6 +661,10 @@ export class CustomTask extends CommonTask {
 
 				case RuntimeType.Process:
 					type = 'process';
+					break;
+
+				case RuntimeType.CustomExecution:
+					type = 'customExecution';
 					break;
 
 				case RuntimeType.CustomExecution2:
@@ -754,9 +761,8 @@ export class ContributedTask extends CommonTask {
 
 	/**
 	 * Indicated the source of the task (e.g. tasks.json or extension)
-	 * Set in the super constructor
 	 */
-	_source!: ExtensionTaskSource;
+	_source: ExtensionTaskSource;
 
 	defines: KeyedTaskIdentifier;
 
@@ -825,7 +831,7 @@ export class InMemoryTask extends CommonTask {
 	 */
 	_source: InMemoryTaskSource;
 
-	type!: 'inMemory';
+	type: 'inMemory';
 
 	public constructor(id: string, source: InMemoryTaskSource, label: string, type: string,
 		runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
@@ -985,14 +991,14 @@ export namespace KeyedTaskIdentifier {
 	function sortedStringify(literal: any): string {
 		const keys = Object.keys(literal).sort();
 		let result: string = '';
-		for (const key of keys) {
-			let stringified = literal[key];
+		for (let position in keys) {
+			let stringified = literal[keys[position]];
 			if (stringified instanceof Object) {
 				stringified = sortedStringify(stringified);
 			} else if (typeof stringified === 'string') {
 				stringified = stringified.replace(/,/g, ',,');
 			}
-			result += key + ',' + stringified + ',';
+			result += keys[position] + ',' + stringified + ',';
 		}
 		return result;
 	}

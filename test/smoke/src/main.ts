@@ -51,9 +51,7 @@ const opts = minimist(args, {
 	],
 	boolean: [
 		'verbose',
-		'remote',
-		'web',
-		'headless'
+		'remote'
 	],
 	default: {
 		verbose: false
@@ -134,7 +132,7 @@ if (testCodePath) {
 	process.env.VSCODE_CLI = '1';
 }
 
-if (!opts.web && !fs.existsSync(electronPath || '')) {
+if (!fs.existsSync(electronPath || '')) {
 	fail(`Can't find Code at ${electronPath}.`);
 }
 
@@ -213,9 +211,7 @@ function createOptions(): ApplicationOptions {
 		verbose: opts.verbose,
 		log,
 		screenshotsPath,
-		remote: opts.remote,
-		web: opts.web,
-		headless: opts.headless
+		remote: opts.remote
 	};
 }
 
@@ -238,14 +234,12 @@ after(async function () {
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-if (!opts.web) {
-	setupDataMigrationTests(stableCodePath, testDataPath);
-}
+setupDataMigrationTests(stableCodePath, testDataPath);
 
 describe('Running Code', () => {
 	before(async function () {
 		const app = new Application(this.defaultOptions);
-		await app!.start(opts.web ? false : undefined);
+		await app!.start();
 		this.app = app;
 	});
 
@@ -274,21 +268,19 @@ describe('Running Code', () => {
 		});
 	}
 
-	if (!opts.web) { setupDataLossTests(); }
+	setupDataLossTests();
 	setupDataExplorerTests();
-	if (!opts.web) { setupDataPreferencesTests(); }
+	setupDataPreferencesTests();
 	setupDataSearchTests();
 	setupDataCSSTests();
 	setupDataEditorTests();
-	if (!opts.web) { setupDataDebugTests(); }
+	setupDataDebugTests();
 	setupDataGitTests();
 	setupDataStatusbarTests();
 	setupDataExtensionTests();
 	setupTerminalTests();
-	if (!opts.web) { setupDataMultirootTests(); }
+	setupDataMultirootTests();
 	setupDataLocalizationTests();
 });
 
-if (!opts.web) {
-	setupLaunchTests();
-}
+setupLaunchTests();

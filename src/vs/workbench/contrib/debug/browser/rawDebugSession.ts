@@ -16,8 +16,6 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { env as processEnv } from 'vs/base/common/process';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -39,19 +37,19 @@ interface ILaunchVSCodeArguments {
  */
 export class RawDebugSession {
 
-	private allThreadsContinued = true;
-	private _readyForBreakpoints = false;
+	private allThreadsContinued: boolean;
+	private _readyForBreakpoints: boolean;
 	private _capabilities: DebugProtocol.Capabilities;
 
 	// shutdown
-	private debugAdapterStopped = false;
-	private inShutdown = false;
-	private terminated = false;
-	private firedAdapterExitEvent = false;
+	private debugAdapterStopped: boolean;
+	private inShutdown: boolean;
+	private terminated: boolean;
+	private firedAdapterExitEvent: boolean;
 
 	// telemetry
-	private startTime = 0;
-	private didReceiveStoppedEvent = false;
+	private startTime: number;
+	private didReceiveStoppedEvent: boolean;
 
 	// DAP events
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
@@ -75,12 +73,18 @@ export class RawDebugSession {
 		dbgr: IDebugger,
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
-		private readonly windowsService: IWindowsService,
-		private readonly openerService: IOpenerService
+		private readonly windowsService: IWindowsService
 
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
+		this._readyForBreakpoints = false;
+		this.inShutdown = false;
+		this.debugAdapterStopped = false;
+		this.firedAdapterExitEvent = false;
+		this.didReceiveStoppedEvent = false;
+
+		this.allThreadsContinued = true;
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
@@ -359,20 +363,6 @@ export class RawDebugSession {
 		return Promise.reject(new Error('setFunctionBreakpoints not supported'));
 	}
 
-	dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<DebugProtocol.DataBreakpointInfoResponse> {
-		if (this.capabilities.supportsDataBreakpoints) {
-			return this.send<DebugProtocol.DataBreakpointInfoResponse>('dataBreakpointInfo', args);
-		}
-		return Promise.reject(new Error('dataBreakpointInfo not supported'));
-	}
-
-	setDataBreakpoints(args: DebugProtocol.SetDataBreakpointsArguments): Promise<DebugProtocol.SetDataBreakpointsResponse> {
-		if (this.capabilities.supportsDataBreakpoints) {
-			return this.send<DebugProtocol.SetDataBreakpointsResponse>('setDataBreakpoints', args);
-		}
-		return Promise.reject(new Error('setDataBreakpoints not supported'));
-	}
-
 	setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): Promise<DebugProtocol.SetExceptionBreakpointsResponse> {
 		return this.send<DebugProtocol.SetExceptionBreakpointsResponse>('setExceptionBreakpoints', args);
 	}
@@ -611,7 +601,10 @@ export class RawDebugSession {
 		let env: IProcessEnvironment = {};
 		if (vscodeArgs.env) {
 			// merge environment variables into a copy of the process.env
-			env = objects.mixin(processEnv, vscodeArgs.env);
+			if (typeof process === 'object' && process.env) {
+				env = objects.mixin(env, process.env);
+			}
+			env = objects.mixin(env, vscodeArgs.env);
 			// and delete some if necessary
 			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
 		}
@@ -654,7 +647,7 @@ export class RawDebugSession {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 			return createErrorWithActions(userMessage, {
 				actions: [new Action('debug.moreInfo', label, undefined, true, () => {
-					this.openerService.open(URI.parse(error.url));
+					window.open(error.url);
 					return Promise.resolve(null);
 				})]
 			});

@@ -9,7 +9,6 @@ import { URI } from 'vscode-uri';
 import { TextDocument, CompletionList, CompletionItemKind } from 'vscode-languageserver-types';
 import { getLanguageModes } from '../modes/languageModes';
 import { WorkspaceFolder } from 'vscode-languageserver';
-import { ClientCapabilities } from 'vscode-html-languageservice';
 
 export interface ItemDescription {
 	label: string;
@@ -59,7 +58,7 @@ export function testCompletionFor(value: string, expected: { count?: number, ite
 	let document = TextDocument.create(uri, 'html', 0, value);
 	let position = document.positionAt(offset);
 
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
 	const mode = languageModes.getModeAtPosition(document, position)!;
 
 	let list = mode.doComplete!(document, position);

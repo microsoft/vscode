@@ -9,12 +9,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AbstractAccessibilityService } from 'vs/platform/accessibility/common/abstractAccessibilityService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class AccessibilityService extends AbstractAccessibilityService implements IAccessibilityService {
-
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	private _accessibilitySupport = AccessibilitySupport.Unknown;
 
@@ -63,5 +60,3 @@ export class AccessibilityService extends AbstractAccessibilityService implement
 		return this._accessibilitySupport;
 	}
 }
-
-registerSingleton(IAccessibilityService, AccessibilityService, true);

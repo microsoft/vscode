@@ -9,8 +9,6 @@ import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
 
 export class GettingStarted implements IWorkbenchContribution {
 
@@ -22,8 +20,7 @@ export class GettingStarted implements IWorkbenchContribution {
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		this.appName = product.nameLong;
 
@@ -53,7 +50,7 @@ export class GettingStarted implements IWorkbenchContribution {
 		if (platform.isLinux && platform.isRootUser()) {
 			return;
 		}
-		this.openerService.open(URI.parse(url));
+		window.open(url);
 	}
 
 	private handleWelcome(): void {

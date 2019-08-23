@@ -20,7 +20,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IProductService } from 'vs/platform/product/common/product';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface IFeedback {
 	feedback: string;
@@ -28,7 +27,7 @@ export interface IFeedback {
 }
 
 export interface IFeedbackDelegate {
-	submitFeedback(feedback: IFeedback, openerService: IOpenerService): void;
+	submitFeedback(feedback: IFeedback): void;
 	getCharacterLimit(sentiment: number): number;
 }
 
@@ -47,13 +46,13 @@ export class FeedbackDropdown extends Dropdown {
 
 	private readonly feedbackDelegate: IFeedbackDelegate;
 
-	private feedbackForm: HTMLFormElement | null = null;
-	private feedbackDescriptionInput: HTMLTextAreaElement | null = null;
-	private smileyInput: HTMLElement | null = null;
-	private frownyInput: HTMLElement | null = null;
-	private sendButton: Button | null = null;
-	private hideButton: HTMLInputElement | null = null;
-	private remainingCharacterCount: HTMLElement | null = null;
+	private feedbackForm: HTMLFormElement | null;
+	private feedbackDescriptionInput: HTMLTextAreaElement | null;
+	private smileyInput: HTMLElement | null;
+	private frownyInput: HTMLElement | null;
+	private sendButton: Button;
+	private hideButton: HTMLInputElement;
+	private remainingCharacterCount: HTMLElement;
 
 	private requestFeatureLink: string | undefined;
 
@@ -67,8 +66,7 @@ export class FeedbackDropdown extends Dropdown {
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IProductService productService: IProductService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IProductService productService: IProductService
 	) {
 		super(container, options);
 
@@ -255,7 +253,7 @@ export class FeedbackDropdown extends Dropdown {
 		// Checkbox: Hide Feedback Smiley
 		const hideButtonContainer = dom.append(buttonsContainer, dom.$('div.hide-button-container'));
 
-		this.hideButton = dom.append(hideButtonContainer, dom.$('input.hide-button')) as HTMLInputElement;
+		this.hideButton = dom.append(hideButtonContainer, dom.$('input.hide-button'));
 		this.hideButton.type = 'checkbox';
 		this.hideButton.checked = true;
 		this.hideButton.id = 'hide-button';
@@ -318,7 +316,7 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	private updateCharCountText(): void {
-		if (this.feedbackDescriptionInput && this.remainingCharacterCount && this.sendButton) {
+		if (this.feedbackDescriptionInput) {
 			this.remainingCharacterCount.innerText = this.getCharCountText(this.feedbackDescriptionInput.value.length);
 			this.sendButton.enabled = this.feedbackDescriptionInput.value.length > 0;
 		}
@@ -417,7 +415,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.feedbackDelegate.submitFeedback({
 			feedback: this.feedbackDescriptionInput.value,
 			sentiment: this.sentiment
-		}, this.openerService);
+		});
 
 		this.hide();
 	}

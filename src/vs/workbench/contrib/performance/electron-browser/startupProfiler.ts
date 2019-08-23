@@ -17,7 +17,6 @@ import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
@@ -29,7 +28,6 @@ export class StartupProfiler implements IWorkbenchContribution {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService extensionService: IExtensionService,
-		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		// wait for everything to be ready
 		Promise.all([
@@ -118,6 +116,6 @@ export class StartupProfiler implements IWorkbenchContribution {
 		const baseUrl = product.reportIssueUrl;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 
-		this._openerService.open(URI.parse(`${baseUrl}${queryStringPrefix}body=${encodeURIComponent(body)}`));
+		window.open(`${baseUrl}${queryStringPrefix}body=${encodeURIComponent(body)}`);
 	}
 }

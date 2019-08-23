@@ -20,7 +20,6 @@ import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/term
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILogService } from 'vs/platform/log/common/log';
 
 let Terminal: typeof XTermTerminal;
 let WebLinksAddon: typeof XTermWebLinksAddon;
@@ -35,8 +34,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IHistoryService private readonly _historyService: IHistoryService,
-		@ILogService private readonly _logService: ILogService
+		@IHistoryService private readonly _historyService: IHistoryService
 	) {
 	}
 
@@ -73,7 +71,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, false);
 	}
 
-	public getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride: Platform = platform): Promise<{ shell: string, args: string | string[] }> {
+	public getDefaultShellAndArgs(platformOverride: Platform = platform): Promise<{ shell: string, args: string | string[] }> {
 		const isWorkspaceShellAllowed = this._isWorkspaceShellAllowed();
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 		let lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : undefined;
@@ -86,17 +84,13 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			process.env.windir,
 			lastActiveWorkspace,
 			this._configurationResolverService,
-			this._logService,
-			useAutomationShell,
 			platformOverride
 		);
 		const args = getDefaultShellArgs(
 			(key) => this._configurationService.inspect(key),
 			isWorkspaceShellAllowed,
-			useAutomationShell,
 			lastActiveWorkspace,
 			this._configurationResolverService,
-			this._logService,
 			platformOverride
 		);
 		return Promise.resolve({ shell, args });

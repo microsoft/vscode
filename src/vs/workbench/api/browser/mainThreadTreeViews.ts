@@ -10,8 +10,8 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -22,28 +22,24 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	constructor(
 		extHostContext: IExtHostContext,
 		@IViewsService private readonly viewsService: IViewsService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean, canSelectMany: boolean }): void {
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-			const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
-			this._dataProviders.set(treeViewId, dataProvider);
-			const viewer = this.getTreeView(treeViewId);
-			if (viewer) {
-				viewer.dataProvider = dataProvider;
-				viewer.showCollapseAllAction = !!options.showCollapseAll;
-				viewer.canSelectMany = !!options.canSelectMany;
-				this.registerListeners(treeViewId, viewer);
-				this._proxy.$setVisible(treeViewId, viewer.visible);
-			} else {
-				this.notificationService.error('No view is registered with id: ' + treeViewId);
-			}
-		});
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean }): void {
+		const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
+		this._dataProviders.set(treeViewId, dataProvider);
+		const viewer = this.getTreeView(treeViewId);
+		if (viewer) {
+			viewer.dataProvider = dataProvider;
+			viewer.showCollapseAllAction = !!options.showCollapseAll;
+			this.registerListeners(treeViewId, viewer);
+			this._proxy.$setVisible(treeViewId, viewer.visible);
+		} else {
+			this.notificationService.error('No view is registered with id: ' + treeViewId);
+		}
 	}
 
 	$reveal(treeViewId: string, item: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
@@ -67,7 +63,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return Promise.resolve();
 	}
 
-	$setMessage(treeViewId: string, message: string): void {
+	$setMessage(treeViewId: string, message: string | IMarkdownString): void {
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
 			viewer.message = message;
@@ -129,7 +125,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._dataProviders.forEach((dataProvider, treeViewId) => {
 			const treeView = this.getTreeView(treeViewId);
 			if (treeView) {
-				treeView.dataProvider = undefined;
+				treeView.dataProvider = null;
 			}
 		});
 		this._dataProviders.clear();

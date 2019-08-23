@@ -37,15 +37,15 @@ type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndS
 
 export class CallStackView extends ViewletPanel {
 
-	private pauseMessage!: HTMLSpanElement;
-	private pauseMessageLabel!: HTMLSpanElement;
+	private pauseMessage: HTMLSpanElement;
+	private pauseMessageLabel: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
-	private needsRefresh = false;
-	private ignoreSelectionChangedEvent = false;
-	private ignoreFocusStackFrameEvent = false;
+	private needsRefresh: boolean;
+	private ignoreSelectionChangedEvent: boolean;
+	private ignoreFocusStackFrameEvent: boolean;
 	private callStackItemType: IContextKey<string>;
-	private dataSource!: CallStackDataSource;
-	private tree!: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
+	private dataSource: CallStackDataSource;
+	private tree: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
 	private parentSessionToExpand = new Set<IDebugSession>();
 
@@ -60,7 +60,7 @@ export class CallStackView extends ViewletPanel {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
@@ -144,8 +144,7 @@ export class CallStackView extends ViewletPanel {
 
 						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 					}
-				},
-				expandOnlyOnTwistieClick: true
+				}
 			});
 
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
@@ -577,7 +576,7 @@ function isDebugModel(obj: any): obj is IDebugModel {
 }
 
 function isDebugSession(obj: any): obj is IDebugSession {
-	return obj && typeof obj.getAllThreads === 'function';
+	return typeof obj.getAllThreads === 'function';
 }
 
 function isDeemphasized(frame: IStackFrame): boolean {
@@ -585,26 +584,21 @@ function isDeemphasized(frame: IStackFrame): boolean {
 }
 
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
-	deemphasizedStackFramesToShow: IStackFrame[] = [];
+	deemphasizedStackFramesToShow: IStackFrame[];
 
 	constructor(private debugService: IDebugService) { }
 
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
-		if (isDebugSession(element)) {
-			const threads = element.getAllThreads();
-			return (threads.length > 1) || (threads.length === 1 && threads[0].stopped) || (this.debugService.getModel().getSessions().filter(s => s.parentSession === element).length > 0);
-		}
-
-		return isDebugModel(element) || (element instanceof Thread && element.stopped);
+		return isDebugModel(element) || isDebugSession(element) || (element instanceof Thread && element.stopped);
 	}
 
-	async getChildren(element: IDebugModel | CallStackItem): Promise<CallStackItem[]> {
+	getChildren(element: IDebugModel | CallStackItem): Promise<CallStackItem[]> {
 		if (isDebugModel(element)) {
 			const sessions = element.getSessions();
 			if (sessions.length === 0) {
 				return Promise.resolve([]);
 			}
-			if (sessions.length > 1) {
+			if (sessions.length > 1 || this.debugService.getViewModel().isMultiSessionView()) {
 				return Promise.resolve(sessions.filter(s => !s.parentSession));
 			}
 
@@ -613,14 +607,11 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			return threads.length === 1 ? this.getThreadChildren(<Thread>threads[0]) : Promise.resolve(threads);
 		} else if (isDebugSession(element)) {
 			const childSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === element);
-			const threads: CallStackItem[] = element.getAllThreads();
-			if (threads.length === 1) {
-				// Do not show thread when there is only one to be compact.
-				const children = await this.getThreadChildren(<Thread>threads[0]);
-				return children.concat(childSessions);
+			if (childSessions.length) {
+				return Promise.resolve(childSessions);
 			}
 
-			return Promise.resolve(threads.concat(childSessions));
+			return Promise.resolve(element.getAllThreads());
 		} else {
 			return this.getThreadChildren(<Thread>element);
 		}

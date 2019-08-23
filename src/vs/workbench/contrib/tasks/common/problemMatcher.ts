@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import * as Strings from 'vs/base/common/strings';
 import * as Assert from 'vs/base/common/assert';
-import { join, normalize } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
@@ -216,7 +216,6 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 	if (fullPath === undefined) {
 		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
 	}
-	fullPath = normalize(fullPath);
 	fullPath = fullPath.replace(/\\/g, '/');
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
@@ -264,7 +263,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 
 	public abstract get matchLength(): number;
 
-	protected fillProblemData(data: ProblemData | undefined, pattern: ProblemPattern, matches: RegExpExecArray): data is ProblemData {
+	protected fillProblemData(data: ProblemData | null, pattern: ProblemPattern, matches: RegExpExecArray): data is ProblemData {
 		if (data) {
 			this.fillProperty(data, 'file', pattern, matches, true);
 			this.appendProperty(data, 'message', pattern, matches, true);
@@ -449,7 +448,7 @@ class SingleLineMatcher extends AbstractLineMatcher {
 class MultiLineMatcher extends AbstractLineMatcher {
 
 	private patterns: ProblemPattern[];
-	private data: ProblemData | undefined;
+	private data: ProblemData | null;
 
 	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
 		super(matcher, fileService);
@@ -480,7 +479,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		}
 		let loop = !!this.patterns[this.patterns.length - 1].loop;
 		if (!loop) {
-			this.data = undefined;
+			this.data = null;
 		}
 		const markerMatch = data ? this.getMarkerMatch(data) : null;
 		return { match: markerMatch ? markerMatch : null, continue: loop };
@@ -491,7 +490,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		Assert.ok(pattern.loop === true && this.data !== null);
 		let matches = pattern.regexp.exec(line);
 		if (!matches) {
-			this.data = undefined;
+			this.data = null;
 			return null;
 		}
 		let data = Objects.deepClone(this.data);
@@ -794,7 +793,7 @@ export namespace Config {
 		fileLocation?: string | string[];
 
 		/**
-		* The name of a predefined problem pattern, the inline definition
+		* The name of a predefined problem pattern, the inline definintion
 		* of a problem pattern or an array of problem patterns to match
 		* problems spread over multiple lines.
 		*/

@@ -10,4 +10,3 @@ export { RefreshPreviewCommand } from './refreshPreview';
 export { ShowPreviewSecuritySelectorCommand } from './showPreviewSecuritySelector';
 export { MoveCursorToPositionCommand } from './moveCursorToPosition';
 export { ToggleLockCommand } from './toggleLock';
-export { RenderDocument } from './renderDocument';

@@ -3,41 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { DocumentSymbol } from 'vs/editor/common/modes';
+import { DocumentSymbol, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { values } from 'vs/base/common/collections';
 
-export async function getDocumentSymbols(document: ITextModel, flat: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
+export function getDocumentSymbols(model: ITextModel, flat: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
 
-	const model = await OutlineModel.create(document, token);
-	const roots: DocumentSymbol[] = [];
-	for (const child of values(model.children)) {
-		if (child instanceof OutlineElement) {
-			roots.push(child.symbol);
-		} else {
-			roots.push(...values(child.children).map(child => child.symbol));
+	let roots: DocumentSymbol[] = [];
+
+	let promises = DocumentSymbolProviderRegistry.all(model).map(support => {
+
+		return Promise.resolve(support.provideDocumentSymbols(model, token)).then(result => {
+			if (Array.isArray(result)) {
+				roots.push(...result);
+			}
+		}, err => {
+			onUnexpectedExternalError(err);
+		});
+	});
+
+	return Promise.all(promises).then(() => {
+		let flatEntries: DocumentSymbol[] = [];
+		if (token.isCancellationRequested) {
+			return flatEntries;
 		}
-	}
-
-	let flatEntries: DocumentSymbol[] = [];
-	if (token.isCancellationRequested) {
+		if (flat) {
+			flatten(flatEntries, roots, '');
+		} else {
+			flatEntries = roots;
+		}
+		flatEntries.sort(compareEntriesUsingStart);
 		return flatEntries;
-	}
-	if (flat) {
-		flatten(flatEntries, roots, '');
-	} else {
-		flatEntries = roots;
-	}
-
-	return flatEntries.sort(compareEntriesUsingStart);
+	});
 }
 
 function compareEntriesUsingStart(a: DocumentSymbol, b: DocumentSymbol): number {
@@ -48,7 +51,6 @@ function flatten(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideCo
 	for (let entry of entries) {
 		bucket.push({
 			kind: entry.kind,
-			tags: entry.tags,
 			name: entry.name,
 			detail: entry.detail,
 			containerName: entry.containerName || overrideContainerLabel,

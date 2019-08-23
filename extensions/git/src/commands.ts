@@ -353,11 +353,9 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-			case Status.INDEX_ADDED:
 				return this.getURI(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
-			case Status.UNTRACKED:
 				return this.getURI(resource.resourceUri, '~');
 
 			case Status.DELETED_BY_THEM:
@@ -416,7 +414,6 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-			case Status.INDEX_ADDED:
 				return `${basename} (Index)`;
 
 			case Status.MODIFIED:
@@ -429,10 +426,6 @@ export class CommandCenter {
 
 			case Status.DELETED_BY_THEM:
 				return `${basename} (Ours)`;
-
-			case Status.UNTRACKED:
-
-				return `${basename} (Untracked)`;
 		}
 
 		return '';
@@ -456,8 +449,6 @@ export class CommandCenter {
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
 			return;
 		}
-
-		url = url.trim().replace(/^git\s+clone\s+/, '');
 
 		const config = workspace.getConfiguration('git');
 		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
@@ -707,13 +698,7 @@ export class CommandCenter {
 				viewColumn: ViewColumn.Active
 			};
 
-			let document;
-			try {
-				document = await workspace.openTextDocument(uri);
-			} catch (error) {
-				await commands.executeCommand<void>('vscode.open', uri, opts);
-				continue;
-			}
+			const document = await workspace.openTextDocument(uri);
 
 			// Check if active text editor has same path as other editor. we cannot compare via
 			// URI.toString() here because the schemas can be different. Instead we just go by path.
@@ -1240,35 +1225,23 @@ export class CommandCenter {
 		opts?: CommitOptions
 	): Promise<boolean> {
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
+		const promptToSaveFilesBeforeCommit = config.get<boolean>('promptToSaveFilesBeforeCommit') === true;
 
-		// migration
-		if (promptToSaveFilesBeforeCommit as any === true) {
-			promptToSaveFilesBeforeCommit = 'always';
-		} else if (promptToSaveFilesBeforeCommit as any === false) {
-			promptToSaveFilesBeforeCommit = 'never';
-		}
-
-		if (promptToSaveFilesBeforeCommit !== 'never') {
-			let documents = workspace.textDocuments
+		if (promptToSaveFilesBeforeCommit) {
+			const unsavedTextDocuments = workspace.textDocuments
 				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (promptToSaveFilesBeforeCommit === 'staged') {
-				documents = documents
-					.filter(d => repository.indexGroup.resourceStates.some(s => s.resourceUri.path === d.uri.fsPath));
-			}
-
-			if (documents.length > 0) {
-				const message = documents.length === 1
-					? localize('unsaved files single', "The following file is unsaved and will not be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?", path.basename(documents[0].uri.fsPath))
-					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", documents.length);
+			if (unsavedTextDocuments.length > 0) {
+				const message = unsavedTextDocuments.length === 1
+					? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before committing?", path.basename(unsavedTextDocuments[0].uri.fsPath))
+					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", unsavedTextDocuments.length);
 				const saveAndCommit = localize('save and commit', "Save All & Commit");
 				const commit = localize('commit', "Commit Anyway");
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
-					await Promise.all(documents.map(d => d.save()));
-					await repository.add(documents.map(d => d.uri));
+					await Promise.all(unsavedTextDocuments.map(d => d.save()));
+					await repository.status();
 				} else if (pick !== commit) {
 					return false; // do not commit on cancel
 				}
@@ -1282,24 +1255,15 @@ export class CommandCenter {
 
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
-			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
-
-			if (!suggestSmartCommit) {
-				return false;
-			}
 
 			// prompt the user if we want to commit all or not
 			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to automatically stage all your changes and commit them directly?");
 			const yes = localize('yes', "Yes");
 			const always = localize('always', "Always");
-			const never = localize('never', "Never");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, always);
 
 			if (pick === always) {
 				config.update('enableSmartCommit', true, true);
-			} else if (pick === never) {
-				config.update('suggestSmartCommit', false, true);
-				return false;
 			} else if (pick !== yes) {
 				return false; // do not commit on cancel
 			}
@@ -1335,10 +1299,6 @@ export class CommandCenter {
 
 		if (!message) {
 			return false;
-		}
-
-		if (opts.all && config.get<'all' | 'tracked'>('smartCommitChanges') === 'tracked') {
-			opts.all = 'tracked';
 		}
 
 		await repository.commit(message, opts);
@@ -1388,6 +1348,19 @@ export class CommandCenter {
 	@command('git.commit', { repository: true })
 	async commit(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository);
+	}
+
+	@command('git.commitWithInput', { repository: true })
+	async commitWithInput(repository: Repository): Promise<void> {
+		if (!repository.inputBox.value) {
+			return;
+		}
+
+		const didCommit = await this.smartCommit(repository, async () => repository.inputBox.value);
+
+		if (didCommit) {
+			repository.inputBox.value = await repository.getCommitTemplate();
+		}
 	}
 
 	@command('git.commitStaged', { repository: true })
@@ -1514,12 +1487,12 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private async promptForBranchName(defaultName?: string): Promise<string> {
+	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const sanitize = (name: string) => name ?
-			name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
+			name.trim().replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
 			: name;
 
 		const rawBranchName = defaultName || await window.showInputBox({
@@ -1536,11 +1509,7 @@ export class CommandCenter {
 			}
 		});
 
-		return sanitize(rawBranchName || '');
-	}
-
-	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		const branchName = await this.promptForBranchName(defaultName);
+		const branchName = sanitize(rawBranchName || '');
 
 		if (!branchName) {
 			return;
@@ -1602,21 +1571,25 @@ export class CommandCenter {
 
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
-		const branchName = await this.promptForBranchName();
+		const name = await window.showInputBox({
+			placeHolder: localize('branch name', "Branch name"),
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			value: repository.HEAD && repository.HEAD.name
+		});
 
-		if (!branchName) {
+		if (!name || name.trim().length === 0) {
 			return;
 		}
 
 		try {
-			await repository.renameBranch(branchName);
+			await repository.renameBranch(name);
 		} catch (err) {
 			switch (err.gitErrorCode) {
 				case GitErrorCodes.InvalidBranchName:
 					window.showErrorMessage(localize('invalid branch name', 'Invalid branch name'));
 					return;
 				case GitErrorCodes.BranchAlreadyExists:
-					window.showErrorMessage(localize('branch already exists', "A branch named '{0}' already exists", branchName));
+					window.showErrorMessage(localize('branch already exists', "A branch named '{0}' already exists", name));
 					return;
 				default:
 					throw err;
@@ -1940,17 +1913,7 @@ export class CommandCenter {
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
 		const HEAD = repository.HEAD;
 
-		if (!HEAD) {
-			return;
-		} else if (!HEAD.upstream) {
-			const branchName = HEAD.name;
-			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
-			const yes = localize('ok', "OK");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-			if (pick === yes) {
-				await this.publish(repository);
-			}
+		if (!HEAD || !HEAD.upstream) {
 			return;
 		}
 
@@ -1982,16 +1945,8 @@ export class CommandCenter {
 	}
 
 	@command('git.sync', { repository: true })
-	async sync(repository: Repository): Promise<void> {
-		try {
-			await this._sync(repository, false);
-		} catch (err) {
-			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
-				return;
-			}
-
-			throw err;
-		}
+	sync(repository: Repository): Promise<void> {
+		return this._sync(repository, false);
 	}
 
 	@command('git._syncAll')
@@ -2008,16 +1963,8 @@ export class CommandCenter {
 	}
 
 	@command('git.syncRebase', { repository: true })
-	async syncRebase(repository: Repository): Promise<void> {
-		try {
-			await this._sync(repository, true);
-		} catch (err) {
-			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
-				return;
-			}
-
-			throw err;
-		}
+	syncRebase(repository: Repository): Promise<void> {
+		return this._sync(repository, true);
 	}
 
 	@command('git.publish', { repository: true })

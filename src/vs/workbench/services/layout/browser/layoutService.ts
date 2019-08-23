@@ -8,7 +8,6 @@ import { Event } from 'vs/base/common/event';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension } from 'vs/base/browser/dom';
 
 export const IWorkbenchLayoutService = createDecorator<IWorkbenchLayoutService>('layoutService');
 
@@ -81,11 +80,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns if the part is visible.
 	 */
 	isVisible(part: Parts): boolean;
-
-	/**
-	 * Returns if the part is visible.
-	 */
-	getDimension(part: Parts): Dimension;
 
 	/**
 	 * Set activity bar hidden or not

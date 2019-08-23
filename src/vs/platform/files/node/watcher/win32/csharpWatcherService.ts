@@ -18,7 +18,7 @@ export class OutOfProcessWin32FolderWatcher {
 
 	private ignored: glob.ParsedPattern[];
 
-	private handle: cp.ChildProcess | undefined;
+	private handle: cp.ChildProcess;
 	private restartCounter: number;
 
 	constructor(
@@ -134,7 +134,7 @@ export class OutOfProcessWin32FolderWatcher {
 	public dispose(): void {
 		if (this.handle) {
 			this.handle.kill();
-			this.handle = undefined;
+			this.handle = null!; // StrictNullOverride: nulling out ok in dispose
 		}
 	}
 }

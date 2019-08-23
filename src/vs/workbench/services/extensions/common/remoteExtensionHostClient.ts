@@ -71,6 +71,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 
 	public start(): Promise<IMessagePassingProtocol> {
 		const options: IConnectionOptions = {
+			isBuilt: this._environmentService.isBuilt,
 			commit: this._productService.commit,
 			socketFactory: this._socketFactory,
 			addressProvider: {
@@ -79,8 +80,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 					return { host: authority.host, port: authority.port };
 				}
 			},
-			signService: this._signService,
-			logService: this._logService
+			signService: this._signService
 		};
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
 

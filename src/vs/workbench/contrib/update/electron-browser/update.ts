@@ -19,7 +19,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver-umd';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationHandle, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ReleaseNotesManager } from './releaseNotesEditor';
@@ -162,8 +162,32 @@ export class ProductContribution implements IWorkbenchContribution {
 	}
 }
 
+class NeverShowAgain {
+
+	private readonly key: string;
+
+	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, (notification: INotificationHandle) => {
+
+		// Hide notification
+		notification.close();
+
+		this.storageService.store(this.key, true, StorageScope.GLOBAL);
+
+		return Promise.resolve(true);
+	});
+
+	constructor(key: string, @IStorageService private readonly storageService: IStorageService) {
+		this.key = `neverShowAgain:${key}`;
+	}
+
+	shouldShow(): boolean {
+		return !this.storageService.getBoolean(this.key, StorageScope.GLOBAL, false);
+	}
+}
+
 export class Win3264BitContribution implements IWorkbenchContribution {
 
+	private static readonly KEY = 'update/win32-64bits';
 	private static readonly URL = 'https://code.visualstudio.com/updates/v1_15#_windows-64-bit';
 	private static readonly INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
 
@@ -176,18 +200,28 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			return;
 		}
 
+		const neverShowAgain = new NeverShowAgain(Win3264BitContribution.KEY, storageService);
+
+		if (!neverShowAgain.shouldShow()) {
+			return;
+		}
+
 		const url = product.quality === 'insider'
 			? Win3264BitContribution.INSIDER_URL
 			: Win3264BitContribution.URL;
 
-		notificationService.prompt(
+		const handle = notificationService.prompt(
 			severity.Info,
 			nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available! Click [here]({1}) to learn more.", product.nameShort, url),
-			[],
-			{
-				sticky: true,
-				neverShowAgain: { id: 'neverShowAgain:update/win32-64bits', isSecondary: true }
-			}
+			[{
+				label: nls.localize('neveragain', "Don't Show Again"),
+				isSecondary: true,
+				run: () => {
+					neverShowAgain.action.run(handle);
+					neverShowAgain.action.dispose();
+				}
+			}],
+			{ sticky: true }
 		);
 	}
 }
@@ -362,13 +396,23 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		// windows fast updates (target === system)
-		this.notificationService.prompt(
+		const neverShowAgain = new NeverShowAgain('update/win32-fast-updates', this.storageService);
+
+		if (!neverShowAgain.shouldShow()) {
+			return;
+		}
+
+		const handle = this.notificationService.prompt(
 			severity.Info,
 			nls.localize('updateInstalling', "{0} {1} is being installed in the background; we'll let you know when it's done.", product.nameLong, update.productVersion),
-			[],
-			{
-				neverShowAgain: { id: 'neverShowAgain:update/win32-fast-updates', isSecondary: true }
-			}
+			[{
+				label: nls.localize('neveragain', "Don't Show Again"),
+				isSecondary: true,
+				run: () => {
+					neverShowAgain.action.run(handle);
+					neverShowAgain.action.dispose();
+				}
+			}]
 		);
 	}
 
@@ -440,7 +484,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '5_update',
 			command: {
 				id: 'update.checking',
-				title: nls.localize('checkingForUpdates', "Checking for Updates..."),
+				title: nls.localize('checkingForUpdates', "Checking For Updates..."),
 				precondition: FalseContext
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)

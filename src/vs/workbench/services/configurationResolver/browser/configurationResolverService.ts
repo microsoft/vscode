@@ -55,7 +55,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				if (activeEditor instanceof DiffEditorInput) {
 					activeEditor = activeEditor.modifiedInput;
 				}
-				const fileResource = toResource(activeEditor, { filterByScheme: [Schemas.file, Schemas.userData] });
+				const fileResource = toResource(activeEditor, { filterByScheme: Schemas.file });
 				if (!fileResource) {
 					return undefined;
 				}
@@ -250,7 +250,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						inputOptions.value = info.default;
 					}
 					return this.quickInputService.input(inputOptions).then(resolvedInput => {
-						return resolvedInput;
+						return resolvedInput ? resolvedInput : undefined;
 					});
 				}
 

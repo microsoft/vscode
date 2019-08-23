@@ -11,7 +11,7 @@ export interface WebviewInitData {
 	readonly webviewCspSource: string;
 }
 
-export function asWebviewUri(
+export function toWebviewResource(
 	initData: WebviewInitData,
 	uuid: string,
 	resource: vscode.Uri

@@ -11,13 +11,10 @@
 			"while": "(^|\\G)\\s*\\*(?!/)(?=([^*]|[*](?!/))*$)",
 			"patterns": [
 				{
-					"include": "text.html.markdown#fenced_code_block_js"
+					"include": "text.html.markdown#fenced_code_block"
 				},
 				{
-					"include": "text.html.markdown#fenced_code_block_ts"
-				},
-				{
-					"include": "text.html.markdown#fenced_code_block_unknown"
+					"include": "text.html.markdown#lists"
 				},
 				{
 					"include": "#example"

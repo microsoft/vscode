@@ -10,7 +10,6 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
-import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -62,7 +61,7 @@ export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, ve
 	env['COLORTERM'] = 'truecolor';
 }
 
-function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | undefined) {
+function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | NodeJS.ProcessEnv | undefined) {
 	if (!other) {
 		return;
 	}
@@ -78,11 +77,7 @@ function resolveConfigurationVariables(configurationResolverService: IConfigurat
 	Object.keys(env).forEach((key) => {
 		const value = env[key];
 		if (typeof value === 'string' && lastActiveWorkspaceRoot !== null) {
-			try {
-				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
-			} catch (e) {
-				env[key] = value;
-			}
+			env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
 		}
 	});
 	return env;
@@ -124,40 +119,19 @@ function _getLangEnvVariable(locale?: string) {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(
-	shell: IShellLaunchConfig,
-	userHome: string,
-	lastActiveWorkspace: IWorkspaceFolder | undefined,
-	configurationResolverService: IConfigurationResolverService | undefined,
-	root: Uri | undefined,
-	customCwd: string | undefined,
-	logService?: ILogService
-): string {
+export function getCwd(shell: IShellLaunchConfig, userHome: string, root?: Uri, customCwd?: string): string {
 	if (shell.cwd) {
 		return (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 	}
 
 	let cwd: string | undefined;
 
+	// TODO: Handle non-existent customCwd
 	if (!shell.ignoreConfigurationCwd && customCwd) {
-		if (configurationResolverService) {
-			try {
-				customCwd = configurationResolverService.resolve(lastActiveWorkspace, customCwd);
-			} catch (e) {
-				// There was an issue resolving a variable, log the error in the console and
-				// fallback to the default.
-				if (logService) {
-					logService.error('Could not resolve terminal.integrated.cwd', e);
-				}
-				customCwd = undefined;
-			}
-		}
-		if (customCwd) {
-			if (path.isAbsolute(customCwd)) {
-				cwd = customCwd;
-			} else if (root) {
-				cwd = path.join(root.fsPath, customCwd);
-			}
+		if (path.isAbsolute(customCwd)) {
+			cwd = customCwd;
+		} else if (root) {
+			cwd = path.join(root.fsPath, customCwd);
 		}
 	}
 
@@ -198,27 +172,19 @@ export function getDefaultShell(
 	windir: string | undefined,
 	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	configurationResolverService: IConfigurationResolverService | undefined,
-	logService: ILogService,
-	useAutomationShell: boolean,
-	platformOverride: platform.Platform = platform.platform
+	platformOverride: platform.Platform = platform.platform,
 ): string {
-	let maybeExecutable: string | null = null;
-	if (useAutomationShell) {
-		// If automationShell is specified, this should override the normal setting
-		maybeExecutable = getShellSetting(fetchSetting, isWorkspaceShellAllowed, 'automationShell', platformOverride);
-	}
-	if (!maybeExecutable) {
-		maybeExecutable = getShellSetting(fetchSetting, isWorkspaceShellAllowed, 'shell', platformOverride);
-	}
-	let executable: string = maybeExecutable || defaultShell;
+	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+	const shellConfigValue = fetchSetting(`terminal.integrated.shell.${platformKey}`);
+	let executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || (<string | null>shellConfigValue.default || defaultShell);
 
 	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 	// safe to assume that this was used by accident as Sysnative does not
 	// exist and will break the terminal in non-WoW64 environments.
 	if ((platformOverride === platform.Platform.Windows) && !isWoW64 && windir) {
-		const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
+		const sysnativePath = path.join(windir, 'Sysnative').toLowerCase();
 		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
-			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length + 1));
+			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length));
 		}
 	}
 
@@ -228,12 +194,7 @@ export function getDefaultShell(
 	}
 
 	if (configurationResolverService) {
-		try {
-			executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
-		} catch (e) {
-			logService.error(`Could not resolve shell`, e);
-			executable = executable;
-		}
+		executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
 	}
 
 	return executable;
@@ -242,18 +203,10 @@ export function getDefaultShell(
 export function getDefaultShellArgs(
 	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
 	isWorkspaceShellAllowed: boolean,
-	useAutomationShell: boolean,
 	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	configurationResolverService: IConfigurationResolverService | undefined,
-	logService: ILogService,
 	platformOverride: platform.Platform = platform.platform,
 ): string | string[] {
-	if (useAutomationShell) {
-		if (!!getShellSetting(fetchSetting, isWorkspaceShellAllowed, 'automationShell', platformOverride)) {
-			return [];
-		}
-	}
-
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
 	let args = <string[] | string>((isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default);
@@ -263,28 +216,11 @@ export function getDefaultShellArgs(
 	if (configurationResolverService) {
 		const resolvedArgs: string[] = [];
 		for (const arg of args) {
-			try {
-				resolvedArgs.push(configurationResolverService.resolve(lastActiveWorkspace, arg));
-			} catch (e) {
-				logService.error(`Could not resolve terminal.integrated.shellArgs.${platformKey}`, e);
-				resolvedArgs.push(arg);
-			}
+			resolvedArgs.push(configurationResolverService.resolve(lastActiveWorkspace, arg));
 		}
 		args = resolvedArgs;
 	}
 	return args;
-}
-
-function getShellSetting(
-	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
-	isWorkspaceShellAllowed: boolean,
-	type: 'automationShell' | 'shell',
-	platformOverride: platform.Platform = platform.platform,
-): string | null {
-	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
-	const shellConfigValue = fetchSetting(`terminal.integrated.${type}.${platformKey}`);
-	const executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || (<string | null>shellConfigValue.default);
-	return executable;
 }
 
 export function createTerminalEnvironment(

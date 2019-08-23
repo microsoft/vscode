@@ -118,7 +118,7 @@ export class MarkdownEngine {
 		return md;
 	}
 
-	private tokenizeDocument(
+	private tokenize(
 		document: SkinnyTextDocument,
 		config: MarkdownItConfig,
 		engine: MarkdownIt
@@ -131,23 +131,16 @@ export class MarkdownEngine {
 		this.currentDocument = document.uri;
 		this._slugCount = new Map<string, number>();
 
-		const tokens = this.tokenizeString(document.getText(), engine);
+		const text = document.getText();
+		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 		this._tokenCache.update(document, config, tokens);
 		return tokens;
 	}
 
-	private tokenizeString(text: string, engine: MarkdownIt) {
-		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
-	}
-
-	public async render(input: SkinnyTextDocument | string): Promise<string> {
-		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
+	public async render(document: SkinnyTextDocument): Promise<string> {
+		const config = this.getConfig(document.uri);
 		const engine = await this.getEngine(config);
-		const tokens = typeof input === 'string'
-			? this.tokenizeString(input, engine)
-			: this.tokenizeDocument(input, config, engine);
-
-		return engine.renderer.render(tokens, {
+		return engine.renderer.render(this.tokenize(document, config, engine), {
 			...(engine as any).options,
 			...config
 		}, {});
@@ -156,14 +149,14 @@ export class MarkdownEngine {
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
 		const config = this.getConfig(document.uri);
 		const engine = await this.getEngine(config);
-		return this.tokenizeDocument(document, config, engine);
+		return this.tokenize(document, config, engine);
 	}
 
 	public cleanCache(): void {
 		this._tokenCache.clean();
 	}
 
-	private getConfig(resource?: vscode.Uri): MarkdownItConfig {
+	private getConfig(resource: vscode.Uri): MarkdownItConfig {
 		const config = vscode.workspace.getConfiguration('markdown', resource);
 		return {
 			breaks: config.get<boolean>('preview.breaks', false),
@@ -304,13 +297,13 @@ async function getMarkdownOptions(md: () => MarkdownIt) {
 		html: true,
 		highlight: (str: string, lang?: string) => {
 			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
-			if (lang && ['tsx', 'typescriptreact'].includes(lang.toLocaleLowerCase())) {
+			if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
 				lang = 'jsx';
 			}
 			if (lang && lang.toLocaleLowerCase() === 'json5') {
 				lang = 'json';
 			}
-			if (lang && ['c#', 'csharp'].includes(lang.toLocaleLowerCase())) {
+			if (lang && lang.toLocaleLowerCase() === 'c#') {
 				lang = 'cs';
 			}
 			if (lang && hljs.getLanguage(lang)) {

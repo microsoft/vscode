@@ -269,11 +269,6 @@ export interface IEditorOptions {
 	 */
 	lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 	/**
-	 * Controls the minimal number of visible leading and trailing lines surrounding the cursor.
-	 * Defaults to 0.
-	*/
-	cursorSurroundingLines?: number;
-	/**
 	 * Render last line number when the file ends with a newline.
 	 * Defaults to true.
 	*/
@@ -987,7 +982,6 @@ export interface InternalEditorViewOptions {
 	readonly ariaLabel: string;
 	readonly renderLineNumbers: RenderLineNumbersType;
 	readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
-	readonly cursorSurroundingLines: number;
 	readonly renderFinalNewline: boolean;
 	readonly selectOnLineNumbers: boolean;
 	readonly glyphMargin: boolean;
@@ -1296,7 +1290,6 @@ export class InternalEditorOptions {
 			&& a.ariaLabel === b.ariaLabel
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
-			&& a.cursorSurroundingLines === b.cursorSurroundingLines
 			&& a.renderFinalNewline === b.renderFinalNewline
 			&& a.selectOnLineNumbers === b.selectOnLineNumbers
 			&& a.glyphMargin === b.glyphMargin
@@ -2056,7 +2049,6 @@ export class EditorOptionsValidator {
 			disableMonospaceOptimizations: disableMonospaceOptimizations,
 			rulers: rulers,
 			ariaLabel: _string(opts.ariaLabel, defaults.ariaLabel),
-			cursorSurroundingLines: _clampedInt(opts.cursorSurroundingLines, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			renderLineNumbers: renderLineNumbers,
 			renderCustomLineNumbers: renderCustomLineNumbers,
 			renderFinalNewline: _boolean(opts.renderFinalNewline, defaults.renderFinalNewline),
@@ -2180,12 +2172,11 @@ export class InternalEditorOptionsFactory {
 				ariaLabel: (accessibilityIsOff ? nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.") : opts.viewInfo.ariaLabel),
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
-				cursorSurroundingLines: opts.viewInfo.cursorSurroundingLines,
 				renderFinalNewline: opts.viewInfo.renderFinalNewline,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
 				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
-				roundedSelection: opts.viewInfo.roundedSelection,
+				roundedSelection: (accessibilityIsOn ? false : opts.viewInfo.roundedSelection), // DISABLED WHEN SCREEN READER IS ATTACHED
 				overviewRulerLanes: opts.viewInfo.overviewRulerLanes,
 				overviewRulerBorder: opts.viewInfo.overviewRulerBorder,
 				cursorBlinking: opts.viewInfo.cursorBlinking,
@@ -2198,15 +2189,15 @@ export class InternalEditorOptionsFactory {
 				scrollBeyondLastColumn: opts.viewInfo.scrollBeyondLastColumn,
 				smoothScrolling: opts.viewInfo.smoothScrolling,
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
-				renderWhitespace: opts.viewInfo.renderWhitespace,
-				renderControlCharacters: opts.viewInfo.renderControlCharacters,
-				fontLigatures: opts.viewInfo.fontLigatures,
-				renderIndentGuides: opts.viewInfo.renderIndentGuides,
+				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
+				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
 				highlightActiveIndentGuide: opts.viewInfo.highlightActiveIndentGuide,
 				renderLineHighlight: opts.viewInfo.renderLineHighlight,
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
-					enabled: opts.viewInfo.minimap.enabled,
+					enabled: (accessibilityIsOn ? false : opts.viewInfo.minimap.enabled), // DISABLED WHEN SCREEN READER IS ATTACHED
 					side: opts.viewInfo.minimap.side,
 					renderCharacters: opts.viewInfo.minimap.renderCharacters,
 					showSlider: opts.viewInfo.minimap.showSlider,
@@ -2218,7 +2209,7 @@ export class InternalEditorOptionsFactory {
 			contribInfo: {
 				selectionClipboard: opts.contribInfo.selectionClipboard,
 				hover: opts.contribInfo.hover,
-				links: opts.contribInfo.links,
+				links: (accessibilityIsOn ? false : opts.contribInfo.links), // DISABLED WHEN SCREEN READER IS ATTACHED
 				contextmenu: opts.contribInfo.contextmenu,
 				quickSuggestions: opts.contribInfo.quickSuggestions,
 				quickSuggestionsDelay: opts.contribInfo.quickSuggestionsDelay,
@@ -2235,13 +2226,13 @@ export class InternalEditorOptionsFactory {
 				tabCompletion: opts.contribInfo.tabCompletion,
 				suggest: opts.contribInfo.suggest,
 				gotoLocation: opts.contribInfo.gotoLocation,
-				selectionHighlight: opts.contribInfo.selectionHighlight,
-				occurrencesHighlight: opts.contribInfo.occurrencesHighlight,
-				codeLens: opts.contribInfo.codeLens,
+				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
+				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
+				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
 				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
 				foldingStrategy: opts.contribInfo.foldingStrategy,
 				showFoldingControls: opts.contribInfo.showFoldingControls,
-				matchBrackets: opts.contribInfo.matchBrackets,
+				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
 				colorDecorators: opts.contribInfo.colorDecorators,
 				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
@@ -2645,7 +2636,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
-		cursorSurroundingLines: 0,
 		renderFinalNewline: true,
 		selectOnLineNumbers: true,
 		glyphMargin: true,

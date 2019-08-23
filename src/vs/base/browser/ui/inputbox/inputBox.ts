@@ -8,8 +8,7 @@ import 'vs/css!./inputBox';
 import * as nls from 'vs/nls';
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
-import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
+import { RenderOptions, renderFormattedText, renderText } from 'vs/base/browser/htmlContentRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -20,9 +19,6 @@ import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { domEvent } from 'vs/base/browser/event';
 
 const $ = dom.$;
 
@@ -32,8 +28,6 @@ export interface IInputOptions extends IInputBoxStyles {
 	readonly type?: string;
 	readonly validationOptions?: IInputValidationOptions;
 	readonly flexibleHeight?: boolean;
-	readonly flexibleWidth?: boolean;
-	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
 }
 
@@ -92,6 +86,7 @@ export class InputBox extends Widget {
 	private contextViewProvider?: IContextViewProvider;
 	element: HTMLElement;
 	private input: HTMLInputElement;
+	private mirror: HTMLElement;
 	private actionbar?: ActionBar;
 	private options: IInputOptions;
 	private message: IMessage | null;
@@ -99,12 +94,7 @@ export class InputBox extends Widget {
 	private ariaLabel: string;
 	private validation?: IInputValidator;
 	private state: 'idle' | 'open' | 'closed' = 'idle';
-
-	private mirror: HTMLElement | undefined;
-	private cachedHeight: number | undefined;
-	private cachedContentHeight: number | undefined;
-	private maxHeight: number = Number.POSITIVE_INFINITY;
-	private scrollableElement: ScrollableElement | undefined;
+	private cachedHeight: number | null;
 
 	private inputBackground?: Color;
 	private inputForeground?: Color;
@@ -133,6 +123,7 @@ export class InputBox extends Widget {
 		this.options = options || Object.create(null);
 		mixin(this.options, defaultOpts, false);
 		this.message = null;
+		this.cachedHeight = null;
 		this.placeholder = this.options.placeholder || '';
 		this.ariaLabel = this.options.ariaLabel || '';
 
@@ -168,33 +159,8 @@ export class InputBox extends Widget {
 		this.onblur(this.input, () => dom.removeClass(this.element, 'synthetic-focus'));
 
 		if (this.options.flexibleHeight) {
-			this.maxHeight = typeof this.options.flexibleMaxHeight === 'number' ? this.options.flexibleMaxHeight : Number.POSITIVE_INFINITY;
-
 			this.mirror = dom.append(wrapper, $('div.mirror'));
 			this.mirror.innerHTML = '&nbsp;';
-
-			this.scrollableElement = new ScrollableElement(this.element, { vertical: ScrollbarVisibility.Auto });
-
-			if (this.options.flexibleWidth) {
-				this.input.setAttribute('wrap', 'off');
-				this.mirror.style.whiteSpace = 'pre';
-				this.mirror.style.wordWrap = 'initial';
-			}
-
-			dom.append(container, this.scrollableElement.getDomNode());
-			this._register(this.scrollableElement);
-
-			// from ScrollableElement to DOM
-			this._register(this.scrollableElement.onScroll(e => this.input.scrollTop = e.scrollTop));
-
-			const onSelectionChange = Event.filter(domEvent(document, 'selectionchange'), () => {
-				const selection = document.getSelection();
-				return !!selection && selection.anchorNode === wrapper;
-			});
-
-			// from DOM to ScrollableElement
-			this._register(onSelectionChange(this.updateScrollDimensions, this));
-			this._register(this.onDidHeightChange(this.updateScrollDimensions, this));
 		} else {
 			this.input.type = this.options.type || 'text';
 			this.input.setAttribute('wrap', 'off');
@@ -264,7 +230,7 @@ export class InputBox extends Widget {
 		}
 	}
 
-	public get mirrorElement(): HTMLElement | undefined {
+	public get mirrorElement(): HTMLElement {
 		return this.mirror;
 	}
 
@@ -284,7 +250,7 @@ export class InputBox extends Widget {
 	}
 
 	public get height(): number {
-		return typeof this.cachedHeight === 'number' ? this.cachedHeight : dom.getTotalHeight(this.element);
+		return this.cachedHeight === null ? dom.getTotalHeight(this.element) : this.cachedHeight;
 	}
 
 	public focus(): void {
@@ -329,47 +295,10 @@ export class InputBox extends Widget {
 	}
 
 	public set width(width: number) {
-		if (this.options.flexibleHeight && this.options.flexibleWidth) {
-			// textarea with horizontal scrolling
-			let horizontalPadding = 0;
-			if (this.mirror) {
-				const paddingLeft = parseFloat(this.mirror.style.paddingLeft || '') || 0;
-				const paddingRight = parseFloat(this.mirror.style.paddingRight || '') || 0;
-				horizontalPadding = paddingLeft + paddingRight;
-			}
-			this.input.style.width = (width - horizontalPadding) + 'px';
-		} else {
-			this.input.style.width = width + 'px';
-		}
-
+		this.input.style.width = width + 'px';
 		if (this.mirror) {
 			this.mirror.style.width = width + 'px';
 		}
-	}
-
-	public set paddingRight(paddingRight: number) {
-		if (this.options.flexibleHeight && this.options.flexibleWidth) {
-			this.input.style.width = `calc(100% - ${paddingRight}px)`;
-		} else {
-			this.input.style.paddingRight = paddingRight + 'px';
-		}
-
-		if (this.mirror) {
-			this.mirror.style.paddingRight = paddingRight + 'px';
-		}
-	}
-
-	private updateScrollDimensions(): void {
-		if (typeof this.cachedContentHeight !== 'number' || typeof this.cachedHeight !== 'number') {
-			return;
-		}
-
-		const scrollHeight = this.cachedContentHeight;
-		const height = this.cachedHeight;
-		const scrollTop = this.input.scrollTop;
-
-		this.scrollableElement!.setScrollDimensions({ scrollHeight, height });
-		this.scrollableElement!.setScrollPosition({ scrollTop });
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {
@@ -471,7 +400,7 @@ export class InputBox extends Widget {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				const renderOptions: MarkdownRenderOptions = {
+				const renderOptions: RenderOptions = {
 					inline: true,
 					className: 'monaco-inputbox-message'
 				};
@@ -581,13 +510,12 @@ export class InputBox extends Widget {
 			return;
 		}
 
-		const previousHeight = this.cachedContentHeight;
-		this.cachedContentHeight = dom.getTotalHeight(this.mirror);
+		const previousHeight = this.cachedHeight;
+		this.cachedHeight = dom.getTotalHeight(this.mirror);
 
-		if (previousHeight !== this.cachedContentHeight) {
-			this.cachedHeight = Math.min(this.cachedContentHeight, this.maxHeight);
+		if (previousHeight !== this.cachedHeight) {
 			this.input.style.height = this.cachedHeight + 'px';
-			this._onDidHeightChange.fire(this.cachedContentHeight);
+			this._onDidHeightChange.fire(this.cachedHeight);
 		}
 	}
 

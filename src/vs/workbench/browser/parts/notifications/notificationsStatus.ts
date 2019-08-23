@@ -11,12 +11,12 @@ import { localize } from 'vs/nls';
 
 export class NotificationsStatus extends Disposable {
 
-	private notificationsCenterStatusItem: IStatusbarEntryAccessor | undefined;
+	private notificationsCenterStatusItem: IStatusbarEntryAccessor;
 	private currentNotifications = new Set<INotificationViewItem>();
 
 	private currentStatusMessage: [IStatusMessageViewItem, IDisposable] | undefined;
 
-	private isNotificationsCenterVisible: boolean | undefined;
+	private isNotificationsCenterVisible: boolean;
 
 	constructor(
 		private model: INotificationsModel,

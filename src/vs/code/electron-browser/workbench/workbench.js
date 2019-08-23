@@ -14,14 +14,11 @@ const bootstrapWindow = require('../../../../bootstrap-window');
 // Setup shell environment
 process['lazyEnv'] = getLazyEnv();
 
-// Load workbench main JS, CSS and NLS all in parallel. This is an
-// optimization to prevent a waterfall of loading to happen, because
-// we know for a fact that workbench.desktop.main will depend on
-// the related CSS and NLS counterparts.
+// Load workbench main
 bootstrapWindow.load([
-	'vs/workbench/workbench.desktop.main',
-	'vs/nls!vs/workbench/workbench.desktop.main',
-	'vs/css!vs/workbench/workbench.desktop.main'
+	'vs/workbench/workbench.main',
+	'vs/nls!vs/workbench/workbench.main',
+	'vs/css!vs/workbench/workbench.main'
 ],
 	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
@@ -30,7 +27,7 @@ bootstrapWindow.load([
 			perf.mark('main/startup');
 
 			// @ts-ignore
-			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
+			return require('vs/workbench/electron-browser/main').main(configuration);
 		});
 	}, {
 		removeDeveloperKeybindingsAfterLoad: true,

@@ -50,8 +50,7 @@
           ".babelrc",
           ".jsonc",
           ".eslintrc",
-          ".eslintrc.json",
-          "tslint.json"
+          ".eslintrc.json"
         ],
         "configuration": "./language-configuration.json"
       }

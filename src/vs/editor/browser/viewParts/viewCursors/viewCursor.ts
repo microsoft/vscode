@@ -68,7 +68,7 @@ export class ViewCursor {
 		Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
 		this._domNode.setDisplay('none');
 
-		this._position = new Position(1, 1);
+		this.updatePosition(new Position(1, 1));
 
 		this._lastRenderedContent = '';
 		this._renderData = null;
@@ -113,7 +113,7 @@ export class ViewCursor {
 	}
 
 	public onCursorPositionChanged(position: Position): boolean {
-		this._position = position;
+		this.updatePosition(position);
 		return true;
 	}
 
@@ -209,5 +209,9 @@ export class ViewCursor {
 			height: this._renderData.height,
 			width: 2
 		};
+	}
+
+	private updatePosition(newPosition: Position): void {
+		this._position = newPosition;
 	}
 }

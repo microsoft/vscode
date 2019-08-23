@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { getMediaMime } from 'vs/base/common/mime';
 
 //https://stackoverflow.com/questions/56356655/structuring-a-typescript-project-with-workers/56374158#56374158
 declare var self: ServiceWorkerGlobalScope;
@@ -33,8 +35,8 @@ self.addEventListener('activate', event => {
 
 //#region --- fetching/caching
 
-const _cacheName = 'vscode-extension-resources';
-const _resourcePrefix = '/vscode-remote-resource';
+const _cacheName = 'vscode-resources';
+const _resourcePrefix = '/vscode-resources/fetch';
 const _pendingFetch = new Map<string, Function>();
 
 self.addEventListener('message', event => {
@@ -69,18 +71,38 @@ async function respondWithDefault(event: FetchEvent): Promise<Response> {
 }
 
 async function respondWithResource(event: FetchEvent, uri: URI): Promise<Response> {
-
-	const cachedValue = await caches.open(_cacheName).then(cache => cache.match(event.request));
+	const cacheKey = event.request.url.replace('&r=1', '');
+	const cachedValue = await caches.open(_cacheName).then(cache => cache.match(cacheKey));
 	if (cachedValue) {
 		return cachedValue;
 	}
 
-	const response: Response = await event.preloadResponse || await fetch(event.request);
-	if (response.headers.get('X-VSCode-Extension') === 'true') {
-		await caches.open(_cacheName).then(cache => cache.put(event.request, response.clone()));
-	}
+	return new Promise<Response>(resolve => {
 
-	return response;
+		const token = generateUuid();
+		const [first] = uri.query.split('&');
+		const components = JSON.parse(first.substr(2));
+
+		_pendingFetch.set(token, async (data: ArrayBuffer, isExtensionResource: boolean) => {
+
+			const res = new Response(data, {
+				status: 200,
+				headers: { 'Content-Type': getMediaMime(components.path) || 'text/plain' }
+			});
+
+			if (isExtensionResource) {
+				// only cache extension resources but not other
+				// resources, esp not workspace resources
+				await caches.open(_cacheName).then(cache => cache.put(cacheKey, res.clone()));
+			}
+
+			return resolve(res);
+		});
+
+		self.clients.get(event.clientId).then(client => {
+			client.postMessage({ uri: components, token });
+		});
+	});
 }
 
 //#endregion

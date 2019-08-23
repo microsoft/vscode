@@ -253,13 +253,13 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		return this._range;
 	}
 
-	private _label: string | undefined;
+	private _label: string;
 
-	get label(): string | undefined {
+	get label(): string {
 		return this._label;
 	}
 
-	set label(label: string | undefined) {
+	set label(label: string) {
 		this._label = label;
 		this._onDidUpdateCommentThread.fire();
 	}

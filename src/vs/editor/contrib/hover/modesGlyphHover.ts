@@ -27,7 +27,6 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._lineNumber = -1;
-		this._result = [];
 	}
 
 	public setLineNumber(lineNumber: number): void {
@@ -101,7 +100,6 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	) {
 		super(ModesGlyphHoverWidget.ID, editor);
 
-		this._messages = [];
 		this._lastLineNumber = -1;
 
 		this._markdownRenderer = this._register(new MarkdownRenderer(this._editor, modeService, openerService));

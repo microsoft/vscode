@@ -8,13 +8,13 @@ import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
-import { QuickOpenModel, QuickOpenEntry, IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenModel, QuickOpenEntry, compareEntries } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import * as filters from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { symbolKindToCssClass, SymbolTag } from 'vs/editor/common/modes';
+import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,12 +25,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 
 class SymbolEntry extends EditorQuickOpenEntry {
-
-	private bearingResolve?: Promise<this | undefined>;
-	private score?: filters.FuzzyScore;
+	private bearingResolve: Promise<this | undefined>;
 
 	constructor(
 		private bearing: IWorkspaceSymbol,
@@ -41,14 +38,6 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(editorService);
-	}
-
-	setScore(score: filters.FuzzyScore | undefined) {
-		this.score = score;
-	}
-
-	getHighlights(): [IHighlight[] /* Label */, IHighlight[] | undefined /* Description */, IHighlight[] | undefined /* Detail */] {
-		return [this.isDeprecated() ? [] : filters.createMatches(this.score), undefined, undefined];
 	}
 
 	getLabel(): string {
@@ -76,16 +65,8 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		return symbolKindToCssClass(this.bearing.kind);
 	}
 
-	getLabelOptions(): IIconLabelValueOptions | undefined {
-		return this.isDeprecated() ? { extraClasses: ['deprecated'] } : undefined;
-	}
-
 	getResource(): URI {
 		return this.bearing.location.uri;
-	}
-
-	private isDeprecated(): boolean {
-		return this.bearing.tags ? this.bearing.tags.indexOf(SymbolTag.Deprecated) >= 0 : false;
 	}
 
 	run(mode: Mode, context: IEntryRunContext): boolean {
@@ -130,24 +111,18 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		return input;
 	}
 
-	static compare(a: SymbolEntry, b: SymbolEntry, searchValue: string): number {
-		// order: score, name, kind
-		if (a.score && b.score) {
-			if (a.score[0] > b.score[0]) {
-				return -1;
-			} else if (a.score[0] < b.score[0]) {
-				return 1;
-			}
+	static compare(elementA: SymbolEntry, elementB: SymbolEntry, searchValue: string): number {
+
+		// Sort by Type if name is identical
+		const elementAName = elementA.getLabel().toLowerCase();
+		const elementBName = elementB.getLabel().toLowerCase();
+		if (elementAName === elementBName) {
+			let elementAType = symbolKindToCssClass(elementA.bearing.kind);
+			let elementBType = symbolKindToCssClass(elementB.bearing.kind);
+			return elementAType.localeCompare(elementBType);
 		}
-		const aName = a.getLabel().toLowerCase();
-		const bName = b.getLabel().toLowerCase();
-		let res = aName.localeCompare(bName);
-		if (res !== 0) {
-			return res;
-		}
-		let aKind = symbolKindToCssClass(a.bearing.kind);
-		let bKind = symbolKindToCssClass(b.bearing.kind);
-		return aKind.localeCompare(bKind);
+
+		return compareEntries(elementA, elementB, searchValue);
 	}
 }
 
@@ -223,9 +198,6 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 	private fillInSymbolEntries(bucket: SymbolEntry[], provider: IWorkspaceSymbolProvider, types: IWorkspaceSymbol[], searchValue: string): void {
 
-		const pattern = strings.stripWildcards(searchValue);
-		const patternLow = pattern.toLowerCase();
-
 		// Convert to Entries
 		for (let element of types) {
 			if (this.options.skipLocalSymbols && !!element.containerName) {
@@ -233,11 +205,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 			}
 
 			const entry = this.instantiationService.createInstance(SymbolEntry, element, provider);
-			entry.setScore(filters.fuzzyScore(
-				pattern, patternLow, 0,
-				entry.getLabel(), entry.getLabel().toLowerCase(), 0,
-				true
-			));
+			entry.setHighlights(filters.matchesFuzzy2(searchValue, entry.getLabel()) || []);
 			bucket.push(entry);
 		}
 	}

@@ -33,14 +33,6 @@
 			"sourceMaps": true,
 			"outFiles": ["${workspaceFolder}/server/out"]
 		}
-	],
-	"compounds": [
-		{
-			"name": "Launch Extension and Attach Language Server",
-			"configurations": [
-				"Launch Extension",
-				"Attach Language Server"
-			]
-		}
+
 	]
 }

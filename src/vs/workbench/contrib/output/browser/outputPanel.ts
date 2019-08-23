@@ -29,9 +29,9 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export class OutputPanel extends AbstractTextResourceEditor {
-	private actions: IAction[] | undefined;
+	private actions: IAction[];
 	private scopedInstantiationService: IInstantiationService;
-	private _focus = false;
+	private _focus: boolean;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -155,7 +155,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			}
 
 			const model = codeEditor.getModel();
-			if (model && this.actions) {
+			if (model) {
 				const newPositionLine = e.position.lineNumber;
 				const lastLine = model.getLineCount();
 				const newLockState = lastLine !== newPositionLine;

@@ -19,7 +19,7 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 
 export class DirtyFilesTracker extends Disposable implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
-	private lastKnownDirtyCount: number | undefined;
+	private lastDirtyCount: number;
 	private readonly badgeHandle = this._register(new MutableDisposable());
 
 	constructor(
@@ -50,10 +50,6 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private get hasDirtyCount(): boolean {
-		return typeof this.lastKnownDirtyCount === 'number' && this.lastKnownDirtyCount > 0;
-	}
-
 	private onUntitledDidChangeDirty(resource: URI): void {
 		const gotDirty = this.untitledEditorService.isDirty(resource);
 
@@ -61,7 +57,7 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 			this.updateDocumentEdited();
 		}
 
-		if (gotDirty || this.hasDirtyCount) {
+		if (gotDirty || this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
 		}
 	}
@@ -104,7 +100,7 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 			this.updateDocumentEdited();
 		}
 
-		if (this.hasDirtyCount) {
+		if (this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
 		}
 	}
@@ -122,17 +118,15 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 			this.updateDocumentEdited();
 		}
 
-		if (this.hasDirtyCount) {
+		if (this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
 		}
 	}
 
 	private updateActivityBadge(): void {
 		const dirtyCount = this.textFileService.getDirty().length;
-		this.lastKnownDirtyCount = dirtyCount;
-
+		this.lastDirtyCount = dirtyCount;
 		this.badgeHandle.clear();
-
 		if (dirtyCount > 0) {
 			this.badgeHandle.value = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
 		}

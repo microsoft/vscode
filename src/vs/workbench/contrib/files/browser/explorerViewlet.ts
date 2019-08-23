@@ -34,11 +34,10 @@ import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
-	private openEditorsVisibleContextKey!: IContextKey<boolean>;
+	private openEditorsVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -203,7 +202,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 					openEditorsView.setStructuralRefreshDelay(delay);
 				}
 
-				let openedEditor: IEditor | undefined;
+				let openedEditor: IEditor | null = null;
 				try {
 					openedEditor = await this.editorService.openEditor(editor, options, group);
 				} catch (error) {
@@ -215,7 +214,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 					}
 				}
 
-				return withUndefinedAsNull(openedEditor);
+				return openedEditor;
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));

@@ -158,9 +158,9 @@ export class KeyboardLayoutPickerAction extends Action {
 
 			await this.fileService.resolve(file).then(undefined, (error) => {
 				return this.fileService.createFile(file, VSBuffer.fromString(KeyboardLayoutPickerAction.DEFAULT_CONTENT));
-			}).then((stat): Promise<IEditor | undefined> | undefined => {
+			}).then((stat): Promise<IEditor | null> | null => {
 				if (!stat) {
-					return undefined;
+					return null;
 				}
 				return this.editorService.openEditor({
 					resource: stat.resource,

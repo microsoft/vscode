@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
+import { containsUppercaseCharacter } from 'vs/base/common/strings';
 
 const enum ReplacePatternKind {
 	StaticValue = 0,
@@ -51,8 +51,17 @@ export class ReplacePattern {
 
 	public buildReplaceString(matches: string[] | null, preserveCase?: boolean): string {
 		if (this._state.kind === ReplacePatternKind.StaticValue) {
-			if (preserveCase) {
-				return buildReplaceStringWithCasePreserved(matches, this._state.staticValue);
+			if (preserveCase && matches && (matches[0] !== '')) {
+				if (matches[0].toUpperCase() === matches[0]) {
+					return this._state.staticValue.toUpperCase();
+				} else if (matches[0].toLowerCase() === matches[0]) {
+					return this._state.staticValue.toLowerCase();
+				} else if (containsUppercaseCharacter(matches[0][0])) {
+					return this._state.staticValue[0].toUpperCase() + this._state.staticValue.substr(1);
+				} else {
+					// we don't understand its pattern yet.
+					return this._state.staticValue;
+				}
 			} else {
 				return this._state.staticValue;
 			}

@@ -46,11 +46,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { Emitter } from 'vs/base/common/event';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
-	static readonly ITEM_HEIGHT = 22;
+	private static readonly ITEM_HEIGHT = 22;
 
 	getHeight(element: ExplorerItem): number {
 		return ExplorerDelegate.ITEM_HEIGHT;
@@ -61,7 +60,6 @@ export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 	}
 }
 
-export const explorerRootErrorEmitter = new Emitter<URI>();
 export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
 	constructor(
@@ -89,9 +87,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 					// Single folder create a dummy explorer item to show error
 					const placeholder = new ExplorerItem(element.resource, undefined, false);
 					placeholder.isError = true;
+
 					return [placeholder];
-				} else {
-					explorerRootErrorEmitter.fire(element.resource);
 				}
 			} else {
 				// Do not show error for roots since we already use an explorer decoration to notify user
@@ -170,11 +167,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			});
 
 			templateData.elementDisposable = templateData.label.onDidRender(() => {
-				try {
-					this.updateWidth(stat);
-				} catch (e) {
-					// noop since the element might no longer be in the tree, no update of width necessery
-				}
+				this.updateWidth(stat);
 			});
 		}
 
@@ -225,46 +218,56 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		const lastDot = value.lastIndexOf('.');
 
 		inputBox.value = value;
-		inputBox.focus();
-		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = once(async (success: boolean, blur: boolean) => {
+		let isFinishableDisposeEvent = false;
+		setTimeout(() => {
+			// Check if disposed
+			if (!inputBox.inputElement) {
+				return;
+			}
+			inputBox.focus();
+			inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
+			isFinishableDisposeEvent = true;
+		}, 0);
+
+		const done = once(async (success: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
-			container.removeChild(label.element);
-			editableData.onFinish(value, success);
+			label.element.remove();
+			// Timeout: once done rendering only then re-render #70902
+			setTimeout(() => editableData.onFinish(value, success), 0);
 		});
 
-		// It can happen that the tree re-renders this node. When that happens,
-		// we're gonna get a blur event first and only after an element disposable.
-		// Because of that, we should setTimeout the blur handler to differentiate
-		// between the blur happening because of a unrender or because of a user action.
-		let ignoreBlur = false;
+		const blurDisposable = DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
+			done(inputBox.isInputValid());
+		});
 
 		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
-						done(true, false);
+						done(true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false, false);
+					done(false);
 				}
 			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				setTimeout(() => {
-					if (!ignoreBlur) {
-						done(inputBox.isInputValid(), true);
-					}
-				}, 0);
-			}),
+			blurDisposable,
 			label,
 			styler
 		];
 
-		return toDisposable(() => ignoreBlur = true);
+		return toDisposable(() => {
+			if (isFinishableDisposeEvent) {
+				done(false);
+			}
+			else {
+				dispose(toDispose);
+				label.element.remove();
+			}
+		});
 	}
 
 	disposeElement?(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
@@ -437,7 +440,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
 	private toDispose: IDisposable[];
-	private dropEnabled = false;
+	private dropEnabled: boolean;
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,
@@ -805,8 +808,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private doHandleExplorerDrop(source: ExplorerItem, target: ExplorerItem, isCopy: boolean): Promise<void> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
-			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			return this.fileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming)).then(stat => {
+
+			return this.fileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false })).then(stat => {
 				if (!stat.isDirectory) {
 					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).then(() => undefined);
 				}

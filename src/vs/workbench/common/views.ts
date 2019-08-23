@@ -6,7 +6,7 @@
 import { Command } from 'vs/editor/common/modes';
 import { UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeViewDataProvider } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
@@ -17,10 +17,10 @@ import { values, keys } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction } from 'vs/base/common/actions';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
-export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
 
 export namespace Extensions {
 	export const ViewContainersRegistry = 'workbench.registry.view.containers';
@@ -51,7 +51,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
+	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -67,12 +67,8 @@ export interface IViewContainersRegistry {
 	get(id: string): ViewContainer | undefined;
 }
 
-interface ViewOrderDelegate {
-	getOrder(group?: string): number | undefined;
-}
-
 export class ViewContainer {
-	protected constructor(readonly id: string, readonly hideIfEmpty: boolean, readonly extensionId?: ExtensionIdentifier, readonly orderDelegate?: ViewOrderDelegate) { }
+	protected constructor(readonly id: string, readonly hideIfEmpty: boolean, readonly extensionId?: ExtensionIdentifier) { }
 }
 
 class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {
@@ -89,7 +85,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer {
+	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier): ViewContainer {
 		const existing = this.viewContainers.get(id);
 		if (existing) {
 			return existing;
@@ -97,7 +93,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 
 		const viewContainer = new class extends ViewContainer {
 			constructor() {
-				super(id, !!hideIfEmpty, extensionId, viewOrderDelegate);
+				super(id, !!hideIfEmpty, extensionId);
 			}
 		};
 		this.viewContainers.set(id, viewContainer);
@@ -129,8 +125,6 @@ export interface IViewDescriptor {
 	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
 
 	readonly when?: ContextKeyExpr;
-
-	readonly group?: string;
 
 	readonly order?: number;
 
@@ -306,13 +300,11 @@ export interface IViewsService {
 
 export interface ITreeView extends IDisposable {
 
-	dataProvider: ITreeViewDataProvider | undefined;
+	dataProvider: ITreeViewDataProvider | null;
 
 	showCollapseAllAction: boolean;
 
-	canSelectMany: boolean;
-
-	message?: string;
+	message?: string | IMarkdownString;
 
 	readonly visible: boolean;
 
@@ -332,7 +324,9 @@ export interface ITreeView extends IDisposable {
 
 	focus(): void;
 
-	layout(height: number, width: number): void;
+	layout(height: number): void;
+
+	show(container: HTMLElement): void;
 
 	getOptimalWidth(): number;
 

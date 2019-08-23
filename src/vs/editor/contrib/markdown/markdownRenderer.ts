@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { renderMarkdown, MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
+import { renderMarkdown, RenderOptions } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
@@ -33,7 +33,7 @@ export class MarkdownRenderer extends Disposable {
 		super();
 	}
 
-	private getOptions(disposeables: DisposableStore): MarkdownRenderOptions {
+	private getOptions(disposeables: DisposableStore): RenderOptions {
 		return {
 			codeBlockRenderer: (languageAlias, value) => {
 				// In markdown,

@@ -29,7 +29,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -39,8 +38,8 @@ export const variableSetEmitter = new Emitter<void>();
 export class VariablesView extends ViewletPanel {
 
 	private onFocusStackFrameScheduler: RunOnceScheduler;
-	private needsRefresh = false;
-	private tree!: WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
+	private needsRefresh: boolean;
+	private tree: WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>;
 	private savedViewState: IAsyncDataTreeViewState | undefined;
 
 	constructor(
@@ -50,10 +49,9 @@ export class VariablesView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
@@ -123,7 +121,7 @@ export class VariablesView extends ViewletPanel {
 			this.tree.updateChildren();
 		}));
 		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
-		this._register(this.tree.onContextMenu(async e => await this.onContextMenu(e)));
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
@@ -152,7 +150,7 @@ export class VariablesView extends ViewletPanel {
 		}
 	}
 
-	private async onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): Promise<void> {
+	private onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): void {
 		const variable = e.element;
 		if (variable instanceof Variable && !!variable.value) {
 			const actions: IAction[] = [];
@@ -173,16 +171,6 @@ export class VariablesView extends ViewletPanel {
 					this.debugService.addWatchExpression(variable.evaluateName);
 					return Promise.resolve(undefined);
 				}));
-			}
-			if (session && session.capabilities.supportsDataBreakpoints) {
-				const response = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
-				const dataid = response.dataId;
-				if (dataid) {
-					actions.push(new Separator());
-					actions.push(new Action('debug.addDataBreakpoint', nls.localize('setDataBreakpoint', "Set Data Breakpoint"), undefined, true, () => {
-						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist);
-					}));
-				}
 			}
 
 			this.contextMenuService.showContextMenu({

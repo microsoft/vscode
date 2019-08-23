@@ -16,8 +16,6 @@ import { ISurveyData } from 'vs/platform/product/common/product';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
 
 class LanguageSurvey {
 
@@ -27,8 +25,7 @@ class LanguageSurvey {
 		notificationService: INotificationService,
 		telemetryService: ITelemetryService,
 		modelService: IModelService,
-		textFileService: ITextFileService,
-		openerService: IOpenerService
+		textFileService: ITextFileService
 	) {
 		const SESSION_COUNT_KEY = `${data.surveyId}.sessionCount`;
 		const LAST_SESSION_DATE_KEY = `${data.surveyId}.lastSessionDate`;
@@ -97,7 +94,7 @@ class LanguageSurvey {
 				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/takeShortSurvey`);
 					telemetryService.getTelemetryInfo().then(info => {
-						openerService.open(URI.parse(`${data.surveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`));
+						window.open(`${data.surveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
 						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 						storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 					});
@@ -129,12 +126,11 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IModelService modelService: IModelService,
-		@ITextFileService textFileService: ITextFileService,
-		@IOpenerService openerService: IOpenerService
+		@ITextFileService textFileService: ITextFileService
 	) {
 		product.surveys
 			.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability)
-			.map(surveyData => new LanguageSurvey(surveyData, storageService, notificationService, telemetryService, modelService, textFileService, openerService));
+			.map(surveyData => new LanguageSurvey(surveyData, storageService, notificationService, telemetryService, modelService, textFileService));
 	}
 }
 

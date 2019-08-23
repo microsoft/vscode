@@ -24,7 +24,7 @@ import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/remoteL
 import { ContextKeyExpr, ContextKeyDefinedExpr, ContextKeyNotExpr, ContextKeyEqualsExpr, ContextKeyNotEqualsExpr, ContextKeyRegexExpr, IContextKeyExprMapper } from 'vs/platform/contextkey/common/contextkey';
 import { listProcesses } from 'vs/base/node/ps';
 import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
 import { basename } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -51,7 +51,6 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	private readonly _logger: ILog;
 
 	constructor(
-		private readonly _connectionToken: string,
 		private readonly environmentService: IEnvironmentService,
 		private readonly logService: ILogService,
 		private readonly telemetryService: ITelemetryService
@@ -158,31 +157,31 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		};
 
 		const _exprKeyMapper = new class implements IContextKeyExprMapper {
-			mapDefined(key: string): ContextKeyExpr {
-				return ContextKeyDefinedExpr.create(key);
+			mapDefined(key: string): ContextKeyDefinedExpr {
+				return new ContextKeyDefinedExpr(key);
 			}
-			mapNot(key: string): ContextKeyExpr {
-				return ContextKeyNotExpr.create(key);
+			mapNot(key: string): ContextKeyNotExpr {
+				return new ContextKeyNotExpr(key);
 			}
-			mapEquals(key: string, value: any): ContextKeyExpr {
+			mapEquals(key: string, value: any): ContextKeyEqualsExpr {
 				if (key === 'resourceScheme' && typeof value === 'string') {
-					return ContextKeyEqualsExpr.create(key, _mapResourceSchemeValue(value, false));
+					return new ContextKeyEqualsExpr(key, _mapResourceSchemeValue(value, false));
 				} else {
-					return ContextKeyEqualsExpr.create(key, value);
+					return new ContextKeyEqualsExpr(key, value);
 				}
 			}
-			mapNotEquals(key: string, value: any): ContextKeyExpr {
+			mapNotEquals(key: string, value: any): ContextKeyNotEqualsExpr {
 				if (key === 'resourceScheme' && typeof value === 'string') {
-					return ContextKeyNotEqualsExpr.create(key, _mapResourceSchemeValue(value, false));
+					return new ContextKeyNotEqualsExpr(key, _mapResourceSchemeValue(value, false));
 				} else {
-					return ContextKeyNotEqualsExpr.create(key, value);
+					return new ContextKeyNotEqualsExpr(key, value);
 				}
 			}
 			mapRegex(key: string, regexp: RegExp | null): ContextKeyRegexExpr {
 				if (key === 'resourceScheme' && regexp) {
-					return ContextKeyRegexExpr.create(key, _mapResourceRegExpValue(regexp));
+					return new ContextKeyRegexExpr(key, _mapResourceRegExpValue(regexp));
 				} else {
-					return ContextKeyRegexExpr.create(key, regexp);
+					return new ContextKeyRegexExpr(key, regexp);
 				}
 			}
 		};
@@ -239,7 +238,6 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		return this.scanExtensions(language, extensionDevelopmentPath).then((extensions): IRemoteAgentEnvironmentDTO => {
 			return {
 				pid: process.pid,
-				connectionToken: this._connectionToken,
 				appRoot: URI.file(this.environmentService.appRoot),
 				appSettingsHome: this.environmentService.appSettingsHome,
 				settingsPath: this.environmentService.machineSettingsResource,

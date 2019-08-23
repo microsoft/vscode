@@ -84,11 +84,10 @@
 
 .monaco-editor-hover .hover-row.status-bar .actions {
 	display: flex;
-	padding: 0px 8px;
 }
 
 .monaco-editor-hover .hover-row.status-bar .actions .action-container {
-	margin-right: 16px;
+	margin: 0px 8px;
 	cursor: pointer;
 }
 

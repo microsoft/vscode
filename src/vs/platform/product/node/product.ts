@@ -6,7 +6,6 @@
 import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { IProductConfiguration } from 'vs/platform/product/common/product';
-import pkg from 'vs/platform/product/node/package';
 
 const rootPath = path.dirname(getPathFromAmdModule(require, ''));
 const productJsonPath = path.join(rootPath, 'product.json');
@@ -17,7 +16,5 @@ if (process.env['VSCODE_DEV']) {
 	product.nameLong += ' Dev';
 	product.dataFolderName += '-dev';
 }
-
-product.version = pkg.version;
 
 export default product;

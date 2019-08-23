@@ -221,12 +221,6 @@ export class EditorControl extends Disposable {
 		}
 	}
 
-	setVisible(visible: boolean): void {
-		if (this._activeControl) {
-			this._activeControl.setVisible(visible, this.groupView);
-		}
-	}
-
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 

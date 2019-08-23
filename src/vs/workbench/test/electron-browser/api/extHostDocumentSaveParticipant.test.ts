@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/common/extHostTypes';
-import { MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTextEditorsShape, WorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -262,9 +262,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, pushEdits sync', () => {
 
-		let dto: IWorkspaceEditDto;
+		let dto: WorkspaceEditDto;
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: IWorkspaceEditDto) {
+			$tryApplyWorkspaceEdit(_edits: WorkspaceEditDto) {
 				dto = _edits;
 				return Promise.resolve(true);
 			}
@@ -286,9 +286,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, concurrent change', () => {
 
-		let edits: IWorkspaceEditDto;
+		let edits: WorkspaceEditDto;
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: IWorkspaceEditDto) {
+			$tryApplyWorkspaceEdit(_edits: WorkspaceEditDto) {
 				edits = _edits;
 				return Promise.resolve(true);
 			}
@@ -323,7 +323,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, two listeners -> two document states', () => {
 
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto) {
+			$tryApplyWorkspaceEdit(dto: WorkspaceEditDto) {
 
 				for (const edit of dto.edits) {
 					if (!isResourceTextEdit(edit)) {

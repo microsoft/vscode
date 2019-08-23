@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -224,9 +224,8 @@ interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 	button: Button;
 }
 
-interface ISettingListItemTemplate extends ISettingItemTemplate<string[] | undefined> {
+interface ISettingListItemTemplate extends ISettingItemTemplate<void> {
 	listWidget: ListSettingWidget;
-	validationErrorMessageElement: HTMLElement;
 }
 
 interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
@@ -680,9 +679,6 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 	renderTemplate(container: HTMLElement): ISettingListItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'list');
-		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
-		const validationErrorMessageElement = $('.setting-item-validation-message');
-		descriptionElement.after(validationErrorMessageElement);
 
 		const listWidget = this._instantiationService.createInstance(ListSettingWidget, common.controlElement);
 		listWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
@@ -690,97 +686,61 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 		const template: ISettingListItemTemplate = {
 			...common,
-			listWidget,
-			validationErrorMessageElement
+			listWidget
 		};
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.push(
-			listWidget.onDidChangeList(e => {
-				const newList = this.computeNewList(template, e);
-				this.onDidChangeList(template, newList);
-				if (newList !== null && template.onChange) {
-					template.onChange(newList);
-				}
-			})
-		);
+		common.toDispose.push(listWidget.onDidChangeList(e => this.onDidChangeList(template, e)));
 
 		return template;
 	}
 
-	private onDidChangeList(template: ISettingListItemTemplate, newList: string[] | undefined | null): void {
-		if (!template.context || newList === null) {
-			return;
-		}
-
-		this._onDidChangeSetting.fire({
-			key: template.context.setting.key,
-			value: newList,
-			type: template.context.valueType
-		});
-	}
-
-	private computeNewList(template: ISettingListItemTemplate, e: IListChangeEvent): string[] | undefined | null {
+	private onDidChangeList(template: ISettingListItemTemplate, e: IListChangeEvent): void {
 		if (template.context) {
-			let newValue: string[] = [];
-			if (isArray(template.context.scopeValue)) {
-				newValue = [...template.context.scopeValue];
-			} else if (isArray(template.context.value)) {
-				newValue = [...template.context.value];
-			}
+			const newValue: any[] | undefined = isArray(template.context.scopeValue)
+				? [...template.context.scopeValue]
+				: [...template.context.value];
 
-			if (e.targetIndex !== undefined) {
-				// Delete value
-				if (!e.value && e.originalValue && e.targetIndex > -1) {
-					newValue.splice(e.targetIndex, 1);
+			// Delete value
+			if (e.removeIndex) {
+				if (!e.value && e.originalValue && e.removeIndex > -1) {
+					newValue.splice(e.removeIndex, 1);
 				}
-				// Update value
-				else if (e.value && e.originalValue) {
-					if (e.targetIndex > -1) {
-						newValue[e.targetIndex] = e.value;
-					}
-					// For some reason, we are updating and cannot find original value
-					// Just append the value in this case
-					else {
-						newValue.push(e.value);
-					}
+			}
+			// Add value
+			else if (e.value && !e.originalValue) {
+				newValue.push(e.value);
+			}
+			// Update value
+			else if (e.value && e.originalValue) {
+				const valueIndex = newValue.indexOf(e.originalValue);
+				if (valueIndex > -1) {
+					newValue[valueIndex] = e.value;
 				}
-				// Add value
-				else if (e.value && !e.originalValue && e.targetIndex >= newValue.length) {
+				// For some reason, we are updating and cannot find original value
+				// Just append the value in this case
+				else {
 					newValue.push(e.value);
 				}
 			}
-			if (
-				template.context.defaultValue &&
-				isArray(template.context.defaultValue) &&
-				template.context.defaultValue.length === newValue.length &&
-				template.context.defaultValue.join() === newValue.join()
-			) {
-				return undefined;
-			}
 
-			return newValue;
+			this._onDidChangeSetting.fire({
+				key: template.context.setting.key,
+				value: newValue,
+				type: template.context.valueType
+			});
 		}
-
-		return undefined;
 	}
 
 	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingListItemTemplate): void {
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string) => void): void {
 		const value = getListDisplayValue(dataElement);
 		template.listWidget.setValue(value);
 		template.context = dataElement;
-
-		template.onChange = (v) => {
-			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
-		};
-
-		renderArrayValidations(dataElement, template, value.map(v => v.value), true);
 	}
 }
 
@@ -1261,29 +1221,6 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 		}
 	}
 	DOM.removeClass(template.containerElement, 'invalid-input');
-}
-
-function renderArrayValidations(
-	dataElement: SettingsTreeSettingElement,
-	template: ISettingListItemTemplate,
-	value: string[] | undefined,
-	calledOnStartup: boolean
-) {
-	DOM.addClass(template.containerElement, 'invalid-input');
-	if (dataElement.setting.validator) {
-		const errMsg = dataElement.setting.validator(value);
-		if (errMsg && errMsg !== '') {
-			DOM.addClass(template.containerElement, 'invalid-input');
-			template.validationErrorMessageElement.innerText = errMsg;
-			const validationError = localize('validationError', "Validation Error.");
-			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
-			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
-			return;
-		} else {
-			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
-			DOM.removeClass(template.containerElement, 'invalid-input');
-		}
-	}
 }
 
 function cleanRenderedMarkdown(element: Node): void {

@@ -243,7 +243,7 @@ export interface INotificationViewItem {
 	readonly silent: boolean;
 	readonly message: INotificationMessage;
 	readonly source: string | undefined;
-	readonly actions: INotificationActions | undefined;
+	readonly actions: INotificationActions;
 	readonly progress: INotificationViewItemProgress;
 
 	readonly expanded: boolean;
@@ -391,10 +391,10 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	// RegEx: [, anything not ], ], (, http://|https://|command:, no whitespace)
 	private static LINK_REGEX = /\[([^\]]+)\]\(((?:https?:\/\/|command:)[^\)\s]+)(?: "([^"]+)")?\)/gi;
 
-	private _expanded: boolean | undefined;
+	private _expanded: boolean;
 
-	private _actions: INotificationActions | undefined;
-	private _progress: NotificationViewItemProgress | undefined;
+	private _actions: INotificationActions;
+	private _progress: NotificationViewItemProgress;
 
 	private readonly _onDidExpansionChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidExpansionChange: Event<void> = this._onDidExpansionChange.event;
@@ -505,7 +505,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	get expanded(): boolean {
-		return !!this._expanded;
+		return this._expanded;
 	}
 
 	get severity(): Severity {
@@ -534,10 +534,6 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	hasPrompt(): boolean {
-		if (!this._actions) {
-			return false;
-		}
-
 		if (!this._actions.primary) {
 			return false;
 		}
@@ -566,7 +562,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return this._source;
 	}
 
-	get actions(): INotificationActions | undefined {
+	get actions(): INotificationActions {
 		return this._actions;
 	}
 
@@ -639,8 +635,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return false;
 		}
 
-		const primaryActions = (this._actions && this._actions.primary) || [];
-		const otherPrimaryActions = (other.actions && other.actions.primary) || [];
+		const primaryActions = this._actions.primary || [];
+		const otherPrimaryActions = other.actions.primary || [];
 		if (primaryActions.length !== otherPrimaryActions.length) {
 			return false;
 		}

@@ -244,7 +244,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 
 	private _renderIndentGuides: RenderIndentGuides = RenderIndentGuides.None;
 	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
-	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
+	private activeParentNodes = new Set<ITreeNode<T, TFilterData>>();
 	private indentGuidesDisposable: IDisposable = Disposable.None;
 
 	private disposables: IDisposable[] = [];
@@ -353,7 +353,6 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		}
 
 		this.renderTwistie(node, data.templateData);
-		this._onDidChangeActiveNodes(this.activeNodes.elements);
 		this.renderIndentGuides(node, data.templateData);
 	}
 
@@ -387,7 +386,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 			const parent = node.parent;
 			const guide = $<HTMLDivElement>('.indent-guide', { style: `width: ${this.indent}px` });
 
-			if (this.activeIndentNodes.has(parent)) {
+			if (this.activeParentNodes.has(parent)) {
 				addClass(guide, 'active');
 			}
 
@@ -414,26 +413,24 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IListRenderer<ITree
 		const set = new Set<ITreeNode<T, TFilterData>>();
 
 		nodes.forEach(node => {
-			if (node.collapsible && node.children.length > 0 && !node.collapsed) {
-				set.add(node);
-			} else if (node.parent) {
+			if (node.parent) {
 				set.add(node.parent);
 			}
 		});
 
-		this.activeIndentNodes.forEach(node => {
+		this.activeParentNodes.forEach(node => {
 			if (!set.has(node)) {
 				this.renderedIndentGuides.forEach(node, line => removeClass(line, 'active'));
 			}
 		});
 
 		set.forEach(node => {
-			if (!this.activeIndentNodes.has(node)) {
+			if (!this.activeParentNodes.has(node)) {
 				this.renderedIndentGuides.forEach(node, line => addClass(line, 'active'));
 			}
 		});
 
-		this.activeIndentNodes = set;
+		this.activeParentNodes = set;
 	}
 
 	dispose(): void {
@@ -451,8 +448,8 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
 	private _matchCount = 0;
 	get matchCount(): number { return this._matchCount; }
 
-	private _pattern: string = '';
-	private _lowercasePattern: string = '';
+	private _pattern: string;
+	private _lowercasePattern: string;
 	private disposables: IDisposable[] = [];
 
 	set pattern(pattern: string) {
@@ -543,7 +540,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private _filterOnType: boolean;
 	get filterOnType(): boolean { return this._filterOnType; }
 
-	private _empty: boolean = false;
+	private _empty: boolean;
 	get empty(): boolean { return this._empty; }
 
 	private _onDidChangeEmptyState = new Emitter<boolean>();
@@ -897,7 +894,6 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly autoExpandSingleChildren?: boolean;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
-	readonly additionalScrollHeight?: number;
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
@@ -1063,16 +1059,6 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		super.onPointer(e);
-	}
-
-	protected onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
-		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
-
-		if (onTwistie) {
-			return;
-		}
-
-		super.onDoubleClick(e);
 	}
 }
 
@@ -1317,14 +1303,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	set scrollTop(scrollTop: number) {
 		this.view.scrollTop = scrollTop;
-	}
-
-	get scrollLeft(): number {
-		return this.view.scrollTop;
-	}
-
-	set scrollLeft(scrollLeft: number) {
-		this.view.scrollLeft = scrollLeft;
 	}
 
 	get scrollHeight(): number {

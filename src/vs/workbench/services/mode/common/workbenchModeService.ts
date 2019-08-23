@@ -94,7 +94,7 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 	private _configurationService: IConfigurationService;
 	private _extensionService: IExtensionService;
-	private _onReadyPromise: Promise<boolean> | undefined;
+	private _onReadyPromise: Promise<boolean>;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,

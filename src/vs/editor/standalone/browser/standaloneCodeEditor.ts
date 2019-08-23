@@ -153,7 +153,7 @@ function createAriaDomNode() {
  */
 export class StandaloneCodeEditor extends CodeEditorWidget implements IStandaloneCodeEditor {
 
-	private readonly _standaloneKeybindingService: StandaloneKeybindingService | null;
+	private readonly _standaloneKeybindingService: StandaloneKeybindingService;
 
 	constructor(
 		domElement: HTMLElement,
@@ -178,8 +178,6 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
-		} else {
-			this._standaloneKeybindingService = null;
 		}
 
 		// Create the ARIA dom node as soon as the first editor is instantiated

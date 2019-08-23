@@ -99,10 +99,6 @@ export const enum ConfigurationScope {
 	 * Resource specific configuration, which can be configured in the user, workspace or folder settings.
 	 */
 	RESOURCE,
-	/**
-	 * Machine specific configuration that can also be configured in workspace or folder settings.
-	 */
-	MACHINE_OVERRIDABLE,
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {

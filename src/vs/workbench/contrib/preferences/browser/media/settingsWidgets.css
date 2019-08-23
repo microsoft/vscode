@@ -12,29 +12,10 @@
 	margin-left: 2px;
 }
 
-/* Deal with overflow */
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget .setting-list-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget .setting-list-sibling {
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget .setting-list-value {
-	max-width: 90%;
-}
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget .setting-list-sibling {
-	max-width: 10%;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
 	display: inline-block;
-	line-height: 24px;
-}
-
-/* Use monospace to display glob patterns in exclude widget */
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget .setting-list-sibling {
+	line-height: 22px;
 	font-family: var(--monaco-monospace-font);
 }
 
@@ -49,11 +30,11 @@
 	display: none;
 	position: absolute;
 	right: 0px;
+	margin-top: 1px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row {
 	position: relative;
-	max-height: 24px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row:focus {
@@ -67,7 +48,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .action-label {
 	width: 16px;
-	height: 20px;
+	height: 16px;
 	padding: 2px;
 	margin-right: 2px;
 }
@@ -102,7 +83,6 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .monaco-text-button.setting-list-addButton {
-	margin-top: 4px;
 	margin-right: 10px;
 }
 
@@ -112,7 +92,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-siblingInput {
-	height: 24px;
+	height: 22px;
 	max-width: 320px;
 	flex: 1;
 	margin-right: 10px;
@@ -122,8 +102,6 @@
 	margin-right: 10px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-exclude-widget {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget {
 	margin-bottom: 1px;
-	padding: 1px;
 }

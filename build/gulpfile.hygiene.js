@@ -41,7 +41,7 @@ const indentationFilter = [
 	'**',
 
 	// except specific files
-	'!**/ThirdPartyNotices.txt',
+	'!ThirdPartyNotices.txt',
 	'!LICENSE.{txt,rtf}',
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
@@ -50,7 +50,6 @@ const indentationFilter = [
 	'!src/vs/css.js',
 	'!src/vs/css.build.js',
 	'!src/vs/loader.js',
-	'!src/vs/base/common/insane/insane.js',
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
@@ -120,8 +119,7 @@ const copyrightFilter = [
 	'!resources/completions/**',
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
-	'!extensions/*/server/bin/*',
-	'!src/vs/editor/test/node/classification/typescript-test.ts',
+	'!extensions/*/server/bin/*'
 ];
 
 const eslintFilter = [
@@ -132,42 +130,22 @@ const eslintFilter = [
 	'!src/vs/nls.js',
 	'!src/vs/css.build.js',
 	'!src/vs/nls.build.js',
-	'!src/**/insane.js',
 	'!src/**/marked.js',
 	'!**/test/**'
 ];
 
-const tslintBaseFilter = [
+const tslintFilter = [
+	'src/**/*.ts',
+	'test/**/*.ts',
+	'extensions/**/*.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',
-	'!extensions/typescript-basics/test/colorize-fixtures/**',
+	'!extensions/typescript/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!extensions/**/*.test.ts',
 	'!extensions/html-language-features/server/lib/jquery.d.ts'
-];
-
-const tslintCoreFilter = [
-	'src/**/*.ts',
-	'test/**/*.ts',
-	'!extensions/**/*.ts',
-	'!test/smoke/**',
-	...tslintBaseFilter
-];
-
-const tslintExtensionsFilter = [
-	'extensions/**/*.ts',
-	'!src/**/*.ts',
-	'!test/**/*.ts',
-	...tslintBaseFilter
-];
-
-const tslintHygieneFilter = [
-	'src/**/*.ts',
-	'test/**/*.ts',
-	'extensions/**/*.ts',
-	...tslintBaseFilter
 ];
 
 const copyrightHeaderLines = [
@@ -192,20 +170,12 @@ gulp.task('eslint', () => {
 });
 
 gulp.task('tslint', () => {
-	return es.merge([
+	const options = { emitError: true };
 
-		// Core: include type information (required by certain rules like no-nodejs-globals)
-		vfs.src(all, { base: '.', follow: true, allowEmpty: true })
-			.pipe(filter(tslintCoreFilter))
-			.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint', program: tslint.Linter.createProgram('src/tsconfig.json') }))
-			.pipe(gulptslint.default.report({ emitError: true })),
-
-		// Exenstions: do not include type information
-		vfs.src(all, { base: '.', follow: true, allowEmpty: true })
-			.pipe(filter(tslintExtensionsFilter))
-			.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
-			.pipe(gulptslint.default.report({ emitError: true }))
-	]).pipe(es.through());
+	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
+		.pipe(filter(tslintFilter))
+		.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
+		.pipe(gulptslint.default.report(options));
 });
 
 function hygiene(some) {
@@ -328,7 +298,7 @@ function hygiene(some) {
 		.pipe(copyrights);
 
 	const typescript = result
-		.pipe(filter(tslintHygieneFilter))
+		.pipe(filter(tslintFilter))
 		.pipe(formatting)
 		.pipe(tsl);
 

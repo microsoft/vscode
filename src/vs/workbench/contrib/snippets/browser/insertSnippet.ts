@@ -168,14 +168,13 @@ class InsertSnippetAction extends EditorAction {
 				return quickInputService.pick(picks, { matchOnDetail: true }).then(pick => resolve(pick && pick.snippet), reject);
 			}
 		}).then(async snippet => {
-			if (!snippet) {
-				return;
-			}
 			let clipboardText: string | undefined;
 			if (snippet.needsClipboard) {
 				clipboardText = await clipboardService.readText();
 			}
-			SnippetController2.get(editor).insert(snippet.codeSnippet, { clipboardText });
+			if (snippet) {
+				SnippetController2.get(editor).insert(snippet.codeSnippet, { clipboardText });
+			}
 		});
 	}
 }

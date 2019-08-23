@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { MainThreadDiagnostics } from 'vs/workbench/api/browser/mainThreadDiagnostics';
 import { URI } from 'vs/base/common/uri';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 
 
 suite('MainThreadDiagnostics', function () {
@@ -20,16 +19,7 @@ suite('MainThreadDiagnostics', function () {
 
 	test('clear markers on dispose', function () {
 
-		let diag = new MainThreadDiagnostics(new class implements IExtHostContext {
-			remoteAuthority = '';
-			assertRegistered() { }
-			set(v: any): any { return null; }
-			getProxy(): any {
-				return {
-					$acceptMarkersChange() { }
-				};
-			}
-		}, markerService);
+		let diag = new MainThreadDiagnostics(null!, markerService);
 
 		diag.$changeMany('foo', [[URI.file('a'), [{
 			code: '666',

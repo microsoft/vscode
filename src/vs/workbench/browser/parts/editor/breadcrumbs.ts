@@ -29,7 +29,7 @@ export interface IBreadcrumbsService {
 
 export class BreadcrumbsService implements IBreadcrumbsService {
 
-	_serviceBrand: any;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
 
@@ -55,8 +55,8 @@ registerSingleton(IBreadcrumbsService, BreadcrumbsService, true);
 
 export abstract class BreadcrumbsConfig<T> {
 
-	abstract get name(): string;
-	abstract get onDidChange(): Event<void>;
+	name: string;
+	onDidChange: Event<void>;
 
 	abstract getValue(overrides?: IConfigurationOverrides): T;
 	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Promise<void>;
@@ -71,7 +71,6 @@ export abstract class BreadcrumbsConfig<T> {
 	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
 	static SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
-	static Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
 
 	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
@@ -161,11 +160,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolSortOrder.name', "Show symbol outline in alphabetical order."),
 				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
 			]
-		},
-		'breadcrumbs.icons': {
-			description: localize('icons', "Render breadcrumb items with icons."),
-			type: 'boolean',
-			default: true
 		}
 	}
 });

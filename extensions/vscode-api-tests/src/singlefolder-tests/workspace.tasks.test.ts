@@ -35,18 +35,17 @@ suite('workspace-namespace', () => {
 						customProp1: 'testing task one'
 					};
 					const writeEmitter = new vscode.EventEmitter<string>();
-					const execution = new vscode.CustomExecution2((): Thenable<vscode.Pseudoterminal> => {
-						const pty: vscode.Pseudoterminal = {
+					const execution = new vscode.CustomExecution2((): Thenable<vscode.TerminalVirtualProcess> => {
+						return Promise.resolve(<vscode.TerminalVirtualProcess>{
 							onDidWrite: writeEmitter.event,
-							open: () => {
+							start: () => {
 								writeEmitter.fire('testing\r\n');
 							},
-							close: () => {
+							shutdown: () => {
 								taskProvider.dispose();
 								done();
 							}
-						};
-						return Promise.resolve(pty);
+						});
 					});
 					const task = new vscode.Task2(kind, vscode.TaskScope.Workspace, taskName, taskType, execution);
 					result.push(task);

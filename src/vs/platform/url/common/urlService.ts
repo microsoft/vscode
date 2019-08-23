@@ -4,19 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { values } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { first } from 'vs/base/common/async';
-import { toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { values } from 'vs/base/common/map';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
-export abstract class AbstractURLService extends Disposable implements IURLService {
+export class URLService implements IURLService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: ServiceIdentifier<any>;
 
 	private handlers = new Set<IURLHandler>();
-
-	abstract create(options?: Partial<UriComponents>): URI;
 
 	open(uri: URI): Promise<boolean> {
 		const handlers = values(this.handlers);

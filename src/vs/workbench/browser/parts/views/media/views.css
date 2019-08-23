@@ -104,7 +104,6 @@
 
 .customview-tree .monaco-list .monaco-list-row {
 	padding-right: 12px;
-	padding-left: 0px;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
@@ -114,8 +113,7 @@
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
-	flex-wrap: nowrap;
-	padding-left: 3px;
+	flex-wrap: nowrap
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel {

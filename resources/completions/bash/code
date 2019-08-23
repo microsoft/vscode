@@ -1,4 +1,4 @@
-_@@APPNAME@@()
+_code()
 {
 	local cur prev words cword split
 	_init_completion -s || return
@@ -58,4 +58,4 @@ _@@APPNAME@@()
 
 	_filedir
 } &&
-complete -F _@@APPNAME@@ @@APPNAME@@
+complete -F _code code

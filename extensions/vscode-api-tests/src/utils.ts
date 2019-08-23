@@ -4,35 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MemFS } from './memfs';
-import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import { join } from 'path';
 
 export function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
 }
 
-export const testFs = new MemFS();
-vscode.workspace.registerFileSystemProvider(testFs.scheme, testFs);
+export function createRandomFile(contents = '', dir: string = os.tmpdir(), ext = ''): Thenable<vscode.Uri> {
+	return new Promise((resolve, reject) => {
+		const tmpFile = join(dir, rndName() + ext);
+		fs.writeFile(tmpFile, contents, (error) => {
+			if (error) {
+				return reject(error);
+			}
 
-export async function createRandomFile(contents = '', dir: vscode.Uri | undefined = undefined, ext = ''): Promise<vscode.Uri> {
-	let fakeFile: vscode.Uri;
-	if (dir) {
-		assert.equal(dir.scheme, testFs.scheme);
-		fakeFile = dir.with({ path: dir.path + '/' + rndName() + ext });
-	} else {
-		fakeFile = vscode.Uri.parse(`${testFs.scheme}:/${rndName() + ext}`);
-	}
-	await testFs.writeFile(fakeFile, Buffer.from(contents), { create: true, overwrite: true });
-	return fakeFile;
-}
-
-export async function deleteFile(file: vscode.Uri): Promise<boolean> {
-	try {
-		await testFs.delete(file);
-		return true;
-	} catch {
-		return false;
-	}
+			resolve(vscode.Uri.file(tmpFile));
+		});
+	});
 }
 
 export function pathEquals(path1: string, path2: string): boolean {
@@ -44,13 +34,30 @@ export function pathEquals(path1: string, path2: string): boolean {
 	return path1 === path2;
 }
 
+export function deleteFile(file: vscode.Uri): Thenable<boolean> {
+	return new Promise((resolve, reject) => {
+		fs.unlink(file.fsPath, (err) => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve(true);
+			}
+		});
+	});
+}
+
 export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 
 }
 
 export function disposeAll(disposables: vscode.Disposable[]) {
-	vscode.Disposable.from(...disposables).dispose();
+	while (disposables.length) {
+		let item = disposables.pop();
+		if (item) {
+			item.dispose();
+		}
+	}
 }
 
 export function conditionalTest(name: string, testCallback: (done: MochaDone) => void | Thenable<any>) {
@@ -66,8 +73,4 @@ export function conditionalTest(name: string, testCallback: (done: MochaDone) =>
 
 function isTestTypeActive(): boolean {
 	return !!vscode.extensions.getExtension('vscode-resolver-test');
-}
-
-export function delay(ms: number) {
-	return new Promise(resolve => setTimeout(resolve, ms));
 }

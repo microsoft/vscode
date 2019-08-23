@@ -9,9 +9,10 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Dimension, size } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
-import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
+import { ISerializableView, Orientation } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IViewSize } from 'vs/base/browser/ui/grid/gridview';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -28,10 +29,6 @@ export interface ILayoutContentResult {
  * arranges an optional title and mandatory content area to show content.
  */
 export abstract class Part extends Component implements ISerializableView {
-
-	private _dimension: Dimension;
-	get dimension(): Dimension { return this._dimension; }
-
 	private parent: HTMLElement;
 	private titleArea: HTMLElement | null;
 	private contentArea: HTMLElement | null;
@@ -131,10 +128,7 @@ export abstract class Part extends Component implements ISerializableView {
 	abstract minimumHeight: number;
 	abstract maximumHeight: number;
 
-	layout(width: number, height: number): void {
-		this._dimension = new Dimension(width, height);
-	}
-
+	abstract layout(width: number, height: number, orientation: Orientation): void;
 	abstract toJSON(): object;
 
 	//#endregion

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Terminal, TerminalCore } from 'xterm';
-import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
+import { TerminalCommandTracker } from 'vs/workbench/contrib/terminal/browser/terminalCommandTracker';
 import { isWindows } from 'vs/base/common/platform';
 
 interface TestTerminalCore extends TerminalCore {
@@ -28,7 +28,7 @@ const COLS = 10;
 
 suite('Workbench - TerminalCommandTracker', () => {
 	let xterm: TestTerminal;
-	let commandTracker: CommandTrackerAddon;
+	let commandTracker: TerminalCommandTracker;
 
 	setup(() => {
 		xterm = (<TestTerminal>new Terminal({
@@ -39,8 +39,7 @@ suite('Workbench - TerminalCommandTracker', () => {
 		for (let i = 0; i < ROWS - 1; i++) {
 			syncWrite(xterm, `${i}\n`);
 		}
-		commandTracker = new CommandTrackerAddon();
-		xterm.loadAddon(commandTracker);
+		commandTracker = new TerminalCommandTracker(xterm);
 	});
 
 	suite('Command tracking', () => {
