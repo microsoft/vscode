@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as strings from 'vs/base/common/strings';
 import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenModel, IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import * as filters from 'vs/base/common/filters';
 import { IEditor, IDiffEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
@@ -16,15 +16,15 @@ import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecorati
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentSymbol, symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentSymbol, symbolKindToCssClass, SymbolKind, SymbolTag } from 'vs/editor/common/modes';
 import { IRange } from 'vs/editor/common/core/range';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { asPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -235,29 +235,20 @@ class OutlineModel extends QuickOpenModel {
 }
 
 class SymbolEntry extends EditorQuickOpenEntryGroup {
-	private editorService: IEditorService;
-	private index: number;
-	private name: string;
-	private kind: SymbolKind;
-	private icon: string;
-	private description: string;
-	private range: IRange;
-	private revealRange: IRange;
-	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, kind: SymbolKind, description: string, icon: string, range: IRange, revealRange: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
+	constructor(
+		private index: number,
+		private name: string,
+		private kind: SymbolKind,
+		private description: string,
+		private icon: string,
+		private deprecated: boolean,
+		private range: IRange,
+		private revealRange: IRange,
+		private editorService: IEditorService,
+		private handler: GotoSymbolHandler
+	) {
 		super();
-
-		this.index = index;
-		this.name = name;
-		this.kind = kind;
-		this.icon = icon;
-		this.description = description;
-		this.range = range;
-		this.revealRange = revealRange || range;
-		this.setHighlights(highlights);
-		this.editorService = editorService;
-		this.handler = handler;
 	}
 
 	getIndex(): number {
@@ -274,6 +265,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	getIcon(): string {
 		return this.icon;
+	}
+
+	getLabelOptions(): IIconLabelValueOptions | undefined {
+		return this.deprecated ? { extraClasses: ['deprecated'] } : undefined;
 	}
 
 	getDescription(): string {
@@ -479,8 +474,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Add
 			results.push(new SymbolEntry(i,
-				label, element.kind, description, `symbol-icon ${icon}`,
-				element.range, element.selectionRange, [], this.editorService, this
+				label, element.kind, description, `symbol-icon ${icon}`, element.tags && element.tags.indexOf(SymbolTag.Deprecated) >= 0,
+				element.range, element.selectionRange, this.editorService, this
 			));
 		}
 
@@ -504,7 +499,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 
 			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
-				const entries = await asPromise(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest!.token));
+				const entries = await getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest!.token);
 
 				return new OutlineModel(this.toQuickOpenEntries(entries));
 			}

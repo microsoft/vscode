@@ -14,7 +14,7 @@ import * as filters from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { symbolKindToCssClass } from 'vs/editor/common/modes';
+import { symbolKindToCssClass, SymbolTag } from 'vs/editor/common/modes';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,6 +25,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 	private bearingResolve: Promise<this | undefined> | undefined;
@@ -63,6 +64,12 @@ class SymbolEntry extends EditorQuickOpenEntry {
 
 	getIcon(): string {
 		return symbolKindToCssClass(this.bearing.kind);
+	}
+
+	getLabelOptions(): IIconLabelValueOptions | undefined {
+		return this.bearing.tags && this.bearing.tags.indexOf(SymbolTag.Deprecated) >= 0
+			? { extraClasses: ['deprecated'] }
+			: undefined;
 	}
 
 	getResource(): URI {

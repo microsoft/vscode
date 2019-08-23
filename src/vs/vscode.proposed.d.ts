@@ -1144,6 +1144,13 @@ declare module 'vscode' {
 		Deprecated = 1
 	}
 
+	export interface SymbolInformation {
+		/**
+		 *
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
+	}
+
 	export interface DocumentSymbol {
 		/**
 		 *

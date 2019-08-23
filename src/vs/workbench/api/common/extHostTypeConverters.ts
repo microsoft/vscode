@@ -576,17 +576,20 @@ export namespace WorkspaceSymbol {
 		return <search.IWorkspaceSymbol>{
 			name: info.name,
 			kind: SymbolKind.from(info.kind),
+			tags: info.tags && info.tags.map(SymbolTag.from),
 			containerName: info.containerName,
 			location: location.from(info.location)
 		};
 	}
 	export function to(info: search.IWorkspaceSymbol): types.SymbolInformation {
-		return new types.SymbolInformation(
+		const result = new types.SymbolInformation(
 			info.name,
 			SymbolKind.to(info.kind),
 			info.containerName,
 			location.to(info.location)
 		);
+		result.tags = info.tags && info.tags.map(SymbolTag.to);
+		return result;
 	}
 }
 

@@ -8,7 +8,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
@@ -23,7 +22,9 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		addDisposableListener(window, EventType.BEFORE_UNLOAD, () => this.onBeforeUnload());
+		// Note: we cannot change this to window.addEventListener('beforeUnload')
+		// because it seems that mechanism does not allow for preventing the unload
+		window.onbeforeunload = () => this.onBeforeUnload();
 	}
 
 	private onBeforeUnload(): string | null {
