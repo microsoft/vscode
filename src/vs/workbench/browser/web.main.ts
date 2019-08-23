@@ -40,7 +40,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
-import { StaticExtensionsService, IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
 import { toLocalISOString } from 'vs/base/common/date';
@@ -190,10 +189,6 @@ class CodeRendererMain extends Disposable {
 			userDataProvider = this._register(new InMemoryUserDataProvider());
 		}
 		fileService.registerProvider(Schemas.userData, userDataProvider);
-
-		// Static Extensions
-		const staticExtensions = new StaticExtensionsService(this.configuration.staticExtensions || []);
-		serviceCollection.set(IStaticExtensionsService, staticExtensions);
 
 		// Long running services (workspace, config, storage)
 		const services = await Promise.all([
