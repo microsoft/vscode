@@ -20,11 +20,6 @@
 	color: var(--outline-element-color);
 }
 
-.monaco-list .outline-element .deprecated {
-	text-decoration: line-through;
-	opacity: 0.66;
-}
-
 .monaco-tree .monaco-tree-row.focused .outline-element .outline-element-detail {
 	visibility: inherit;
 }
