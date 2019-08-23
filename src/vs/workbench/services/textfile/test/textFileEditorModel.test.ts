@@ -52,6 +52,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.textEditorModel!.setValue('bar');
 		assert.ok(getLastModifiedTime(model) <= Date.now());
+		assert.ok(model.hasState(ModelState.DIRTY));
 
 		let savedEvent = false;
 		model.onDidStateChange(e => {
@@ -60,9 +61,13 @@ suite('Files - TextFileEditorModel', () => {
 			}
 		});
 
-		await model.save();
+		const pendingSave = model.save();
+		assert.ok(model.hasState(ModelState.PENDING_SAVE));
+
+		await pendingSave;
 
 		assert.ok(model.getLastSaveAttemptTime() <= Date.now());
+		assert.ok(model.hasState(ModelState.SAVED));
 		assert.ok(!model.isDirty());
 		assert.ok(savedEvent);
 
