@@ -52,7 +52,10 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 
 const DEAFULT_TRUSTED_DOMAINS = [
 	'https://code.visualstudio.com',
-	'https://go.microsoft.com'
+	'https://go.microsoft.com',
+	'https://github.com',
+	'https://marketplace.visualstudio.com',
+	'https://vscode-auth.github.com'
 ];
 
 const configureTrustedDomainsHandler = async (
