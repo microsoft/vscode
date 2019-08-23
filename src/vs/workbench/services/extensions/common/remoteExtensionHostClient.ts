@@ -79,7 +79,8 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 					return { host: authority.host, port: authority.port };
 				}
 			},
-			signService: this._signService
+			signService: this._signService,
+			logService: this._logService
 		};
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
 
