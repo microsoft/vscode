@@ -16,14 +16,14 @@ suite('Workbench - TerminalConfigHelper', () => {
 		fixture = document.body;
 	});
 
-	test('TerminalConfigHelper - getFont fontFamily', function () {
-		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
-		configurationService.setUserConfiguration('terminal', { integrated: { fontFamily: 'bar' } });
-		const configHelper = new TerminalConfigHelper(LinuxDistro.Unknown, configurationService, null!, null!, null!);
-		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontFamily, 'bar', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
-	});
+	// test('TerminalConfigHelper - getFont fontFamily', function () {
+	// 	const configurationService = new TestConfigurationService();
+	// 	configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
+	// 	configurationService.setUserConfiguration('terminal', { integrated: { fontFamily: 'bar' } });
+	// 	const configHelper = new TerminalConfigHelper(LinuxDistro.Unknown, configurationService, null!, null!, null!);
+	// 	configHelper.panelContainer = fixture;
+	// 	assert.equal(configHelper.getFont().fontFamily, 'bar', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
+	// });
 
 	test('TerminalConfigHelper - getFont fontFamily (Linux Fedora)', function () {
 		const configurationService = new TestConfigurationService();
