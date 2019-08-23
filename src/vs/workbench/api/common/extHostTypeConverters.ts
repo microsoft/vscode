@@ -28,7 +28,7 @@ import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export interface PositionLike {
@@ -556,6 +556,21 @@ export namespace SymbolKind {
 	}
 }
 
+export namespace SymbolTag {
+
+	export function from(kind: types.SymbolTag): modes.SymbolTag {
+		switch (kind) {
+			case types.SymbolTag.Deprecated: return modes.SymbolTag.Deprecated;
+		}
+	}
+
+	export function to(kind: modes.SymbolTag): types.SymbolTag {
+		switch (kind) {
+			case modes.SymbolTag.Deprecated: return types.SymbolTag.Deprecated;
+		}
+	}
+}
+
 export namespace WorkspaceSymbol {
 	export function from(info: vscode.SymbolInformation): search.IWorkspaceSymbol {
 		return <search.IWorkspaceSymbol>{
@@ -583,7 +598,7 @@ export namespace DocumentSymbol {
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
 			kind: SymbolKind.from(info.kind),
-			kindTags: []
+			tags: info.tags ? info.tags.map(SymbolTag.from) : []
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
@@ -598,6 +613,9 @@ export namespace DocumentSymbol {
 			Range.to(info.range),
 			Range.to(info.selectionRange),
 		);
+		if (isNonEmptyArray(info.tags)) {
+			result.tags = info.tags.map(SymbolTag.to);
+		}
 		if (info.children) {
 			result.children = info.children.map(to) as any;
 		}
@@ -682,17 +700,17 @@ export namespace CompletionContext {
 	}
 }
 
-export namespace CompletionItemKindTag {
+export namespace CompletionItemTag {
 
-	export function from(kind: types.CompletionItemKindTag): modes.CompletionItemKindTag {
+	export function from(kind: types.CompletionItemTag): modes.CompletionItemTag {
 		switch (kind) {
-			case types.CompletionItemKindTag.Deprecated: return modes.CompletionItemKindTag.Deprecated;
+			case types.CompletionItemTag.Deprecated: return modes.CompletionItemTag.Deprecated;
 		}
 	}
 
-	export function to(kind: modes.CompletionItemKindTag): types.CompletionItemKindTag {
+	export function to(kind: modes.CompletionItemTag): types.CompletionItemTag {
 		switch (kind) {
-			case modes.CompletionItemKindTag.Deprecated: return types.CompletionItemKindTag.Deprecated;
+			case modes.CompletionItemTag.Deprecated: return types.CompletionItemTag.Deprecated;
 		}
 	}
 }
@@ -768,6 +786,7 @@ export namespace CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
+		result.tags = suggestion.tags && suggestion.tags.map(CompletionItemTag.to);
 		result.detail = suggestion.detail;
 		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;

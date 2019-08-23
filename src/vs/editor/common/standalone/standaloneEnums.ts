@@ -581,7 +581,7 @@ export enum CompletionItemKind {
 	Snippet = 25
 }
 
-export enum CompletionItemKindTag {
+export enum CompletionItemTag {
 	Deprecated = 1
 }
 
@@ -662,6 +662,6 @@ export enum SymbolKind {
 	TypeParameter = 25
 }
 
-export enum SymbolKindTag {
+export enum SymbolTag {
 	Deprecated = 1
 }

@@ -1138,9 +1138,20 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh - CompletionItemKindTag, https://github.com/microsoft/vscode/issues/23927
+	//#region Joh - CompletionItemTag, https://github.com/microsoft/vscode/issues/23927
 
-	export enum CompletionItemKindTag {
+	export enum SymbolTag {
+		Deprecated = 1
+	}
+
+	export interface DocumentSymbol {
+		/**
+		 *
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
+	}
+
+	export enum CompletionItemTag {
 		Deprecated = 1
 	}
 
@@ -1149,7 +1160,7 @@ declare module 'vscode' {
 		/**
 		 *
 		 */
-		kind2?: CompletionItemKind | { kind: CompletionItemKind, tags: ReadonlyArray<CompletionItemKindTag> };
+		tags?: ReadonlyArray<CompletionItemTag>;
 	}
 
 	//#endregion

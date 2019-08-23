@@ -12,7 +12,7 @@ import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
-import { SymbolKind, symbolKindToCssClass, SymbolKindTag } from 'vs/editor/common/modes';
+import { SymbolKind, symbolKindToCssClass, SymbolTag } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -127,7 +127,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 			// add styles for the icons
 			options.extraClasses.push(`outline-element-icon ${symbolKindToCssClass(element.symbol.kind, true)}`);
 		}
-		if (element.symbol.kindTags.indexOf(SymbolKindTag.Deprecated) >= 0) {
+		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
 			options.extraClasses.push(`deprecated`);
 			options.matches = [];
 		}
