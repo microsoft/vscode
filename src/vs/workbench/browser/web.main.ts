@@ -40,7 +40,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
-import { StaticExtensionsService, IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
 import { toLocalISOString } from 'vs/base/common/date';
@@ -90,7 +89,7 @@ class CodeRendererMain extends Disposable {
 
 		// Driver
 		if (this.configuration.driver) {
-			registerWindowDriver().then(d => this._register(d));
+			(async () => this._register(await registerWindowDriver()))();
 		}
 
 		// Startup
@@ -144,7 +143,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(this.configuration.webSocketFactory, environmentService, productService, remoteAuthorityResolverService, signService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.configuration.webSocketFactory, environmentService, productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files
@@ -153,23 +152,24 @@ class CodeRendererMain extends Disposable {
 
 		// Logger
 		const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
-		indexedDBLogProvider.database.then(
-			() => fileService.registerProvider(logsPath.scheme, indexedDBLogProvider),
-			e => {
+		(async () => {
+			try {
+				await indexedDBLogProvider.database;
+
+				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
+			} catch (error) {
 				(<ILogService>logService).info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
-				(<ILogService>logService).error(e);
+				(<ILogService>logService).error(error);
+
 				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
 			}
-		).then(() => {
+
 			const consoleLogService = new ConsoleLogService(logService.getLevel());
 			const fileLogService = new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService);
 			logService.logger = new MultiplexLogService([consoleLogService, fileLogService]);
-		});
+		})();
 
-		// Static Extensions
-		const staticExtensions = new StaticExtensionsService(this.configuration.staticExtensions || []);
-		serviceCollection.set(IStaticExtensionsService, staticExtensions);
-
+		// User Data Provider
 		let userDataProvider: IFileSystemProvider | undefined = this.configuration.userDataProvider;
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
@@ -185,14 +185,12 @@ class CodeRendererMain extends Disposable {
 				}
 			}
 		}
-
 		if (!userDataProvider) {
 			userDataProvider = this._register(new InMemoryUserDataProvider());
 		}
-
-		// User Data Provider
 		fileService.registerProvider(Schemas.userData, userDataProvider);
 
+		// Long running services (workspace, config, storage)
 		const services = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 

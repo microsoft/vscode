@@ -10,7 +10,6 @@ import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { compareAnything } from 'vs/base/common/comparers';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import * as DOM from 'vs/base/browser/dom';
@@ -575,38 +574,4 @@ export class QuickOpenModel implements
 	run(entry: QuickOpenEntry, mode: Mode, context: IEntryRunContext): boolean {
 		return entry.run(mode, context);
 	}
-}
-
-/**
- * A good default sort implementation for quick open entries respecting highlight information
- * as well as associated resources.
- */
-export function compareEntries(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
-
-	// Give matches with label highlights higher priority over
-	// those with only description highlights
-	const labelHighlightsA = elementA.getHighlights()[0] || [];
-	const labelHighlightsB = elementB.getHighlights()[0] || [];
-	if (labelHighlightsA.length && !labelHighlightsB.length) {
-		return -1;
-	}
-
-	if (!labelHighlightsA.length && labelHighlightsB.length) {
-		return 1;
-	}
-
-	// Fallback to the full path if labels are identical and we have associated resources
-	let nameA = elementA.getLabel()!;
-	let nameB = elementB.getLabel()!;
-	if (nameA === nameB) {
-		const resourceA = elementA.getResource();
-		const resourceB = elementB.getResource();
-
-		if (resourceA && resourceB) {
-			nameA = resourceA.fsPath;
-			nameB = resourceB.fsPath;
-		}
-	}
-
-	return compareAnything(nameA, nameB, lookFor);
 }
