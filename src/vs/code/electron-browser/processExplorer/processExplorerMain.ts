@@ -9,7 +9,7 @@ import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
 import product from 'vs/platform/product/node/product';
 import { localize } from 'vs/nls';
-import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/node/issue';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
@@ -17,7 +17,7 @@ import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 
 
 let mapPidToWindowTitle = new Map<number, string>();

@@ -8,7 +8,8 @@ import 'vs/css!./inputBox';
 import * as nls from 'vs/nls';
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { RenderOptions, renderFormattedText, renderText } from 'vs/base/browser/htmlContentRenderer';
+import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
+import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -31,6 +32,7 @@ export interface IInputOptions extends IInputBoxStyles {
 	readonly type?: string;
 	readonly validationOptions?: IInputValidationOptions;
 	readonly flexibleHeight?: boolean;
+	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
 }
@@ -172,6 +174,13 @@ export class InputBox extends Widget {
 			this.mirror.innerHTML = '&nbsp;';
 
 			this.scrollableElement = new ScrollableElement(this.element, { vertical: ScrollbarVisibility.Auto });
+
+			if (this.options.flexibleWidth) {
+				this.input.setAttribute('wrap', 'off');
+				this.mirror.style.whiteSpace = 'pre';
+				this.mirror.style.wordWrap = 'initial';
+			}
+
 			dom.append(container, this.scrollableElement.getDomNode());
 			this._register(this.scrollableElement);
 
@@ -320,9 +329,33 @@ export class InputBox extends Widget {
 	}
 
 	public set width(width: number) {
-		this.input.style.width = width + 'px';
+		if (this.options.flexibleHeight && this.options.flexibleWidth) {
+			// textarea with horizontal scrolling
+			let horizontalPadding = 0;
+			if (this.mirror) {
+				const paddingLeft = parseFloat(this.mirror.style.paddingLeft || '') || 0;
+				const paddingRight = parseFloat(this.mirror.style.paddingRight || '') || 0;
+				horizontalPadding = paddingLeft + paddingRight;
+			}
+			this.input.style.width = (width - horizontalPadding) + 'px';
+		} else {
+			this.input.style.width = width + 'px';
+		}
+
 		if (this.mirror) {
 			this.mirror.style.width = width + 'px';
+		}
+	}
+
+	public set paddingRight(paddingRight: number) {
+		if (this.options.flexibleHeight && this.options.flexibleWidth) {
+			this.input.style.width = `calc(100% - ${paddingRight}px)`;
+		} else {
+			this.input.style.paddingRight = paddingRight + 'px';
+		}
+
+		if (this.mirror) {
+			this.mirror.style.paddingRight = paddingRight + 'px';
 		}
 	}
 
@@ -438,7 +471,7 @@ export class InputBox extends Widget {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				const renderOptions: RenderOptions = {
+				const renderOptions: MarkdownRenderOptions = {
 					inline: true,
 					className: 'monaco-inputbox-message'
 				};

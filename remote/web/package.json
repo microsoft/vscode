@@ -2,6 +2,7 @@
 	"name": "vscode-web",
 	"version": "0.0.0",
 	"dependencies": {
+	  "@microsoft/applicationinsights-web": "^2.1.1",
 	  "onigasm-umd": "^2.2.2",
 	  "vscode-textmate": "^4.1.1",
 	  "xterm": "3.15.0-beta67",

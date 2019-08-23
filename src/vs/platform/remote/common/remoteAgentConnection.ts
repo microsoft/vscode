@@ -12,6 +12,7 @@ import { Emitter } from 'vs/base/common/event';
 import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ISignService } from 'vs/platform/sign/common/sign';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 export const enum ConnectionType {
 	Management = 1,
@@ -245,9 +246,15 @@ export async function connectRemoteAgentTunnel(options: IConnectionOptions, tunn
 	return protocol;
 }
 
-function sleep(seconds: number): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		setTimeout(resolve, seconds * 1000);
+function sleep(seconds: number): CancelablePromise<void> {
+	return createCancelablePromise(token => {
+		return new Promise((resolve, reject) => {
+			const timeout = setTimeout(resolve, seconds * 1000);
+			token.onCancellationRequested(() => {
+				clearTimeout(timeout);
+				resolve();
+			});
+		});
 	});
 }
 
@@ -264,8 +271,13 @@ export class ConnectionLostEvent {
 export class ReconnectionWaitEvent {
 	public readonly type = PersistentConnectionEventType.ReconnectionWait;
 	constructor(
-		public readonly durationSeconds: number
+		public readonly durationSeconds: number,
+		private readonly cancellableTimer: CancelablePromise<void>
 	) { }
+
+	public skipWait(): void {
+		this.cancellableTimer.cancel();
+	}
 }
 export class ReconnectionRunningEvent {
 	public readonly type = PersistentConnectionEventType.ReconnectionRunning;
@@ -330,8 +342,12 @@ abstract class PersistentConnection extends Disposable {
 			attempt++;
 			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : TIMES[TIMES.length - 1]);
 			try {
-				this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime));
-				await sleep(waitTime);
+				const sleepPromise = sleep(waitTime);
+				this._onDidStateChange.fire(new ReconnectionWaitEvent(waitTime, sleepPromise));
+
+				try {
+					await sleepPromise;
+				} catch { } // User canceled timer
 
 				// connection was lost, let's try to re-establish it
 				this._onDidStateChange.fire(new ReconnectionRunningEvent());

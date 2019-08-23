@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
+import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/contrib/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
@@ -52,6 +52,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
+const DEBUG_DATA_BREAKPOINTS_KEY = 'debug.databreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 
@@ -129,7 +130,7 @@ export class DebugService implements IDebugService {
 		this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
 		this.model = new DebugModel(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
-			this.loadExceptionBreakpoints(), this.loadWatchExpressions(), this.textFileService);
+			this.loadExceptionBreakpoints(), this.loadDataBreakpoints(), this.loadWatchExpressions(), this.textFileService);
 		this.toDispose.push(this.model);
 
 		this.viewModel = new ViewModel(contextKeyService);
@@ -403,7 +404,7 @@ export class DebugService implements IDebugService {
 								.then(() => false);
 						}
 
-						return launch && launch.openConfigFile(false, true, undefined, this.initCancellationToken ? this.initCancellationToken.token : undefined).then(() => false);
+						return !!launch && launch.openConfigFile(false, true, undefined, this.initCancellationToken ? this.initCancellationToken.token : undefined).then(() => false);
 					});
 				}
 
@@ -478,11 +479,11 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private launchOrAttachToSession(session: IDebugSession, focus = true): Promise<void> {
+	private launchOrAttachToSession(session: IDebugSession, forceFocus = false): Promise<void> {
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
 		return session.initialize(dbgr!).then(() => {
 			return session.launchOrAttach(session.configuration).then(() => {
-				if (focus) {
+				if (forceFocus || !this.viewModel.focusedSession) {
 					this.focusStackFrame(undefined, undefined, session);
 				}
 			});
@@ -541,6 +542,10 @@ export class DebugService implements IDebugService {
 				if (this.layoutService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getValue<IDebugConfiguration>('debug').openExplorerOnEnd) {
 					this.viewletService.openViewlet(EXPLORER_VIEWLET_ID);
 				}
+
+				// Data breakpoints that can not be persisted should be cleared when a session ends
+				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.canPersist);
+				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
 			}
 
 		}));
@@ -567,7 +572,7 @@ export class DebugService implements IDebugService {
 				return runTasks().then(taskResult => taskResult === TaskRunResult.Success ? this.extensionHostDebugService.reload(session.getId()) : undefined);
 			}
 
-			const shouldFocus = this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
+			const shouldFocus = !!this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
 			// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
 			return (isAutoRestart ? session.disconnect(true) : session.terminate(true)).then(() => {
 
@@ -851,6 +856,8 @@ export class DebugService implements IDebugService {
 				await this.sendBreakpoints(breakpoint.uri);
 			} else if (breakpoint instanceof FunctionBreakpoint) {
 				await this.sendFunctionBreakpoints();
+			} else if (breakpoint instanceof DataBreakpoint) {
+				await this.sendDataBreakpoints();
 			} else {
 				await this.sendExceptionBreakpoints();
 			}
@@ -920,6 +927,19 @@ export class DebugService implements IDebugService {
 		this.storeBreakpoints();
 	}
 
+	async addDataBreakpoint(label: string, dataId: string, canPersist: boolean): Promise<void> {
+		this.model.addDataBreakpoint(label, dataId, canPersist);
+		await this.sendDataBreakpoints();
+
+		this.storeBreakpoints();
+	}
+
+	async removeDataBreakpoints(id?: string): Promise<void> {
+		this.model.removeDataBreakpoints(id);
+		await this.sendDataBreakpoints();
+		this.storeBreakpoints();
+	}
+
 	sendAllBreakpoints(session?: IDebugSession): Promise<any> {
 		return Promise.all(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)))
 			.then(() => this.sendFunctionBreakpoints(session))
@@ -940,6 +960,14 @@ export class DebugService implements IDebugService {
 
 		return this.sendToOneOrAllSessions(session, s => {
 			return s.capabilities.supportsFunctionBreakpoints ? s.sendFunctionBreakpoints(breakpointsToSend) : Promise.resolve(undefined);
+		});
+	}
+
+	private sendDataBreakpoints(session?: IDebugSession): Promise<void> {
+		const breakpointsToSend = this.model.getDataBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
+
+		return this.sendToOneOrAllSessions(session, s => {
+			return s.capabilities.supportsDataBreakpoints ? s.sendDataBreakpoints(breakpointsToSend) : Promise.resolve(undefined);
 		});
 	}
 
@@ -1006,6 +1034,17 @@ export class DebugService implements IDebugService {
 		return result || [];
 	}
 
+	private loadDataBreakpoints(): DataBreakpoint[] {
+		let result: DataBreakpoint[] | undefined;
+		try {
+			result = JSON.parse(this.storageService.get(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((dbp: any) => {
+				return new DataBreakpoint(dbp.label, dbp.dataId, true, dbp.enabled, dbp.hitCondition, dbp.condition, dbp.logMessage);
+			});
+		} catch (e) { }
+
+		return result || [];
+	}
+
 	private loadWatchExpressions(): Expression[] {
 		let result: Expression[] | undefined;
 		try {
@@ -1039,6 +1078,13 @@ export class DebugService implements IDebugService {
 			this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(functionBreakpoints), StorageScope.WORKSPACE);
 		} else {
 			this.storageService.remove(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+		}
+
+		const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => dbp.canPersist);
+		if (dataBreakpoints.length) {
+			this.storageService.store(DEBUG_DATA_BREAKPOINTS_KEY, JSON.stringify(dataBreakpoints), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
 		}
 
 		const exceptionBreakpoints = this.model.getExceptionBreakpoints();

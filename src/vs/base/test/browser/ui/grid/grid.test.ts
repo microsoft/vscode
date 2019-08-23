@@ -9,6 +9,7 @@ import { TestView, nodesToArrays } from './util';
 import { deepClone } from 'vs/base/common/objects';
 
 // Simple example:
+//
 //  +-----+---------------+
 //  |  4  |      2        |
 //  +-----+---------+-----+
@@ -16,6 +17,16 @@ import { deepClone } from 'vs/base/common/objects';
 //  +---------------+  3  |
 //  |        5      |     |
 //  +---------------+-----+
+//
+//  V
+//  +-H
+//  | +-4
+//  | +-2
+//  +-H
+//  | +-V
+//  |   +-1
+//  |   +-5
+//  +-3
 
 suite('Grid', function () {
 	let container: HTMLElement;
@@ -511,7 +522,8 @@ suite('SerializableGrid', function () {
 		container.appendChild(grid.element);
 		grid.layout(800, 600);
 
-		assert.deepEqual(grid.serialize(), {
+		const actual = grid.serialize();
+		assert.deepEqual(actual, {
 			orientation: 0,
 			width: 800,
 			height: 600,

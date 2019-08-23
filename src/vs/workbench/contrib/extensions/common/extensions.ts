@@ -91,7 +91,6 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	open(extension: IExtension, sideByside?: boolean): Promise<any>;
 	checkForUpdates(): Promise<void>;
-	allowedBadgeProviders: string[];
 }
 
 export const ConfigurationKey = 'extensions';

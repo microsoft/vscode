@@ -71,7 +71,7 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 					result.workspaces.push({ folderUri: URI.file(workspace) });
 				} else if (isLegacySerializedWorkspace(workspace)) {
 					result.workspaces.push({ workspace: { id: workspace.id, configPath: URI.file(workspace.configPath) } });
-				} else if (isUriComponents(window)) {
+				} else if (isUriComponents(workspace)) {
 					// added by 1.26-insiders
 					result.workspaces.push({ folderUri: URI.revive(<UriComponents>workspace) });
 				}

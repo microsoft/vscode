@@ -15,7 +15,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/common/webview';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -25,7 +25,6 @@ export class WebviewEditor extends BaseEditor {
 
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean>;
-
 	private _editorFrame?: HTMLElement;
 	private _content?: HTMLElement;
 
@@ -77,6 +76,12 @@ export class WebviewEditor extends BaseEditor {
 	public hideFind() {
 		this._findWidgetVisible.reset();
 		this.withWebview(webview => webview.hideFind());
+	}
+
+	public find(previous: boolean) {
+		this.withWebview(webview => {
+			webview.runFindAction(previous);
+		});
 	}
 
 	public reload() {

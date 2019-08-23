@@ -16,7 +16,7 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "jsonc-parser": "^2.0.1",
+    "jsonc-parser": "^2.1.1",
     "rimraf": "^2.6.3",
     "semver": "5.5.1",
     "vscode-extension-telemetry": "0.1.1",

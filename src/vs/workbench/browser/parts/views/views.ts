@@ -382,7 +382,19 @@ export class ContributableViewsModel extends Disposable {
 			return 0;
 		}
 
-		return (this.getViewOrder(a) - this.getViewOrder(b)) || (a.id < b.id ? -1 : 1);
+		return (this.getViewOrder(a) - this.getViewOrder(b)) || this.getGroupOrderResult(a, b) || (a.id < b.id ? -1 : 1);
+	}
+
+	private getGroupOrderResult(a: IViewDescriptor, b: IViewDescriptor) {
+		if (!a.group || !b.group) {
+			return 0;
+		}
+
+		if (a.group === b.group) {
+			return 0;
+		}
+
+		return a.group < b.group ? -1 : 1;
 	}
 
 	private getViewOrder(viewDescriptor: IViewDescriptor): number {

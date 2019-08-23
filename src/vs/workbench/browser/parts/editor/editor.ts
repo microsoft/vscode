@@ -74,7 +74,7 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	 * Allows to prevent the opening of an editor by providing a callback
 	 * that will be executed instead. By returning another editor promise
 	 * it is possible to override the opening with another editor. It is ok
-	 * to return a promise that resolves to NULL to prevent the opening
+	 * to return a promise that resolves to `undefined` to prevent the opening
 	 * alltogether.
 	 */
 	prevent(callback: () => undefined | Promise<IEditor | undefined>): void;

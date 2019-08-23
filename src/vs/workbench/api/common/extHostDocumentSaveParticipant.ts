@@ -153,7 +153,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 						resourceEdit.edits.push({
 							range: range && Range.from(range),
 							text: newText,
-							eol: EndOfLine.from(newEol)
+							eol: newEol && EndOfLine.from(newEol)
 						});
 					}
 				}

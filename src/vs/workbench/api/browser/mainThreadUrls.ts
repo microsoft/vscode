@@ -6,7 +6,7 @@
 import { ExtHostContext, IExtHostContext, MainContext, MainThreadUrlsShape, ExtHostUrlsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/common/inactiveExtensionUrlHandler';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -66,6 +66,16 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		disposable.dispose();
 
 		return Promise.resolve(undefined);
+	}
+
+	async $createAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<URI> {
+		const payload: Partial<UriComponents> = options && options.payload ? options.payload : Object.create(null);
+
+		// we define the authority to be the extension ID to ensure
+		// that the Uri gets routed back to the extension properly.
+		payload.authority = extensionId.value;
+
+		return this.urlService.create(payload);
 	}
 
 	dispose(): void {

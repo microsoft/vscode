@@ -237,8 +237,13 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 			'workbench.useExperimentalGridLayout': {
 				'type': 'boolean',
 				'description': nls.localize('workbench.useExperimentalGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
-				'default': false,
+				'default': true,
 				'scope': ConfigurationScope.APPLICATION
+			},
+			'workbench.octiconsUpdate.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('workbench.octiconsUpdate.enabled', "Controls the visibility of the new Octicons style in the workbench.")
 			}
 		}
 	});
@@ -246,7 +251,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 	// Window
 
 	let windowTitleDescription = nls.localize('windowTitle', "Controls the window title based on the active editor. Variables are substituted based on the context:");
-	windowTitleDescription += [
+	windowTitleDescription += '\n- ' + [
 		nls.localize('activeEditorShort', "`\${activeEditorShort}`: the file name (e.g. myFile.txt)."),
 		nls.localize('activeEditorMedium', "`\${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
 		nls.localize('activeEditorLong', "`\${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)."),

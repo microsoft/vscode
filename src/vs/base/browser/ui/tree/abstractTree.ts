@@ -1064,6 +1064,16 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 
 		super.onPointer(e);
 	}
+
+	protected onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+
+		if (onTwistie) {
+			return;
+		}
+
+		super.onDoubleClick(e);
+	}
 }
 
 interface ITreeNodeListOptions<T, TFilterData, TRef> extends IListOptions<ITreeNode<T, TFilterData>> {
@@ -1307,6 +1317,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	set scrollTop(scrollTop: number) {
 		this.view.scrollTop = scrollTop;
+	}
+
+	get scrollLeft(): number {
+		return this.view.scrollTop;
+	}
+
+	set scrollLeft(scrollLeft: number) {
+		this.view.scrollLeft = scrollLeft;
 	}
 
 	get scrollHeight(): number {

@@ -50,6 +50,7 @@ export interface IProgressOptions {
 	source?: string;
 	total?: number;
 	cancellable?: boolean;
+	buttons?: string[];
 }
 
 export interface IProgressNotificationOptions extends IProgressOptions {
@@ -90,13 +91,13 @@ export interface IProgress<T> {
 export class Progress<T> implements IProgress<T> {
 
 	private _callback: (data: T) => void;
-	private _value: T;
+	private _value?: T;
 
 	constructor(callback: (data: T) => void) {
 		this._callback = callback;
 	}
 
-	get value() {
+	get value(): T | undefined {
 		return this._value;
 	}
 

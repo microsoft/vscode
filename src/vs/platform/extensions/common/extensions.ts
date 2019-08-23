@@ -106,7 +106,7 @@ export interface IExtensionContributions {
 	localizations?: ILocalization[];
 }
 
-export type ExtensionKind = 'ui' | 'workspace';
+export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing

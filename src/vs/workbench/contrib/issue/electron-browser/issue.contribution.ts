@@ -13,7 +13,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
 import { WorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issueService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IIssueService } from 'vs/platform/issue/node/issue';
 
 const helpCategory = { value: nls.localize('help', "Help"), original: 'Help' };
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);

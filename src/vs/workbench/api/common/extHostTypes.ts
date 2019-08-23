@@ -514,7 +514,7 @@ export class TextEdit {
 
 	protected _range: Range;
 	protected _newText: string | null;
-	protected _newEol: EndOfLine;
+	protected _newEol?: EndOfLine;
 
 	get range(): Range {
 		return this._range;
@@ -538,11 +538,11 @@ export class TextEdit {
 		this._newText = value;
 	}
 
-	get newEol(): EndOfLine {
+	get newEol(): EndOfLine | undefined {
 		return this._newEol;
 	}
 
-	set newEol(value: EndOfLine) {
+	set newEol(value: EndOfLine | undefined) {
 		if (value && typeof value !== 'number') {
 			throw illegalArgument('newEol');
 		}
@@ -550,7 +550,7 @@ export class TextEdit {
 	}
 
 	constructor(range: Range, newText: string | null) {
-		this.range = range;
+		this._range = range;
 		this._newText = newText;
 	}
 
@@ -798,7 +798,7 @@ export class Location {
 	}
 
 	uri: URI;
-	range: Range;
+	range!: Range;
 
 	constructor(uri: URI, rangeOrPosition: Range | Position) {
 		this.uri = uri;
@@ -861,10 +861,10 @@ export class Diagnostic {
 
 	range: Range;
 	message: string;
-	source: string;
-	code: string | number;
 	severity: DiagnosticSeverity;
-	relatedInformation: DiagnosticRelatedInformation[];
+	source?: string;
+	code?: string | number;
+	relatedInformation?: DiagnosticRelatedInformation[];
 	tags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
@@ -979,6 +979,10 @@ export enum SymbolKind {
 	TypeParameter = 25
 }
 
+export enum SymbolTag {
+	Deprecated = 1,
+}
+
 @es5ClassCompat
 export class SymbolInformation {
 
@@ -989,8 +993,9 @@ export class SymbolInformation {
 	}
 
 	name: string;
-	location: Location;
+	location!: Location;
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	containerName: string | undefined;
 
 	constructor(name: string, kind: SymbolKind, containerName: string | undefined, location: Location);
@@ -1041,6 +1046,7 @@ export class DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	range: Range;
 	selectionRange: Range;
 	children: DocumentSymbol[];
@@ -1074,6 +1080,8 @@ export class CodeAction {
 	diagnostics?: Diagnostic[];
 
 	kind?: CodeActionKind;
+
+	isPreferred?: boolean;
 
 	constructor(title: string, kind?: CodeActionKind) {
 		this.title = title;
@@ -1253,8 +1261,8 @@ export class SignatureInformation {
 export class SignatureHelp {
 
 	signatures: SignatureInformation[];
-	activeSignature: number;
-	activeParameter: number;
+	activeSignature: number = 0;
+	activeParameter: number = 0;
 
 	constructor() {
 		this.signatures = [];
@@ -1306,23 +1314,28 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
+export enum CompletionItemTag {
+	Deprecated = 1,
+}
+
 @es5ClassCompat
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
-	kind: CompletionItemKind | undefined;
+	kind?: CompletionItemKind;
+	tags?: CompletionItemTag[];
 	detail?: string;
 	documentation?: string | MarkdownString;
 	sortText?: string;
 	filterText?: string;
 	preselect?: boolean;
-	insertText: string | SnippetString;
+	insertText?: string | SnippetString;
 	keepWhitespace?: boolean;
-	range: Range;
+	range?: Range;
 	commitCharacters?: string[];
-	textEdit: TextEdit;
-	additionalTextEdits: TextEdit[];
-	command: vscode.Command;
+	textEdit?: TextEdit;
+	additionalTextEdits?: TextEdit[];
+	command?: vscode.Command;
 
 	constructor(label: string, kind?: CompletionItemKind) {
 		this.label = label;
@@ -2163,6 +2176,24 @@ export class FunctionBreakpoint extends Breakpoint {
 		this.functionName = functionName;
 	}
 }
+
+@es5ClassCompat
+export class DataBreakpoint extends Breakpoint {
+	readonly label: string;
+	readonly dataId: string;
+	readonly canPersist: boolean;
+
+	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
+		if (!dataId) {
+			throw illegalArgument('dataId');
+		}
+		this.label = label;
+		this.dataId = dataId;
+		this.canPersist = canPersist;
+	}
+}
+
 
 @es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {

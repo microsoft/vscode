@@ -742,10 +742,6 @@ export class Minimap extends ViewPart {
 
 			canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
 
-			// If the minimap is rendered using blocks, text takes up half the line height
-			const lineHeightRatio = renderMinimap === RenderMinimap.LargeBlocks || renderMinimap === RenderMinimap.SmallBlocks ? 0.5 : 1;
-			const height = lineHeight * lineHeightRatio;
-
 			// Loop over decorations, ignoring those that don't have the minimap property set and rendering rectangles for each line the decoration spans
 			const lineOffsetMap = new Map<number, number[]>();
 			for (let i = 0; i < decorations.length; i++) {
@@ -756,7 +752,7 @@ export class Minimap extends ViewPart {
 				}
 
 				for (let line = decoration.range.startLineNumber; line <= decoration.range.endLineNumber; line++) {
-					this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration, layout, line, height, lineHeight, tabSize, characterWidth);
+					this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
 				}
 			}
 

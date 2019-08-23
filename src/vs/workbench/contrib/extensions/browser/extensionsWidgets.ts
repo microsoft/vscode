@@ -18,9 +18,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
-	private _extension: IExtension;
-	get extension(): IExtension { return this._extension; }
-	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+	private _extension: IExtension | null = null;
+	get extension(): IExtension | null { return this._extension; }
+	set extension(extension: IExtension | null) { this._extension = extension; this.update(); }
 	update(): void { this.render(); }
 	abstract render(): void;
 }
@@ -183,7 +183,7 @@ export class RecommendationWidget extends ExtensionWidget {
 	private element?: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
 
-	private _tooltip: string;
+	private _tooltip: string = '';
 	get tooltip(): string { return this._tooltip; }
 	set tooltip(tooltip: string) {
 		if (this._tooltip !== tooltip) {

@@ -10,6 +10,7 @@ import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 let Terminal: typeof XTermTerminal;
 let WebLinksAddon: typeof XTermWebLinksAddon;
@@ -63,3 +64,5 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return {};
 	}
 }
+
+registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);

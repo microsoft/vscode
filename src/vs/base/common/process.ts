@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows, isMacintosh, setImmediate } from 'vs/base/common/platform';
+import { isWindows, isMacintosh, setImmediate, IProcessEnvironment } from 'vs/base/common/platform';
 
 interface IProcess {
 	platform: string;
-	env: object;
+	env: IProcessEnvironment;
 
 	cwd(): string;
 	nextTick(callback: (...args: any[]) => void): number;

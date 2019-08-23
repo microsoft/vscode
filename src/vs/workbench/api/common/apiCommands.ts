@@ -175,6 +175,11 @@ CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async functio
 	return windowService.addRecentlyOpened([recent]);
 });
 
+CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function (accessor: ServicesAccessor) {
+	const windowService = accessor.get(IWindowService);
+	return windowService.getRecentlyOpened();
+});
+
 export class SetEditorLayoutAPICommand {
 	public static ID = 'vscode.setEditorLayout';
 	public static execute(executor: ICommandsExecutor, layout: EditorGroupLayout): Promise<any> {

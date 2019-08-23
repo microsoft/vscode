@@ -288,6 +288,22 @@ export function validateTelemetryData(data?: any): { properties: Properties, mea
 	};
 }
 
+export function cleanRemoteAuthority(remoteAuthority?: string): string {
+	if (!remoteAuthority) {
+		return 'none';
+	}
+
+	let ret = 'other';
+	// Whitelisted remote authorities
+	['ssh-remote', 'dev-container', 'attached-container', 'wsl'].forEach((res: string) => {
+		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
+			ret = res;
+		}
+	});
+
+	return ret;
+}
+
 function flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
 	if (!obj) {
 		return;

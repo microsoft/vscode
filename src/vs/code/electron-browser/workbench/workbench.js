@@ -16,9 +16,9 @@ process['lazyEnv'] = getLazyEnv();
 
 // Load workbench main
 bootstrapWindow.load([
-	'vs/workbench/workbench.main',
-	'vs/nls!vs/workbench/workbench.main',
-	'vs/css!vs/workbench/workbench.main'
+	'vs/workbench/workbench.desktop.main',
+	'vs/nls!vs/workbench/workbench.desktop.main',
+	'vs/css!vs/workbench/workbench.desktop.main'
 ],
 	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
@@ -27,7 +27,7 @@ bootstrapWindow.load([
 			perf.mark('main/startup');
 
 			// @ts-ignore
-			return require('vs/workbench/electron-browser/main').main(configuration);
+			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		});
 	}, {
 		removeDeveloperKeybindingsAfterLoad: true,
