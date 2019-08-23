@@ -671,7 +671,7 @@ export class SimpleUriLabelService implements ILabelService {
 	}
 
 	getUriBasenameLabel(resource: URI): string {
-		return basename(resource.path);
+		return basename(this.getUriLabel(resource));
 	}
 
 	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
