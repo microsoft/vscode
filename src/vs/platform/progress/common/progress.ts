@@ -50,6 +50,7 @@ export interface IProgressOptions {
 	source?: string;
 	total?: number;
 	cancellable?: boolean;
+	buttons?: string[];
 }
 
 export interface IProgressNotificationOptions extends IProgressOptions {
