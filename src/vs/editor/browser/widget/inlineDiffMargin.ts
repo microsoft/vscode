@@ -74,12 +74,25 @@ export class InlineDiffMargin extends Disposable {
 		const readOnly = editor.getConfiguration().readOnly;
 		if (!readOnly) {
 			actions.push(new Action('diff.inline.revertChange', nls.localize('diff.inline.revertChange.label', "Revert this change"), undefined, true, async () => {
-				editor.executeEdits('diffEditor', [
-					{
-						range: new Range(diff.modifiedStartLineNumber, 1, diff.modifiedEndLineNumber + 1, 1),
-						text: diff.originalContent.join(lineFeed) + lineFeed
-					}
-				]);
+				if (diff.modifiedEndLineNumber === 0) {
+					// deletion only
+					const column = editor.getModel()!.getLineMaxColumn(diff.modifiedStartLineNumber);
+					editor.executeEdits('diffEditor', [
+						{
+							range: new Range(diff.modifiedStartLineNumber, column, diff.modifiedStartLineNumber, column),
+							text: lineFeed + diff.originalContent.join(lineFeed)
+						}
+					]);
+				} else {
+					const column = editor.getModel()!.getLineMaxColumn(diff.modifiedEndLineNumber);
+					editor.executeEdits('diffEditor', [
+						{
+							range: new Range(diff.modifiedStartLineNumber, 1, diff.modifiedEndLineNumber, column),
+							text: diff.originalContent.join(lineFeed)
+						}
+					]);
+				}
+
 			}));
 		}
 
