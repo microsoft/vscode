@@ -741,8 +741,8 @@ class SuggestAdapter {
 
 		// kind2
 		if (typeof item.kind2 === 'object') {
-			result.b = typeConvert.CompletionItemKind.from(item.kind2.base);
-			result.n = item.kind2.modifier.map(typeConvert.CompletionItemKindModifier.from);
+			result.b = typeConvert.CompletionItemKind.from(item.kind2.kind);
+			result.n = item.kind2.tags.map(typeConvert.CompletionItemKindTag.from);
 		}
 
 		// 'insertText'-logic

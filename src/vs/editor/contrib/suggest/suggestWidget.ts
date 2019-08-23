@@ -30,7 +30,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { CompletionItemKind, completionKindToCssClass, CompletionItemKindModifier } from 'vs/editor/common/modes';
+import { CompletionItemKind, completionKindToCssClass, CompletionItemKindTag } from 'vs/editor/common/modes';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -193,7 +193,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			];
 		}
 
-		if (suggestion.kindModifier && suggestion.kindModifier.has(CompletionItemKindModifier.Deprecated)) {
+		if (suggestion.kindTags && suggestion.kindTags.has(CompletionItemKindTag.Deprecated)) {
 			labelOptions.extraClasses = (labelOptions.extraClasses || []).concat(['deprecated']);
 			labelOptions.matches = [];
 		}

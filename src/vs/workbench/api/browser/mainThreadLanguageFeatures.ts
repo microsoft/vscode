@@ -331,7 +331,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return {
 			label: data.a,
 			kind: data.b,
-			kindModifier: data.n && fromArray(data.n),
+			kindTags: data.n && fromArray(data.n),
 			detail: data.c,
 			documentation: data.d,
 			sortText: data.e,

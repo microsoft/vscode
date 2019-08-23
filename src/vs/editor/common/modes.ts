@@ -367,7 +367,7 @@ export let completionKindFromString: {
 	};
 })();
 
-export const enum CompletionItemKindModifier {
+export const enum CompletionItemKindTag {
 	Deprecated = 1
 }
 
@@ -404,7 +404,7 @@ export interface CompletionItem {
 	 * A modifier to the `kind` which affect how the item
 	 * is rendered, e.g. Deprecated is rendered with a strikeout
 	 */
-	kindModifier?: Set<CompletionItemKindModifier>;
+	kindTags?: Set<CompletionItemKindTag>;
 	/**
 	 * A human-readable string with additional information
 	 * about this item, like type or symbol information.
