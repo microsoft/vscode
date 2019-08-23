@@ -331,7 +331,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 					// Show dialog
 					progressService!.withProgress(
 						{ location: ProgressLocation.Dialog, buttons },
-						(progress) => { progressReporter = new ProgressReporter(progress); return promise; },
+						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
 						(choice?) => {
 							// Handle choice from dialog
 							if (choice === 0 && buttons && reconnectWaitEvent) {
@@ -351,7 +351,6 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 							// Handle choice from notification
 							if (choice === 0 && buttons && reconnectWaitEvent) {
 								reconnectWaitEvent.skipWait();
-								progressReporter!.report();
 							} else {
 								hideProgress();
 							}
@@ -365,7 +364,6 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				}
 
 				currentProgressPromiseResolve = null;
-				progressReporter = null;
 			}
 
 			connection.onDidStateChange((e) => {
@@ -376,6 +374,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				switch (e.type) {
 					case PersistentConnectionEventType.ConnectionLost:
 						if (!currentProgressPromiseResolve) {
+							progressReporter = new ProgressReporter(null);
 							showProgress(ProgressLocation.Dialog, [nls.localize('reconnectNow', "Reconnect Now")]);
 						}
 
@@ -394,6 +393,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						break;
 					case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						hideProgress();
+						progressReporter = null;
 
 						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(choice => {
 							// Reload the window
@@ -404,6 +404,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						break;
 					case PersistentConnectionEventType.ConnectionGain:
 						hideProgress();
+						progressReporter = null;
 						break;
 				}
 			});
