@@ -58,18 +58,18 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
-	protected toolBar: ToolBar;
+	protected toolBar!: ToolBar;
 
 	private mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
 	private mapActionsBindingToComposite = new Map<string, () => void>();
 	private activeComposite: Composite | null;
 	private lastActiveCompositeId: string;
 	private instantiatedCompositeItems: Map<string, CompositeItem>;
-	private titleLabel: ICompositeTitleLabel;
-	private progressBar: ProgressBar;
-	private contentAreaSize: Dimension;
+	private titleLabel!: ICompositeTitleLabel;
+	private progressBar!: ProgressBar;
+	private contentAreaSize: Dimension | undefined;
 	private readonly telemetryActionsListener = this._register(new MutableDisposable());
-	private currentCompositeOpenToken: string;
+	private currentCompositeOpenToken: string | undefined;
 
 	constructor(
 		private notificationService: INotificationService,
@@ -466,6 +466,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	layout(width: number, height: number): void {
+		super.layout(width, height);
 
 		// Layout contents
 		this.contentAreaSize = super.layoutContents(width, height).contentSize;

@@ -40,22 +40,22 @@ export class CommentNode extends Disposable {
 	private _md: HTMLElement;
 	private _clearTimeout: any;
 
-	private _editAction: Action;
-	private _commentEditContainer: HTMLElement;
+	private _editAction: Action | null = null;
+	private _commentEditContainer: HTMLElement | null = null;
 	private _commentDetailsContainer: HTMLElement;
-	private _actionsToolbarContainer: HTMLElement;
+	private _actionsToolbarContainer!: HTMLElement;
 	private _reactionsActionBar?: ActionBar;
 	private _reactionActionsContainer?: HTMLElement;
-	private _commentEditor: SimpleCommentEditor | null;
+	private _commentEditor: SimpleCommentEditor | null = null;
 	private _commentEditorDisposables: IDisposable[] = [];
-	private _commentEditorModel: ITextModel;
-	private _isPendingLabel: HTMLElement;
+	private _commentEditorModel: ITextModel | null = null;
+	private _isPendingLabel!: HTMLElement;
 	private _contextKeyService: IContextKeyService;
 	private _commentContextValue: IContextKey<string>;
 
 	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar | undefined;
-	private _commentFormActions: CommentFormActions;
+	private _commentFormActions: CommentFormActions | null = null;
 
 	private _onDidDelete = new Emitter<CommentNode>();
 
@@ -63,7 +63,7 @@ export class CommentNode extends Disposable {
 		return this._domNode;
 	}
 
-	public isEditing: boolean;
+	public isEditing: boolean = false;
 
 	constructor(
 		private commentThread: modes.CommentThread,
@@ -181,7 +181,7 @@ export class CommentNode extends Disposable {
 		let hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
 
 		if (hasReactionHandler) {
-			let toggleReactionAction = this.createReactionPicker2(this.comment.commentReactions || []);
+			let toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
 			actions.push(toggleReactionAction);
 		}
 
@@ -208,7 +208,7 @@ export class CommentNode extends Disposable {
 
 	actionViewItemProvider(action: Action) {
 		let options = {};
-		if (action.id === 'comment.delete' || action.id === 'comment.edit' || action.id === ToggleReactionsAction.ID) {
+		if (action.id === ToggleReactionsAction.ID) {
 			options = { label: false, icon: true };
 		} else {
 			options = { label: false, icon: true };
@@ -226,7 +226,7 @@ export class CommentNode extends Disposable {
 		}
 	}
 
-	private createReactionPicker2(reactionGroup: modes.CommentReaction[]): ToggleReactionsAction {
+	private createReactionPicker(reactionGroup: modes.CommentReaction[]): ToggleReactionsAction {
 		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
 		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {
@@ -321,19 +321,13 @@ export class CommentNode extends Disposable {
 		});
 
 		if (hasReactionHandler) {
-			let toggleReactionAction = this.createReactionPicker2(this.comment.commentReactions || []);
+			let toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
 			this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
-		} else {
-			// let reactionGroup = this.commentService.getReactionGroup(this.owner);
-			// if (reactionGroup && reactionGroup.length) {
-			// 	let toggleReactionAction = this.createReactionPicker2(reactionGroup || []);
-			// 	this._reactionsActionBar.push(toggleReactionAction, { label: false, icon: true });
-			// }
 		}
 	}
 
-	private createCommentEditor(): void {
-		const container = dom.append(this._commentEditContainer, dom.$('.edit-textarea'));
+	private createCommentEditor(editContainer: HTMLElement): void {
+		const container = dom.append(editContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentEditor, this.parentThread);
 		const resource = URI.parse(`comment:commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`);
 		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource), resource, false);
@@ -396,7 +390,7 @@ export class CommentNode extends Disposable {
 			this._commentEditor = null;
 		}
 
-		this._commentEditContainer.remove();
+		this._commentEditContainer!.remove();
 	}
 
 	public switchToEditMode() {
@@ -407,7 +401,7 @@ export class CommentNode extends Disposable {
 		this.isEditing = true;
 		this._body.classList.add('hidden');
 		this._commentEditContainer = dom.append(this._commentDetailsContainer, dom.$('.edit-container'));
-		this.createCommentEditor();
+		this.createCommentEditor(this._commentEditContainer);
 		const formActions = dom.append(this._commentEditContainer, dom.$('.form-actions'));
 
 		const menus = this.commentService.getCommentMenus(this.owner);
@@ -415,7 +409,9 @@ export class CommentNode extends Disposable {
 
 		this._register(menu);
 		this._register(menu.onDidChange(() => {
-			this._commentFormActions.setActions(menu);
+			if (this._commentFormActions) {
+				this._commentFormActions.setActions(menu);
+			}
 		}));
 
 		this._commentFormActions = new CommentFormActions(formActions, (action: IAction): void => {

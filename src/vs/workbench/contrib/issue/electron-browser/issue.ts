@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IssueReporterData } from 'vs/platform/issue/common/issue';
+import { IssueReporterData } from 'vs/platform/issue/node/issue';
 
 export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('workbenchIssueService');
 

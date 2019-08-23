@@ -26,8 +26,9 @@ import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/brow
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IView } from 'vs/workbench/common/views';
+import { IView, FocusedViewContext } from 'vs/workbench/common/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -40,6 +41,7 @@ export interface IViewletPanelOptions extends IPanelOptions {
 	actionRunner?: IActionRunner;
 	id: string;
 	title: string;
+	showActionsAlways?: boolean;
 }
 
 export abstract class ViewletPanel extends Panel implements IView {
@@ -58,12 +60,15 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
+	private focusedViewContextKey: IContextKey<string>;
+
 	private _isVisible: boolean = false;
 	readonly id: string;
 	readonly title: string;
 
 	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar;
+	private readonly showActionsAlways: boolean = false;
 	private headerContainer: HTMLElement;
 	private titleContainer: HTMLElement;
 
@@ -71,13 +76,16 @@ export abstract class ViewletPanel extends Panel implements IView {
 		options: IViewletPanelOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(options);
 
 		this.id = options.id;
 		this.title = options.title;
 		this.actionRunner = options.actionRunner;
+		this.showActionsAlways = !!options.showActionsAlways;
+		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 	}
 
 	setVisible(visible: boolean): void {
@@ -112,8 +120,14 @@ export abstract class ViewletPanel extends Panel implements IView {
 
 		const focusTracker = trackFocus(this.element);
 		this._register(focusTracker);
-		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
-		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
+		this._register(focusTracker.onDidFocus(() => {
+			this.focusedViewContextKey.set(this.id);
+			this._onDidFocus.fire();
+		}));
+		this._register(focusTracker.onDidBlur(() => {
+			this.focusedViewContextKey.reset();
+			this._onDidBlur.fire();
+		}));
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -122,6 +136,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
+		toggleClass(actions, 'show', this.showActionsAlways);
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: action => this.getActionViewItem(action),

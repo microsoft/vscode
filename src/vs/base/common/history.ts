@@ -7,9 +7,9 @@ import { INavigator, ArrayNavigator } from 'vs/base/common/iterator';
 
 export class HistoryNavigator<T> implements INavigator<T> {
 
-	private _history: Set<T>;
+	private _history!: Set<T>;
 	private _limit: number;
-	private _navigator: ArrayNavigator<T>;
+	private _navigator!: ArrayNavigator<T>;
 
 	constructor(history: T[] = [], limit: number = 10) {
 		this._initialize(history);

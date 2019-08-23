@@ -323,7 +323,7 @@ class HideStatusbarEntryAction extends Action {
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	_serviceBrand: ServiceIdentifier<IStatusbarService>;
+	_serviceBrand!: ServiceIdentifier<IStatusbarService>;
 
 	//#region IView
 
@@ -611,6 +611,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	layout(width: number, height: number): void {
+		super.layout(width, height);
 		super.layoutContents(width, height);
 	}
 

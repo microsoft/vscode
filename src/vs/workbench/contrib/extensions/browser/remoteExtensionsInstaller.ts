@@ -11,7 +11,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstallLocalExtensionsOnRemoteAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { InstallLocalExtensionsInRemoteAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 
 export class RemoteExtensionsInstaller extends Disposable implements IWorkbenchContribution {
 
@@ -22,16 +22,16 @@ export class RemoteExtensionsInstaller extends Disposable implements IWorkbenchC
 	) {
 		super();
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const installLocalExtensionsOnRemoteAction = instantiationService.createInstance(InstallLocalExtensionsOnRemoteAction);
-			CommandsRegistry.registerCommand('workbench.extensions.installLocalExtensions', () => installLocalExtensionsOnRemoteAction.run());
+			const installLocalExtensionsInRemoteAction = instantiationService.createInstance(InstallLocalExtensionsInRemoteAction);
+			CommandsRegistry.registerCommand('workbench.extensions.installLocalExtensions', () => installLocalExtensionsInRemoteAction.run());
 			let disposable = Disposable.None;
 			const appendMenuItem = () => {
 				disposable.dispose();
 				disposable = MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 					command: {
 						id: 'workbench.extensions.installLocalExtensions',
-						category: localize('extensions', "Extensions"),
-						title: installLocalExtensionsOnRemoteAction.label
+						category: localize('remote', "Remote"),
+						title: installLocalExtensionsInRemoteAction.label
 					}
 				});
 			};

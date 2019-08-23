@@ -45,6 +45,7 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
 import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { basename } from 'vs/base/common/path';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -98,17 +99,20 @@ function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (e
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: any;
 
-	private editor: editorCommon.IEditor;
+	private editor?: editorCommon.IEditor;
 
 	public setEditor(editor: editorCommon.IEditor): void {
 		this.editor = editor;
 	}
 
 	public createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		let model: ITextModel | null = withTypedEditor(this.editor,
-			(editor) => this.findModel(editor, resource),
-			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
-		);
+		let model: ITextModel | null = null;
+		if (this.editor) {
+			model = withTypedEditor(this.editor,
+				(editor) => this.findModel(editor, resource),
+				(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
+			);
+		}
 
 		if (!model) {
 			return Promise.reject(new Error(`Model not found`));
@@ -468,7 +472,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 			defaults: emptyModel,
 			user: emptyModel,
 			workspace: emptyModel,
-			folders: {}
+			folders: []
 		};
 	}
 }
@@ -477,12 +481,12 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 	_serviceBrand: any;
 
-	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
-	private readonly _onDidChangeConfigurationEmitter = new Emitter();
+	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	constructor(private readonly configurationService: SimpleConfigurationService) {
 		this.configurationService.onDidChangeConfiguration((e) => {
-			this._onDidChangeConfigurationEmitter.fire(e);
+			this._onDidChangeConfiguration.fire(e);
 		});
 	}
 
@@ -519,7 +523,7 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 }
 
 export class StandaloneTelemetryService implements ITelemetryService {
-	_serviceBrand: void;
+	_serviceBrand: void = undefined;
 
 	public isOptedIn = false;
 
@@ -653,6 +657,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 }
 
 export class SimpleUriLabelService implements ILabelService {
+
 	_serviceBrand: any;
 
 	private readonly _onDidRegisterFormatter = new Emitter<void>();
@@ -663,6 +668,10 @@ export class SimpleUriLabelService implements ILabelService {
 			return resource.fsPath;
 		}
 		return resource.path;
+	}
+
+	getUriBasenameLabel(resource: URI): string {
+		return basename(this.getUriLabel(resource));
 	}
 
 	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
@@ -687,7 +696,7 @@ export class SimpleLayoutService implements ILayoutService {
 
 	public onLayout = Event.None;
 
-	private _dimension: IDimension;
+	private _dimension?: IDimension;
 	get dimension(): IDimension {
 		if (!this._dimension) {
 			this._dimension = dom.getClientArea(window.document.body);

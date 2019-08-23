@@ -620,26 +620,26 @@ export interface IReadFileOptions {
 	 * that have been read already with the same etag.
 	 * It is the task of the caller to makes sure to handle this error case from the promise.
 	 */
-	etag?: string;
+	readonly etag?: string;
 
 	/**
 	 * Is an integer specifying where to begin reading from in the file. If position is null,
 	 * data will be read from the current file position.
 	 */
-	position?: number;
+	readonly position?: number;
 
 	/**
 	 * Is an integer specifying how many bytes to read from the file. By default, all bytes
 	 * will be read.
 	 */
-	length?: number;
+	readonly length?: number;
 
 	/**
 	 * If provided, the size of the file will be checked against the limits.
 	 */
 	limits?: {
-		size?: number;
-		memory?: number;
+		readonly size?: number;
+		readonly memory?: number;
 	};
 }
 
@@ -648,12 +648,12 @@ export interface IWriteFileOptions {
 	/**
 	 * The last known modification time of the file. This can be used to prevent dirty writes.
 	 */
-	mtime?: number;
+	readonly mtime?: number;
 
 	/**
 	 * The etag of the file. This can be used to prevent dirty writes.
 	 */
-	etag?: string;
+	readonly etag?: string;
 }
 
 export interface IResolveFileOptions {
@@ -662,22 +662,22 @@ export interface IResolveFileOptions {
 	 * Automatically continue resolving children of a directory until the provided resources
 	 * are found.
 	 */
-	resolveTo?: URI[];
+	readonly resolveTo?: readonly URI[];
 
 	/**
 	 * Automatically continue resolving children of a directory if the number of children is 1.
 	 */
-	resolveSingleChildDescendants?: boolean;
+	readonly resolveSingleChildDescendants?: boolean;
 
 	/**
 	 * Will resolve mtime, size and etag of files if enabled. This can have a negative impact
 	 * on performance and thus should only be used when these values are required.
 	 */
-	resolveMetadata?: boolean;
+	readonly resolveMetadata?: boolean;
 }
 
 export interface IResolveMetadataFileOptions extends IResolveFileOptions {
-	resolveMetadata: true;
+	readonly resolveMetadata: true;
 }
 
 export interface ICreateFileOptions {
@@ -686,7 +686,7 @@ export interface ICreateFileOptions {
 	 * Overwrite the file to create if it already exists on disk. Otherwise
 	 * an error will be thrown (FILE_MODIFIED_SINCE).
 	 */
-	overwrite?: boolean;
+	readonly overwrite?: boolean;
 }
 
 export class FileOperationError extends Error {

@@ -77,8 +77,8 @@ export class BreadcrumbsWidget {
 	private _focusedItemIdx: number = -1;
 	private _selectedItemIdx: number = -1;
 
-	private _pendingLayout: IDisposable;
-	private _dimension: dom.Dimension;
+	private _pendingLayout: IDisposable | undefined;
+	private _dimension: dom.Dimension | undefined;
 
 	constructor(
 		container: HTMLElement

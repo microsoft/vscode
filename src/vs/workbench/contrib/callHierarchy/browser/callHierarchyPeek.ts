@@ -91,15 +91,15 @@ class LayoutInfo {
 
 export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
-	private _changeDirectionAction: ChangeHierarchyDirectionAction;
-	private _parent: HTMLElement;
-	private _message: HTMLElement;
-	private _splitView: SplitView;
-	private _tree: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
+	private _changeDirectionAction?: ChangeHierarchyDirectionAction;
+	private _parent!: HTMLElement;
+	private _message!: HTMLElement;
+	private _splitView!: SplitView;
+	private _tree!: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
 	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
-	private _editor: EmbeddedCodeEditorWidget;
-	private _dim: Dimension;
-	private _layoutInfo: LayoutInfo;
+	private _editor!: EmbeddedCodeEditorWidget;
+	private _dim!: Dimension;
+	private _layoutInfo!: LayoutInfo;
 
 	constructor(
 		editor: ICodeEditor,
@@ -386,7 +386,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			};
 			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
 			this._disposables.add(this._changeDirectionAction);
-			this._actionbarWidget.push(this._changeDirectionAction, { icon: true, label: false });
+			this._actionbarWidget!.push(this._changeDirectionAction, { icon: true, label: false });
 		}
 	}
 

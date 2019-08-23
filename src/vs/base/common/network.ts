@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
+import * as platform from 'vs/base/common/platform';
+
 export namespace Schemas {
 
 	/**
@@ -47,5 +50,48 @@ export namespace Schemas {
 
 	export const vscodeRemote: string = 'vscode-remote';
 
+	export const vscodeRemoteResource: string = 'vscode-remote-resource';
+
 	export const userData: string = 'vscode-userdata';
 }
+
+class RemoteAuthoritiesImpl {
+	private readonly _hosts: { [authority: string]: string; };
+	private readonly _ports: { [authority: string]: number; };
+	private readonly _connectionTokens: { [authority: string]: string; };
+	private _preferredWebSchema: 'http' | 'https';
+
+	constructor() {
+		this._hosts = Object.create(null);
+		this._ports = Object.create(null);
+		this._connectionTokens = Object.create(null);
+		this._preferredWebSchema = 'http';
+	}
+
+	public setPreferredWebSchema(schema: 'http' | 'https') {
+		this._preferredWebSchema = schema;
+	}
+
+	public set(authority: string, host: string, port: number): void {
+		this._hosts[authority] = host;
+		this._ports[authority] = port;
+	}
+
+	public setConnectionToken(authority: string, connectionToken: string): void {
+		this._connectionTokens[authority] = connectionToken;
+	}
+
+	public rewrite(authority: string, path: string): URI {
+		const host = this._hosts[authority];
+		const port = this._ports[authority];
+		const connectionToken = this._connectionTokens[authority];
+		return URI.from({
+			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
+			authority: `${host}:${port}`,
+			path: `/vscode-remote-resource`,
+			query: `path=${encodeURIComponent(path)}&tkn=${encodeURIComponent(connectionToken)}`
+		});
+	}
+}
+
+export const RemoteAuthorities = new RemoteAuthoritiesImpl();

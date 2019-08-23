@@ -69,10 +69,15 @@ process.argv.forEach((arg, idx) => {
 	}
 });
 
+// Connection Token
+process.argv.push('--connectionToken', '00000');
+
+const env = { ...process.env };
 let node;
 let entryPoint;
 let waitForUpdate = Promise.resolve();
 if (SELFHOST) {
+	env['VSCODE_AGENT_FOLDER'] = path.join(os.homedir(), '.vscode-web');
 	const runtime = RUNTIMES[process.platform];
 
 	const serverLocation = path.join(path.dirname(path.dirname(path.dirname(path.dirname(__dirname)))), runtime.folder);
@@ -111,6 +116,7 @@ if (SELFHOST) {
 		});
 	}
 } else {
+	env['VSCODE_AGENT_FOLDER'] = path.join(os.homedir(), '.vscode-web-dev');
 	node = process.execPath;
 	entryPoint = path.join(__dirname, '..', '..', '..', 'out', 'vs', 'server', 'main.js');
 }
@@ -244,7 +250,7 @@ function getInsidersUserDataPath() {
 
 function startServer() {
 	const serverArgs = process.argv.slice(2);
-	const proc = cp.spawn(node, [entryPoint, ...serverArgs]);
+	const proc = cp.spawn(node, [entryPoint, ...serverArgs], { env });
 
 	let launched = false;
 	proc.stdout.on("data", data => {
@@ -253,16 +259,20 @@ function startServer() {
 		console.log(data.toString());
 
 		// Bring up web URL when we detect the server is ready
-		if (!launched && data.toString().indexOf(`Extension host agent listening on ${PORT}`) >= 0) {
-			launched = true;
+		const webUIAvailableURLRegEx = new RegExp(`Web UI available at (http://localhost:${PORT}/\\?tkn=.+)`);
+		if (!launched && BROWSER !== 'none') {
+			const matches = webUIAvailableURLRegEx.exec(data.toString());
+			if (matches && matches[1]) {
+				launched = true;
 
-			setTimeout(() => {
-				const url = `http://localhost:${PORT}`;
+				setTimeout(() => {
+					const url = matches[1];
 
-				console.log(`Opening ${url} in your browser...`);
+					console.log(`Opening ${url} in your browser...`);
 
-				opn(url, { app: getApp(BROWSER) }).catch(() => { console.error(`Failed to open ${url} in your browser. Please do so manually.`); });
-			}, 100);
+					opn(url, { app: getApp(BROWSER) }).catch(() => { console.error(`Failed to open ${url} in your browser. Please do so manually.`); });
+				}, 100);
+			}
 		}
 	});
 

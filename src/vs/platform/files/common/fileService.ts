@@ -21,7 +21,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export class FileService extends Disposable implements IFileService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private readonly BUFFER_SIZE = 64 * 1024;
 
@@ -164,20 +164,24 @@ export class FileService extends Disposable implements IFileService {
 	private async doResolveFile(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		const provider = await this.withProvider(resource);
 
-		// leverage a trie to check for recursive resolving
 		const resolveTo = options && options.resolveTo;
-		const trie = TernarySearchTree.forPaths<true>();
-		trie.set(resource.toString(), true);
-		if (isNonEmptyArray(resolveTo)) {
-			resolveTo.forEach(uri => trie.set(uri.toString(), true));
-		}
-
 		const resolveSingleChildDescendants = !!(options && options.resolveSingleChildDescendants);
 		const resolveMetadata = !!(options && options.resolveMetadata);
 
 		const stat = await provider.stat(resource);
 
+		let trie: TernarySearchTree<boolean> | undefined;
+
 		return this.toFileStat(provider, resource, stat, undefined, resolveMetadata, (stat, siblings) => {
+
+			// lazy trie to check for recursive resolving
+			if (!trie) {
+				trie = TernarySearchTree.forPaths<true>();
+				trie.set(resource.toString(), true);
+				if (isNonEmptyArray(resolveTo)) {
+					resolveTo.forEach(uri => trie!.set(uri.toString(), true));
+				}
+			}
 
 			// check for recursive resolving
 			if (Boolean(trie.findSuperstr(stat.resource.toString()) || trie.get(stat.resource.toString()))) {
@@ -253,8 +257,12 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	async exists(resource: URI): Promise<boolean> {
+		const provider = await this.withProvider(resource);
+
 		try {
-			return !!(await this.resolve(resource));
+			const stat = await provider.stat(resource);
+
+			return !!stat;
 		} catch (error) {
 			return false;
 		}

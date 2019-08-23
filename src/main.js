@@ -133,7 +133,7 @@ function onReady() {
 }
 
 /**
- * @typedef {import('minimist').ParsedArgs} ParsedArgs
+ * @typedef	 {{ [arg: string]: any; '--'?: string[]; _: string[]; }} ParsedArgs
  *
  * @param {ParsedArgs} cliArgs
  */
@@ -186,7 +186,7 @@ function getUserDataPath(cliArgs) {
  * @returns {ParsedArgs}
  */
 function parseCLIArgs() {
-	const minimist = require('minimist');
+	const minimist = require('vscode-minimist');
 
 	return minimist(process.argv, {
 		string: [

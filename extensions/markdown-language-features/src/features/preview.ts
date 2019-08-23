@@ -89,6 +89,7 @@ export class MarkdownPreview extends Disposable {
 	private isScrolling = false;
 	private _disposed: boolean = false;
 	private imageInfo: { id: string, width: number, height: number }[] = [];
+	private scrollToFragment: string | undefined;
 
 	public static async revive(
 		webview: vscode.WebviewPanel,
@@ -171,19 +172,19 @@ export class MarkdownPreview extends Disposable {
 		this._locked = locked;
 		this.editor = webview;
 
-		this.editor.onDidDispose(() => {
+		this._register(this.editor.onDidDispose(() => {
 			this.dispose();
-		}, null, this._disposables);
+		}));
 
-		this.editor.onDidChangeViewState(e => {
+		this._register(this.editor.onDidChangeViewState(e => {
 			this._onDidChangeViewStateEmitter.fire(e);
-		}, null, this._disposables);
+		}));
 
-		_contributionProvider.onContributionsChanged(() => {
+		this._register(_contributionProvider.onContributionsChanged(() => {
 			setImmediate(() => this.refresh());
-		}, null, this._disposables);
+		}));
 
-		this.editor.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
+		this._register(this.editor.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
 			if (e.source !== this._resource.toString()) {
 				return;
 			}
@@ -213,21 +214,21 @@ export class MarkdownPreview extends Disposable {
 					vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", e.body.unloadedStyles.join(', ')));
 					break;
 			}
-		}, null, this._disposables);
+		}));
 
-		vscode.workspace.onDidChangeTextDocument(event => {
+		this._register(vscode.workspace.onDidChangeTextDocument(event => {
 			if (this.isPreviewOf(event.document.uri)) {
 				this.refresh();
 			}
-		}, null, this._disposables);
+		}));
 
-		topmostLineMonitor.onDidChangeTopmostLine(event => {
+		this._register(topmostLineMonitor.onDidChangeTopmostLine(event => {
 			if (this.isPreviewOf(event.resource)) {
 				this.updateForView(event.resource, event.line);
 			}
-		}, null, this._disposables);
+		}));
 
-		vscode.window.onDidChangeTextEditorSelection(event => {
+		this._register(vscode.window.onDidChangeTextEditorSelection(event => {
 			if (this.isPreviewOf(event.textEditor.document.uri)) {
 				this.postMessage({
 					type: 'onDidChangeTextEditorSelection',
@@ -235,19 +236,19 @@ export class MarkdownPreview extends Disposable {
 					source: this.resource.toString()
 				});
 			}
-		}, null, this._disposables);
+		}));
 
-		vscode.window.onDidChangeActiveTextEditor(editor => {
+		this._register(vscode.window.onDidChangeActiveTextEditor(editor => {
 			if (editor && isMarkdownFile(editor.document) && !this._locked) {
 				this.update(editor.document.uri);
 			}
-		}, null, this._disposables);
+		}));
 	}
 
-	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
+	private readonly _onDisposeEmitter = this._register(new vscode.EventEmitter<void>());
 	public readonly onDispose = this._onDisposeEmitter.event;
 
-	private readonly _onDidChangeViewStateEmitter = new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>();
+	private readonly _onDidChangeViewStateEmitter = this._register(new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
 	public readonly onDidChangeViewState = this._onDidChangeViewStateEmitter.event;
 
 	public get resource(): vscode.Uri {
@@ -264,7 +265,8 @@ export class MarkdownPreview extends Disposable {
 			locked: this._locked,
 			line: this.line,
 			resourceColumn: this.resourceColumn,
-			imageInfo: this.imageInfo
+			imageInfo: this.imageInfo,
+			fragment: this.scrollToFragment
 		};
 	}
 
@@ -284,8 +286,12 @@ export class MarkdownPreview extends Disposable {
 
 	public update(resource: vscode.Uri) {
 		const editor = vscode.window.activeTextEditor;
+		// Reposition scroll preview, position scroll to the top if active text editor
+		// doesn't corresponds with preview
 		if (editor && editor.document.uri.fsPath === resource.fsPath) {
 			this.line = getVisibleLine(editor);
+		} else {
+			this.line = 0;
 		}
 
 		// If we have changed resources, cancel any pending updates
@@ -433,8 +439,8 @@ export class MarkdownPreview extends Disposable {
 		if (this._resource === markdownResource) {
 			const self = this;
 			const resourceProvider: WebviewResourceProvider = {
-				toWebviewResource: (resource) => {
-					return this.editor.webview.toWebviewResource(normalizeResource(markdownResource, resource));
+				asWebviewUri: (resource) => {
+					return this.editor.webview.asWebviewUri(normalizeResource(markdownResource, resource));
 				},
 				get cspSource() { return self.editor.webview.cspSource; }
 			};
@@ -520,11 +526,15 @@ export class MarkdownPreview extends Disposable {
 	}
 
 	private async onDidClickPreviewLink(path: string, fragment: string | undefined) {
+		this.scrollToFragment = undefined;
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
 			const markdownLink = await resolveLinkToMarkdownFile(path);
 			if (markdownLink) {
+				if (fragment) {
+					this.scrollToFragment = fragment;
+				}
 				this.update(markdownLink);
 				return;
 			}

@@ -19,7 +19,7 @@ import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
-import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launchService';
 
 export const ID = 'launchService';
@@ -94,7 +94,7 @@ export class LaunchChannel implements IServerChannel {
 
 export class LaunchChannelClient implements ILaunchService {
 
-	_serviceBrand: ServiceIdentifier<ILaunchService>;
+	_serviceBrand!: ServiceIdentifier<ILaunchService>;
 
 	constructor(private channel: IChannel) { }
 
@@ -121,7 +121,7 @@ export class LaunchChannelClient implements ILaunchService {
 
 export class LaunchService implements ILaunchService {
 
-	_serviceBrand: ServiceIdentifier<ILaunchService>;
+	_serviceBrand!: ServiceIdentifier<ILaunchService>;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

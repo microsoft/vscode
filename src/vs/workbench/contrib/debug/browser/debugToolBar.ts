@@ -55,10 +55,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
-	private disposeOnUpdate: IDisposable;
+	private disposeOnUpdate: IDisposable | undefined;
 
-	private isVisible: boolean;
-	private isBuilt: boolean;
+	private isVisible = false;
+	private isBuilt = false;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -126,12 +126,12 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.registerListeners();
 
 		this.hide();
-		this.isBuilt = false;
 	}
 
 	private registerListeners(): void {
 		this._register(this.debugService.onDidChangeState(() => this.updateScheduler.schedule()));
 		this._register(this.debugService.getViewModel().onDidFocusSession(() => this.updateScheduler.schedule()));
+		this._register(this.debugService.onDidNewSession(() => this.updateScheduler.schedule()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
 		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error

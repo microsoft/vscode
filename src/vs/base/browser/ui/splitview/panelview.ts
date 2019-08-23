@@ -42,8 +42,8 @@ export abstract class Panel extends Disposable implements IView {
 	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
-	private header: HTMLElement;
-	private body: HTMLElement;
+	private header!: HTMLElement;
+	private body!: HTMLElement;
 
 	protected _expanded: boolean;
 
@@ -109,7 +109,7 @@ export abstract class Panel extends Disposable implements IView {
 		return headerSize + maximumBodySize;
 	}
 
-	width: number;
+	width: number = 0;
 
 	constructor(options: IPanelOptions = {}) {
 		super();
@@ -371,7 +371,7 @@ export class PanelView extends Disposable {
 	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];
-	private width: number;
+	private width: number = 0;
 	private splitview: SplitView;
 	private animationTimer: number | undefined = undefined;
 

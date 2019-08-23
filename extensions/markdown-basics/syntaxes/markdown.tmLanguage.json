@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/a595d8ba2ae9ce8864435d33db2afa0fe68b1487",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/eb3898715b50d7911377a650e383a768a3a21f25",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -716,7 +716,7 @@
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
 					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.cpp source.cpp",
+					"contentName": "meta.embedded.block.cpp",
 					"patterns": [
 						{
 							"include": "source.cpp"
@@ -1855,12 +1855,12 @@
 			"name": "markup.fenced_code.block.markdown"
 		},
 		"heading": {
-			"match": "(?:^|\\G)[ ]{0,3}((#{1,6})\\s*(?=[\\S[^#]]).*?\\s*(#{1,6})?)$\\n?",
+			"match": "(?:^|\\G)[ ]{0,3}((#{1,6})\\s+(?=[\\S[^#]]).*?\\s*(#{1,6})?)$\\n?",
 			"captures": {
 				"1": {
 					"patterns": [
 						{
-							"match": "(#{6})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{6})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.6.markdown",
 							"captures": {
 								"1": {
@@ -1875,7 +1875,7 @@
 							}
 						},
 						{
-							"match": "(#{5})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{5})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.5.markdown",
 							"captures": {
 								"1": {
@@ -1890,7 +1890,7 @@
 							}
 						},
 						{
-							"match": "(#{4})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{4})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.4.markdown",
 							"captures": {
 								"1": {
@@ -1905,7 +1905,7 @@
 							}
 						},
 						{
-							"match": "(#{3})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{3})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.3.markdown",
 							"captures": {
 								"1": {
@@ -1920,7 +1920,7 @@
 							}
 						},
 						{
-							"match": "(#{2})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{2})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.2.markdown",
 							"captures": {
 								"1": {
@@ -1935,7 +1935,7 @@
 							}
 						},
 						{
-							"match": "(#{1})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{1})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
 							"name": "heading.1.markdown",
 							"captures": {
 								"1": {
@@ -1987,25 +1987,46 @@
 					"name": "comment.block.html"
 				},
 				{
-					"begin": "(^|\\G)\\s*(?=<(script|style|pre)(\\s|$|>)(?!.*?</(script|style|pre)>))",
-					"end": "(?=.*</(script|style|pre)>)",
+					"begin": "(?i)(^|\\G)\\s*(?=<(script|style|pre)(\\s|$|>)(?!.*?</(script|style|pre)>))",
+					"end": "(?i)(.*)((</)(script|style|pre)(>))",
+					"endCaptures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "text.html.derivative"
+								}
+							]
+						},
+						"2": {
+							"name": "meta.tag.structure.$4.end.html"
+						},
+						"3": {
+							"name": "punctuation.definition.tag.begin.html"
+						},
+						"4": {
+							"name": "entity.name.tag.html"
+						},
+						"5": {
+							"name": "punctuation.definition.tag.end.html"
+						}
+					},
 					"patterns": [
 						{
 							"begin": "(\\s*|$)",
 							"patterns": [
 								{
-									"include": "text.html.basic"
+									"include": "text.html.derivative"
 								}
 							],
-							"while": "^(?!.*</(script|style|pre)>)"
+							"while": "(?i)^(?!.*</(script|style|pre)>)"
 						}
 					]
 				},
 				{
-					"begin": "(^|\\G)\\s*(?=</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(\\s|$|/?>))",
+					"begin": "(?i)(^|\\G)\\s*(?=</?[a-zA-Z]+[^\\s/&gt;]*(\\s|$|/?>))",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					],
 					"while": "^(?!\\s*$)"
@@ -2014,7 +2035,7 @@
 					"begin": "(^|\\G)\\s*(?=(<[a-zA-Z0-9\\-](/?>|\\s.*?>)|</[a-zA-Z0-9\\-]>)\\s*$)",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					],
 					"while": "^(?!\\s*$)"
@@ -2074,7 +2095,7 @@
 					"include": "#inline"
 				},
 				{
-					"include": "text.html.basic"
+					"include": "text.html.derivative"
 				},
 				{
 					"include": "#heading-setext"
@@ -2131,7 +2152,7 @@
 					"include": "#inline"
 				},
 				{
-					"include": "text.html.basic"
+					"include": "text.html.derivative"
 				},
 				{
 					"include": "#heading-setext"
@@ -2225,7 +2246,7 @@
 					"end": "(?<=>)",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					]
 				},
@@ -2275,7 +2296,7 @@
 		},
 		"bracket": {
 			"comment": "Markdown will convert this for us. We match it so that the HTML grammar will not mark it up as invalid.",
-			"match": "<(?![a-z/?\\$!])",
+			"match": "<(?![a-zA-Z/?\\$!])",
 			"name": "meta.other.valid-bracket.markdown"
 		},
 		"escape": {
@@ -2370,7 +2391,7 @@
 					"end": "(?<=>)",
 					"patterns": [
 						{
-							"include": "text.html.basic"
+							"include": "text.html.derivative"
 						}
 					]
 				},
