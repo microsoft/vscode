@@ -541,6 +541,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: workspace
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
+				console.warn(`[Deprecation Warning] 'workspace.rootPath' is deprecated and should no longer be used. Please use 'workspace.workspaceFolders' instead. (${extension.publisher}.${extension.name})`);
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
@@ -807,7 +808,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CommentMode: extHostTypes.CommentMode,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
-			CompletionItemKindModifier: extHostTypes.CompletionItemKindModifier,
+			CompletionItemTag: extHostTypes.CompletionItemTag,
 			CompletionList: extHostTypes.CompletionList,
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
@@ -862,6 +863,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,
+			SymbolTag: extHostTypes.SymbolTag,
 			Task: extHostTypes.Task,
 			Task2: extHostTypes.Task,
 			TaskGroup: extHostTypes.TaskGroup,

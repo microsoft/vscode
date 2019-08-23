@@ -21,7 +21,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
-import { fromArray } from 'vs/base/common/map';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -331,7 +330,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return {
 			label: data.a,
 			kind: data.b,
-			kindModifier: data.n && fromArray(data.n),
+			tags: data.n,
 			detail: data.c,
 			documentation: data.d,
 			sortText: data.e,

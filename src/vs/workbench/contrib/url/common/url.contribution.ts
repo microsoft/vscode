@@ -50,14 +50,20 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 	localize('developer', 'Developer')
 );
 
-const VSCODE_DOMAIN = 'https://code.visualstudio.com';
+const DEAFULT_TRUSTED_DOMAINS = [
+	'https://code.visualstudio.com',
+	'https://go.microsoft.com',
+	'https://github.com',
+	'https://marketplace.visualstudio.com',
+	'https://vscode-auth.github.com'
+];
 
 const configureTrustedDomainsHandler = async (
 	quickInputService: IQuickInputService,
 	storageService: IStorageService,
 	domainToConfigure?: string
 ) => {
-	let trustedDomains: string[] = [VSCODE_DOMAIN];
+	let trustedDomains: string[] = DEAFULT_TRUSTED_DOMAINS;
 
 	try {
 		const trustedDomainsSrc = storageService.get('http.trustedDomains', StorageScope.GLOBAL);
@@ -158,7 +164,7 @@ class OpenerValidatorContributions implements IWorkbenchContribution {
 			return true;
 		}
 
-		let trustedDomains: string[] = [VSCODE_DOMAIN];
+		let trustedDomains: string[] = DEAFULT_TRUSTED_DOMAINS;
 		try {
 			const trustedDomainsSrc = this._storageService.get('http.trustedDomains', StorageScope.GLOBAL);
 			if (trustedDomainsSrc) {
