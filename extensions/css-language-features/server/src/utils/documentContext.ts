@@ -8,6 +8,9 @@ import { endsWith, startsWith } from '../utils/strings';
 import * as url from 'url';
 import { WorkspaceFolder } from 'vscode-languageserver';
 
+import URI from 'vscode-uri';
+import { existsSync } from 'fs';
+
 const resolve = require('requireresolveproxy');
 
 function getModuleNameFromPath(path: string) {
@@ -30,7 +33,11 @@ function resolvePathToModule(moduleName: string, relativeTo: string): string | u
 		return undefined;
 	}
 	// remove trailing `package.json`, which is just used to ensure we resolve to the root directory, as above
-	return resolved.slice(0, -12);
+	const packPath = resolved.slice(0, -12);
+	if (existsSync(packPath)) {
+		return URI.file(packPath).toString();
+	}
+	return undefined;
 }
 
 export function getDocumentContext(documentUri: string, workspaceFolders: WorkspaceFolder[]): DocumentContext {
