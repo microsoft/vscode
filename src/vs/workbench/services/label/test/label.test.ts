@@ -56,7 +56,7 @@ suite('URI Label', () => {
 		assert.equal(labelService.getUriBasenameLabel(uri1), 'END');
 	});
 
-	test.only('separator', function () {
+	test('separator', function () {
 		labelService.registerFormatter({
 			scheme: 'vscode',
 			formatting: {
