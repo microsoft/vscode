@@ -770,5 +770,11 @@
 		"vincaslt.highlight-matching-tag",
 		"wayou.vscode-todo-highlight",
 		"ms-azuretools.vscode-docker"
+	],
+	"linkProtectionTrustedDomains": [
+		"https://code.visualstudio.com",
+		"https://go.microsoft.com",
+		"https://marketplace.visualstudio.com",
+		"https://vscode-auth.github.com"
 	]
 }
