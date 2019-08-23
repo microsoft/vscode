@@ -4822,7 +4822,7 @@ declare namespace monaco.languages {
 		 * A modifier to the `kind` which affect how the item
 		 * is rendered, e.g. Deprecated is rendered with a strikeout
 		 */
-		kindTags?: Set<CompletionItemKindTag>;
+		kindTags?: ReadonlyArray<CompletionItemKindTag>;
 		/**
 		 * A human-readable string with additional information
 		 * about this item, like type or symbol information.
@@ -5240,7 +5240,7 @@ declare namespace monaco.languages {
 		name: string;
 		detail: string;
 		kind: SymbolKind;
-		kindTags: SymbolKindTag[];
+		kindTags: ReadonlyArray<SymbolKindTag>;
 		containerName?: string;
 		range: IRange;
 		selectionRange: IRange;

@@ -193,7 +193,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			];
 		}
 
-		if (suggestion.kindTags && suggestion.kindTags.has(CompletionItemKindTag.Deprecated)) {
+		if (suggestion.kindTags && suggestion.kindTags.indexOf(CompletionItemKindTag.Deprecated) >= 0) {
 			labelOptions.extraClasses = (labelOptions.extraClasses || []).concat(['deprecated']);
 			labelOptions.matches = [];
 		}
