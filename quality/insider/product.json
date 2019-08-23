@@ -25,7 +25,6 @@
 	"downloadUrl": "https://code.visualstudio.com/insiders",
 	"welcomePage": "https://go.microsoft.com/fwlink/?LinkId=723048",
 	"updateUrl": "https://update.code.visualstudio.com",
-	"logUploaderUrl": "https://vscode-log-uploader.azure-api.net/v1/upload",
 	"quality": "insider",
 	"extensionsGallery": {
 		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
