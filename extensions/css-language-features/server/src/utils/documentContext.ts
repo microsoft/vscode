@@ -7,10 +7,8 @@ import { DocumentContext } from 'vscode-css-languageservice';
 import { endsWith, startsWith } from '../utils/strings';
 import * as url from 'url';
 import { WorkspaceFolder } from 'vscode-languageserver';
-import URI from 'vscode-uri';
-import { join, dirname } from 'path';
-import { existsSync } from 'fs';
-import resolve from 'requireresolveproxy';
+
+const resolve = require('requireresolveproxy');
 
 function getModuleNameFromPath(path: string) {
 	// If a scoped module (starts with @) then get up until second instance of '/', otherwise get until first isntance of '/'

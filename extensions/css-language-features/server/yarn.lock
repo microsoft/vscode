@@ -678,6 +678,11 @@ require-main-filename@^2.0.0:
   resolved "https://registry.yarnpkg.com/require-main-filename/-/require-main-filename-2.0.0.tgz#d0b329ecc7cc0f61649f62215be69af54aa8989b"
   integrity sha512-NKN5kMDylKuldxYLSUfrbo5Tuzh4hd+2E8NPPX02mZtn1VuREQToYe/ZdlJy+J3uCpfaiGF05e7B8W0iXbQHmg==
 
+requireresolveproxy@0.0.1:
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/requireresolveproxy/-/requireresolveproxy-0.0.1.tgz#c65ba54a3557ae778025212a5572ddce779f9607"
+  integrity sha512-0JGjCjOKyJJAMlWhLR+Kx6qW7+KjI7HZUipgZMQtHDg4n57r/pX17Dlke4+lwJzfkMM25I/eQ0+cHCfA5bFgPA==
+
 semver@^5.5.0, semver@^5.7.0:
   version "5.7.0"
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.7.0.tgz#790a7cf6fea5459bac96110b29b60412dc8ff96b"
