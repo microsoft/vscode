@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as paths from 'vs/base/common/path';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -157,6 +158,16 @@ export class LabelService implements ILabelService {
 		}
 
 		return options.endWithSeparator ? this.appendSeparatorIfMissing(label, formatting) : label;
+	}
+
+	getUriBasenameLabel(resource: URI): string {
+		const label = this.getUriLabel(resource);
+		const formatting = this.findFormatting(resource);
+		if (formatting && formatting.separator === '\\') {
+			return paths.win32.basename(label);
+		}
+
+		return paths.posix.basename(label);
 	}
 
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
