@@ -1,12 +1,5 @@
 steps:
 - script: |
-    set -e
-    git config user.email "vscode@microsoft.com"
-    git config user.name "VSCode"
-    git merge origin/master
-  displayName: Merge master
-
-- script: |
     mkdir -p .build
     echo -n $BUILD_SOURCEVERSION > .build/commit
     echo -n $VSCODE_QUALITY > .build/quality
