@@ -24,7 +24,9 @@
 		}
 	});
 
-	amdLoader(['vs/code/browser/workbench/web.main'], function (web) {
-		web.main();
+	amdLoader(['vs/workbench/workbench.web.api'], function () {
+		amdLoader(['vs/code/browser/workbench/web.main'], function (web) {
+			web.main();
+		});
 	});
 })();
