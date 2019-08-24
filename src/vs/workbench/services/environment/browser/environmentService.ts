@@ -96,11 +96,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			break: false
 		};
 
-		this.webviewEndpoint = options.webviewEndpoint;
 		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
 
 		if (document && document.location && document.location.search) {
-
 			const map = new Map<string, string>();
 			const query = document.location.search.substring(1);
 			const vars = query.split('&');
@@ -170,7 +168,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	verbose: boolean;
 	skipGettingStarted: boolean;
 	skipReleaseNotes: boolean;
-	skipAddToRecentlyOpened: boolean;
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
 	nodeCachedDataDir?: string;
@@ -179,16 +176,15 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	disableCrashReporter: boolean;
 	driverHandle?: string;
 	driverVerbose: boolean;
-	webviewEndpoint?: string;
 	galleryMachineIdResource?: URI;
 	readonly logFile: URI;
 
 	get webviewResourceRoot(): string {
-		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource{{resource}}' : 'vscode-resource:{{resource}}';
+		return this.options.webviewEndpoint ? `${this.options.webviewEndpoint}/vscode-resource{{resource}}` : 'vscode-resource:{{resource}}';
 	}
 
 	get webviewCspSource(): string {
-		return this.webviewEndpoint ? this.webviewEndpoint : 'vscode-resource:';
+		return this.options.webviewEndpoint ? this.options.webviewEndpoint : 'vscode-resource:';
 	}
 }
 
