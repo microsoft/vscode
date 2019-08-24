@@ -47,7 +47,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		super();
 		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
 
-		if ((!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string') && !useExternalEndpoint) {
+		if (!useExternalEndpoint && (!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string')) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
 		}
 

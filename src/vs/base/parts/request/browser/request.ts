@@ -58,7 +58,6 @@ function setRequestHeaders(xhr: XMLHttpRequest, options: IRequestOptions): void 
 					continue outer;
 			}
 			xhr.setRequestHeader(k, options.headers[k]);
-
 		}
 	}
 }

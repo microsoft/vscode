@@ -168,7 +168,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	verbose: boolean;
 	skipGettingStarted: boolean;
 	skipReleaseNotes: boolean;
-	skipAddToRecentlyOpened: boolean;
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
 	nodeCachedDataDir?: string;

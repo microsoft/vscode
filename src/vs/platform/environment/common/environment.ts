@@ -140,23 +140,14 @@ export interface IEnvironmentService {
 	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch: IDebugParams;
-
-	logExtensionHostCommunication: boolean;
 
 	isBuilt: boolean;
 	wait: boolean;
 	status: boolean;
 
-	// logging
 	log?: string;
 	logsPath: string;
 	verbose: boolean;
-
-	skipGettingStarted: boolean | undefined;
-	skipReleaseNotes: boolean | undefined;
-
-	skipAddToRecentlyOpened: boolean;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
