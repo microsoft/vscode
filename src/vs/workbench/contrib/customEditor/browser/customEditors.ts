@@ -134,8 +134,9 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 			return;
 		}
 
+		const userConfiguredViewType = this.getConfiguredCustomEditor(resource);
 		const customEditors = this.customEditorService.getCustomEditorsForResource(resource);
-		if (!customEditors.length) {
+		if (!customEditors.length && !userConfiguredViewType) {
 			return;
 		}
 
@@ -149,9 +150,8 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 
 		return {
 			override: (async () => {
-				const preferedViewType = this.getConfiguredCustomEditor(resource);
-				if (preferedViewType) {
-					return this.customEditorService.openWith(resource, preferedViewType, options, group);
+				if (userConfiguredViewType) {
+					return this.customEditorService.openWith(resource, userConfiguredViewType, options, group);
 				} else {
 					// Open default editor but prompt user to see if they wish to use a custom one instead
 					const standardEditor = await this.editorService.openEditor(editor, { ...options, ignoreOverrides: true }, group);
