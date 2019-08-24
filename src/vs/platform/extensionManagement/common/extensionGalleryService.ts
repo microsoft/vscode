@@ -9,7 +9,8 @@ import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGallery
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { IRequestService, IRequestOptions, IRequestContext, asJson, asText, IHeaders } from 'vs/platform/request/common/request';
+import { IRequestService, asJson, asText } from 'vs/platform/request/common/request';
+import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';

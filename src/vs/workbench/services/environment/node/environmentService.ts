@@ -17,6 +17,9 @@ export class WorkbenchEnvironmentService extends EnvironmentService implements I
 
 	_serviceBrand!: ServiceIdentifier<any>;
 
+	readonly webviewResourceRoot = 'vscode-resource:{{resource}}';
+	readonly webviewCspSource = 'vscode-resource:';
+
 	constructor(
 		private _configuration: IWindowConfiguration,
 		execPath: string

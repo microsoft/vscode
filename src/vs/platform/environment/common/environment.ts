@@ -170,9 +170,5 @@ export interface IEnvironmentService {
 	driverHandle?: string;
 	driverVerbose: boolean;
 
-	webviewEndpoint?: string;
-	readonly webviewResourceRoot: string;
-	readonly webviewCspSource: string;
-
-	readonly galleryMachineIdResource?: URI;
+	galleryMachineIdResource?: URI;
 }

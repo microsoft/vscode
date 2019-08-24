@@ -24,9 +24,7 @@
 		}
 	});
 
-	amdLoader(['vs/workbench/workbench.web.api'], function (api) {
-		const options = JSON.parse(document.getElementById('vscode-workbench-web-configuration').getAttribute('data-settings'));
-
-		api.create(document.body, options);
+	amdLoader(['vs/code/browser/workbench/web.main'], function (web) {
+		web.main();
 	});
 })();
