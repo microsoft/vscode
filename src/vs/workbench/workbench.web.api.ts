@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/workbench/workbench.web.main';
-import 'vs/nls!vs/workbench/workbench.web.main';
-import 'vs/css!vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
 import { IFileSystemProvider } from 'vs/platform/files/common/files';

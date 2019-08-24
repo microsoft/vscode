@@ -167,7 +167,7 @@ export class LabelService implements ILabelService {
 			return paths.win32.basename(label);
 		}
 
-		return paths.posix.basename(label);
+		return paths.basename(label);
 	}
 
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
