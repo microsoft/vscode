@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-function entrypoint (name) {
+function entrypoint(name) {
 	return [{ name: name, include: [], exclude: ['vs/css', 'vs/nls'] }];
 }
 
@@ -23,7 +23,9 @@ exports.serviceWorker = [{
 	dest: 'vs/workbench/contrib/resources/browser/resourceServiceWorkerMain.js'
 }];
 
-exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
+exports.workerExtensionHost = [entrypoint('vs/workbench/services/extensions/worker/extensionHostWorker')];
+
+exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.desktop.main']);
 exports.workbenchWeb = entrypoint('vs/workbench/workbench.web.api');
 
 exports.keyboardMaps = [

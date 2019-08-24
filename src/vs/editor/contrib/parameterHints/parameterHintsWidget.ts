@@ -206,8 +206,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			dom.append(this.docs, $('p', {}, documentation));
 		}
 
-		dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
-
 		if (signature.documentation === undefined) { /** no op */ }
 		else if (typeof signature.documentation === 'string') {
 			dom.append(this.docs, $('p', {}, signature.documentation));
@@ -217,6 +215,23 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			this.renderDisposeables.add(renderedContents);
 			dom.append(this.docs, renderedContents.element);
 		}
+
+		let hasDocs = false;
+		if (activeParameter && typeof (activeParameter.documentation) === 'string' && activeParameter.documentation.length > 0) {
+			hasDocs = true;
+		}
+		if (activeParameter && typeof (activeParameter.documentation) === 'object' && activeParameter.documentation.value.length > 0) {
+			hasDocs = true;
+		}
+		if (typeof (signature.documentation) === 'string' && signature.documentation.length > 0) {
+			hasDocs = true;
+		}
+		if (typeof (signature.documentation) === 'object' && signature.documentation.value.length > 0) {
+			hasDocs = true;
+		}
+
+		dom.toggleClass(this.signature, 'has-docs', hasDocs);
+		dom.toggleClass(this.docs, 'empty', !hasDocs);
 
 		let currentOverload = String(hints.activeSignature + 1);
 

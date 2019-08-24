@@ -10,16 +10,19 @@ import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
+import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { join } from 'vs/base/common/path';
 
 export class WorkbenchEnvironmentService extends EnvironmentService implements IWorkbenchEnvironmentService {
 
-	_serviceBrand: any;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	constructor(
 		private _configuration: IWindowConfiguration,
 		execPath: string
 	) {
 		super(_configuration, execPath);
+
 		this._configuration.backupWorkspaceResource = this._configuration.backupPath ? toBackupWorkspaceResource(this._configuration.backupPath, this) : undefined;
 	}
 
@@ -29,4 +32,7 @@ export class WorkbenchEnvironmentService extends EnvironmentService implements I
 
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+
+	@memoize
+	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
 }

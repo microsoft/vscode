@@ -39,7 +39,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			insiderOptions.userDataDir = userDataDir;
 
 			const insidersApp = new Application(insiderOptions);
-			await insidersApp!.start(false /* not expecting walkthrough parth */);
+			await insidersApp!.start(false /* not expecting walkthrough path */);
 
 			// Verify 3 editors are open
 			await insidersApp.workbench.editors.waitForEditorFocus('Untitled-1');
@@ -66,7 +66,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			await stableApp.workbench.editors.newUntitledFile();
 
 			const untitled = 'Untitled-1';
-			const textToTypeInUntitled = 'Hello, Unitled Code';
+			const textToTypeInUntitled = 'Hello, Untitled Code';
 			await stableApp.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
 
 			const readmeMd = 'readme.md';
@@ -80,7 +80,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			insiderOptions.userDataDir = userDataDir;
 
 			const insidersApp = new Application(insiderOptions);
-			await insidersApp!.start(false /* not expecting walkthrough parth */);
+			await insidersApp!.start(false /* not expecting walkthrough path */);
 
 			await insidersApp.workbench.editors.waitForActiveTab(readmeMd, true);
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);

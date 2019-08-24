@@ -34,6 +34,8 @@ import { IdleValue } from 'vs/base/common/async';
 import { isObject } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
 
+const _sticky = false; // for development purposes only
+
 export class SuggestController implements IEditorContribution {
 
 	private static readonly ID: string = 'editor.contrib.suggestController';
@@ -47,7 +49,6 @@ export class SuggestController implements IEditorContribution {
 	private readonly _alternatives: IdleValue<SuggestAlternatives>;
 	private readonly _toDispose = new DisposableStore();
 
-	private readonly _sticky = false; // for development purposes only
 
 	constructor(
 		private _editor: ICodeEditor,
@@ -127,7 +128,7 @@ export class SuggestController implements IEditorContribution {
 			}
 		}));
 		this._toDispose.add(this._editor.onDidBlurEditorWidget(() => {
-			if (!this._sticky) {
+			if (!_sticky) {
 				this._model.cancel();
 				this._model.clear();
 			}
@@ -370,6 +371,10 @@ export class SuggestController implements IEditorContribution {
 		this._widget.getValue().toggleDetails();
 	}
 
+	toggleExplainMode(): void {
+		this._widget.getValue().toggleExplainMode();
+	}
+
 	toggleSuggestionFocus(): void {
 		this._widget.getValue().toggleDetailsFocus();
 	}
@@ -518,6 +523,16 @@ registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+	}
+}));
+
+registerEditorCommand(new SuggestCommand({
+	id: 'toggleExplainMode',
+	precondition: SuggestContext.Visible,
+	handler: x => x.toggleExplainMode(),
+	kbOpts: {
+		weight: KeybindingWeight.EditorContrib,
+		primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
 	}
 }));
 

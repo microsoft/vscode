@@ -1,0 +1,21 @@
+body[data-octicons-update="enabled"] {
+    --version: octicons2;
+}
+
+body {
+    --version: octicons;
+}
+
+.octicon, .mega-octicon {
+    font-family: var(--version) !important;
+}
+
+body[data-octicons-update="enabled"] .monaco-workbench .part.statusbar > .items-container > .statusbar-item span.octicon {
+    font-size: 16px;
+}
+
+body[data-octicons-update="enabled"] .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

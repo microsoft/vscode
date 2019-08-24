@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import { URI } from 'vscode-uri';
 import * as URL from 'url';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
-import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
+import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
 interface ISchemaAssociations {
@@ -103,6 +103,7 @@ function getSchemaRequestService(handledSchemas: { [schema: string]: boolean }) 
 let languageService = getLanguageService({
 	workspaceContext,
 	contributions: [],
+	clientCapabilities: ClientCapabilities.LATEST
 });
 
 // Create a text document manager.

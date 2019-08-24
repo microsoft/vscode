@@ -173,13 +173,13 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	// ---- IVerticalLayoutProvider
 
-	public addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): number {
+	public addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): string {
 		return this._linesLayout.insertWhitespace(afterLineNumber, ordinal, height, minWidth);
 	}
-	public changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean {
+	public changeWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean {
 		return this._linesLayout.changeWhitespace(id, newAfterLineNumber, newHeight);
 	}
-	public removeWhitespace(id: number): boolean {
+	public removeWhitespace(id: string): boolean {
 		return this._linesLayout.removeWhitespace(id);
 	}
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {

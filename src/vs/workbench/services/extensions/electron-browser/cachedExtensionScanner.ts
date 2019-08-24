@@ -48,8 +48,8 @@ function getExtraDevSystemExtensionsRoot(): string {
 export class CachedExtensionScanner {
 
 	public readonly scannedExtensions: Promise<IExtensionDescription[]>;
-	private _scannedExtensionsResolve: (result: IExtensionDescription[]) => void;
-	private _scannedExtensionsReject: (err: any) => void;
+	private _scannedExtensionsResolve!: (result: IExtensionDescription[]) => void;
+	private _scannedExtensionsReject!: (err: any) => void;
 	public readonly translationConfig: Promise<Translations>;
 
 	constructor(

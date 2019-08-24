@@ -41,17 +41,16 @@ export class DebugHoverWidget implements IContentWidget {
 	allowEditorOverflow = true;
 
 	private _isVisible: boolean;
-	private domNode: HTMLElement;
-	private tree: AsyncDataTree<IExpression, IExpression, any>;
+	private domNode!: HTMLElement;
+	private tree!: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position | null;
 	private highlightDecorations: string[];
-	private complexValueContainer: HTMLElement;
-	private complexValueTitle: HTMLElement;
-	private valueContainer: HTMLElement;
-	private treeContainer: HTMLElement;
+	private complexValueContainer!: HTMLElement;
+	private complexValueTitle!: HTMLElement;
+	private valueContainer!: HTMLElement;
+	private treeContainer!: HTMLElement;
 	private toDispose: lifecycle.IDisposable[];
-	private scrollbar: DomScrollableElement;
-	private dataSource: DebugHoverDataSource;
+	private scrollbar!: DomScrollableElement;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -72,10 +71,10 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
-		this.dataSource = new DebugHoverDataSource();
+		const dataSource = new DebugHoverDataSource();
 
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
-			this.dataSource, {
+			dataSource, {
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				accessibilityProvider: new DebugHoverAccessibilityProvider(),
 				mouseSupport: false,
@@ -120,6 +119,10 @@ export class DebugHoverWidget implements IContentWidget {
 				this.editor.applyFontInfo(this.domNode);
 			}
 		}));
+	}
+
+	isHovered(): boolean {
+		return this.domNode.matches(':hover');
 	}
 
 	isVisible(): boolean {
@@ -242,6 +245,9 @@ export class DebugHoverWidget implements IContentWidget {
 			this.layoutTreeAndContainer();
 			this.editor.layoutContentWidget(this);
 			this.scrollbar.scanDomNode();
+			this.tree.scrollTop = 0;
+			this.tree.scrollLeft = 0;
+
 			if (focus) {
 				this.editor.render();
 				this.tree.domFocus();

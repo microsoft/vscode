@@ -21,7 +21,7 @@ export interface IMainProcessService {
 
 export class MainProcessService extends Disposable implements IMainProcessService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand!: ServiceIdentifier<any>;
 
 	private mainProcessConnection: Client;
 

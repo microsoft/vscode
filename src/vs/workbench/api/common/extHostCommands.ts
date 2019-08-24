@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { validateConstraint } from 'vs/base/common/types';
-import { ICommandHandlerDescription, ICommandEvent } from 'vs/platform/commands/common/commands';
+import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext, CommandDto } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, ICommandDto } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
@@ -17,8 +17,9 @@ import { revive } from 'vs/base/common/marshalling';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 interface CommandHandler {
 	callback: Function;
@@ -32,8 +33,7 @@ export interface ArgumentProcessor {
 
 export class ExtHostCommands implements ExtHostCommandsShape {
 
-	private readonly _onDidExecuteCommand: Emitter<vscode.CommandExecutionEvent>;
-	readonly onDidExecuteCommand: Event<vscode.CommandExecutionEvent>;
+	readonly _serviceBrand: any;
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _proxy: MainThreadCommandsShape;
@@ -42,15 +42,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	private readonly _argumentProcessors: ArgumentProcessor[];
 
 	constructor(
-		mainContext: IMainContext,
-		logService: ILogService
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@ILogService logService: ILogService
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadCommands);
-		this._onDidExecuteCommand = new Emitter<vscode.CommandExecutionEvent>({
-			onFirstListenerDidAdd: () => this._proxy.$registerCommandListener(),
-			onLastListenerRemove: () => this._proxy.$unregisterCommandListener(),
-		});
-		this.onDidExecuteCommand = Event.filter(this._onDidExecuteCommand.event, e => e.command[0] !== '_'); // filter 'private' commands
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
 		this._converter = new CommandsConverter(this);
 		this._argumentProcessors = [
@@ -115,13 +110,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	$handleDidExecuteCommand(command: ICommandEvent): void {
-		this._onDidExecuteCommand.fire({
-			command: command.commandId,
-			arguments: command.args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg))
-		});
-	}
-
 	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		this._logService.trace('ExtHostCommands#executeCommand', id);
 
@@ -170,7 +158,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 		try {
 			const result = callback.apply(thisArg, args);
-			this._onDidExecuteCommand.fire({ command: id, arguments: args });
 			return Promise.resolve(result);
 		} catch (err) {
 			this._logService.error(err, id);
@@ -227,13 +214,13 @@ export class CommandsConverter {
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
-	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): CommandDto | undefined {
+	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined {
 
 		if (!command) {
 			return undefined;
 		}
 
-		const result: CommandDto = {
+		const result: ICommandDto = {
 			$ident: undefined,
 			id: command.command,
 			title: command.title,
@@ -281,3 +268,6 @@ export class CommandsConverter {
 	}
 
 }
+
+export interface IExtHostCommands extends ExtHostCommands { }
+export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostCommands');

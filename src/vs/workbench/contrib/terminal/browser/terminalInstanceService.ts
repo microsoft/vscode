@@ -10,6 +10,7 @@ import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 let Terminal: typeof XTermTerminal;
 let WebLinksAddon: typeof XTermWebLinksAddon;
@@ -52,11 +53,16 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		throw new Error('Not implemented');
 	}
 
-	public getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
-		return new Promise(r => this._onRequestDefaultShellAndArgs.fire((shell, args) => r({ shell, args })));
+	public getDefaultShellAndArgs(useAutomationShell: boolean, ): Promise<{ shell: string, args: string[] | string | undefined }> {
+		return new Promise(r => this._onRequestDefaultShellAndArgs.fire({
+			useAutomationShell,
+			callback: (shell, args) => r({ shell, args })
+		}));
 	}
 
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 		return {};
 	}
 }
+
+registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);

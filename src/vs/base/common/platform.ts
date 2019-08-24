@@ -93,14 +93,12 @@ export function PlatformToString(platform: Platform) {
 }
 
 let _platform: Platform = Platform.Web;
-if (_isNative) {
-	if (_isMacintosh) {
-		_platform = Platform.Mac;
-	} else if (_isWindows) {
-		_platform = Platform.Windows;
-	} else if (_isLinux) {
-		_platform = Platform.Linux;
-	}
+if (_isMacintosh) {
+	_platform = Platform.Mac;
+} else if (_isWindows) {
+	_platform = Platform.Windows;
+} else if (_isLinux) {
+	_platform = Platform.Linux;
 }
 
 export const isWindows = _isWindows;

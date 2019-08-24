@@ -9,12 +9,12 @@ import { isArray, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -227,20 +227,24 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	matchesScope(scope: SettingsTarget, isRemote: boolean): boolean {
 		const configTarget = URI.isUri(scope) ? ConfigurationTarget.WORKSPACE_FOLDER : scope;
 
+		if (!this.setting.scope) {
+			return true;
+		}
+
 		if (configTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
-			return this.setting.scope === ConfigurationScope.RESOURCE;
+			return FOLDER_SCOPES.indexOf(this.setting.scope) !== -1;
 		}
 
 		if (configTarget === ConfigurationTarget.WORKSPACE) {
-			return this.setting.scope === ConfigurationScope.WINDOW || this.setting.scope === ConfigurationScope.RESOURCE;
+			return WORKSPACE_SCOPES.indexOf(this.setting.scope) !== -1;
 		}
 
 		if (configTarget === ConfigurationTarget.USER_REMOTE) {
-			return this.setting.scope === ConfigurationScope.MACHINE || this.setting.scope === ConfigurationScope.WINDOW || this.setting.scope === ConfigurationScope.RESOURCE;
+			return REMOTE_MACHINE_SCOPES.indexOf(this.setting.scope) !== -1;
 		}
 
 		if (configTarget === ConfigurationTarget.USER_LOCAL && isRemote) {
-			return this.setting.scope !== ConfigurationScope.MACHINE;
+			return LOCAL_MACHINE_SCOPES.indexOf(this.setting.scope) !== -1;
 		}
 
 		return true;

@@ -119,6 +119,7 @@ export class TextAreaInput extends Disposable {
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
 
 		this._textAreaState = TextAreaState.EMPTY;
+		this._selectionChangeListener = null;
 		this.writeScreenReaderContent('ctor');
 
 		this._hasFocus = false;

@@ -67,7 +67,7 @@ class ReplacePreviewModel extends Disposable {
 
 	resolve(replacePreviewUri: URI): Promise<ITextModel> {
 		const fileResource = toFileResource(replacePreviewUri);
-		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource().toString() === fileResource.toString())[0];
+		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource.toString() === fileResource.toString())[0];
 		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
 			ref = this._register(ref);
 			const sourceModel = ref.object.textEditorModel;
@@ -112,8 +112,8 @@ export class ReplaceService implements IReplaceService {
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		return this.editorService.openEditor({
-			leftResource: fileMatch.resource(),
-			rightResource: toReplaceResource(fileMatch.resource()),
+			leftResource: fileMatch.resource,
+			rightResource: toReplaceResource(fileMatch.resource),
 			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
 			options: {
 				preserveFocus,
@@ -139,8 +139,8 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	updateReplacePreview(fileMatch: FileMatch, override: boolean = false): Promise<void> {
-		const replacePreviewUri = toReplaceResource(fileMatch.resource());
-		return Promise.all([this.textModelResolverService.createModelReference(fileMatch.resource()), this.textModelResolverService.createModelReference(replacePreviewUri)])
+		const replacePreviewUri = toReplaceResource(fileMatch.resource);
+		return Promise.all([this.textModelResolverService.createModelReference(fileMatch.resource), this.textModelResolverService.createModelReference(replacePreviewUri)])
 			.then(([sourceModelRef, replaceModelRef]) => {
 				const sourceModel = sourceModelRef.object.textEditorModel;
 				const replaceModel = replaceModelRef.object.textEditorModel;
@@ -200,7 +200,7 @@ export class ReplaceService implements IReplaceService {
 	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
 		const fileMatch: FileMatch = match.parent();
 		const resourceEdit: ResourceTextEdit = {
-			resource: resource !== null ? resource : fileMatch.resource(),
+			resource: resource !== null ? resource : fileMatch.resource,
 			edits: [{
 				range: match.range(),
 				text: text

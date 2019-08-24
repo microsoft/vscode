@@ -68,8 +68,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
-		const donotAskUpdateKey = 'langugage.update.donotask';
-		if (!this.storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL) && e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
+		if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
 			if (platform.language !== locale) {
 				const updateAndRestart = platform.locale !== locale;
@@ -83,12 +82,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.localeResource, { key: 'locale', value: locale }, true) : Promise.resolve(undefined);
 							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
 						}
-					}, {
-						label: localize('neverAgain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => this.storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
 					}],
-					{ sticky: true }
+					{
+						sticky: true,
+						neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
+					}
 				);
 			}
 		}

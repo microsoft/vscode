@@ -13,6 +13,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { Schemas } from 'vs/base/common/network';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { ITextEditor } from 'vs/workbench/common/editor';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
@@ -104,7 +105,7 @@ export class Source {
 				revealInCenterIfOutsideViewport: true,
 				pinned: pinned || (!preserveFocus && !this.inMemory)
 			}
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(withUndefinedAsNull);
 	}
 
 	static getEncodedDebugData(modelUri: uri): { name: string, path: string, sessionId?: string, sourceReference?: number } {

@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as paths from 'vs/base/common/path';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -68,7 +69,7 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 });
 
 const sepRegexp = /\//g;
-const labelMatchingRegexp = /\$\{scheme\}|\$\{authority\}|\$\{path\}/g;
+const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
 
 function hasDriveLetter(path: string): boolean {
 	return !!(isWindows && path && path[2] === ':');
@@ -159,6 +160,16 @@ export class LabelService implements ILabelService {
 		return options.endWithSeparator ? this.appendSeparatorIfMissing(label, formatting) : label;
 	}
 
+	getUriBasenameLabel(resource: URI): string {
+		const label = this.getUriLabel(resource);
+		const formatting = this.findFormatting(resource);
+		if (formatting && formatting.separator === '\\') {
+			return paths.win32.basename(label);
+		}
+
+		return paths.posix.basename(label);
+	}
+
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {
 		if (IWorkspace.isIWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
@@ -222,12 +233,23 @@ export class LabelService implements ILabelService {
 	}
 
 	private formatUri(resource: URI, formatting: ResourceLabelFormatting, forceNoTildify?: boolean): string {
-		let label = formatting.label.replace(labelMatchingRegexp, match => {
-			switch (match) {
-				case '${scheme}': return resource.scheme;
-				case '${authority}': return resource.authority;
-				case '${path}': return resource.path;
-				default: return '';
+		let label = formatting.label.replace(labelMatchingRegexp, (match, token, qsToken, qsValue) => {
+			switch (token) {
+				case 'scheme': return resource.scheme;
+				case 'authority': return resource.authority;
+				case 'path': return resource.path;
+				default: {
+					if (qsToken === 'query') {
+						const { query } = resource;
+						if (query && query[0] === '{' && query[query.length - 1] === '}') {
+							try {
+								return JSON.parse(query)[qsValue] || '';
+							}
+							catch { }
+						}
+					}
+					return '';
+				}
 			}
 		});
 
