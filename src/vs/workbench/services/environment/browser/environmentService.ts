@@ -99,7 +99,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
 
 		if (document && document.location && document.location.search) {
-
 			const map = new Map<string, string>();
 			const query = document.location.search.substring(1);
 			const vars = query.split('&');
