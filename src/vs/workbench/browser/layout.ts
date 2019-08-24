@@ -789,7 +789,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			};
 
 			const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
-			const workbenchGrid = SerializableGrid.deserialize2(
+			const workbenchGrid = SerializableGrid.deserialize(
 				this.createGridDescriptor(),
 				{ fromJSON },
 				{ proportionalLayout: false }

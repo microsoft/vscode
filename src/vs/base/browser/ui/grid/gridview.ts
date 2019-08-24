@@ -226,7 +226,11 @@ class BranchNode implements ISplitView, IDisposable {
 			// Reconstruction behavior, we want to reconstruct a splitview
 			const descriptor = {
 				views: childDescriptors.map(childDescriptor => {
-					return { view: childDescriptor.node, size: childDescriptor.node.size, visible: childDescriptor.node instanceof LeafNode ? childDescriptor.visible : true };
+					return {
+						view: childDescriptor.node,
+						size: childDescriptor.node.size,
+						visible: childDescriptor.node instanceof LeafNode && childDescriptor.visible !== undefined ? childDescriptor.visible : true
+					};
 				}),
 				size: this.orthogonalSize
 			};

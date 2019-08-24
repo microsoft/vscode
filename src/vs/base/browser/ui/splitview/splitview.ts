@@ -287,11 +287,15 @@ export class SplitView extends Disposable {
 		if (options.descriptor) {
 			this.size = options.descriptor.size;
 			options.descriptor.views.forEach((viewDescriptor, index) => {
-				const sizing = viewDescriptor.visible ? viewDescriptor.size : { type: 'invisible', cachedVisibleSize: viewDescriptor.size } as InvisibleSizing;
+				const sizing = types.isUndefined(viewDescriptor.visible) || viewDescriptor.visible ? viewDescriptor.size : { type: 'invisible', cachedVisibleSize: viewDescriptor.size } as InvisibleSizing;
 
 				const view = viewDescriptor.view;
 				this.doAddView(view, sizing, index, true);
 			});
+
+			// Initialize content size and proportions for first layout
+			this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+			this.saveProportions();
 		}
 	}
 
@@ -712,7 +716,7 @@ export class SplitView extends Disposable {
 
 		this.state = State.Idle;
 
-		if (typeof size !== 'number' && size.type === 'distribute') {
+		if (!skipLayout && typeof size !== 'number' && size.type === 'distribute') {
 			this.distributeViewSizes();
 		}
 	}
