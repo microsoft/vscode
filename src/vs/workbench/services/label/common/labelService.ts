@@ -129,7 +129,10 @@ export class LabelService implements ILabelService {
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
-		const formatting = this.findFormatting(resource);
+		return this.doGetUriLabel(resource, this.findFormatting(resource), options);
+	}
+
+	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
 		if (!formatting) {
 			return getPathLabel(resource.path, this.environmentService, options.relative ? this.contextService : undefined);
 		}
@@ -161,10 +164,13 @@ export class LabelService implements ILabelService {
 	}
 
 	getUriBasenameLabel(resource: URI): string {
-		const label = this.getUriLabel(resource);
 		const formatting = this.findFormatting(resource);
-		if (formatting && formatting.separator === '\\') {
-			return paths.win32.basename(label);
+		const label = this.doGetUriLabel(resource, formatting);
+		if (formatting) {
+			switch (formatting.separator) {
+				case paths.win32.sep: return paths.win32.basename(label);
+				case paths.posix.sep: return paths.posix.basename(label);
+			}
 		}
 
 		return paths.basename(label);
