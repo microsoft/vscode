@@ -205,9 +205,9 @@ export class WebClientServer extends Disposable {
 				remoteAuthority,
 				webviewEndpoint,
 				driver: this._environmentService.driverHandle === 'web' ? true : undefined,
+				productConfiguration: product
 			})))
 			.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
-			.replace('{{PRODUCT_CONFIGURATION}}', escapeAttribute(JSON.stringify(product)))
 			.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(this._environmentService.webUserDataHome))));
 
 		res.writeHead(200, { 'Content-Type': textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
