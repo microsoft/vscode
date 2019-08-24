@@ -567,6 +567,7 @@ export interface ExtHostWebviewsShape {
 export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
+	$createAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents> }): Promise<UriComponents>;
 }
 
 export interface ExtHostUrlsShape {
@@ -934,6 +935,7 @@ export interface ISuggestDataDto {
 	k/* commitCharacters */?: string[];
 	l/* additionalTextEdits */?: ISingleEditOperation[];
 	m/* command */?: modes.Command;
+	n/* kindModifier */?: modes.CompletionItemTag[];
 	// not-standard
 	x?: ChainedCacheId;
 }
@@ -1283,6 +1285,10 @@ export interface ExtHostLogServiceShape {
 	$setLevel(level: LogLevel): void;
 }
 
+export interface MainThreadLogShape {
+	$log(file: UriComponents, level: LogLevel, args: any[]): void;
+}
+
 export interface ExtHostOutputServiceShape {
 	$setVisibleChannel(channelId: string | null): void;
 }
@@ -1325,6 +1331,7 @@ export const MainContext = {
 	MainThreadKeytar: createMainId<MainThreadKeytarShape>('MainThreadKeytar'),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages'),
+	MainThreadLog: createMainId<MainThreadLogShape>('MainThread'),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService'),
 	MainThreadOutputService: createMainId<MainThreadOutputServiceShape>('MainThreadOutputService'),
 	MainThreadProgress: createMainId<MainThreadProgressShape>('MainThreadProgress'),

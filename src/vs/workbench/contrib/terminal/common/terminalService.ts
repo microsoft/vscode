@@ -35,7 +35,6 @@ export abstract class TerminalService implements ITerminalService {
 	protected _isShuttingDown: boolean;
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 	protected _findWidgetVisible: IContextKey<boolean>;
-	protected _terminalContainer: HTMLElement | undefined;
 	protected _terminalTabs: ITerminalTab[] = [];
 	protected _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	protected get _terminalInstances(): ITerminalInstance[] {
@@ -123,7 +122,9 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _showBackgroundTerminal(instance: ITerminalInstance): void;
 
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	// tslint:disable-next-line: no-dom-globals
 	public abstract createInstance(container: HTMLElement, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
+	// tslint:disable-next-line: no-dom-globals
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {

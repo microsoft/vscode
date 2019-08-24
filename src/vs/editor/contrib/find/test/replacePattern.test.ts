@@ -176,6 +176,13 @@ suite('Replace Pattern test', () => {
 		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
 		actual = ['aBC'];
 		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
+
+		actual = ['Foo-Bar'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar'), 'Newfoo-Newbar');
+		actual = ['Foo-Bar-Abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar-newabc'), 'Newfoo-Newbar-Newabc');
+		actual = ['Foo-Bar-abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar'), 'Newfoo-newbar');
 	});
 
 	test('preserve case', () => {
@@ -198,5 +205,17 @@ suite('Replace Pattern test', () => {
 		assert.equal(actual, 'Def');
 		actual = replacePattern.buildReplaceString(['aBC'], true);
 		assert.equal(actual, 'Def');
+
+		replacePattern = parseReplaceString('newfoo-newbar');
+		actual = replacePattern.buildReplaceString(['Foo-Bar'], true);
+		assert.equal(actual, 'Newfoo-Newbar');
+
+		replacePattern = parseReplaceString('newfoo-newbar-newabc');
+		actual = replacePattern.buildReplaceString(['Foo-Bar-Abc'], true);
+		assert.equal(actual, 'Newfoo-Newbar-Newabc');
+
+		replacePattern = parseReplaceString('newfoo-newbar');
+		actual = replacePattern.buildReplaceString(['Foo-Bar-abc'], true);
+		assert.equal(actual, 'Newfoo-newbar');
 	});
 });

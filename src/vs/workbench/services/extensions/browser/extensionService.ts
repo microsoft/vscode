@@ -86,7 +86,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const result: ExtensionHostProcessManager[] = [];
 
 		const webExtensions = this.getExtensions().then(extensions => extensions.filter(ext => isWebExtension(ext, this._configService)));
-		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, true, webExtensions, URI.parse('empty:value')); //todo@joh
+		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, true, webExtensions, URI.file(this._environmentService.logsPath).with({ scheme: this._environmentService.logFile.scheme }));
 		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, null, initialActivationEvents);
 		result.push(webHostProcessManager);
 

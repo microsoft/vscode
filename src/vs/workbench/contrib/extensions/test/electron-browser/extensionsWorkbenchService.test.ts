@@ -34,7 +34,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { URLService } from 'vs/platform/url/common/urlService';
+import { URLService } from 'vs/platform/url/node/urlService';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';

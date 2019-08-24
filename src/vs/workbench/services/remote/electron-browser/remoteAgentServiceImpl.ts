@@ -12,6 +12,7 @@ import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { AbstractRemoteAgentService, RemoteAgentConnection } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 
@@ -22,12 +23,13 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 	constructor({ remoteAuthority }: IWindowConfiguration,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ISignService signService: ISignService
+		@ISignService signService: ISignService,
+		@ILogService logService: ILogService
 	) {
 		super(environmentService);
 		this.socketFactory = nodeSocketFactory;
 		if (remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(remoteAuthority, product.commit, nodeSocketFactory, remoteAuthorityResolverService, signService));
+			this._connection = this._register(new RemoteAgentConnection(remoteAuthority, product.commit, nodeSocketFactory, remoteAuthorityResolverService, signService, logService));
 		}
 	}
 

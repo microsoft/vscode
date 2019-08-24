@@ -4786,6 +4786,10 @@ declare namespace monaco.languages {
 		Snippet = 25
 	}
 
+	export enum CompletionItemTag {
+		Deprecated = 1
+	}
+
 	export enum CompletionItemInsertTextRule {
 		/**
 		 * Adjust whitespace/indentation of multiline insert texts to
@@ -4814,6 +4818,11 @@ declare namespace monaco.languages {
 		 * an icon is chosen by the editor.
 		 */
 		kind: CompletionItemKind;
+		/**
+		 * A modifier to the `kind` which affect how the item
+		 * is rendered, e.g. Deprecated is rendered with a strikeout
+		 */
+		tags?: ReadonlyArray<CompletionItemTag>;
 		/**
 		 * A human-readable string with additional information
 		 * about this item, like type or symbol information.
@@ -5223,10 +5232,15 @@ declare namespace monaco.languages {
 		TypeParameter = 25
 	}
 
+	export enum SymbolTag {
+		Deprecated = 1
+	}
+
 	export interface DocumentSymbol {
 		name: string;
 		detail: string;
 		kind: SymbolKind;
+		tags: ReadonlyArray<SymbolTag>;
 		containerName?: string;
 		range: IRange;
 		selectionRange: IRange;

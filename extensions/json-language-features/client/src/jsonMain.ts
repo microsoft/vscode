@@ -145,11 +145,14 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 
+		const schemaDocuments: { [uri: string]: boolean } = {};
+
 		// handle content request
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 			let uri = Uri.parse(uriPath);
 			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 				return workspace.openTextDocument(uri).then(doc => {
+					schemaDocuments[uri.toString()] = true;
 					return doc.getText();
 				}, error => {
 					return Promise.reject(error);
@@ -164,10 +167,12 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 
-		let handleContentChange = (uri: Uri) => {
-			if (uri.scheme === 'vscode' && uri.authority === 'schemas') {
-				client.sendNotification(SchemaContentChangeNotification.type, uri.toString());
+		let handleContentChange = (uriString: string) => {
+			if (schemaDocuments[uriString]) {
+				client.sendNotification(SchemaContentChangeNotification.type, uriString);
+				return true;
 			}
+			return false;
 		};
 
 		let handleActiveEditorChange = (activeEditor?: TextEditor) => {
@@ -184,10 +189,13 @@ export function activate(context: ExtensionContext) {
 			}
 		};
 
-		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
+		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri.toString())));
 		toDispose.push(workspace.onDidCloseTextDocument(d => {
-			handleContentChange(d.uri);
-			fileSchemaErrors.delete(d.uri.toString());
+			const uriString = d.uri.toString();
+			if (handleContentChange(uriString)) {
+				delete schemaDocuments[uriString];
+			}
+			fileSchemaErrors.delete(uriString);
 		}));
 		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
 

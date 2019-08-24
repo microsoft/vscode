@@ -7,8 +7,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { isWeb, OperatingSystem } from 'vs/base/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -49,28 +48,24 @@ export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService) {
 		this.registerFormatters();
 	}
 
 	private registerFormatters(): void {
-		if (isWeb) {
-			this.remoteAgentService.getEnvironment().then(remoteEnvironment => {
-				if (remoteEnvironment) {
-					this.labelService.registerFormatter({
-						scheme: Schemas.vscodeRemote,
-						authority: this.environmentService.configuration.remoteAuthority,
-						formatting: {
-							label: '${path}',
-							separator: remoteEnvironment.os === OperatingSystem.Windows ? '\\' : '/',
-							tildify: remoteEnvironment.os !== OperatingSystem.Windows,
-							normalizeDriveLetter: remoteEnvironment.os === OperatingSystem.Windows
-						}
-					});
-				}
-			});
-		}
+		this.remoteAgentService.getEnvironment().then(remoteEnvironment => {
+			if (remoteEnvironment) {
+				this.labelService.registerFormatter({
+					scheme: Schemas.vscodeRemote,
+					formatting: {
+						label: '${path}',
+						separator: remoteEnvironment.os === OperatingSystem.Windows ? '\\' : '/',
+						tildify: remoteEnvironment.os !== OperatingSystem.Windows,
+						normalizeDriveLetter: remoteEnvironment.os === OperatingSystem.Windows
+					}
+				});
+			}
+		});
 	}
 }
 

@@ -500,7 +500,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// Force line data to be sent when the cursor is moved, the main purpose for
 				// this is because ConPTY will often not do a line feed but instead move the
 				// cursor, in which case we still want to send the current line's data to tasks.
-				xterm.addCsiHandler('H', () => {
+				xterm.parser.addCsiHandler({ final: 'H' }, () => {
 					this._onCursorMove();
 					return false;
 				});
@@ -865,7 +865,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this.focus();
-		this._xterm._core._coreService.triggerDataEvent(await this._clipboardService.readText(), true);
+		this._xterm.paste(await this._clipboardService.readText());
 	}
 
 	public write(text: string): void {

@@ -7,12 +7,8 @@ import { URI } from 'vs/base/common/uri';
 import * as browser from 'vs/base/browser/browser';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionTipsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
@@ -21,7 +17,6 @@ import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platf
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-// tslint:disable-next-line: import-patterns
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -31,7 +26,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/product';
 import Severity from 'vs/base/common/severity';
@@ -39,74 +33,6 @@ import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns
 import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
-
-//#region Extension Tips
-
-export class SimpleExtensionTipsService implements IExtensionTipsService {
-	_serviceBrand: any;
-
-	onRecommendationChange = Event.None;
-
-	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason; reasonText: string; }; } {
-		return Object.create(null);
-	}
-
-	getFileBasedRecommendations(): IExtensionRecommendation[] {
-		return [];
-	}
-
-	getOtherRecommendations(): Promise<IExtensionRecommendation[]> {
-		return Promise.resolve([]);
-	}
-
-	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]> {
-		return Promise.resolve([]);
-	}
-
-	getKeymapRecommendations(): IExtensionRecommendation[] {
-		return [];
-	}
-
-	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void {
-	}
-
-	getAllIgnoredRecommendations(): { global: string[]; workspace: string[]; } {
-		return { global: [], workspace: [] };
-	}
-}
-
-registerSingleton(IExtensionTipsService, SimpleExtensionTipsService, true);
-
-//#endregion
-
-//#region Extension URL Handler
-
-export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('inactiveExtensionUrlHandler');
-
-export interface IExtensionUrlHandler {
-	readonly _serviceBrand: any;
-	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void;
-	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
-}
-
-export class SimpleExtensionURLHandler implements IExtensionUrlHandler {
-
-	_serviceBrand: any;
-
-	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void { }
-
-	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void { }
-}
-
-registerSingleton(IExtensionUrlHandler, SimpleExtensionURLHandler, true);
-
-//#endregion
-
-//#region Log
-
-export class SimpleLogService extends ConsoleLogService { }
-
-//#endregion
 
 //#region Update
 
@@ -142,24 +68,6 @@ registerSingleton(IUpdateService, SimpleUpdateService);
 
 //#endregion
 
-//#region URL
-
-export class SimpleURLService implements IURLService {
-	_serviceBrand: any;
-
-	open(url: URI): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
-	registerHandler(handler: IURLHandler): IDisposable {
-		return Disposable.None;
-	}
-}
-
-registerSingleton(IURLService, SimpleURLService);
-
-//#endregion
-
 //#region Window
 
 export class SimpleWindowService extends Disposable implements IWindowService {
@@ -182,7 +90,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -378,7 +285,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		for (let i = 0; i < _uris.length; i++) {
 			const uri = _uris[i];
 			if ('folderUri' in uri) {
-				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}${this.workbenchEnvironmentService.configuration.connectionToken ? `&tkn=${this.workbenchEnvironmentService.configuration.connectionToken}` : ''}`;
+				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {
@@ -465,7 +372,6 @@ export class SimpleWindowsService implements IWindowsService {
 	readonly onRecentlyOpenedChange: Event<void> = Event.None;
 
 	constructor(
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService
@@ -655,11 +561,6 @@ export class SimpleWindowsService implements IWindowsService {
 		const ibe = args['inspect-brk-extensions'];
 		if (ibe) {
 			addQueryParameter('ibe', ibe);
-		}
-
-		// add connection token
-		if (this.workbenchEnvironmentService.configuration.connectionToken) {
-			addQueryParameter('tkn', this.workbenchEnvironmentService.configuration.connectionToken);
 		}
 
 		window.open(newAddress);

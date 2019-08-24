@@ -115,6 +115,7 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 		const label = element.label;
 
 		template.labelElement.textContent = label;
+		template.labelElement.title = label;
 
 		if (count) {
 			template.countElement.textContent = ` (${count})`;

@@ -71,6 +71,11 @@
 	bottom: unset;
 }
 
+.monaco-editor .find-widget .monaco-inputbox.synthetic-focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
 .monaco-editor .find-widget .monaco-inputbox .input {
 	background-color: transparent;
 	/* Style to compensate for //winjs */

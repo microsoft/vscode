@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
@@ -38,6 +38,10 @@ export class URLServiceChannelClient implements IURLService {
 
 	registerHandler(handler: IURLHandler): IDisposable {
 		throw new Error('Not implemented.');
+	}
+
+	create(_options?: Partial<UriComponents>): URI {
+		throw new Error('Method not implemented.');
 	}
 }
 

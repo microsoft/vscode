@@ -593,6 +593,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Create new save timer and store it for disposal as needed
 		const handle = setTimeout(() => {
 
+			// Clear the timeout now that we are running
+			this.autoSaveDisposable.clear();
+
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
 				this.doSave(versionId, { reason: SaveReason.AUTO }); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
@@ -941,6 +944,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return this.inOrphanMode;
 			case ModelState.PENDING_SAVE:
 				return this.saveSequentializer.hasPendingSave();
+			case ModelState.PENDING_AUTO_SAVE:
+				return !!this.autoSaveDisposable.value;
 			case ModelState.SAVED:
 				return !this.dirty;
 		}

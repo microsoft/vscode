@@ -147,7 +147,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IWorkspaceStatsService private readonly workspaceStatsService: IWorkspaceStatsService
 	) {
-		this.report();
+		if (this.telemetryService.isOptedIn) {
+			this.report();
+		}
 	}
 
 	private report(): void {

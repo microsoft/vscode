@@ -979,6 +979,10 @@ export enum SymbolKind {
 	TypeParameter = 25
 }
 
+export enum SymbolTag {
+	Deprecated = 1,
+}
+
 @es5ClassCompat
 export class SymbolInformation {
 
@@ -991,6 +995,7 @@ export class SymbolInformation {
 	name: string;
 	location!: Location;
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	containerName: string | undefined;
 
 	constructor(name: string, kind: SymbolKind, containerName: string | undefined, location: Location);
@@ -1041,6 +1046,7 @@ export class DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	range: Range;
 	selectionRange: Range;
 	children: DocumentSymbol[];
@@ -1308,11 +1314,16 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
+export enum CompletionItemTag {
+	Deprecated = 1,
+}
+
 @es5ClassCompat
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
 	kind?: CompletionItemKind;
+	tags?: CompletionItemTag[];
 	detail?: string;
 	documentation?: string | MarkdownString;
 	sortText?: string;
