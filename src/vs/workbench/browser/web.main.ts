@@ -18,7 +18,7 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteA
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -124,7 +124,7 @@ class CodeRendererMain extends Disposable {
 		const logService = new BufferLogService();
 		serviceCollection.set(ILogService, logService);
 
-		const payload = await this.resolveWorkspaceInitializationPayload();
+		const payload = this.resolveWorkspaceInitializationPayload();
 
 		// Environment
 		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration });
@@ -149,46 +149,7 @@ class CodeRendererMain extends Disposable {
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
-
-		// Logger
-		const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
-		(async () => {
-			try {
-				await indexedDBLogProvider.database;
-
-				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
-			} catch (error) {
-				(<ILogService>logService).info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
-				(<ILogService>logService).error(error);
-
-				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
-			}
-
-			const consoleLogService = new ConsoleLogService(logService.getLevel());
-			const fileLogService = new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService);
-			logService.logger = new MultiplexLogService([consoleLogService, fileLogService]);
-		})();
-
-		// User Data Provider
-		let userDataProvider: IFileSystemProvider | undefined = this.configuration.userDataProvider;
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
-
-			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
-
-			if (!userDataProvider) {
-				const remoteUserDataUri = this.getRemoteUserDataUri();
-				if (remoteUserDataUri) {
-					userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, joinPath(remoteUserDataUri, BACKUPS), remoteFileSystemProvider, environmentService));
-				}
-			}
-		}
-		if (!userDataProvider) {
-			userDataProvider = this._register(new InMemoryUserDataProvider());
-		}
-		fileService.registerProvider(Schemas.userData, userDataProvider);
+		this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
 		// Long running services (workspace, config, storage)
 		const services = await Promise.all([
@@ -215,15 +176,59 @@ class CodeRendererMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
+	private registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): void {
+
+		// Logger
+		const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
+		(async () => {
+			try {
+				await indexedDBLogProvider.database;
+
+				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
+			} catch (error) {
+				(<ILogService>logService).info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
+				(<ILogService>logService).error(error);
+
+				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
+			}
+
+			const consoleLogService = new ConsoleLogService(logService.getLevel());
+			const fileLogService = new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService);
+			logService.logger = new MultiplexLogService([consoleLogService, fileLogService]);
+		})();
+
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+
+			// Remote file system
+			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
+			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
+
+			if (!this.configuration.userDataProvider) {
+				const remoteUserDataUri = this.getRemoteUserDataUri();
+				if (remoteUserDataUri) {
+					this.configuration.userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, joinPath(remoteUserDataUri, BACKUPS), remoteFileSystemProvider, environmentService));
+				}
+			}
+		}
+
+		// User data
+		if (!this.configuration.userDataProvider) {
+			this.configuration.userDataProvider = this._register(new InMemoryUserDataProvider());
+		}
+		fileService.registerProvider(Schemas.userData, this.configuration.userDataProvider);
+	}
+
 	private createProductService(): IProductService {
-		const element = document.getElementById('vscode-remote-product-configuration');
-		const productConfiguration: IProductConfiguration = {
-			...element ? JSON.parse(element.getAttribute('data-settings')!) : {
+		const productConfiguration = {
+			...this.configuration.productConfiguration ? this.configuration.productConfiguration : {
 				version: '1.38.0-unknown',
 				nameLong: 'Unknown',
 				extensionAllowedProposedApi: [],
 			}, ...{ urlProtocol: '' }
-		};
+		} as IProductConfiguration;
+
 		return { _serviceBrand: undefined, ...productConfiguration };
 	}
 
@@ -280,6 +285,7 @@ class CodeRendererMain extends Disposable {
 				return joinPath(URI.revive(JSON.parse(remoteUserDataPath)), 'User');
 			}
 		}
+
 		return null;
 	}
 }
