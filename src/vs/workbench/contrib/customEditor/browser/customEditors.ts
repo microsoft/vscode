@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
@@ -18,7 +19,6 @@ import { IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CustomEditorInfo, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
@@ -59,24 +59,27 @@ export class CustomEditorService implements ICustomEditorService {
 		group?: IEditorGroup,
 	): Promise<IEditor | undefined> {
 		const preferredEditors = await this.getCustomEditorsForResource(resource);
+		const defaultEditorId = 'default';
 		const pick = await this.quickInputService.pick([
 			{
-				label: 'Text',
-				id: TEXT_FILE_EDITOR_ID,
+				label: nls.localize('promptOpenWith.defaultEditor', "Default built-in editor"),
+				id: defaultEditorId,
 			},
 			...preferredEditors.map((editorDescriptor): IQuickPickItem => ({
 				label: editorDescriptor.displayName,
-				id: editorDescriptor.id
+				id: editorDescriptor.id,
 			}))
-		], {});
+		], {
+				placeHolder: nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", basename(resource)),
+			});
 
 		if (!pick) {
 			return;
 		}
 
-		if (pick.id === TEXT_FILE_EDITOR_ID) {
-			const editor = this.instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
-			return this.editorService.openEditor(editor, options, group);
+		if (pick.id === defaultEditorId) {
+			const fileInput = this.instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
+			return this.editorService.openEditor(fileInput, { ...options, ignoreOverrides: true }, group);
 		} else {
 			return this.openWith(resource, pick.id!, options, group);
 		}
