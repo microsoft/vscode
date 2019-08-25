@@ -46,7 +46,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		'properties': {
 			[customEditorsConfigurationKey]: {
 				'type': 'object',
-				'description': nls.localize('editor.custom', "TODO."),
+				'markdownDescription': nls.localize('editor.custom', "Configure which editor to use for resources with a given name (e.g. `\"*.png\": \"imageExtension.imageEditor\"`)."),
 				'default': {}
 			}
 		}

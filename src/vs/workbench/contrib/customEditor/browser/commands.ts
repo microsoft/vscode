@@ -7,13 +7,11 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -25,18 +23,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: EditorContextKeys.focus.toNegated(),
 	handler: async (accessor: ServicesAccessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const customEditorService = accessor.get(ICustomEditorService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 		const targetResource = resources[0];
 		if (!targetResource) {
 			return;
 		}
-		const resourceInput: IResourceInput = { resource: targetResource };
-		const bigInput = editorService.createInput(resourceInput);
-		if (!(bigInput instanceof FileEditorInput)) {
-			return;
-		}
-
+		const customEditorService = accessor.get(ICustomEditorService);
 		return customEditorService.promptOpenWith(targetResource, undefined, undefined);
 	}
 });

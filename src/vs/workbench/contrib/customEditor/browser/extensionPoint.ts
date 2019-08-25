@@ -11,7 +11,7 @@ import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchMo
 interface IWebviewEditorsExtensionPoint {
 	readonly viewType: string;
 	readonly displayName: string;
-	readonly filePatterns?: readonly string[];
+	readonly filenamePatterns?: readonly string[];
 }
 
 const webviewEditorsContribution: IJSONSchema = {
@@ -33,7 +33,7 @@ const webviewEditorsContribution: IJSONSchema = {
 				description: nls.localize('vscode.extension.contributes.webviewEditors-displayName', 'Name of the custom editor displayed to users.'),
 				type: 'string'
 			},
-			filePatterns: {
+			filenamePatterns: {
 				type: 'array',
 				description: nls.localize('vscode.extension.contributes.webviewEditors-filenamePatterns', 'Set of globs that the custom editor is enabled for.'),
 			}

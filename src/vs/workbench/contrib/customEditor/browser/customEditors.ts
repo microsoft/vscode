@@ -5,6 +5,7 @@
 
 import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -26,7 +27,7 @@ import { CustomFileEditorInput } from './customEditorInput';
 export class CustomEditorService implements ICustomEditorService {
 	_serviceBrand: any;
 
-	private readonly customEditors: Array<CustomEditorInfo & { filePatterns: readonly string[] }> = [];
+	private readonly customEditors: Array<CustomEditorInfo & { filenamePatterns: readonly string[] }> = [];
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -40,7 +41,7 @@ export class CustomEditorService implements ICustomEditorService {
 					this.customEditors.push({
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
-						filePatterns: webviewEditorContribution.filePatterns || []
+						filenamePatterns: webviewEditorContribution.filenamePatterns || []
 					});
 				}
 			}
@@ -49,7 +50,7 @@ export class CustomEditorService implements ICustomEditorService {
 
 	public getCustomEditorsForResource(resource: URI): readonly CustomEditorInfo[] {
 		return this.customEditors.filter(customEditor =>
-			customEditor.filePatterns.some(pattern => glob.match(pattern, resource.toString())));
+			customEditor.filenamePatterns.some(pattern => glob.match(pattern, basename(resource))));
 	}
 
 	public async promptOpenWith(
@@ -97,7 +98,7 @@ export class CustomEditorService implements ICustomEditorService {
 	}
 }
 
-export const customEditorsConfigurationKey = 'workbench.editor.custom';
+export const customEditorsConfigurationKey = 'workbench.experimental.customEditors';
 
 type CustomEditorsConfiguration = { readonly [glob: string]: string };
 
@@ -113,7 +114,7 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 	private getConfiguredCustomEditor(resource: URI): string | undefined {
 		const config = this.configurationService.getValue<CustomEditorsConfiguration>(customEditorsConfigurationKey) || {};
 		for (const filePattern of Object.keys(config)) {
-			if (glob.match(filePattern, resource.toString())) {
+			if (glob.match(filePattern, basename(resource))) {
 				return config[filePattern];
 			}
 		}

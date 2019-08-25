@@ -23,9 +23,9 @@
       {
         "viewType": "imagePreview.previewEditor",
         "displayName": "Image Preview",
-        "filePatterns": [
-          "**/*.png",
-          "**/*.jpg"
+        "filenamePatterns": [
+          "*.png",
+          "*.{jpg,jpeg}"
         ]
       }
     ]
