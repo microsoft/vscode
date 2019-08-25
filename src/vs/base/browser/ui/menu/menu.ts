@@ -624,7 +624,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 		addClass(this.item, 'monaco-submenu-item');
 		this.item.setAttribute('aria-haspopup', 'true');
-
+		this.item.setAttribute("aria-expended", "true");
 		this.submenuIndicator = append(this.item, $('span.submenu-indicator'));
 		this.submenuIndicator.setAttribute('aria-hidden', 'true');
 
