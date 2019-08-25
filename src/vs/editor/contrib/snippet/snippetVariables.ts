@@ -262,7 +262,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 	}
 
 	resolve(variable: Variable): string | undefined {
-		if (variable.name !== 'WORKSPACE_NAME' || !this._workspaceService) {
+		if ((variable.name !== 'WORKSPACE_NAME' && variable.name !== 'WORKSPACE_FOLDER') || !this._workspaceService) {
 			return undefined;
 		}
 
@@ -272,13 +272,31 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		}
 
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return path.basename(workspaceIdentifier.path);
+			if (variable.name === 'WORKSPACE_NAME') {
+				return path.basename(workspaceIdentifier.path);
+			}
+			if (variable.name === 'WORKSPACE_FOLDER') {
+				return workspaceIdentifier.fsPath;
+			}
+			return undefined;
 		}
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
+		if (variable.name === 'WORKSPACE_FOLDER') {
+			let folderpath = workspaceIdentifier.configPath.fsPath;
+			if (endsWith(folderpath, filename)) {
+				folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
+			}
+			return folderpath;
+		}
+
 		if (endsWith(filename, WORKSPACE_EXTENSION)) {
 			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
-		return filename;
+		if (variable.name === 'WORKSPACE_NAME') {
+			return filename;
+		}
+
+		return undefined;
 	}
 }
