@@ -1194,4 +1194,32 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	// #region Sandy - User data synchronization
+
+	export namespace window {
+
+		export function registerUserLoginProvider(identity: string, userLoginProvider: UserLoginProvider): Disposable;
+
+		export function registerUserDataProvider(identity: string, userDataProvider: UserDataProvider): Disposable;
+
+	}
+
+	export interface UserDataProvider {
+
+		dataProvider: FileSystemProvider;
+
+	}
+
+	export interface UserLoginProvider {
+
+		isLoggedin(): boolean;
+
+		readonly onDidChange: Event<void>;
+
+		login(): Promise<void>;
+
+	}
+
+	//#endregion
 }

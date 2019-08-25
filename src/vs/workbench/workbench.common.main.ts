@@ -30,6 +30,7 @@ import 'vs/workbench/browser/parts/quickinput/quickInputActions';
 
 import 'vs/workbench/api/common/menusExtensionPoint';
 import 'vs/workbench/api/common/configurationExtensionPoint';
+import 'vs/workbench/api/common/userDataExtensionPoint';
 import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#endregion
@@ -74,6 +75,9 @@ import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import 'vs/workbench/services/notification/common/notificationService';
+import 'vs/workbench/services/userData/common/userIdentityService';
+import 'vs/workbench/services/userData/common/userDataProviderService';
+import 'vs/workbench/services/userData/common/userDataSyncService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -235,5 +239,8 @@ import 'vs/workbench/contrib/experiments/browser/experiments.contribution';
 
 // Send a Smile
 import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
+
+// User Data
+import 'vs/workbench/contrib/userData/common/userData.contribution';
 
 //#endregion

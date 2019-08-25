@@ -68,6 +68,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { ExtHostUserData } from 'vs/workbench/api/common/extHostUserData';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -132,6 +133,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHosLabelService, new ExtHostLabelService(rpcProtocol));
+	const extHostUserData = rpcProtocol.set(ExtHostContext.ExtHostUserData, new ExtHostUserData(rpcProtocol.getProxy(MainContext.MainThreadUserData), extHostFileSystem));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
@@ -541,7 +543,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createInputBox(): vscode.InputBox {
 				return extHostQuickOpen.createInputBox(extension.identifier);
-			}
+			},
+			registerUserDataProvider: proposedApiFunction(extension, (identity: string, userDataProvider: vscode.UserDataProvider): vscode.Disposable => {
+				return extHostUserData.registerUserDataProvider(identity, userDataProvider);
+			}),
+			registerUserLoginProvider: proposedApiFunction(extension, (identity: string, userLoginProvider: vscode.UserLoginProvider): vscode.Disposable => {
+				return extHostUserData.registerUserLoginProvider(identity, userLoginProvider);
+			})
 		};
 
 		// namespace: workspace

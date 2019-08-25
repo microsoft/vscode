@@ -107,6 +107,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/userData",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/remote",
 			"project": "vscode-workbench"
 		},
