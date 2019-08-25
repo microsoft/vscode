@@ -155,7 +155,8 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 			onHide: () => {
 				globalActivityMenu.dispose();
 				dispose(actionsDisposable);
-			}
+			},
+			autoSelectFirstItem: true
 		});
 	}
 }
