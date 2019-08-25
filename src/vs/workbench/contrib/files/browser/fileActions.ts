@@ -52,6 +52,7 @@ export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
 export const NEW_FOLDER_COMMAND_ID = 'explorer.newFolder';
 export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
 
+export const TRIGGER_DUPLICATE_LABEL = nls.localize('duplicate', 'Duplicate');
 export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
 
 export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
@@ -964,6 +965,32 @@ CommandsRegistry.registerCommand({
 		openExplorerAndCreate(accessor, true).then(undefined, onUnexpectedError);
 	}
 });
+
+export const duplicateHandler = (accessor: ServicesAccessor) => {
+	const listService = accessor.get(IListService);
+	const fileService = accessor.get(IFileService);
+	const configurationService = accessor.get(IConfigurationService);
+
+	if (!listService.lastFocusedList) {
+		return Promise.resolve();
+	}
+
+	const explorerContext = getContext(listService.lastFocusedList);
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat!];
+
+	stats.forEach(async (element) => {
+		let fileNameToDuplicate = resources.basenameOrAuthority(element.resource);
+
+		let targetFolder: ExplorerItem = element.parent!;
+		const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
+		const duplicatedFileName = incrementFileName(fileNameToDuplicate, false, incrementalNaming)
+		let candidate = resources.joinPath(targetFolder.resource, duplicatedFileName);
+
+		await fileService.copy(element.resource, candidate);
+	});
+
+	return;
+}
 
 export const renameHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
