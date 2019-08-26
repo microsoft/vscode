@@ -20,6 +20,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;
@@ -172,7 +173,6 @@ export class CursorWordLeftSelect extends WordLeftCommand {
 	}
 }
 
-const CHROME_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;",.<>/?';
 export class CursorWordAccessibilityLeft extends WordLeftCommand {
 	constructor() {
 		super({
@@ -190,7 +190,7 @@ export class CursorWordAccessibilityLeft extends WordLeftCommand {
 	}
 
 	protected _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(CHROME_SEPARATORS), model, position, wordNavigationType);
+		return super._move(getMapForWordSeparators(EDITOR_DEFAULTS.wordSeparators), model, position, wordNavigationType);
 	}
 }
 
@@ -211,7 +211,7 @@ export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
 	}
 
 	protected _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(CHROME_SEPARATORS), model, position, wordNavigationType);
+		return super._move(getMapForWordSeparators(EDITOR_DEFAULTS.wordSeparators), model, position, wordNavigationType);
 	}
 }
 
@@ -310,7 +310,7 @@ export class CursorWordAccessibilityRight extends WordRightCommand {
 	}
 
 	protected _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(CHROME_SEPARATORS), model, position, wordNavigationType);
+		return super._move(getMapForWordSeparators(EDITOR_DEFAULTS.wordSeparators), model, position, wordNavigationType);
 	}
 }
 
@@ -331,7 +331,7 @@ export class CursorWordAccessibilityRightSelect extends WordRightCommand {
 	}
 
 	protected _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(CHROME_SEPARATORS), model, position, wordNavigationType);
+		return super._move(getMapForWordSeparators(EDITOR_DEFAULTS.wordSeparators), model, position, wordNavigationType);
 	}
 }
 
