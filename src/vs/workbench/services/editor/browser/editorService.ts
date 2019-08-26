@@ -256,7 +256,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Not enforcing this for side groups supports a historic scenario we have: repeated
 			// Alt-clicking of files in the explorer always open into the same side group and not
 			// cause a group to be created each time.
-			if (typedOptions && !typedOptions.inactive && typedOptions.preserveFocus && candidateGroup !== SIDE_GROUP) {
+			if (
+				typedOptions && !typedOptions.inactive &&			// never for inactive editors
+				typedOptions.preserveFocus &&						// only if preserveFocus
+				typeof typedOptions.forceActive !== 'boolean' &&	// only if forceActive is not already defined (either true or false)
+				candidateGroup !== SIDE_GROUP						// never for the SIDE_GROUP
+			) {
 				typedOptions.overwrite({ forceActive: true });
 			}
 
@@ -275,11 +280,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Group: Instance of Group
 		if (group && typeof group !== 'number') {
-			return group;
+			targetGroup = group;
 		}
 
 		// Group: Side by Side
-		if (group === SIDE_GROUP) {
+		else if (group === SIDE_GROUP) {
 			targetGroup = this.findSideBySideGroup();
 		}
 
