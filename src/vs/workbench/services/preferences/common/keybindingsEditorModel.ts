@@ -160,14 +160,14 @@ export class KeybindingsEditorModel extends EditorModel {
 		return result;
 	}
 
-	resolve(editorActionsLabels: Map<string, string>): Promise<EditorModel> {
+	resolve(actionLabels: Map<string, string>): Promise<EditorModel> {
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 		this._keybindingItemsSortedByPrecedence = [];
 		const boundCommands: Map<string, boolean> = new Map<string, boolean>();
 		for (const keybinding of this.keybindingsService.getKeybindings()) {
 			if (keybinding.command) { // Skip keybindings without commands
-				this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, workbenchActionsRegistry, editorActionsLabels));
+				this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, workbenchActionsRegistry, actionLabels));
 				boundCommands.set(keybinding.command, true);
 			}
 		}
@@ -175,7 +175,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.command);
 		for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
 			const keybindingItem = new ResolvedKeybindingItem(undefined, command, null, undefined, commandsWithDefaultKeybindings.indexOf(command) === -1);
-			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, editorActionsLabels));
+			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, actionLabels));
 		}
 		this._keybindingItems = this._keybindingItemsSortedByPrecedence.slice(0).sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
 		return Promise.resolve(this);
@@ -209,9 +209,9 @@ export class KeybindingsEditorModel extends EditorModel {
 		return a.command.localeCompare(b.command);
 	}
 
-	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: Map<string, string>): IKeybindingItem {
+	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, actions: Map<string, string>): IKeybindingItem {
 		const menuCommand = MenuRegistry.getCommand(command)!;
-		const editorActionLabel = editorActions.get(command)!;
+		const editorActionLabel = actions.get(command)!;
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,
