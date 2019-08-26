@@ -835,10 +835,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let restoreGroup = false;
 
 		if (options && options.forceActive) {
-			// Always respect option to force activate an editor group.
+			// First, respect option to force activate an editor group.
 			activateGroup = true;
+		} else if (options && options.preserveActive) {
+			// Second, respect option to preserve active editor group.
+			activateGroup = false;
 		} else if (openEditorOptions.active) {
-			// Otherwise, we only activate/restore an editor which is
+			// Third, we only activate/restore an editor which is
 			// opening as active editor.
 			// If preserveFocus is enabled, we only restore but never
 			// activate the group.

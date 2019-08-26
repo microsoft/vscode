@@ -241,8 +241,7 @@ export class ExplorerView extends ViewletPanel {
 			const activeFile = this.getActiveFile();
 			if (!activeFile && !focused[0].isDirectory) {
 				// Open the focused element in the editor if there is currently no file opened #67708
-				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } })
-					.then(undefined, onUnexpectedError);
+				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } });
 			}
 		}
 	}

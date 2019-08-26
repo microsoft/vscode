@@ -82,17 +82,33 @@ export interface IResourceInput extends IBaseResourceInput {
 export interface IEditorOptions {
 
 	/**
-	 * Tells the editor to not receive keyboard focus when the editor is being opened. This
-	 * will also prevent the group the editor opens in to become active. This can be overridden
-	 * via the `forceActive` option.
+	 * Tells the editor to not receive keyboard focus when the editor is being opened.
 	 *
-	 * By default, the editor will receive keyboard focus on open.
+	 * Will also not activate the group the editor opens in unless the group is already the active one.
+	 * This behaviour can be overridden via the `forceActive` option.
 	 */
 	readonly preserveFocus?: boolean;
 
 	/**
-	 * Tells the group the editor opens in to become active even if either `preserveFocus: true`
-	 * or `inactive: true` are specified.
+	 * This option is only relevant if an editor is opened into a group that is not active. In
+	 * most cases opening an editor into an inactive group will cause it to become active. With
+	 * `preserveActive: true` in combination with `preserveFocus: true` an editor can be opened
+	 * while keeping the current group active.
+	 *
+	 * Other options like `preserveFocus`, `inactive` and `forceActive` can have an impact on
+	 * whether a group gets activated or not.
+	 *
+	 * Note: `forceActive: true` will always win over `preserveActive: true`.
+	 */
+	readonly preserveActive?: boolean;
+
+	/**
+	 * This option is only relevant if an editor is opened into a group that is not active. In
+	 * most cases opening an editor into an inactive group will cause it to become active. With
+	 * `forceActive` the inactive group will become active independent of other options such as
+	 * `preserveFocus` or `inactive`.
+	 *
+	 * Note: `forceActive: true` will always win over `preserveActive: true`.
 	 */
 	readonly forceActive?: boolean;
 
@@ -132,8 +148,10 @@ export interface IEditorOptions {
 
 	/**
 	 * An active editor that is opened will show its contents directly. Set to true to open an editor
-	 * in the background. This will also prevent the group the editor opens in to become active. This
-	 * can be overridden via the `forceActive` option.
+	 * in the background without loading its contents.
+	 *
+	 * Will also not activate the group the editor opens in unless the group is already the active one.
+	 * This behaviour can be overridden via the `forceActive` option.
 	 */
 	readonly inactive?: boolean;
 

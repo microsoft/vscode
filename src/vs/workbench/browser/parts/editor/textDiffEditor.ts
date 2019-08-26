@@ -172,6 +172,12 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 				modifiedInput.setForceOpenAsBinary();
 			}
 
+			// Make sure to not steal away the currently active group
+			// because we are triggering another openEditor() call
+			// and do not control the initial intent that resulted
+			// in us now opening as binary.
+			options.overwrite({ preserveActive: true, forceActive: false });
+
 			this.editorService.openEditor(binaryDiffInput, options, this.group);
 
 			return true;
