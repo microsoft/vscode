@@ -88,7 +88,7 @@ class OutlineModel extends QuickOpenModel {
 			// Filter by search
 			if (searchValue.length > searchValuePos) {
 				const score = filters.fuzzyScore(
-					searchValue.substr(searchValuePos), searchValueLow.substr(searchValuePos), 0,
+					searchValue, searchValueLow, searchValuePos,
 					entry.getLabel(), entry.getLabel().toLowerCase(), 0,
 					true
 				);
