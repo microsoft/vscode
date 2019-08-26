@@ -1199,9 +1199,9 @@ declare module 'vscode' {
 
 	export namespace window {
 
-		export function registerUserLoginProvider(identity: string, userLoginProvider: UserLoginProvider): Disposable;
+		export function registerUserLoginProvider(userDataId: string, userLoginProvider: UserLoginProvider): Disposable;
 
-		export function registerUserDataProvider(identity: string, userDataProvider: UserDataProvider): Disposable;
+		export function registerUserDataProvider(userDataId: string, userDataProvider: UserDataProvider): Disposable;
 
 	}
 

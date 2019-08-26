@@ -39,7 +39,7 @@ export const userIdentityContribution: IJSONSchema = {
 
 
 const viewsContainersExtensionPoint: IExtensionPoint<IUserFriendlyUserIdentityDescriptor> = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyUserIdentityDescriptor>({
-	extensionPoint: 'userIdentity',
+	extensionPoint: 'userData',
 	jsonSchema: userIdentityContribution
 });
 
