@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserIdentityService, IUserDataProviderService, IUserIdentity } from 'vs/workbench/services/userData/common/userData';
+import { IUserIdentityService, IUserDataProviderService, IUserIdentity, IUserDataSyncService, SyncStatus } from 'vs/workbench/services/userData/common/userData';
 import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -37,21 +37,24 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		}
 	});
 
-class UserDataExtensionActivationContribution extends Disposable implements IWorkbenchContribution {
+class AutoSyncUserDataContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserIdentityService private readonly userIdentityService: IUserIdentityService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
-		this.activateUserDataExtensionsOnAutoSync();
-		this._register(Event.any<any>(this.userIdentityService.onDidDeregisterUserIdentities, this.configurationService.onDidChangeConfiguration)(() => this.activateUserDataExtensionsOnAutoSync()));
+		this.autoSync();
+		this._register(Event.any<any>(this.userIdentityService.onDidDeregisterUserIdentities, this.configurationService.onDidChangeConfiguration)(() => this.autoSync()));
 	}
 
-	private activateUserDataExtensionsOnAutoSync(): void {
+	private async autoSync(): Promise<void> {
 		if (this.configurationService.getValue<boolean>('userData.autoSync')) {
-			this.userIdentityService.getUserIndetities().forEach(({ identity }) => this.extensionService.activateByEvent(`onUserData:${identity}`));
+			const userIdentity = this.userIdentityService.getUserIndetities()[0];
+			await this.extensionService.activateByEvent(`onUserData:${userIdentity.identity}`);
+			this.userDataSyncService.synchronise();
 		}
 	}
 
@@ -63,7 +66,8 @@ class UserDataSyncStatusContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IUserIdentityService private userIdentityService: IUserIdentityService,
-		@IStatusbarService private statusbarService: IStatusbarService
+		@IStatusbarService private statusbarService: IStatusbarService,
+		@IUserDataSyncService private userDataSyncService: IUserDataSyncService,
 	) {
 		super();
 		this.userDataSyncStatusAccessor = this.statusbarService.addEntry({
@@ -73,7 +77,8 @@ class UserDataSyncStatusContribution extends Disposable implements IWorkbenchCon
 		this.updateUserDataSyncStatusAccessor();
 		this._register(Event.any<any>(
 			this.userIdentityService.onDidRegisterUserIdentities, this.userIdentityService.onDidDeregisterUserIdentities,
-			this.userIdentityService.onDidRegisterUserLoginProvider, this.userIdentityService.onDidDeregisterUserLoginProvider)
+			this.userIdentityService.onDidRegisterUserLoginProvider, this.userIdentityService.onDidDeregisterUserLoginProvider,
+			this.userDataSyncService.onDidChangeSyncStatus)
 			(() => this.updateUserDataSyncStatusAccessor()));
 		this._register(this.userIdentityService.onDidRegisterUserLoginProvider((identity => this.onDidRegisterUserLoginProvider(identity))));
 	}
@@ -104,7 +109,8 @@ class UserDataSyncStatusContribution extends Disposable implements IWorkbenchCon
 			return userIdentity.iconText ? `${userIdentity.iconText} ${signinText}` : signinText;
 		}
 		if (userIdentity.iconText) {
-			return `${userIdentity.iconText} ${localize('sync user data', "{0}: Sync", userIdentity.title)}`;
+			const syncText = this.userDataSyncService.syncStatus === SyncStatus.Syncing ? localize('syncing', "{0}: Synchronosing...", userIdentity.title) : localize('sync user data', "{0}: Sync", userIdentity.title);
+			return `${userIdentity.iconText} ${syncText}`;
 		}
 		return userIdentity.title;
 	}
@@ -112,7 +118,7 @@ class UserDataSyncStatusContribution extends Disposable implements IWorkbenchCon
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(UserDataSyncStatusContribution, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(UserDataExtensionActivationContribution, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(AutoSyncUserDataContribution, LifecyclePhase.Ready);
 
 export class ShowUserDataSyncActions extends Action {
 

@@ -89,9 +89,18 @@ export interface IUserDataExtension {
 	version?: string;
 }
 
+export enum SyncStatus {
+	Syncing = 1,
+	SyncDone
+}
+
 export interface IUserDataSyncService {
 
 	_serviceBrand: any;
+
+	readonly syncStatus: SyncStatus;
+
+	readonly onDidChangeSyncStatus: Event<SyncStatus>;
 
 	synchronise(): Promise<void>;
 
