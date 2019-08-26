@@ -87,6 +87,7 @@ export interface IProductConfiguration {
 	};
 	readonly portable?: string;
 	readonly uiExtensions?: readonly string[];
+	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 }
 
