@@ -19,8 +19,8 @@ declare namespace self {
 	let close: any;
 	let postMessage: any;
 	let addEventLister: any;
-	let indexedDB: any;
-	let caches: any;
+	let indexedDB: { open: any, [k: string]: any };
+	let caches: { open: any, [k: string]: any };
 }
 
 const nativeClose = self.close.bind(self);
@@ -32,9 +32,8 @@ self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 const nativeAddEventLister = addEventListener.bind(self);
 self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
 
-// readonly, cannot redefine...
-// self.indexedDB = undefined;
-// self.caches = undefined;
+self.indexedDB.open = () => console.trace(`'indexedDB.open' has been blocked`);
+self.caches.open = () => console.trace(`'indexedDB.caches' has been blocked`);
 
 //#endregion ---
 
