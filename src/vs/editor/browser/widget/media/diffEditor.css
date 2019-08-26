@@ -94,10 +94,15 @@
 	display: inline-block;
 }
 
-.monaco-editor .margin-view-zones .octicon-light-bulb {
-	opacity: 0.6;
+.monaco-editor .margin-view-zones .inline-deleted-margin-view-zone .lightbulb-glyph {
+	background: url('lightbulb-light.svg') center center no-repeat;
 }
 
-.monaco-editor .margin-view-zones .octicon-light-bulb:hover {
+.monaco-editor.vs-dark .margin-view-zones .inline-deleted-margin-view-zone .lightbulb-glyph,
+.monaco-editor.hc-dark .margin-view-zones .inline-deleted-margin-view-zone .lightbulb-glyph {
+	background: url('lightbulb-dark.svg') center center no-repeat;
+}
+
+.monaco-editor .margin-view-zones .lightbulb-glyph:hover {
 	cursor: pointer;
 }
