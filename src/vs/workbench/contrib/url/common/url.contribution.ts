@@ -50,29 +50,20 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 	localize('developer', 'Developer')
 );
 
-const DEAFULT_TRUSTED_DOMAINS = [
-	'https://code.visualstudio.com',
-	'https://go.microsoft.com',
-	'https://github.com',
-	'https://marketplace.visualstudio.com',
-	'https://vscode-auth.github.com'
-];
-
 const configureTrustedDomainsHandler = async (
 	quickInputService: IQuickInputService,
 	storageService: IStorageService,
+	linkProtectionTrustedDomains: string[],
 	domainToConfigure?: string
 ) => {
-	let trustedDomains: string[] = DEAFULT_TRUSTED_DOMAINS;
-
 	try {
-		const trustedDomainsSrc = storageService.get('http.trustedDomains', StorageScope.GLOBAL);
+		const trustedDomainsSrc = storageService.get('http.linkProtectionTrustedDomains', StorageScope.GLOBAL);
 		if (trustedDomainsSrc) {
-			trustedDomains = JSON.parse(trustedDomainsSrc);
+			linkProtectionTrustedDomains = JSON.parse(trustedDomainsSrc);
 		}
 	} catch (err) { }
 
-	const domainQuickPickItems: IQuickPickItem[] = trustedDomains
+	const domainQuickPickItems: IQuickPickItem[] = linkProtectionTrustedDomains
 		.filter(d => d !== '*')
 		.map(d => {
 			return {
@@ -88,12 +79,12 @@ const configureTrustedDomainsHandler = async (
 			type: 'item',
 			label: localize('openAllLinksWithoutPrompt', 'Open all links without prompt'),
 			id: '*',
-			picked: trustedDomains.indexOf('*') !== -1
+			picked: linkProtectionTrustedDomains.indexOf('*') !== -1
 		}
 	];
 
 	let domainToConfigureItem: IQuickPickItem | undefined = undefined;
-	if (domainToConfigure && trustedDomains.indexOf(domainToConfigure) === -1) {
+	if (domainToConfigure && linkProtectionTrustedDomains.indexOf(domainToConfigure) === -1) {
 		domainToConfigureItem = {
 			type: 'item',
 			label: domainToConfigure,
@@ -116,7 +107,7 @@ const configureTrustedDomainsHandler = async (
 
 	if (pickedResult) {
 		const pickedDomains: string[] = pickedResult.map(r => r.id!);
-		storageService.store('http.trustedDomains', JSON.stringify(pickedDomains), StorageScope.GLOBAL);
+		storageService.store('http.linkProtectionTrustedDomains', JSON.stringify(pickedDomains), StorageScope.GLOBAL);
 
 		return pickedDomains;
 	}
@@ -125,16 +116,26 @@ const configureTrustedDomainsHandler = async (
 };
 
 const configureTrustedDomainCommand = {
-	id: 'workbench.action.configureTrustedDomains',
+	id: 'workbench.action.configureLinkProtectionTrustedDomains',
 	description: {
-		description: localize('configureTrustedDomains', 'Configure Trusted Domains'),
+		description: localize('configureLinkProtectionTrustedDomains', 'Configure Trusted Domains for Link Protection'),
 		args: [{ name: 'domainToConfigure', schema: { type: 'string' } }]
 	},
 	handler: (accessor: ServicesAccessor, domainToConfigure?: string) => {
 		const quickInputService = accessor.get(IQuickInputService);
 		const storageService = accessor.get(IStorageService);
+		const productService = accessor.get(IProductService);
 
-		return configureTrustedDomainsHandler(quickInputService, storageService, domainToConfigure);
+		const trustedDomains = productService.linkProtectionTrustedDomains
+			? [...productService.linkProtectionTrustedDomains]
+			: [];
+
+		return configureTrustedDomainsHandler(
+			quickInputService,
+			storageService,
+			trustedDomains,
+			domainToConfigure
+		);
 	}
 };
 
@@ -164,9 +165,12 @@ class OpenerValidatorContributions implements IWorkbenchContribution {
 			return true;
 		}
 
-		let trustedDomains: string[] = DEAFULT_TRUSTED_DOMAINS;
+		let trustedDomains: string[] = this._productService.linkProtectionTrustedDomains
+			? [...this._productService.linkProtectionTrustedDomains]
+			: [];
+
 		try {
-			const trustedDomainsSrc = this._storageService.get('http.trustedDomains', StorageScope.GLOBAL);
+			const trustedDomainsSrc = this._storageService.get('http.linkProtectionTrustedDomains', StorageScope.GLOBAL);
 			if (trustedDomainsSrc) {
 				trustedDomains = JSON.parse(trustedDomainsSrc);
 			}
@@ -174,7 +178,9 @@ class OpenerValidatorContributions implements IWorkbenchContribution {
 
 		const domainToOpen = `${scheme}://${authority}`;
 
-		if (isDomainTrusted(domainToOpen, trustedDomains)) {
+		if (isLocalhostAuthority(authority)) {
+			return true;
+		} else if (isDomainTrusted(domainToOpen, trustedDomains)) {
 			return true;
 		} else {
 			const choice = await this._dialogService.show(
@@ -201,7 +207,7 @@ class OpenerValidatorContributions implements IWorkbenchContribution {
 			}
 			// Configure Trusted Domains
 			else if (choice === 2) {
-				const pickedDomains = await configureTrustedDomainsHandler(this._quickInputService, this._storageService, domainToOpen);
+				const pickedDomains = await configureTrustedDomainsHandler(this._quickInputService, this._storageService, trustedDomains, domainToOpen);
 				if (pickedDomains.indexOf(domainToOpen) !== -1) {
 					return true;
 				}
@@ -217,6 +223,13 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	OpenerValidatorContributions,
 	LifecyclePhase.Restored
 );
+
+const rLocalhost = /^localhost:\d+$/i;
+const r127 = /^127.0.0.1:\d+$/;
+
+function isLocalhostAuthority(authority: string) {
+	return rLocalhost.test(authority) || r127.test(authority);
+}
 
 /**
  * Check whether a domain like https://www.microsoft.com matches
@@ -235,3 +248,4 @@ function isDomainTrusted(domain: string, trustedDomains: string[]) {
 
 	return false;
 }
+
