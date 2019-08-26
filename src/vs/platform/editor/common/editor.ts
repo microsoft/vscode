@@ -79,38 +79,37 @@ export interface IResourceInput extends IBaseResourceInput {
 	readonly mode?: string;
 }
 
+export enum EditorActivation {
+
+	/**
+	 * Activate the editor after it opened.
+	 */
+	ACTIVATE,
+
+	/**
+	 * Preserve the current active editor.
+	 */
+	PRESERVE
+}
+
 export interface IEditorOptions {
 
 	/**
 	 * Tells the editor to not receive keyboard focus when the editor is being opened.
 	 *
-	 * Will also not activate the group the editor opens in unless the group is already the active one.
-	 * This behaviour can be overridden via the `forceActive` option.
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	readonly preserveFocus?: boolean;
 
 	/**
-	 * This option is only relevant if an editor is opened into a group that is not active. In
-	 * most cases opening an editor into an inactive group will cause it to become active. With
-	 * `preserveActive: true` in combination with `preserveFocus: true` an editor can be opened
-	 * while keeping the current group active.
+	 * This option is only relevant if an editor is opened into a group that is not active
+	 * already and allows to control if the inactive group should become active or not.
 	 *
-	 * Other options like `preserveFocus`, `inactive` and `forceActive` can have an impact on
-	 * whether a group gets activated or not.
-	 *
-	 * Note: `forceActive: true` will always win over `preserveActive: true`.
+	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
+	 * is specified.
 	 */
-	readonly preserveActive?: boolean;
-
-	/**
-	 * This option is only relevant if an editor is opened into a group that is not active. In
-	 * most cases opening an editor into an inactive group will cause it to become active. With
-	 * `forceActive` the inactive group will become active independent of other options such as
-	 * `preserveFocus` or `inactive`.
-	 *
-	 * Note: `forceActive: true` will always win over `preserveActive: true`.
-	 */
-	readonly forceActive?: boolean;
+	readonly activation?: EditorActivation;
 
 	/**
 	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
@@ -150,8 +149,8 @@ export interface IEditorOptions {
 	 * An active editor that is opened will show its contents directly. Set to true to open an editor
 	 * in the background without loading its contents.
 	 *
-	 * Will also not activate the group the editor opens in unless the group is already the active one.
-	 * This behaviour can be overridden via the `forceActive` option.
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	readonly inactive?: boolean;
 
