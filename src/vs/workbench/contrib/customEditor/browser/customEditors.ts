@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -41,7 +41,8 @@ export class CustomEditorService implements ICustomEditorService {
 					this.customEditors.push({
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
-						filenamePatterns: webviewEditorContribution.filenamePatterns || []
+						filenamePatterns: webviewEditorContribution.filenamePatterns || [],
+						enableByDefault: !!webviewEditorContribution.enableByDefault,
 					});
 				}
 			}
@@ -87,13 +88,17 @@ export class CustomEditorService implements ICustomEditorService {
 
 	public openWith(
 		resource: URI,
-		customEditorViewType: string,
+		viewType: string,
 		options?: ITextEditorOptions,
 		group?: IEditorGroup,
 	): Promise<IEditor | undefined> {
+		if (!this.customEditors.some(x => x.id === viewType)) {
+			return this.promptOpenWith(resource, options, group);
+		}
+
 		const id = generateUuid();
 		const webview = this.webviewService.createWebviewEditorOverlay(id, {}, {});
-		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, customEditorViewType, id, new UnownedDisposable(webview));
+		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, new UnownedDisposable(webview));
 		if (group) {
 			input.updateGroup(group!.id);
 		}
@@ -140,8 +145,18 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 
 		const userConfiguredViewType = this.getConfiguredCustomEditor(resource);
 		const customEditors = this.customEditorService.getCustomEditorsForResource(resource);
-		if (!customEditors.length && !userConfiguredViewType) {
-			return;
+
+		if (!userConfiguredViewType) {
+			if (!customEditors.length) {
+				return;
+			}
+
+			const defaultEditors = customEditors.filter(editor => editor.enableByDefault);
+			if (defaultEditors.length === 1) {
+				return {
+					override: this.customEditorService.openWith(resource, defaultEditors[0].id, options, group),
+				};
+			}
 		}
 
 		for (const input of group.editors) {
@@ -152,24 +167,26 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 			}
 		}
 
+		if (userConfiguredViewType) {
+			return {
+				override: this.customEditorService.openWith(resource, userConfiguredViewType, options, group),
+			};
+		}
+
+		// Open default editor but prompt user to see if they wish to use a custom one instead
 		return {
 			override: (async () => {
-				if (userConfiguredViewType) {
-					return this.customEditorService.openWith(resource, userConfiguredViewType, options, group);
-				} else {
-					// Open default editor but prompt user to see if they wish to use a custom one instead
-					const standardEditor = await this.editorService.openEditor(editor, { ...options, ignoreOverrides: true }, group);
-					const selectedEditor = await this.customEditorService.promptOpenWith(resource, options, group);
-					if (selectedEditor && selectedEditor.input) {
-						await group.replaceEditors([{
-							editor,
-							replacement: selectedEditor.input
-						}]);
-						return selectedEditor;
-					}
-
-					return standardEditor;
+				const standardEditor = await this.editorService.openEditor(editor, { ...options, ignoreOverrides: true }, group);
+				const selectedEditor = await this.customEditorService.promptOpenWith(resource, options, group);
+				if (selectedEditor && selectedEditor.input) {
+					await group.replaceEditors([{
+						editor,
+						replacement: selectedEditor.input
+					}]);
+					return selectedEditor;
 				}
+
+				return standardEditor;
 			})()
 		};
 	}

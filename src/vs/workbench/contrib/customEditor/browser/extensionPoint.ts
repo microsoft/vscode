@@ -8,14 +8,22 @@ import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 
+namespace WebviewEditorContribution {
+	export const viewType = 'viewType';
+	export const displayName = 'displayName';
+	export const filenamePatterns = 'filenamePatterns';
+	export const enableByDefault = 'enableByDefault';
+}
+
 interface IWebviewEditorsExtensionPoint {
-	readonly viewType: string;
-	readonly displayName: string;
-	readonly filenamePatterns?: readonly string[];
+	readonly [WebviewEditorContribution.viewType]: string;
+	readonly [WebviewEditorContribution.displayName]: string;
+	readonly [WebviewEditorContribution.filenamePatterns]?: readonly string[];
+	readonly [WebviewEditorContribution.enableByDefault]?: boolean;
 }
 
 const webviewEditorsContribution: IJSONSchema = {
-	description: nls.localize('vscode.extension.contributes.webviewEditors', 'Contributes webview editors.'),
+	description: nls.localize('contributes.webviewEditors', 'Contributes webview editors.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ viewType: '', displayName: '' }] }],
 	items: {
@@ -25,17 +33,21 @@ const webviewEditorsContribution: IJSONSchema = {
 			'displayName'
 		],
 		properties: {
-			viewType: {
-				description: nls.localize('vscode.extension.contributes.webviewEditors-viewType', 'Unique identifier of the custom editor.'),
-				type: 'string'
+			[WebviewEditorContribution.viewType]: {
+				type: 'string',
+				description: nls.localize('contributes.viewType', 'Unique identifier of the custom editor.'),
 			},
-			displayName: {
-				description: nls.localize('vscode.extension.contributes.webviewEditors-displayName', 'Name of the custom editor displayed to users.'),
-				type: 'string'
+			[WebviewEditorContribution.displayName]: {
+				type: 'string',
+				description: nls.localize('contributes.displayName', 'Name of the custom editor displayed to users.'),
 			},
-			filenamePatterns: {
+			[WebviewEditorContribution.filenamePatterns]: {
 				type: 'array',
-				description: nls.localize('vscode.extension.contributes.webviewEditors-filenamePatterns', 'Set of globs that the custom editor is enabled for.'),
+				description: nls.localize('contributes.filenamePatterns', 'Set of globs that the custom editor is enabled for.'),
+			},
+			[WebviewEditorContribution.enableByDefault]: {
+				type: 'boolean',
+				description: nls.localize('contributes.enableByDefault', 'Should the editor be enabled by default.'),
 			}
 		}
 	}

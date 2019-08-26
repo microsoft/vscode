@@ -24,4 +24,5 @@ export interface ICustomEditorService {
 export interface CustomEditorInfo {
 	readonly id: string;
 	readonly displayName: string;
+	readonly enableByDefault: boolean;
 }
