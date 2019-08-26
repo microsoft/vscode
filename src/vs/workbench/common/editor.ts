@@ -707,15 +707,7 @@ export class EditorOptions implements IEditorOptions {
 	 */
 	static create(settings: IEditorOptions): EditorOptions {
 		const options = new EditorOptions();
-
-		options.preserveFocus = settings.preserveFocus;
-		options.forceReload = settings.forceReload;
-		options.revealIfVisible = settings.revealIfVisible;
-		options.revealIfOpened = settings.revealIfOpened;
-		options.pinned = settings.pinned;
-		options.index = settings.index;
-		options.inactive = settings.inactive;
-		options.ignoreError = settings.ignoreError;
+		options.overwrite(settings);
 
 		return options;
 	}
@@ -725,6 +717,12 @@ export class EditorOptions implements IEditorOptions {
 	 * the editor will receive keyboard focus on open.
 	 */
 	preserveFocus: boolean | undefined;
+
+	/**
+	 * Tells the group the editor opens in to become active. By default, an editor group will not
+	 * become active if either `preserveFocus: true` or `inactive: true`.
+	 */
+	forceActive: boolean | undefined;
 
 	/**
 	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
@@ -765,6 +763,49 @@ export class EditorOptions implements IEditorOptions {
 	 * message as needed. By default, an error will be presented as notification if opening was not possible.
 	 */
 	ignoreError: boolean | undefined;
+
+	/**
+	 * Overwrites option values from the provided bag.
+	 */
+	overwrite(options: IEditorOptions): EditorOptions {
+		if (options.forceReload) {
+			this.forceReload = true;
+		}
+
+		if (options.revealIfVisible) {
+			this.revealIfVisible = true;
+		}
+
+		if (options.revealIfOpened) {
+			this.revealIfOpened = true;
+		}
+
+		if (options.preserveFocus) {
+			this.preserveFocus = true;
+		}
+
+		if (options.forceActive) {
+			this.forceActive = true;
+		}
+
+		if (options.pinned) {
+			this.pinned = true;
+		}
+
+		if (options.inactive) {
+			this.inactive = true;
+		}
+
+		if (options.ignoreError) {
+			this.ignoreError = true;
+		}
+
+		if (typeof options.index === 'number') {
+			this.index = options.index;
+		}
+
+		return this;
+	}
 }
 
 /**
@@ -792,53 +833,31 @@ export class TextEditorOptions extends EditorOptions {
 	 */
 	static create(options: ITextEditorOptions = Object.create(null)): TextEditorOptions {
 		const textEditorOptions = new TextEditorOptions();
+		textEditorOptions.overwrite(options);
+
+		return textEditorOptions;
+	}
+
+	/**
+	 * Overwrites option values from the provided bag.
+	 */
+	overwrite(options: ITextEditorOptions): TextEditorOptions {
+		super.overwrite(options);
 
 		if (options.selection) {
 			const selection = options.selection;
-			textEditorOptions.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
+			this.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
 		}
 
 		if (options.viewState) {
-			textEditorOptions.editorViewState = options.viewState as IEditorViewState;
-		}
-
-		if (options.forceReload) {
-			textEditorOptions.forceReload = true;
-		}
-
-		if (options.revealIfVisible) {
-			textEditorOptions.revealIfVisible = true;
-		}
-
-		if (options.revealIfOpened) {
-			textEditorOptions.revealIfOpened = true;
-		}
-
-		if (options.preserveFocus) {
-			textEditorOptions.preserveFocus = true;
+			this.editorViewState = options.viewState as IEditorViewState;
 		}
 
 		if (options.revealInCenterIfOutsideViewport) {
-			textEditorOptions.revealInCenterIfOutsideViewport = true;
+			this.revealInCenterIfOutsideViewport = true;
 		}
 
-		if (options.pinned) {
-			textEditorOptions.pinned = true;
-		}
-
-		if (options.inactive) {
-			textEditorOptions.inactive = true;
-		}
-
-		if (options.ignoreError) {
-			textEditorOptions.ignoreError = true;
-		}
-
-		if (typeof options.index === 'number') {
-			textEditorOptions.index = options.index;
-		}
-
-		return textEditorOptions;
+		return this;
 	}
 
 	/**

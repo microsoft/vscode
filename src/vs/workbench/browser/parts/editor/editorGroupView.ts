@@ -831,19 +831,28 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			openEditorOptions.active = true;
 		}
 
-		if (openEditorOptions.active) {
-			// Set group active unless we are instructed to preserveFocus. Always
-			// make sure to restore a minimized group though in order to fix
-			// https://github.com/microsoft/vscode/issues/79633
-			//
-			// Do this before we open the editor in the group to prevent a false
-			// active editor change event before the editor is loaded
-			// (see https://github.com/Microsoft/vscode/issues/51679)
-			if (options && options.preserveFocus) {
-				this.accessor.restoreGroup(this);
-			} else {
-				this.accessor.activateGroup(this);
-			}
+		let activateGroup = false;
+		let restoreGroup = false;
+
+		if (options && options.forceActive) {
+			// Always respect option to force activate an editor group.
+			activateGroup = true;
+		} else if (openEditorOptions.active) {
+			// Otherwise, we only activate/restore an editor which is
+			// opening as active editor.
+			// If preserveFocus is enabled, we only restore but never
+			// activate the group.
+			activateGroup = !options || !options.preserveFocus;
+			restoreGroup = !activateGroup;
+		}
+
+		// Do this before we open the editor in the group to prevent a false
+		// active editor change event before the editor is loaded
+		// (see https://github.com/Microsoft/vscode/issues/51679)
+		if (activateGroup) {
+			this.accessor.activateGroup(this);
+		} else if (restoreGroup) {
+			this.accessor.restoreGroup(this);
 		}
 
 		// Actually move the editor if a specific index is provided and we figure
