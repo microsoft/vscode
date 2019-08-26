@@ -28,7 +28,7 @@ import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export interface PositionLike {
@@ -113,6 +113,15 @@ export namespace DiagnosticTag {
 		}
 		return undefined;
 	}
+	export function to(value: MarkerTag): vscode.DiagnosticTag | undefined {
+		switch (value) {
+			case MarkerTag.Unnecessary:
+				return types.DiagnosticTag.Unnecessary;
+			case MarkerTag.Deprecated:
+				return types.DiagnosticTag.Deprecated;
+		}
+		return undefined;
+	}
 }
 
 export namespace Diagnostic {
@@ -126,6 +135,15 @@ export namespace Diagnostic {
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
 			tags: Array.isArray(value.tags) ? coalesce(value.tags.map(DiagnosticTag.from)) : undefined,
 		};
+	}
+
+	export function to(value: IMarkerData): vscode.Diagnostic {
+		const res = new types.Diagnostic(Range.to(value), value.message, DiagnosticSeverity.to(value.severity));
+		res.source = value.source;
+		res.code = value.code;
+		res.relatedInformation = value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.to);
+		res.tags = value.tags && coalesce(value.tags.map(DiagnosticTag.to));
+		return res;
 	}
 }
 
@@ -538,22 +556,40 @@ export namespace SymbolKind {
 	}
 }
 
+export namespace SymbolTag {
+
+	export function from(kind: types.SymbolTag): modes.SymbolTag {
+		switch (kind) {
+			case types.SymbolTag.Deprecated: return modes.SymbolTag.Deprecated;
+		}
+	}
+
+	export function to(kind: modes.SymbolTag): types.SymbolTag {
+		switch (kind) {
+			case modes.SymbolTag.Deprecated: return types.SymbolTag.Deprecated;
+		}
+	}
+}
+
 export namespace WorkspaceSymbol {
 	export function from(info: vscode.SymbolInformation): search.IWorkspaceSymbol {
 		return <search.IWorkspaceSymbol>{
 			name: info.name,
 			kind: SymbolKind.from(info.kind),
+			tags: info.tags && info.tags.map(SymbolTag.from),
 			containerName: info.containerName,
 			location: location.from(info.location)
 		};
 	}
 	export function to(info: search.IWorkspaceSymbol): types.SymbolInformation {
-		return new types.SymbolInformation(
+		const result = new types.SymbolInformation(
 			info.name,
 			SymbolKind.to(info.kind),
 			info.containerName,
 			location.to(info.location)
 		);
+		result.tags = info.tags && info.tags.map(SymbolTag.to);
+		return result;
 	}
 }
 
@@ -564,7 +600,8 @@ export namespace DocumentSymbol {
 			detail: info.detail,
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
-			kind: SymbolKind.from(info.kind)
+			kind: SymbolKind.from(info.kind),
+			tags: info.tags ? info.tags.map(SymbolTag.from) : []
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
@@ -579,6 +616,9 @@ export namespace DocumentSymbol {
 			Range.to(info.range),
 			Range.to(info.selectionRange),
 		);
+		if (isNonEmptyArray(info.tags)) {
+			result.tags = info.tags.map(SymbolTag.to);
+		}
 		if (info.children) {
 			result.children = info.children.map(to) as any;
 		}
@@ -663,6 +703,21 @@ export namespace CompletionContext {
 	}
 }
 
+export namespace CompletionItemTag {
+
+	export function from(kind: types.CompletionItemTag): modes.CompletionItemTag {
+		switch (kind) {
+			case types.CompletionItemTag.Deprecated: return modes.CompletionItemTag.Deprecated;
+		}
+	}
+
+	export function to(kind: modes.CompletionItemTag): types.CompletionItemTag {
+		switch (kind) {
+			case modes.CompletionItemTag.Deprecated: return types.CompletionItemTag.Deprecated;
+		}
+	}
+}
+
 export namespace CompletionItemKind {
 
 	export function from(kind: types.CompletionItemKind | undefined): modes.CompletionItemKind {
@@ -734,6 +789,7 @@ export namespace CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
+		result.tags = suggestion.tags && suggestion.tags.map(CompletionItemTag.to);
 		result.detail = suggestion.detail;
 		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;

@@ -15,7 +15,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, ExtHostLogServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -33,7 +33,6 @@ import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
 import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
-import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtHostMessageService } from 'vs/workbench/api/common/extHostMessageService';
 import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 import { ExtHostProgress } from 'vs/workbench/api/common/extHostProgress';
@@ -74,14 +73,6 @@ export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
 }
 
-function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
-	if (extension.enableProposedApi) {
-		return fn;
-	} else {
-		return throwProposedApiError.bind(null, extension) as any as T;
-	}
-}
-
 /**
  * This method instantiates and returns the extension API surface
  */
@@ -95,10 +86,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const uriTransformer = accessor.get(IURITransformerService);
 	const rpcProtocol = accessor.get(IExtHostRpcService);
 	const extHostStorage = accessor.get(IExtHostStorage);
-	const extHostLogService = <ExtHostLogService>accessor.get(ILogService);
+	const extHostLogService = accessor.get(ILogService);
 
 	// register addressable instances
-	rpcProtocol.set(ExtHostContext.ExtHostLogService, extHostLogService);
+	rpcProtocol.set(ExtHostContext.ExtHostLogService, <ExtHostLogServiceShape><any>extHostLogService);
 	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
@@ -144,10 +135,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol);
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol, extHostDocuments);
-
-	// Register an output channel for exthost log
-	const outputChannelName = initData.remote.isRemote ? nls.localize('remote extension host Log', "Remote Extension Host") : nls.localize('extension host Log', "Extension Host");
-	extHostOutputService.createOutputChannelFromLogFile(outputChannelName, extHostLogService.logFile);
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
@@ -211,7 +198,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					});
 				});
 			},
-			registerDiffInformationCommand: proposedApiFunction(extension, (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
+			registerDiffInformationCommand: (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
+				checkProposedApiEnabled(extension);
 				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
 					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
@@ -222,17 +210,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					const diff = await extHostEditors.getDiffInformation(activeTextEditor.id);
 					callback.apply(thisArg, [diff, ...args]);
 				});
-			}),
+			},
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
 				return extHostCommands.executeCommand<T>(id, ...args);
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
 				return extHostCommands.getCommands(filterInternal);
-			},
-			onDidExecuteCommand: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
-				checkProposedApiEnabled(extension);
-				return extHostCommands.onDidExecuteCommand(listener, thisArgs, disposables);
-			}),
+			}
 		};
 
 		// namespace: env
@@ -243,6 +227,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appName() { return initData.environment.appName; },
 			get appRoot() { return initData.environment.appRoot!.fsPath; },
 			get uriScheme() { return initData.environment.appUriScheme; },
+			createAppUri(options?) {
+				checkProposedApiEnabled(extension);
+				return extHostUrls.createAppUri(extension.identifier, options);
+			},
 			get logLevel() {
 				checkProposedApiEnabled(extension);
 				return typeConverters.LogLevel.to(extHostLogService.getLevel());
@@ -535,9 +523,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			},
-			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
+			registerDecorationProvider(provider: vscode.DecorationProvider) {
+				checkProposedApiEnabled(extension);
 				return extHostDecorations.registerDecorationProvider(provider, extension.identifier);
-			}),
+			},
 			registerUriHandler(handler: vscode.UriHandler) {
 				return extHostUrls.registerUriHandler(extension.identifier, handler);
 			},
@@ -550,8 +539,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		};
 
 		// namespace: workspace
+		let warnedRootPathDeprecated = false;
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
+				if (extension.isUnderDevelopment && !warnedRootPathDeprecated) {
+					warnedRootPathDeprecated = true;
+					console.warn(`[Deprecation Warning] 'workspace.rootPath' is deprecated and should no longer be used. Please use 'workspace.workspaceFolders' instead. More details: https://aka.ms/vscode-eliminating-rootpath`);
+				}
+
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
@@ -672,24 +667,30 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get fs() {
 				return extHostFileSystem.fileSystem;
 			},
-			registerFileSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.FileSearchProvider) => {
+			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
+				checkProposedApiEnabled(extension);
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
-			}),
-			registerTextSearchProvider: proposedApiFunction(extension, (scheme: string, provider: vscode.TextSearchProvider) => {
+			},
+			registerTextSearchProvider: (scheme: string, provider: vscode.TextSearchProvider) => {
+				checkProposedApiEnabled(extension);
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
-			}),
-			registerRemoteAuthorityResolver: proposedApiFunction(extension, (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
+			},
+			registerRemoteAuthorityResolver: (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
+				checkProposedApiEnabled(extension);
 				return extensionService.registerRemoteAuthorityResolver(authorityPrefix, resolver);
-			}),
-			registerResourceLabelFormatter: proposedApiFunction(extension, (formatter: vscode.ResourceLabelFormatter) => {
+			},
+			registerResourceLabelFormatter: (formatter: vscode.ResourceLabelFormatter) => {
+				checkProposedApiEnabled(extension);
 				return extHostLabelService.$registerResourceLabelFormatter(formatter);
-			}),
-			onDidRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			},
+			onDidRenameFile: (listener: (e: vscode.FileRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
-			}),
-			onWillRenameFile: proposedApiFunction(extension, (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			},
+			onWillRenameFile: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
-			})
+			}
 		};
 
 		// namespace: scm
@@ -812,6 +813,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CommentMode: extHostTypes.CommentMode,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
+			CompletionItemTag: extHostTypes.CompletionItemTag,
 			CompletionList: extHostTypes.CompletionList,
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
@@ -866,6 +868,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,
+			SymbolTag: extHostTypes.SymbolTag,
 			Task: extHostTypes.Task,
 			Task2: extHostTypes.Task,
 			TaskGroup: extHostTypes.TaskGroup,

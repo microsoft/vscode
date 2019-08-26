@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -500,7 +500,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// Force line data to be sent when the cursor is moved, the main purpose for
 				// this is because ConPTY will often not do a line feed but instead move the
 				// cursor, in which case we still want to send the current line's data to tasks.
-				xterm.addCsiHandler('H', () => {
+				xterm.parser.addCsiHandler({ final: 'H' }, () => {
 					this._onCursorMove();
 					return false;
 				});
@@ -865,7 +865,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this.focus();
-		this._xterm._core._coreService.triggerDataEvent(await this._clipboardService.readText(), true);
+		this._xterm.paste(await this._clipboardService.readText());
 	}
 
 	public write(text: string): void {
@@ -973,11 +973,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 
 		if (this._shellLaunchConfig.name) {
-			this.setTitle(this._shellLaunchConfig.name, false);
+			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		} else {
 			// Only listen for process title changes when a name is not provided
-			this.setTitle(this._shellLaunchConfig.executable, true);
-			this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.setTitle(title ? title : '', true));
+			if (this._configHelper.config.experimentalUseTitleEvent) {
+				this._processManager.ptyProcessReady.then(() => {
+					this._terminalInstanceService.getDefaultShellAndArgs(false).then(e => {
+						this.setTitle(e.shell, TitleEventSource.Sequence);
+					});
+					this._xtermReadyPromise.then(xterm => {
+						this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
+					});
+				});
+			} else {
+				this.setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
+				this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.setTitle(title ? title : '', TitleEventSource.Process));
+			}
 		}
 
 		if (platform.isWindows) {
@@ -1149,7 +1160,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._createProcess();
 
 		if (oldTitle !== this._title) {
-			this.setTitle(this._title, true);
+			this.setTitle(this._title, TitleEventSource.Process);
 		}
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
@@ -1166,6 +1177,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _onCursorMove(): void {
 		const buffer = this._xterm!.buffer;
 		this._sendLineData(buffer, buffer.baseY + buffer.cursorY);
+	}
+
+	private _onTitleChange(title: string): void {
+		if (this.isTitleSetByProcess) {
+			this.setTitle(title, TitleEventSource.Sequence);
+		}
 	}
 
 	private _sendLineData(buffer: IBuffer, lineIndex: number): void {
@@ -1348,23 +1365,26 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.ptyProcessReady.then(() => this._processManager.setDimensions(cols, rows));
 	}
 
-	public setTitle(title: string | undefined, eventFromProcess: boolean): void {
+	public setTitle(title: string | undefined, eventSource: TitleEventSource): void {
 		if (!title) {
 			return;
 		}
-		if (eventFromProcess) {
-			title = path.basename(title);
-			if (platform.isWindows) {
-				// Remove the .exe extension
-				title = title.split('.exe')[0];
-			}
-		} else {
-			// If the title has not been set by the API or the rename command, unregister the handler that
-			// automatically updates the terminal name
-			dispose(this._messageTitleDisposable);
-			this._messageTitleDisposable = undefined;
-			dispose(this._windowsShellHelper);
-			this._windowsShellHelper = undefined;
+		switch (eventSource) {
+			case TitleEventSource.Process:
+				title = path.basename(title);
+				if (platform.isWindows) {
+					// Remove the .exe extension
+					title = title.split('.exe')[0];
+				}
+				break;
+			case TitleEventSource.Api:
+				// If the title has not been set by the API or the rename command, unregister the handler that
+				// automatically updates the terminal name
+				dispose(this._messageTitleDisposable);
+				this._messageTitleDisposable = undefined;
+				dispose(this._windowsShellHelper);
+				this._windowsShellHelper = undefined;
+				break;
 		}
 		const didTitleChange = title !== this._title;
 		this._title = title;

@@ -144,7 +144,8 @@ export class CallStackView extends ViewletPanel {
 
 						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 					}
-				}
+				},
+				expandOnlyOnTwistieClick: true
 			});
 
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
@@ -576,7 +577,7 @@ function isDebugModel(obj: any): obj is IDebugModel {
 }
 
 function isDebugSession(obj: any): obj is IDebugSession {
-	return typeof obj.getAllThreads === 'function';
+	return obj && typeof obj.getAllThreads === 'function';
 }
 
 function isDeemphasized(frame: IStackFrame): boolean {
@@ -589,16 +590,21 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 	constructor(private debugService: IDebugService) { }
 
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
-		return isDebugModel(element) || isDebugSession(element) || (element instanceof Thread && element.stopped);
+		if (isDebugSession(element)) {
+			const threads = element.getAllThreads();
+			return (threads.length > 1) || (threads.length === 1 && threads[0].stopped) || (this.debugService.getModel().getSessions().filter(s => s.parentSession === element).length > 0);
+		}
+
+		return isDebugModel(element) || (element instanceof Thread && element.stopped);
 	}
 
-	getChildren(element: IDebugModel | CallStackItem): Promise<CallStackItem[]> {
+	async getChildren(element: IDebugModel | CallStackItem): Promise<CallStackItem[]> {
 		if (isDebugModel(element)) {
 			const sessions = element.getSessions();
 			if (sessions.length === 0) {
 				return Promise.resolve([]);
 			}
-			if (sessions.length > 1 || this.debugService.getViewModel().isMultiSessionView()) {
+			if (sessions.length > 1) {
 				return Promise.resolve(sessions.filter(s => !s.parentSession));
 			}
 
@@ -607,11 +613,14 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			return threads.length === 1 ? this.getThreadChildren(<Thread>threads[0]) : Promise.resolve(threads);
 		} else if (isDebugSession(element)) {
 			const childSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === element);
-			if (childSessions.length) {
-				return Promise.resolve(childSessions);
+			const threads: CallStackItem[] = element.getAllThreads();
+			if (threads.length === 1) {
+				// Do not show thread when there is only one to be compact.
+				const children = await this.getThreadChildren(<Thread>threads[0]);
+				return children.concat(childSessions);
 			}
 
-			return Promise.resolve(element.getAllThreads());
+			return Promise.resolve(threads.concat(childSessions));
 		} else {
 			return this.getThreadChildren(<Thread>element);
 		}

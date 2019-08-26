@@ -17,7 +17,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		//@IWindowService windowService: IWindowService,
+		// @IWindowService windowService: IWindowService, // TODO@weinand TODO@isidorn cyclic dependency?
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		const connection = remoteAgentService.getConnection();
@@ -30,13 +30,11 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
 		this._register(this.onReload(event => {
 			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
-				//windowService.reloadWindow();
 				window.location.reload();
 			}
 		}));
 		this._register(this.onClose(event => {
 			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
-				//this._windowService.closeWindow();
 				window.close();
 			}
 		}));

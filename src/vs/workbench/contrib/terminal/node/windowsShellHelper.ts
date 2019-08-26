@@ -5,9 +5,9 @@
 
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ITerminalInstance, IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalInstance, IWindowsShellHelper, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
-import WindowsProcessTreeType = require('windows-process-tree');
+import * as WindowsProcessTreeType from 'windows-process-tree';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 const SHELL_EXECUTABLES = [
@@ -80,7 +80,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess) {
 			this.getShellName().then(title => {
 				if (!this._isDisposed) {
-					this._terminalInstance.setTitle(title, true);
+					this._terminalInstance.setTitle(title, TitleEventSource.Process);
 				}
 			});
 		}

@@ -276,7 +276,7 @@ export class TerminalPanel extends Panel {
 				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 				if (resources) {
 					path = URI.parse(JSON.parse(resources)[0]).fsPath;
-				} else if (e.dataTransfer.files.length > 0) {
+				} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
 					// Check if the file was dragged from the filesystem
 					path = URI.file(e.dataTransfer.files[0].path).fsPath;
 				}

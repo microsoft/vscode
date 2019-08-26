@@ -19,7 +19,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		super(_contextViewService, _contextKeyService, findState, true, true);
+		super(_contextViewService, _contextKeyService, findState, true);
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));

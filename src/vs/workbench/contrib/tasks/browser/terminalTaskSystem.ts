@@ -44,6 +44,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -155,9 +156,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
 	private taskSystemInfoResolver: TaskSystemInfoResolver;
-	private lastTask: VerifiedTask;
-	private currentTask: VerifiedTask;
-	private isRerun: boolean;
+	private lastTask: VerifiedTask | undefined;
+	// Should always be set in run
+	private currentTask!: VerifiedTask;
+	private isRerun: boolean = false;
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -338,8 +340,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
-			for (let index in task.configurationProperties.dependsOn) {
-				const dependency = task.configurationProperties.dependsOn[index];
+			for (const dependency of task.configurationProperties.dependsOn) {
 				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
 				if (dependencyTask) {
 					let key = dependencyTask.getMapKey();
@@ -485,28 +486,32 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private reexecuteCommand(task: CustomTask | ContributedTask, trigger: string): Promise<ITaskSummary> {
-		const workspaceFolder = this.currentTask.workspaceFolder = this.lastTask.workspaceFolder;
+		const lastTask = this.lastTask;
+		if (!lastTask) {
+			return Promise.reject(new Error('No task previously run'));
+		}
+		const workspaceFolder = this.currentTask.workspaceFolder = lastTask.workspaceFolder;
 		let variables = new Set<string>();
 		this.collectTaskVariables(variables, task);
 
 		// Check that the task hasn't changed to include new variables
 		let hasAllVariables = true;
 		variables.forEach(value => {
-			if (value.substring(2, value.length - 1) in this.lastTask.getVerifiedTask().resolvedVariables) {
+			if (value.substring(2, value.length - 1) in lastTask.getVerifiedTask().resolvedVariables) {
 				hasAllVariables = false;
 			}
 		});
 
 		if (!hasAllVariables) {
-			return this.resolveVariablesFromSet(this.lastTask.getVerifiedTask().systemInfo, this.lastTask.getVerifiedTask().workspaceFolder, task, variables).then((resolvedVariables) => {
+			return this.resolveVariablesFromSet(lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables).then((resolvedVariables) => {
 				this.currentTask.resolvedVariables = resolvedVariables;
-				return this.executeInTerminal(task, trigger, new VariableResolver(this.lastTask.getVerifiedTask().workspaceFolder, this.lastTask.getVerifiedTask().systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder!);
+				return this.executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder!);
 			}, reason => {
 				return Promise.reject(reason);
 			});
 		} else {
-			this.currentTask.resolvedVariables = this.lastTask.getVerifiedTask().resolvedVariables;
-			return this.executeInTerminal(task, trigger, new VariableResolver(this.lastTask.getVerifiedTask().workspaceFolder, this.lastTask.getVerifiedTask().systemInfo, this.lastTask.getVerifiedTask().resolvedVariables.variables, this.configurationResolverService), workspaceFolder!);
+			this.currentTask.resolvedVariables = lastTask.getVerifiedTask().resolvedVariables;
+			return this.executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().resolvedVariables.variables, this.configurationResolverService), workspaceFolder!);
 		}
 	}
 
@@ -923,7 +928,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			args = resolvedResult.args;
 			commandExecutable = CommandString.value(command);
 
-			this.currentTask.shellLaunchConfig = launchConfigs = this.isRerun ? this.lastTask.getVerifiedTask().shellLaunchConfig : await this.createShellLaunchConfig(task, workspaceFolder, resolver, platform, options, command, args, waitOnExit);
+			this.currentTask.shellLaunchConfig = launchConfigs = (this.isRerun && this.lastTask) ? this.lastTask.getVerifiedTask().shellLaunchConfig : await this.createShellLaunchConfig(task, workspaceFolder, resolver, platform, options, command, args, waitOnExit);
 			if (launchConfigs === undefined) {
 				return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
 			}
@@ -1370,7 +1375,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return command;
 		}
 		if (cwd === undefined) {
-			cwd = process.cwd();
+			cwd = processCwd();
 		}
 		const dir = path.dirname(command);
 		if (dir !== '.') {
@@ -1378,8 +1383,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		if (paths === undefined && Types.isString(process.env.PATH)) {
-			paths = process.env.PATH.split(path.delimiter);
+		if (paths === undefined && Types.isString(processEnv.PATH)) {
+			paths = processEnv.PATH.split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
 		if (paths === undefined || paths.length === 0) {

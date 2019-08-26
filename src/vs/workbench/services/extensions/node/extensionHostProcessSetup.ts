@@ -7,21 +7,19 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'vscode-minimist';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol, ProtocolConstants, createBufferedEvent } from 'vs/base/parts/ipc/common/ipc.net';
+import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/node/product';
-import { IInitData, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
+import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import 'vs/workbench/api/node/extHost.services';
 
 interface ParsedExtHostArgs {
@@ -64,26 +62,12 @@ function patchProcess(allowExit: boolean) {
 		}
 	} as (code?: number) => never;
 
+	// override Electron's process.crash() method
 	process.crash = function () {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
 	};
 }
-
-// use IPC messages to forward console-calls
-function patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
-	// The console is already patched to use `process.send()`
-	const nativeProcessSend = process.send!;
-	process.send = (...args: any[]) => {
-		if (args.length === 0 || !args[0] || args[0].type !== '__$console') {
-			return nativeProcessSend.apply(process, args);
-		}
-
-		mainThreadConsole.$logExtensionHostMessage(args[0]);
-	};
-}
-
-const createLogService: ILogServiceFn = initData => new SpdLogService(ExtensionHostLogFileName, initData.logsLocation.fsPath, initData.logLevel);
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
@@ -180,8 +164,8 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 	return new class implements IMessagePassingProtocol {
 
-		private readonly _onMessage = new Emitter<VSBuffer>();
-		readonly onMessage: Event<VSBuffer> = createBufferedEvent(this._onMessage.event);
+		private readonly _onMessage = new BufferedEmitter<VSBuffer>();
+		readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
 		private _terminating: boolean;
 
@@ -206,7 +190,7 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 }
 
 function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRendererConnection> {
-	return new Promise<IRendererConnection>((c, e) => {
+	return new Promise<IRendererConnection>((c) => {
 
 		// Listen init data message
 		const first = protocol.onMessage(raw => {
@@ -335,8 +319,6 @@ export async function startExtensionHostProcess(): Promise<void> {
 		renderer.protocol,
 		initData,
 		hostUtils,
-		patchPatchedConsole,
-		createLogService,
 		uriTransformer
 	);
 

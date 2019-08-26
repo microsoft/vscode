@@ -481,7 +481,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private onDidEditorOpen(editor: EditorInput): void {
 
-		// Telemetry
 		/* __GDPR__
 			"editorOpened" : {
 				"${include}": [
@@ -520,14 +519,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		});
 
-		// Telemetry
 		/* __GDPR__
-				"editorClosed" : {
-					"${include}": [
-						"${EditorTelemetryDescriptor}"
-					]
-				}
-			*/
+			"editorClosed" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(event.editor));
 
 		// Update container
@@ -798,7 +796,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditor()
 
-	openEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | null> {
+	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | null> {
 
 		// Guard against invalid inputs
 		if (!editor) {
@@ -814,7 +812,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Proceed with opening
-		return this.doOpenEditor(editor, options).then(withUndefinedAsNull);
+		return withUndefinedAsNull(await this.doOpenEditor(editor, options));
 	}
 
 	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditor | undefined> {
@@ -833,12 +831,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			openEditorOptions.active = true;
 		}
 
-		// Set group active unless we open inactive or preserve focus
-		// Do this before we open the editor in the group to prevent a false
-		// active editor change event before the editor is loaded
-		// (see https://github.com/Microsoft/vscode/issues/51679)
-		if (openEditorOptions.active && (!options || !options.preserveFocus)) {
-			this.accessor.activateGroup(this);
+		if (openEditorOptions.active) {
+			// Set group active unless we are instructed to preserveFocus. Always
+			// make sure to restore a minimized group though in order to fix
+			// https://github.com/microsoft/vscode/issues/79633
+			//
+			// Do this before we open the editor in the group to prevent a false
+			// active editor change event before the editor is loaded
+			// (see https://github.com/Microsoft/vscode/issues/51679)
+			if (options && options.preserveFocus) {
+				this.accessor.restoreGroup(this);
+			} else {
+				this.accessor.activateGroup(this);
+			}
 		}
 
 		// Actually move the editor if a specific index is provided and we figure

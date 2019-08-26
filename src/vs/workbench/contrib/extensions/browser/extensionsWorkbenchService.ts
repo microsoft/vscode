@@ -131,7 +131,7 @@ class Extension implements IExtension {
 
 	private get localIconUrl(): string | null {
 		if (this.local && this.local.manifest.icon) {
-			return asDomUri(resources.joinPath(this.local.location, this.local.manifest.icon)).toString();
+			return asDomUri(resources.joinPath(this.local.location, this.local.manifest.icon)).toString(true);
 		}
 		return null;
 	}
@@ -484,7 +484,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
-	private _extensionAllowedBadgeProviders: string[];
 	private installing: IExtension[] = [];
 
 	constructor(
@@ -1020,13 +1019,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return changed;
 	}
 
-	get allowedBadgeProviders(): string[] {
-		if (!this._extensionAllowedBadgeProviders) {
-			this._extensionAllowedBadgeProviders = (this.productService.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
-		}
-		return this._extensionAllowedBadgeProviders;
-	}
-
 	private _activityCallBack: (() => void) | null = null;
 	private updateActivity(): void {
 		if ((this.localExtensions && this.localExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))
@@ -1096,12 +1088,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 
-	private _ignoredAutoUpdateExtensions: string[];
+	private _ignoredAutoUpdateExtensions: string[] | undefined;
 	private get ignoredAutoUpdateExtensions(): string[] {
 		if (!this._ignoredAutoUpdateExtensions) {
 			this._ignoredAutoUpdateExtensions = JSON.parse(this.storageService.get('extensions.ignoredAutoUpdateExtension', StorageScope.GLOBAL, '[]') || '[]');
 		}
-		return this._ignoredAutoUpdateExtensions;
+		return this._ignoredAutoUpdateExtensions!;
 	}
 
 	private set ignoredAutoUpdateExtensions(extensionIds: string[]) {

@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as paths from 'vs/base/common/path';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -128,7 +129,10 @@ export class LabelService implements ILabelService {
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
-		const formatting = this.findFormatting(resource);
+		return this.doGetUriLabel(resource, this.findFormatting(resource), options);
+	}
+
+	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
 		if (!formatting) {
 			return getPathLabel(resource.path, this.environmentService, options.relative ? this.contextService : undefined);
 		}
@@ -157,6 +161,19 @@ export class LabelService implements ILabelService {
 		}
 
 		return options.endWithSeparator ? this.appendSeparatorIfMissing(label, formatting) : label;
+	}
+
+	getUriBasenameLabel(resource: URI): string {
+		const formatting = this.findFormatting(resource);
+		const label = this.doGetUriLabel(resource, formatting);
+		if (formatting) {
+			switch (formatting.separator) {
+				case paths.win32.sep: return paths.win32.basename(label);
+				case paths.posix.sep: return paths.posix.basename(label);
+			}
+		}
+
+		return paths.basename(label);
 	}
 
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string {

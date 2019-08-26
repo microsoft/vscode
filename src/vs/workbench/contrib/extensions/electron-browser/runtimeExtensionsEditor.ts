@@ -44,6 +44,8 @@ import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/pl
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { URI } from 'vs/base/common/uri';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -120,7 +122,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 		@IStorageService storageService: IStorageService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -312,7 +315,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					data.actionbar.push(this._instantiationService.createInstance(SlowExtensionAction, element.description, element.unresponsiveProfile), { icon: true, label: true });
 				}
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					data.actionbar.push(new ReportExtensionIssueAction(element), { icon: true, label: true });
+					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService), { icon: true, label: true });
 				}
 
 				let title: string;
@@ -416,7 +419,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			const actions: IAction[] = [];
 
-			actions.push(new ReportExtensionIssueAction(e.element));
+			actions.push(new ReportExtensionIssueAction(e.element, this._openerService));
 			actions.push(new Separator());
 
 			if (e.element.marketplaceInfo) {
@@ -480,7 +483,7 @@ export class ReportExtensionIssueAction extends Action {
 		marketplaceInfo: IExtension;
 		status?: IExtensionsStatus;
 		unresponsiveProfile?: IExtensionHostProfile
-	}) {
+	}, @IOpenerService private readonly openerService: IOpenerService) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
 			&& extension.marketplaceInfo.type === ExtensionType.User
@@ -490,7 +493,7 @@ export class ReportExtensionIssueAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		window.open(this._url);
+		this.openerService.open(URI.parse(this._url));
 	}
 
 	private static _generateNewIssueUrl(extension: {

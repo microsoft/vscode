@@ -9,7 +9,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -191,7 +191,7 @@ export class RemoveBreakpointAction extends AbstractDebugAction {
 
 	public run(breakpoint: IBreakpoint): Promise<any> {
 		return breakpoint instanceof Breakpoint ? this.debugService.removeBreakpoints(breakpoint.getId())
-			: this.debugService.removeFunctionBreakpoints(breakpoint.getId());
+			: breakpoint instanceof FunctionBreakpoint ? this.debugService.removeFunctionBreakpoints(breakpoint.getId()) : this.debugService.removeDataBreakpoints(breakpoint.getId());
 	}
 }
 
@@ -205,7 +205,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	public run(): Promise<any> {
-		return Promise.all([this.debugService.removeBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
+		return Promise.all([this.debugService.removeBreakpoints(), this.debugService.removeFunctionBreakpoints(), this.debugService.removeDataBreakpoints()]);
 	}
 
 	protected isEnabled(state: State): boolean {

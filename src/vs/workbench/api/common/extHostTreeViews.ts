@@ -52,10 +52,21 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		private commands: ExtHostCommands,
 		private logService: ILogService
 	) {
+
+		function isTreeViewItemHandleArg(arg: any): boolean {
+			return arg && arg.$treeViewId && arg.$treeItemHandle;
+		}
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
-				if (arg && arg.$treeViewId && arg.$treeItemHandle) {
+				if (isTreeViewItemHandleArg(arg)) {
 					return this.convertArgument(arg);
+				} else if (Array.isArray(arg) && (arg.length > 0)) {
+					return arg.map(item => {
+						if (isTreeViewItemHandleArg(item)) {
+							return this.convertArgument(item);
+						}
+						return item;
+					});
 				}
 				return arg;
 			}
@@ -185,7 +196,7 @@ class ExtHostTreeView<T> extends Disposable {
 	constructor(private viewId: string, options: vscode.TreeViewOptions<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService, private extension: IExtensionDescription) {
 		super();
 		this.dataProvider = options.treeDataProvider;
-		this.proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll });
+		this.proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany });
 		if (this.dataProvider.onDidChangeTreeData) {
 			this._register(this.dataProvider.onDidChangeTreeData(element => this._onDidChangeData.fire({ message: false, element })));
 		}

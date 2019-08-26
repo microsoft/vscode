@@ -979,6 +979,10 @@ export enum SymbolKind {
 	TypeParameter = 25
 }
 
+export enum SymbolTag {
+	Deprecated = 1,
+}
+
 @es5ClassCompat
 export class SymbolInformation {
 
@@ -991,6 +995,7 @@ export class SymbolInformation {
 	name: string;
 	location!: Location;
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	containerName: string | undefined;
 
 	constructor(name: string, kind: SymbolKind, containerName: string | undefined, location: Location);
@@ -1041,6 +1046,7 @@ export class DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	range: Range;
 	selectionRange: Range;
 	children: DocumentSymbol[];
@@ -1074,6 +1080,8 @@ export class CodeAction {
 	diagnostics?: Diagnostic[];
 
 	kind?: CodeActionKind;
+
+	isPreferred?: boolean;
 
 	constructor(title: string, kind?: CodeActionKind) {
 		this.title = title;
@@ -1306,11 +1314,16 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
+export enum CompletionItemTag {
+	Deprecated = 1,
+}
+
 @es5ClassCompat
 export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
 	kind?: CompletionItemKind;
+	tags?: CompletionItemTag[];
 	detail?: string;
 	documentation?: string | MarkdownString;
 	sortText?: string;
@@ -2163,6 +2176,24 @@ export class FunctionBreakpoint extends Breakpoint {
 		this.functionName = functionName;
 	}
 }
+
+@es5ClassCompat
+export class DataBreakpoint extends Breakpoint {
+	readonly label: string;
+	readonly dataId: string;
+	readonly canPersist: boolean;
+
+	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
+		if (!dataId) {
+			throw illegalArgument('dataId');
+		}
+		this.label = label;
+		this.dataId = dataId;
+		this.canPersist = canPersist;
+	}
+}
+
 
 @es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {

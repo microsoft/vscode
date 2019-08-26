@@ -14,7 +14,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -24,7 +24,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { ipcRenderer as ipc, webFrame, crashReporter, Event } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -32,7 +32,7 @@ import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecyc
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isRootUser, isWindows, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
 import pkg from 'vs/platform/product/node/package';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -45,6 +45,17 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { isEqual } from 'vs/base/common/resources';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { MenubarControl } from '../browser/parts/titlebar/menubarControl';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IUpdateService } from 'vs/platform/update/common/update';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IPreferencesService } from '../services/preferences/common/preferences';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/node/menubar';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Schemas } from 'vs/base/common/network';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -91,7 +102,9 @@ export class ElectronWindow extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 
@@ -297,13 +310,13 @@ export class ElectronWindow extends Disposable {
 
 	private create(): void {
 
-		// Handle window.open() calls
-		const $this = this;
-		window.open = function (url: string, target: string, features: string, replace: boolean): Window | null {
-			$this.windowsService.openExternal(url);
+		// Native menu controller
+		if (isMacintosh || getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+			this._register(this.instantiationService.createInstance(NativeMenubarControl));
+		}
 
-			return null;
-		};
+		// Handle open calls
+		this.setupOpenHandlers();
 
 		// Emit event when vscode is ready
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.windowService.windowId));
@@ -339,6 +352,39 @@ export class ElectronWindow extends Disposable {
 		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp && this.configurationService.getValue('telemetry.enableCrashReporter')) {
 			this.setupCrashReporter();
 		}
+	}
+
+	private setupOpenHandlers(): void {
+
+		// Block window.open() calls
+		const $this = this;
+		window.open = function (): Window | null {
+			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
+		};
+
+		// Handle internal open() calls
+		this.openerService.registerOpener({
+			async open(resource: URI, options?: { openToSide?: boolean; openExternal?: boolean; } | undefined): Promise<boolean> {
+
+				// If either the caller wants to open externally or the
+				// scheme is one where we prefer to open externally
+				// we handle this resource by delegating the opening to
+				// the main process to prevent window focus issues.
+				const scheme = resource.scheme.toLowerCase();
+				const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
+				if ((options && options.openExternal) || preferOpenExternal) {
+					const success = await $this.windowsService.openExternal(encodeURI(resource.toString(true)));
+					if (!success && resource.scheme === Schemas.file) {
+						// if opening failed, and this is a file, we can still try to reveal it
+						await $this.windowsService.showItemInFolder(resource);
+					}
+
+					return true;
+				}
+
+				return false; // not handled by us
+			}
+		});
 	}
 
 	private updateTouchbarMenu(): void {
@@ -536,5 +582,194 @@ export class ElectronWindow extends Disposable {
 
 		// Otherwise open all
 		return this.editorService.openEditors(resources);
+	}
+}
+
+class NativeMenubarControl extends MenubarControl {
+	constructor(
+		@IMenuService menuService: IMenuService,
+		@IWindowService windowService: IWindowService,
+		@IWindowsService windowsService: IWindowsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILabelService labelService: ILabelService,
+		@IUpdateService updateService: IUpdateService,
+		@IStorageService storageService: IStorageService,
+		@INotificationService notificationService: INotificationService,
+		@IPreferencesService preferencesService: IPreferencesService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IMenubarService private readonly menubarService: IMenubarService
+	) {
+		super(
+			menuService,
+			windowService,
+			windowsService,
+			contextKeyService,
+			keybindingService,
+			configurationService,
+			labelService,
+			updateService,
+			storageService,
+			notificationService,
+			preferencesService,
+			environmentService,
+			accessibilityService);
+
+		if (isMacintosh && !isWeb) {
+			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
+			this.topLevelTitles['Preferences'] = nls.localize('mPreferences', "Preferences");
+		}
+
+		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
+			const menu = this.menus[topLevelMenuName];
+			if (menu) {
+				this._register(menu.onDidChange(() => this.updateMenubar()));
+			}
+		}
+
+		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
+			this.recentlyOpened = recentlyOpened;
+
+			this.doUpdateMenubar(true);
+		});
+
+		this.registerListeners();
+	}
+
+	protected doUpdateMenubar(firstTime: boolean): void {
+
+		// Send menus to main process to be rendered by Electron
+		const menubarData = { menus: {}, keybindings: {} };
+		if (this.getMenubarMenus(menubarData)) {
+			this.menubarService.updateMenubar(this.windowService.windowId, menubarData);
+		}
+	}
+
+	private getMenubarMenus(menubarData: IMenubarData): boolean {
+		if (!menubarData) {
+			return false;
+		}
+
+		menubarData.keybindings = this.getAdditionalKeybindings();
+		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
+			const menu = this.menus[topLevelMenuName];
+			if (menu) {
+				const menubarMenu: IMenubarMenu = { items: [] };
+				this.populateMenuItems(menu, menubarMenu, menubarData.keybindings);
+				if (menubarMenu.items.length === 0) {
+					return false; // Menus are incomplete
+				}
+				menubarData.menus[topLevelMenuName] = menubarMenu;
+			}
+		}
+
+		return true;
+	}
+
+	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }) {
+		let groups = menu.getActions();
+		for (let group of groups) {
+			const [, actions] = group;
+
+			actions.forEach(menuItem => {
+
+				if (menuItem instanceof SubmenuItemAction) {
+					const submenu = { items: [] };
+
+					if (!this.menus[menuItem.item.submenu]) {
+						this.menus[menuItem.item.submenu] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+						this._register(this.menus[menuItem.item.submenu]!.onDidChange(() => this.updateMenubar()));
+					}
+
+					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+					this.populateMenuItems(menuToDispose, submenu, keybindings);
+
+					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
+						id: menuItem.id,
+						label: menuItem.label,
+						submenu: submenu
+					};
+
+					menuToPopulate.items.push(menubarSubmenuItem);
+					menuToDispose.dispose();
+				} else {
+					if (menuItem.id === 'workbench.action.openRecent') {
+						const actions = this.getOpenRecentActions().map(this.transformOpenRecentAction);
+						menuToPopulate.items.push(...actions);
+					}
+
+					let menubarMenuItem: IMenubarMenuItemAction = {
+						id: menuItem.id,
+						label: menuItem.label
+					};
+
+					if (menuItem.checked) {
+						menubarMenuItem.checked = true;
+					}
+
+					if (!menuItem.enabled) {
+						menubarMenuItem.enabled = false;
+					}
+
+					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
+					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
+					menuToPopulate.items.push(menubarMenuItem);
+				}
+			});
+
+			menuToPopulate.items.push({ id: 'vscode.menubar.separator' });
+		}
+
+		if (menuToPopulate.items.length > 0) {
+			menuToPopulate.items.pop();
+		}
+	}
+
+	private transformOpenRecentAction(action: Separator | (IAction & { uri: URI })): MenubarMenuItem {
+		if (action instanceof Separator) {
+			return { id: 'vscode.menubar.separator' };
+		}
+
+		return {
+			id: action.id,
+			uri: action.uri,
+			enabled: action.enabled,
+			label: action.label
+		};
+	}
+
+	private getAdditionalKeybindings(): { [id: string]: IMenubarKeybinding } {
+		const keybindings: { [id: string]: IMenubarKeybinding } = {};
+		if (isMacintosh) {
+			const keybinding = this.getMenubarKeybinding('workbench.action.quit');
+			if (keybinding) {
+				keybindings['workbench.action.quit'] = keybinding;
+			}
+		}
+
+		return keybindings;
+	}
+
+	private getMenubarKeybinding(id: string): IMenubarKeybinding | undefined {
+		const binding = this.keybindingService.lookupKeybinding(id);
+		if (!binding) {
+			return undefined;
+		}
+
+		// first try to resolve a native accelerator
+		const electronAccelerator = binding.getElectronAccelerator();
+		if (electronAccelerator) {
+			return { label: electronAccelerator, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
+		}
+
+		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
+		const acceleratorLabel = binding.getLabel();
+		if (acceleratorLabel) {
+			return { label: acceleratorLabel, isNative: false, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
+		}
+
+		return undefined;
 	}
 }

@@ -3,50 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IProductService = createDecorator<IProductService>('productService');
 
-export interface IProductService {
+export interface IProductService extends Readonly<IProductConfiguration> {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
-	readonly version: string;
-	readonly commit?: string;
-	readonly date?: string;
-
-	readonly nameLong: string;
-	readonly urlProtocol: string;
-	readonly extensionAllowedProposedApi: readonly string[];
-	readonly uiExtensions?: readonly string[];
-
-	readonly enableTelemetry: boolean;
-	readonly extensionsGallery?: {
-		readonly serviceUrl: string;
-		readonly itemUrl: string;
-		readonly controlUrl: string;
-		readonly recommendationsUrl: string;
-	};
-
-	readonly sendASmile?: {
-		readonly reportIssueUrl: string;
-		readonly requestFeatureUrl: string;
-	};
-
-	readonly settingsSearchBuildId?: number;
-	readonly settingsSearchUrl?: string;
-
-	readonly experimentsUrl?: string;
-	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
-	readonly extensionAllowedBadgeProviders?: readonly string[];
-
-	readonly aiConfig?: {
-		readonly asimovKey: string;
-	};
 }
 
 export interface IProductConfiguration {
-	readonly version: string;
+	version: string;
 	nameShort: string;
 	nameLong: string;
 	readonly applicationName: string;
@@ -74,11 +42,10 @@ export interface IProductConfiguration {
 		readonly controlUrl: string;
 		readonly recommendationsUrl: string;
 	};
-	extensionTips: { [id: string]: string; };
-	extensionImportantTips: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
+	readonly extensionTips: { [id: string]: string; };
+	readonly extensionImportantTips: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
 	readonly exeBasedExtensionTips: { [id: string]: IExeBasedExtensionTip; };
 	readonly extensionKeywords: { [extension: string]: readonly string[]; };
-	readonly extensionAllowedBadgeProviders: readonly string[];
 	readonly extensionAllowedProposedApi: readonly string[];
 	readonly keymapExtensionTips: readonly string[];
 	readonly crashReporter: {
@@ -118,7 +85,6 @@ export interface IProductConfiguration {
 		readonly 'linux-x64': string;
 		readonly 'darwin': string;
 	};
-	readonly logUploaderUrl: string;
 	readonly portable?: string;
 	readonly uiExtensions?: readonly string[];
 }

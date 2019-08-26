@@ -549,7 +549,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternPos: numb
 	const patternStartPos = patternPos;
 	const wordStartPos = wordPos;
 
-	// There will be a mach, fill in tables
+	// There will be a match, fill in tables
 	for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
 
 		for (wordPos = 1; wordPos <= wordLen; wordPos++) {
@@ -573,6 +573,11 @@ export function fuzzyScore(pattern: string, patternLow: string, patternPos: numb
 					} else {
 						score = 5;
 					}
+				} else if (isSeparatorAtPos(wordLow, wordPos - 1) && (wordPos === 1 || !isSeparatorAtPos(wordLow, wordPos - 2))) {
+					// hitting a separator: `. <-> foo.bar`
+					//                                ^
+					score = 5;
+
 				} else if (isSeparatorAtPos(wordLow, wordPos - 2) || isWhitespaceAtPos(wordLow, wordPos - 2)) {
 					// post separator: `foo <-> bar_foo`
 					//                              ^^^

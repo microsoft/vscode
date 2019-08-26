@@ -117,6 +117,7 @@ export interface ITerminalConfiguration {
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
 	experimentalRefreshOnResume: boolean;
+	experimentalUseTitleEvent: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -247,6 +248,7 @@ export interface ITerminalService {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
+	// tslint:disable-next-line: no-dom-globals
 	createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
@@ -278,8 +280,9 @@ export interface ITerminalService {
 
 	selectDefaultWindowsShell(): Promise<void>;
 
+	// tslint:disable-next-line: no-dom-globals
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	setWorkspaceShellAllowed(isAllowed: boolean): void;
+	manageWorkspaceShellPermissions(): void;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to the terminal.
@@ -336,6 +339,7 @@ export interface ITerminalTab {
 	focusNextPane(): void;
 	resizePane(direction: Direction): void;
 	setActiveInstanceByIndex(index: number): void;
+	// tslint:disable-next-line: no-dom-globals
 	attachToElement(element: HTMLElement): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
@@ -610,6 +614,7 @@ export interface ITerminalInstance {
 	 *
 	 * @param container The element to attach the terminal instance to.
 	 */
+	// tslint:disable-next-line: no-dom-globals
 	attachToElement(container: HTMLElement): void;
 
 	/**
@@ -636,7 +641,7 @@ export interface ITerminalInstance {
 	/**
 	 * Sets the title of the terminal instance.
 	 */
-	setTitle(title: string, eventFromProcess: boolean): void;
+	setTitle(title: string, eventSource: TitleEventSource): void;
 
 	waitForTitle(): Promise<string>;
 
@@ -767,6 +772,15 @@ export enum LinuxDistro {
 	Fedora,
 	Ubuntu,
 	Unknown
+}
+
+export enum TitleEventSource {
+	/** From the API or the rename command that overrides any other type */
+	Api,
+	/** From the process name property*/
+	Process,
+	/** From the VT sequence */
+	Sequence
 }
 
 export interface IWindowsShellHelper extends IDisposable {

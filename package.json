@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.38.0",
-  "distro": "462afd2bf9dd37b39205412486925bc10b7fbf69",
+  "distro": "30060f8ffc31f3de68146de3df305a71973ae1db",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -28,6 +28,7 @@
     "update-distro": "node build/npm/update-distro.js"
   },
   "dependencies": {
+    "@microsoft/applicationinsights-web": "^2.1.1",
     "applicationinsights": "1.0.8",
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
@@ -51,14 +52,15 @@
     "vscode-ripgrep": "^1.5.6",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
-    "xterm": "3.15.0-beta98",
-    "xterm-addon-search": "0.2.0-beta3",
+    "xterm": "3.15.0-beta101",
+    "xterm-addon-search": "0.2.0-beta5",
     "xterm-addon-web-links": "0.1.0-beta10",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
   "devDependencies": {
     "7zip": "0.0.6",
+    "@types/cookie": "^0.3.3",
     "@types/keytar": "^4.4.0",
     "@types/mocha": "2.2.39",
     "@types/node": "^10.12.12",
@@ -82,7 +84,7 @@
     "fast-plist": "0.1.2",
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
-    "gulp-atom-electron": "^1.21.1",
+    "gulp-atom-electron": "^1.22.0",
     "gulp-azure-storage": "^0.10.0",
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.1",
@@ -123,6 +125,7 @@
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
     "pump": "^1.0.1",
+    "puppeteer": "^1.19.0",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
     "rimraf": "^2.2.8",
@@ -137,7 +140,7 @@
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
     "vsce": "1.48.0",
-    "vscode-debugprotocol": "1.35.0",
+    "vscode-debugprotocol": "1.36.0-pre.0",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^4.16.5",
     "webpack-cli": "^3.1.0",

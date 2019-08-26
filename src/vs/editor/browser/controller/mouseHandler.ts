@@ -49,7 +49,7 @@ export interface IPointerHandlerHelper {
 	 */
 	getLastViewCursorsRenderData(): IViewCursorRenderData[];
 
-	shouldSuppressMouseDownOnViewZone(viewZoneId: number): boolean;
+	shouldSuppressMouseDownOnViewZone(viewZoneId: string): boolean;
 	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
 
 	/**

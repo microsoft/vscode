@@ -497,6 +497,7 @@ export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostT
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 
 		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), lastActiveWorkspace ? lastActiveWorkspace : undefined, this._variableResolver, activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
+		shellLaunchConfig.cwd = initialCwd;
 
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
 		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
@@ -737,7 +738,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
-			this._pty.onDidClose(e => this._onProcessExit.fire(0));
+			this._pty.onDidClose(e => this._onProcessExit.fire(e || 0));
 		}
 		if (this._pty.onDidOverrideDimensions) {
 			this._pty.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
