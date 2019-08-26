@@ -88,6 +88,9 @@ export enum EditorActivation {
 
 	/**
 	 * Preserve the current active editor.
+	 *
+	 * Note: will only work in combination with the
+	 * `preserveFocus: true` option.
 	 */
 	PRESERVE
 }
