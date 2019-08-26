@@ -685,7 +685,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 
 		// Help user to find a name for the file by opening it first
-		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } });
+		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
 
 		return this.fileDialogService.pickFileToSave(this.getSaveDialogOptions(defaultUri, availableFileSystems));
 	}

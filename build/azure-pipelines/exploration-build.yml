@@ -1,13 +1,6 @@
 pool:
   vmImage: 'Ubuntu-16.04'
 
-trigger:
-  branches:
-    include: ['master']
-pr:
-  branches:
-    include: ['master']
-
 steps:
 - task: NodeTool@0
   inputs:
@@ -38,3 +31,13 @@ steps:
     git push origin HEAD:electron-6.0.x
 
   displayName: Sync & Merge Exploration
+
+trigger: none
+pr: none
+
+schedules:
+- cron: "0 5 * * Mon-Fri"
+  displayName: Mon-Fri at 7:00
+  branches:
+    include:
+    - master

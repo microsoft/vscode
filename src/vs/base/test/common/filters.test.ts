@@ -389,6 +389,11 @@ suite('Filters', () => {
 		assertMatches('g', 'zzGroup', 'zz^Group', fuzzyScore);
 	});
 
+	test('patternPos isn\'t working correctly #79815', function () {
+		assertMatches(':p'.substr(1), 'prop', '^prop', fuzzyScore, { patternPos: 0 });
+		assertMatches(':p', 'prop', '^prop', fuzzyScore, { patternPos: 1 });
+	});
+
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
 		let topScore = -(100 * 10);
 		let topIdx = 0;
