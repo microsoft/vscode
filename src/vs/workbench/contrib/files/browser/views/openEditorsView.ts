@@ -263,15 +263,21 @@ export class OpenEditorsView extends ViewletPanel {
 			let openToSide = false;
 			let isSingleClick = false;
 			let isDoubleClick = false;
+			let isMiddleClick = false;
 			if (browserEvent instanceof MouseEvent) {
 				isSingleClick = browserEvent.detail === 1;
 				isDoubleClick = browserEvent.detail === 2;
+				isMiddleClick = browserEvent.button === 1;
 				openToSide = this.list.useAltAsMultipleSelectionModifier ? (browserEvent.ctrlKey || browserEvent.metaKey) : browserEvent.altKey;
 			}
 
 			const focused = this.list.getFocusedElements();
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
+				if (isMiddleClick) {
+					return; // already handled above: closes the editor
+				}
+
 				this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 			} else if (element) {
 				this.editorGroupService.activateGroup(element);
