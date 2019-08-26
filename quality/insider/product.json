@@ -690,6 +690,17 @@
 	"aiConfig": {
 		"asimovKey": "AIF-444c3af9-8e69-4462-ab49-4191e6ad1916"
 	},
+	"msftInternalDomains": [
+		"redmond.corp.microsoft.com",
+		"northamerica.corp.microsoft.com",
+		"fareast.corp.microsoft.com",
+		"ntdev.corp.microsoft.com",
+		"wingroup.corp.microsoft.com",
+		"southpacific.corp.microsoft.com",
+		"wingroup.windeploy.ntdev.microsoft.com",
+		"ddnet.microsoft.com",
+		"europe.corp.microsoft.com"
+	],
 	"sendASmile": {
 		"reportIssueUrl": "https://go.microsoft.com/fwlink/?LinkId=534872",
 		"requestFeatureUrl": "https://go.microsoft.com/fwlink/?LinkID=533482"
