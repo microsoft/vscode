@@ -225,23 +225,23 @@ async function saveAll(saveAllArguments: any, editorService: IEditorService, unt
 	// Store some properties per untitled file to restore later after save is completed
 	const groupIdToUntitledResourceInput = new Map<number, IResourceInput[]>();
 
-	editorGroupService.groups.forEach(g => {
-		const activeEditorResource = g.activeEditor && g.activeEditor.getResource();
-		g.editors.forEach(e => {
+	editorGroupService.groups.forEach(group => {
+		const activeEditorResource = group.activeEditor && group.activeEditor.getResource();
+		group.editors.forEach(e => {
 			const resource = e.getResource();
 			if (resource && untitledEditorService.isDirty(resource)) {
-				if (!groupIdToUntitledResourceInput.has(g.id)) {
-					groupIdToUntitledResourceInput.set(g.id, []);
+				if (!groupIdToUntitledResourceInput.has(group.id)) {
+					groupIdToUntitledResourceInput.set(group.id, []);
 				}
 
-				groupIdToUntitledResourceInput.get(g.id)!.push({
+				groupIdToUntitledResourceInput.get(group.id)!.push({
 					encoding: untitledEditorService.getEncoding(resource),
 					resource,
 					options: {
 						inactive: activeEditorResource ? activeEditorResource.toString() !== resource.toString() : true,
 						pinned: true,
 						preserveFocus: true,
-						index: g.getIndexOfEditor(e)
+						index: group.getIndexOfEditor(e)
 					}
 				});
 			}

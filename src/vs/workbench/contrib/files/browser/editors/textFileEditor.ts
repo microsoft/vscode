@@ -225,6 +225,13 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
 		input.setForceOpenAsBinary();
+
+		// Make sure to not steal away the currently active group
+		// because we are triggering another openEditor() call
+		// and do not control the initial intent that resulted
+		// in us now opening as binary.
+		options.overwrite({ preserveActive: true, forceActive: false });
+
 		this.editorService.openEditor(input, options, this.group);
 	}
 

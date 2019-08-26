@@ -250,18 +250,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		if (typedEditor && resolvedGroup) {
-			// Unless the editor opens as inactive editor or we are instructed to open a side group,
-			// ensure that the group gets activated even if preserveFocus: true.
-			//
-			// Not enforcing this for side groups supports a historic scenario we have: repeated
-			// Alt-clicking of files in the explorer always open into the same side group and not
-			// cause a group to be created each time.
 			if (
-				typedOptions && !typedOptions.inactive &&			// never for inactive editors
-				typedOptions.preserveFocus &&						// only if preserveFocus
-				typeof typedOptions.forceActive !== 'boolean' &&	// only if forceActive is not already defined (either true or false)
-				candidateGroup !== SIDE_GROUP						// never for the SIDE_GROUP
+				this.editorGroupService.activeGroup !== resolvedGroup && 	// only if target group is not already active
+				typedOptions && !typedOptions.inactive &&					// never for inactive editors
+				typedOptions.preserveFocus &&								// only if preserveFocus
+				typeof typedOptions.forceActive !== 'boolean' &&			// only if forceActive is not already defined (either true or false)
+				typeof typedOptions.preserveActive !== 'boolean' &&			// only if preserveActive is not already defined (either true or false)
+				candidateGroup !== SIDE_GROUP								// never for the SIDE_GROUP
 			) {
+				// If the resolved group is not the active one, we typically
+				// want the group to become active. There are a few cases
+				// where we stay away from encorcing this, e.g. if the caller
+				// is already providing `forceActive` or `preserveActive`.
+				//
+				// Specifically for historic reasons we do not activate a
+				// group is it is opened as `SIDE_GROUP` with `preserveFocus:true`.
+				// repeated Alt-clicking of files in the explorer always open
+				// into the same side group and not cause a group to be created each time.
 				typedOptions.overwrite({ forceActive: true });
 			}
 
