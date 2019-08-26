@@ -271,6 +271,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			}
 			webview.webview.state = newState;
 		});
+		input.webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value));
 	}
 
 	private updateWebviewViewStates() {
