@@ -88,6 +88,12 @@ export interface IEditorOptions {
 	readonly preserveFocus?: boolean;
 
 	/**
+	 * Tells the group the editor opens in to become active. By default, an editor group will not
+	 * become active if either `preserveFocus: true` or `inactive: true`.
+	 */
+	readonly forceActive?: boolean;
+
+	/**
 	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
 	 * already showing. By default, the editor will not reload the input if it is identical to the
 	 * one showing.

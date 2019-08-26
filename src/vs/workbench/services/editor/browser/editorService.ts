@@ -225,8 +225,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		let resolvedGroup: IEditorGroup | undefined;
 		let candidateGroup: OpenInEditorGroup | undefined;
 
-		let typedEditor: IEditorInput | undefined;
-		let typedOptions: IEditorOptions | undefined;
+		let typedEditor: EditorInput | undefined;
+		let typedOptions: EditorOptions | undefined;
 
 		// Typed Editor Support
 		if (editor instanceof EditorInput) {
@@ -250,29 +250,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		if (typedEditor && resolvedGroup) {
-			const control = await this.doOpenEditor(resolvedGroup, typedEditor, typedOptions);
+			// Unless the editor opens as inactive editor or we are instructed to open a side group,
+			// ensure that the group gets activated even if preserveFocus: true.
+			//
+			// Not enforcing this for side groups supports a historic scenario we have: repeated
+			// Alt-clicking of files in the explorer always open into the same side group and not
+			// cause a group to be created each time.
+			if (typedOptions && !typedOptions.inactive && typedOptions.preserveFocus && candidateGroup !== SIDE_GROUP) {
+				typedOptions.overwrite({ forceActive: true });
+			}
 
-			this.ensureGroupActive(resolvedGroup, candidateGroup);
-
-			return control;
+			return this.doOpenEditor(resolvedGroup, typedEditor, typedOptions);
 		}
 
 		return undefined;
-	}
-
-	private ensureGroupActive(resolvedGroup: IEditorGroup, candidateGroup?: OpenInEditorGroup): void {
-
-		// Ensure we activate the group the editor opens in unless already active. Typically
-		// an editor always opens in the active group, but there are some cases where the
-		// target group is not the active one. If `preserveFocus: true` we do not activate
-		// the target group and as such have to do this manually.
-		// There is one exception: opening to the side with `preserveFocus: true` will keep
-		// the current behaviour for historic reasons. The scenario is that repeated Alt-clicking
-		// of files in the explorer always open into the same side group and not cause a group
-		// to be created each time.
-		if (this.editorGroupService.activeGroup !== resolvedGroup && candidateGroup !== SIDE_GROUP) {
-			this.editorGroupService.activateGroup(resolvedGroup);
-		}
 	}
 
 	protected async doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor | undefined> {
@@ -410,22 +401,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Open in target groups
 		const result: Promise<IEditor | null>[] = [];
-		let firstGroup: IEditorGroup | undefined;
 		mapGroupToEditors.forEach((editorsWithOptions, group) => {
-			if (!firstGroup) {
-				firstGroup = group;
-			}
-
 			result.push(group.openEditors(editorsWithOptions));
 		});
 
-		const openedEditors = await Promise.all(result);
-
-		if (firstGroup) {
-			this.ensureGroupActive(firstGroup, group);
-		}
-
-		return coalesce(openedEditors);
+		return coalesce(await Promise.all(result));
 	}
 
 	//#endregion
