@@ -710,6 +710,10 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		throw new Error('not implemented');
 	}
 
+	restoreGroup(_group: number | IEditorGroup): IEditorGroup {
+		throw new Error('not implemented');
+	}
+
 	getSize(_group: number | IEditorGroup): { width: number, height: number } {
 		return { width: 100, height: 100 };
 	}
