@@ -19,7 +19,7 @@ import { basename } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
@@ -29,13 +29,14 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
-type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
+type CachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
+type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
 	_serviceBrand!: ServiceIdentifier<any>;
 
-	private static CACHE: ResourceMap<ICachedEditorInput> = new ResourceMap<ICachedEditorInput>();
+	private static CACHE: ResourceMap<CachedEditorInput> = new ResourceMap<CachedEditorInput>();
 
 	//#region events
 
@@ -216,11 +217,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region openEditor()
 
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor | undefined>;
-	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditor | undefined>;
-	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditor | undefined>;
-	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextSideBySideEditor | undefined>;
-	openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | ITextEditorOptions | IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: GroupIdentifier): Promise<IEditor | undefined> {
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditor | undefined>;
+	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: OpenInEditorGroup): Promise<ITextEditor | undefined>;
+	openEditor(editor: IResourceDiffInput, group?: OpenInEditorGroup): Promise<ITextDiffEditor | undefined>;
+	openEditor(editor: IResourceSideBySideInput, group?: OpenInEditorGroup): Promise<ITextSideBySideEditor | undefined>;
+	async openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditor | undefined> {
 
 		// Typed Editor Support
 		if (editor instanceof EditorInput) {
@@ -240,14 +241,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return this.doOpenEditor(targetGroup, typedInput, editorOptions);
 		}
 
-		return Promise.resolve(undefined);
+		return undefined;
 	}
 
-	protected doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor | undefined> {
-		return group.openEditor(editor, options).then(withNullAsUndefined);
+	protected async doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): Promise<IEditor | undefined> {
+		return withNullAsUndefined(await group.openEditor(editor, options));
 	}
 
-	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): IEditorGroup {
+	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): IEditorGroup {
 		let targetGroup: IEditorGroup | undefined;
 
 		// Group: Instance of Group
@@ -344,9 +345,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region openEditors()
 
-	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]>;
-	openEditors(editors: IResourceEditor[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]>;
-	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditor>, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor[]> {
+	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditor[]>;
+	openEditors(editors: IResourceEditor[], group?: OpenInEditorGroup): Promise<IEditor[]>;
+	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditor>, group?: OpenInEditorGroup): Promise<IEditor[]> {
 
 		// Convert to typed editors and options
 		const typedEditors: IEditorInputWithOptions[] = [];
@@ -391,7 +392,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region isOpen()
 
-	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): boolean {
+	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput): boolean {
 		return !!this.doGetOpened(editor);
 	}
 
@@ -399,11 +400,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region getOpend()
 
-	getOpened(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput | undefined {
+	getOpened(editor: IResourceInput | IUntitledResourceInput): IEditorInput | undefined {
 		return this.doGetOpened(editor);
 	}
 
-	private doGetOpened(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput | undefined {
+	private doGetOpened(editor: IEditorInput | IResourceInput | IUntitledResourceInput): IEditorInput | undefined {
 		if (!(editor instanceof EditorInput)) {
 			const resourceInput = editor as IResourceInput | IUntitledResourceInput;
 			if (!resourceInput.resource) {
@@ -411,20 +412,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		let groups: IEditorGroup[] = [];
-		if (typeof group === 'number') {
-			const groupView = this.editorGroupService.getGroup(group);
-			if (groupView) {
-				groups.push(groupView);
-			}
-		} else if (group) {
-			groups.push(group);
-		} else {
-			groups = [...this.editorGroupService.groups];
-		}
-
 		// For each editor group
-		for (const group of groups) {
+		for (const group of this.editorGroupService.groups) {
 
 			// Typed editor
 			if (editor instanceof EditorInput) {
@@ -566,7 +555,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		throw new Error('Unknown input type');
 	}
 
-	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string | undefined, description: string | undefined, encoding: string | undefined, mode: string | undefined, forceFile: boolean | undefined): ICachedEditorInput {
+	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string | undefined, description: string | undefined, encoding: string | undefined, mode: string | undefined, forceFile: boolean | undefined): CachedEditorInput {
 		if (EditorService.CACHE.has(resource)) {
 			const input = EditorService.CACHE.get(resource)!;
 			if (input instanceof ResourceEditorInput) {
@@ -594,9 +583,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return input;
 		}
 
-		let input: ICachedEditorInput;
-
 		// File
+		let input: CachedEditorInput;
 		if (forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resource)) {
 			input = this.fileInputFactory.createFileInput(resource, encoding, mode, instantiationService);
 		}
