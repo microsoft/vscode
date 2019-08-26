@@ -2159,7 +2159,6 @@ export class EditorOptionsValidator {
 export class InternalEditorOptionsFactory {
 
 	private static _tweakValidatedOptions(opts: IValidatedEditorOptions, accessibilitySupport: AccessibilitySupport): IValidatedEditorOptions {
-		const accessibilityIsOn = (accessibilitySupport === AccessibilitySupport.Enabled);
 		const accessibilityIsOff = (accessibilitySupport === AccessibilitySupport.Disabled);
 		return {
 			inDiffEditor: opts.inDiffEditor,
@@ -2256,7 +2255,7 @@ export class InternalEditorOptionsFactory {
 				selectionHighlight: opts.contribInfo.selectionHighlight,
 				occurrencesHighlight: opts.contribInfo.occurrencesHighlight,
 				codeLens: opts.contribInfo.codeLens,
-				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
+				folding: opts.contribInfo.folding,
 				foldingStrategy: opts.contribInfo.foldingStrategy,
 				showFoldingControls: opts.contribInfo.showFoldingControls,
 				matchBrackets: opts.contribInfo.matchBrackets,
