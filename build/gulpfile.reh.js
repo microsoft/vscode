@@ -275,20 +275,24 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		const nodePath = `.build/node/v${nodeVersion}/${platform}-${platform === 'darwin' ? 'x64' : arch}`;
 		const node = gulp.src(`${nodePath}/**`, { base: nodePath, dot: true });
 
+		let web = [];
+		if (type === 'reh-web') {
+			web = [
+				'resources/server/favicon.ico',
+				'resources/server/code.png',
+				'resources/server/manifest.json'
+			].map(resource => gulp.src(resource, { base: '.' }).pipe(rename(resource)));
+		}
+
 		let all = es.merge(
 			packageJsonStream,
 			productJsonStream,
 			license,
 			sources,
 			deps,
-			node
+			node,
+			...web
 		);
-
-		if (type === 'reh-web') {
-			all = es.merge(all,
-				gulp.src('resources/server/favicon.ico', { base: '.' })
-					.pipe(rename('resources/server/favicon.ico')));
-		}
 
 		let result = all
 			.pipe(util.skipDirectories())

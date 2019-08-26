@@ -1,0 +1,19 @@
+{
+	"name": "VSCode Web Insiders",
+	"short_name": "VSCode Web Insiders",
+	"start_url": "/",
+	"lang": "en-US",
+	"display": "standalone",
+	"icons": [
+		{
+			"src": "/code.png",
+			"type": "image/png",
+			"sizes": "192x192"
+		},
+		{
+			"src": "/code.png",
+			"type": "image/png",
+			"sizes": "512x512"
+		}
+	]
+}

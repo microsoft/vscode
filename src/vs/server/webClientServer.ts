@@ -92,9 +92,9 @@ export class WebClientServer extends Disposable {
 		try {
 			const pathname = parsedUrl.pathname!;
 
-			if (pathname === '/favicon.ico') {
-				// always server favicon, even without a token
-				return serveFile(this._logService, req, res, path.join(APP_ROOT, 'resources', 'server', 'favicon.ico'));
+			if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code.png') {
+				// always serve icons/manifest, even without a token
+				return serveFile(this._logService, req, res, path.join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
 			}
 			if (/^\/static\//.test(pathname)) {
 				// always serve static requests, even without a token
