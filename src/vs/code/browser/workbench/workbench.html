@@ -10,7 +10,7 @@
 		<!-- Content Security Policy -->
 		<meta
 			http-equiv="Content-Security-Policy"
-			content="default-src 'none'; img-src 'self' https: data: blob:; media-src 'none'; frame-src 'self' {{WEBVIEW_ENDPOINT}} https://*.vscode-webview-test.com; script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https:; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; font-src 'self' blob:;"
+			content="default-src 'none'; img-src 'self' https: data: blob:; media-src 'none'; frame-src 'self' {{WEBVIEW_ENDPOINT}} https://*.vscode-webview-test.com; script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https:; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; font-src 'self' blob:; manifest-src 'self';"
 		>
 
 		<!-- Workbench Configuration -->
@@ -19,8 +19,9 @@
 		<!-- Workarounds/Hacks (remote user data uri) -->
 		<meta id="vscode-remote-user-data-uri" data-settings="{{REMOTE_USER_DATA_URI}}">
 
-		<!-- Workbench Icon/CSS -->
+		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+		<link rel="manifest" href="/manifest.json">
 		<link data-name="vs/workbench/workbench.web.api" rel="stylesheet" href="./static/out/vs/workbench/workbench.web.api.css">
 	</head>
 

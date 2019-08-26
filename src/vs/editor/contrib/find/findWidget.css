@@ -38,6 +38,7 @@
 	line-height: 19px;
 	transition: top 200ms linear;
 	padding: 0 4px;
+	box-sizing: border-box;
 }
 
 .monaco-editor .find-widget.hiddenEditor {

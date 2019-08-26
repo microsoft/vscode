@@ -28,7 +28,7 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAn
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
@@ -263,15 +263,21 @@ export class OpenEditorsView extends ViewletPanel {
 			let openToSide = false;
 			let isSingleClick = false;
 			let isDoubleClick = false;
+			let isMiddleClick = false;
 			if (browserEvent instanceof MouseEvent) {
 				isSingleClick = browserEvent.detail === 1;
 				isDoubleClick = browserEvent.detail === 2;
+				isMiddleClick = browserEvent.button === 1;
 				openToSide = this.list.useAltAsMultipleSelectionModifier ? (browserEvent.ctrlKey || browserEvent.metaKey) : browserEvent.altKey;
 			}
 
 			const focused = this.list.getFocusedElements();
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
+				if (isMiddleClick) {
+					return; // already handled above: closes the editor
+				}
+
 				this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 			} else if (element) {
 				this.editorGroupService.activateGroup(element);
@@ -349,13 +355,9 @@ export class OpenEditorsView extends ViewletPanel {
 
 			const preserveActivateGroup = options.sideBySide && options.preserveFocus; // needed for https://github.com/Microsoft/vscode/issues/42399
 			if (!preserveActivateGroup) {
-				this.editorGroupService.activateGroup(element.groupId); // needed for https://github.com/Microsoft/vscode/issues/6672
+				this.editorGroupService.activateGroup(element.group); // needed for https://github.com/Microsoft/vscode/issues/6672
 			}
-			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-				if (editor && !preserveActivateGroup && editor.group) {
-					this.editorGroupService.activateGroup(editor.group);
-				}
-			});
+			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : element.group);
 		}
 	}
 
