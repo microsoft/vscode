@@ -21,7 +21,7 @@ export interface IDiffLinesChange {
 }
 
 export class InlineDiffMargin extends Disposable {
-	private readonly _lightBulb: HTMLElement;
+	private readonly _diffActions: HTMLElement;
 
 	constructor(
 		marginDomNode: HTMLElement,
@@ -35,15 +35,16 @@ export class InlineDiffMargin extends Disposable {
 		// make sure the diff margin shows above overlay.
 		marginDomNode.style.zIndex = '10';
 
-		this._lightBulb = document.createElement('div');
-		this._lightBulb.className = 'lightbulb-glyph';
-		this._lightBulb.style.position = 'absolute';
+		this._diffActions = document.createElement('div');
+		this._diffActions.className = 'octicon octicon-zap';
+		this._diffActions.style.position = 'absolute';
 		const lineHeight = editor.getConfiguration().lineHeight;
 		const lineFeed = editor.getModel()!.getEOL();
-		this._lightBulb.style.right = '0px';
-		this._lightBulb.style.visibility = 'hidden';
-		this._lightBulb.style.height = `${lineHeight}px`;
-		marginDomNode.appendChild(this._lightBulb);
+		this._diffActions.style.right = '0px';
+		this._diffActions.style.visibility = 'hidden';
+		this._diffActions.style.height = `${lineHeight}px`;
+		this._diffActions.style.lineHeight = `${lineHeight}px`;
+		marginDomNode.appendChild(this._diffActions);
 
 		const actions = [
 			new Action(
@@ -97,20 +98,20 @@ export class InlineDiffMargin extends Disposable {
 		}
 
 		this._register(dom.addStandardDisposableListener(marginDomNode, 'mouseenter', e => {
-			this._lightBulb.style.visibility = 'visible';
+			this._diffActions.style.visibility = 'visible';
 			currentLineNumberOffset = this._updateLightBulbPosition(marginDomNode, e.y, lineHeight);
 		}));
 
 		this._register(dom.addStandardDisposableListener(marginDomNode, 'mouseleave', e => {
-			this._lightBulb.style.visibility = 'hidden';
+			this._diffActions.style.visibility = 'hidden';
 		}));
 
 		this._register(dom.addStandardDisposableListener(marginDomNode, 'mousemove', e => {
 			currentLineNumberOffset = this._updateLightBulbPosition(marginDomNode, e.y, lineHeight);
 		}));
 
-		this._register(dom.addStandardDisposableListener(this._lightBulb, 'mousedown', e => {
-			const { top, height } = dom.getDomNodePagePosition(this._lightBulb);
+		this._register(dom.addStandardDisposableListener(this._diffActions, 'mousedown', e => {
+			const { top, height } = dom.getDomNodePagePosition(this._diffActions);
 			let pad = Math.floor(lineHeight / 3) + lineHeight;
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => {
@@ -133,7 +134,7 @@ export class InlineDiffMargin extends Disposable {
 		const offset = y - top;
 		const lineNumberOffset = Math.floor(offset / lineHeight);
 		const newTop = lineNumberOffset * lineHeight;
-		this._lightBulb.style.top = `${newTop}px`;
+		this._diffActions.style.top = `${newTop}px`;
 		return lineNumberOffset;
 	}
 }
