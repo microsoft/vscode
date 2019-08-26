@@ -9,6 +9,7 @@ import { Action } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 
@@ -23,8 +24,27 @@ export interface IDiffLinesChange {
 export class InlineDiffMargin extends Disposable {
 	private readonly _diffActions: HTMLElement;
 
+	private _visibility: boolean = false;
+
+	get visibility(): boolean {
+		return this._visibility;
+	}
+
+	set visibility(_visibility: boolean) {
+		if (this._visibility !== _visibility) {
+			this._visibility = _visibility;
+
+			if (_visibility) {
+				this._diffActions.style.visibility = 'visible';
+			} else {
+				this._diffActions.style.visibility = 'hidden';
+			}
+		}
+	}
+
 	constructor(
-		marginDomNode: HTMLElement,
+		private _viewZoneId: string,
+		private _marginDomNode: HTMLElement,
 		public editor: CodeEditorWidget,
 		public diff: IDiffLinesChange,
 		private _contextMenuService: IContextMenuService,
@@ -33,7 +53,7 @@ export class InlineDiffMargin extends Disposable {
 		super();
 
 		// make sure the diff margin shows above overlay.
-		marginDomNode.style.zIndex = '10';
+		this._marginDomNode.style.zIndex = '10';
 
 		this._diffActions = document.createElement('div');
 		this._diffActions.className = 'octicon octicon-zap';
@@ -44,7 +64,7 @@ export class InlineDiffMargin extends Disposable {
 		this._diffActions.style.visibility = 'hidden';
 		this._diffActions.style.height = `${lineHeight}px`;
 		this._diffActions.style.lineHeight = `${lineHeight}px`;
-		marginDomNode.appendChild(this._diffActions);
+		this._marginDomNode.appendChild(this._diffActions);
 
 		const actions = [
 			new Action(
@@ -97,19 +117,6 @@ export class InlineDiffMargin extends Disposable {
 			}));
 		}
 
-		this._register(dom.addStandardDisposableListener(marginDomNode, 'mouseenter', e => {
-			this._diffActions.style.visibility = 'visible';
-			currentLineNumberOffset = this._updateLightBulbPosition(marginDomNode, e.y, lineHeight);
-		}));
-
-		this._register(dom.addStandardDisposableListener(marginDomNode, 'mouseleave', e => {
-			this._diffActions.style.visibility = 'hidden';
-		}));
-
-		this._register(dom.addStandardDisposableListener(marginDomNode, 'mousemove', e => {
-			currentLineNumberOffset = this._updateLightBulbPosition(marginDomNode, e.y, lineHeight);
-		}));
-
 		this._register(dom.addStandardDisposableListener(this._diffActions, 'mousedown', e => {
 			const { top, height } = dom.getDomNodePagePosition(this._diffActions);
 			let pad = Math.floor(lineHeight / 3) + lineHeight;
@@ -126,6 +133,21 @@ export class InlineDiffMargin extends Disposable {
 				},
 				autoSelectFirstItem: true
 			});
+		}));
+
+		this._register(editor.onMouseMove((e: editorBrowser.IEditorMouseEvent) => {
+			if (e.target.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE) {
+				const viewZoneId = e.target.detail.viewZoneId;
+
+				if (viewZoneId === this._viewZoneId) {
+					this.visibility = true;
+					currentLineNumberOffset = this._updateLightBulbPosition(this._marginDomNode, e.event.browserEvent.y, lineHeight);
+				} else {
+					this.visibility = false;
+				}
+			} else {
+				this.visibility = false;
+			}
 		}));
 	}
 
