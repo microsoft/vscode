@@ -11,415 +11,426 @@ The original copyright notices and the licenses under which Microsoft received s
 4.	@emmetio/math-expression version 0.1.1 (https://github.com/emmetio/math-expression)
 5.	@emmetio/stream-reader version 2.2.0 (https://github.com/emmetio/stream-reader)
 6.	@emmetio/stream-reader-utils version 0.1.0 (https://github.com/emmetio/stream-reader-utils)
-7.	@types/node version 6.0.78 (https://www.github.com/DefinitelyTyped/DefinitelyTyped)
-8.	@types/source-map version 0.1.29 (https://www.github.com/DefinitelyTyped/DefinitelyTyped)
-9.	agent-base version 4.1.2 (https://github.com/TooTallNate/node-agent-base)
-10.	agent-base version 4.2.0 (https://github.com/TooTallNate/node-agent-base)
-11.	agent-base version 4.2.1 (https://github.com/TooTallNate/node-agent-base)
-12.	Amanieu/thread_local-rs version 0.3.5 (https://github.com/Amanieu/thread_local-rs)
-13.	ansi-regex version 2.1.1 (https://github.com/chalk/ansi-regex)
-14.	ansi-regex version 3.0.0 (https://github.com/chalk/ansi-regex)
-15.	applicationinsights version 1.0.8 (https://github.com/Microsoft/ApplicationInsights-node.js)
-16.	aproba version 1.2.0 (https://github.com/iarna/aproba)
-17.	are-we-there-yet version 1.1.5 (https://github.com/npm/are-we-there-yet)
-18.	argparse version 1.0.9 (https://github.com/nodeca/argparse)
-19.	arr-diff version 4.0.0 (https://github.com/jonschlinkert/arr-diff)
-20.	arr-flatten version 1.1.0 (https://github.com/jonschlinkert/arr-flatten)
-21.	arr-union version 3.1.0 (https://github.com/jonschlinkert/arr-union)
-22.	array-unique version 0.3.2 (https://github.com/jonschlinkert/array-unique)
-23.	assign-symbols version 1.0.0 (https://github.com/jonschlinkert/assign-symbols)
-24.	async-each version 1.0.1 (https://github.com/paulmillr/async-each)
-25.	async-limiter version 1.0.0 (https://github.com/strml/async-limiter)
-26.	atob version 2.1.1 (https://git.coolaj86.com/coolaj86/atob.js)
-27.	atom/language-clojure version 0.22.7 (https://github.com/atom/language-clojure)
-28.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
-29.	atom/language-java version 0.31.3 (https://github.com/atom/language-java)
-30.	atom/language-sass version 0.61.4 (https://github.com/atom/language-sass)
-31.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
-32.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
-33.	balanced-match version 1.0.0 (https://github.com/juliangruber/balanced-match)
-34.	base version 0.11.2 (https://github.com/base/base)
-35.	binary-extensions version 1.10.0 (https://github.com/sindresorhus/binary-extensions)
-36.	bindings version 1.3.0 (https://github.com/TooTallNate/node-bindings)
-37.	bindings version 1.5.0 (https://github.com/TooTallNate/node-bindings)
-38.	bl version 1.2.2 (https://github.com/rvagg/bl)
-39.	brace-expansion version 1.1.11 (https://github.com/juliangruber/brace-expansion)
-40.	brace-expansion version 1.1.8 (https://github.com/juliangruber/brace-expansion)
-41.	braces version 2.3.2 (https://github.com/micromatch/braces)
-42.	buffer-alloc version 1.1.0 (https://github.com/linusu/buffer-alloc)
-43.	buffer-alloc-unsafe version 0.1.1 (https://github.com/linusu/buffer-alloc-unsafe)
-44.	buffer-crc32 version 0.2.13 (https://github.com/brianloveswords/buffer-crc32)
-45.	buffer-fill version 0.1.1 (https://github.com/LinusU/buffer-fill)
-46.	BurntSushi/byteorder version 1.2.1 (https://github.com/BurntSushi/byteorder)
-47.	byline version 5.0.0 (https://github.com/jahewson/node-byline)
-48.	cache-base version 1.0.1 (https://github.com/jonschlinkert/cache-base)
-49.	chownr version 1.0.1 (https://github.com/isaacs/chownr)
-50.	chrome-remote-interface version 0.26.1 (https://github.com/cyrus-and/chrome-remote-interface)
-51.	chromium version 69.0.3497.128 (https://chromium.googlesource.com/chromium/src)
-52.	chronotope/chrono version 0.4.0 (https://github.com/chronotope/chrono)
-53.	class-utils version 0.3.6 (https://github.com/jonschlinkert/class-utils)
-54.	code-point-at version 1.1.0 (https://github.com/sindresorhus/code-point-at)
-55.	collection-visit version 1.0.0 (https://github.com/jonschlinkert/collection-visit)
-56.	color version 3.1.0 (https://github.com/Qix-/color)
-57.	color-convert version 1.9.1 (https://github.com/Qix-/color-convert)
-58.	color-name version 1.1.3 (https://github.com/colorjs/color-name)
-59.	color-string version 1.5.3 (https://github.com/Qix-/color-string)
-60.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
-61.	commander version 2.11.0 (https://github.com/tj/commander.js)
-62.	component-emitter version 1.2.1 (https://github.com/component/emitter)
-63.	concat-map version 0.0.1 (https://github.com/substack/node-concat-map)
-64.	console-control-strings version 1.1.0 (https://github.com/iarna/console-control-strings)
-65.	copy-descriptor version 0.1.1 (https://github.com/jonschlinkert/copy-descriptor)
-66.	core-util-is version 1.0.2 (https://github.com/isaacs/core-util-is)
-67.	daaain/Handlebars version 1.8.0 (https://github.com/daaain/Handlebars)
-68.	davidrios/pug-tmbundle (https://github.com/davidrios/pug-tmbundle)
-69.	debug version 2.6.9 (https://github.com/visionmedia/debug)
-70.	debug version 3.1.0 (https://github.com/visionmedia/debug)
-71.	debug version 3.2.6 (https://github.com/visionmedia/debug)
-72.	decode-uri-component version 0.2.0 (https://github.com/samverschueren/decode-uri-component)
-73.	decompress-response version 3.3.0 (https://github.com/sindresorhus/decompress-response)
-74.	deep-extend version 0.6.0 (https://github.com/unclechu/node-deep-extend)
-75.	define-property version 0.2.5 (https://github.com/jonschlinkert/define-property)
-76.	define-property version 1.0.0 (https://github.com/jonschlinkert/define-property)
-77.	define-property version 2.0.2 (https://github.com/jonschlinkert/define-property)
-78.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
-79.	delegates version 1.0.0 (https://github.com/tj/node-delegates)
-80.	demyte/language-cshtml version 0.3.0 (https://github.com/demyte/language-cshtml)
-81.	detect-libc version 1.0.3 (https://github.com/lovell/detect-libc)
-82.	devtools-protocol version 0.0.588169 (https://github.com/ChromeDevTools/devtools-protocol)
-83.	diagnostic-channel version 0.2.0 (https://github.com/Microsoft/node-diagnostic-channel)
-84.	diagnostic-channel-publishers version 0.2.1 (https://github.com/Microsoft/node-diagnostic-channel)
-85.	Document Object Model version 4.0.0 (https://www.w3.org/DOM/)
-86.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
-87.	dtolnay/isatty version 0.1.6 (https://github.com/dtolnay/isatty)
-88.	electron version 4.2.7 (https://github.com/electron/electron)
-89.	end-of-stream version 1.4.0 (https://github.com/mafintosh/end-of-stream)
-90.	entities version 1.1.1 (https://github.com/fb55/entities)
-91.	es6-promise version 4.1.1 (https://github.com/stefanpenner/es6-promise)
-92.	es6-promise version 4.2.4 (https://github.com/stefanpenner/es6-promise)
-93.	es6-promise version 4.2.5 (https://github.com/stefanpenner/es6-promise)
-94.	es6-promise version 4.2.6 (https://github.com/stefanpenner/es6-promise)
-95.	es6-promisify version 5.0.0 (https://github.com/digitaldesignlabs/es6-promisify)
-96.	expand-abbreviation version 0.5.8 (https://github.com/emmetio/expand-abbreviation)
-97.	expand-brackets version 2.1.4 (https://github.com/micromatch/expand-brackets)
-98.	expand-template version 2.0.3 (https://github.com/ralphtheninja/expand-template)
-99.	extend-shallow version 2.0.1 (https://github.com/jonschlinkert/extend-shallow)
-100.	extend-shallow version 3.0.2 (https://github.com/jonschlinkert/extend-shallow)
-101.	extglob version 2.0.4 (https://github.com/micromatch/extglob)
-102.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
-103.	fd-slicer version 1.1.0 (https://github.com/andrewrk/node-fd-slicer)
-104.	file-type version 7.2.0 (https://github.com/sindresorhus/file-type)
-105.	file-uri-to-path version 1.0.0 (https://github.com/TooTallNate/file-uri-to-path)
-106.	fill-range version 4.0.0 (https://github.com/jonschlinkert/fill-range)
-107.	for-in version 1.0.2 (https://github.com/jonschlinkert/for-in)
-108.	fragment-cache version 0.2.1 (https://github.com/jonschlinkert/fragment-cache)
-109.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
-110.	fs-constants version 1.0.0 (https://github.com/mafintosh/fs-constants)
-111.	fs-extra version 7.0.1 (https://github.com/jprichardson/node-fs-extra)
-112.	fs.realpath version 1.0.0 (https://github.com/isaacs/fs.realpath)
-113.	gauge version 2.7.4 (https://github.com/npm/gauge)
-114.	get-value version 2.0.6 (https://github.com/jonschlinkert/get-value)
-115.	github-from-package (https://github.com/substack/github-from-package)
-116.	glob version 7.1.3 (https://github.com/isaacs/node-glob)
-117.	glob version 7.1.4 (https://github.com/isaacs/node-glob)
-118.	glob-parent version 3.1.0 (https://github.com/gulpjs/glob-parent)
-119.	graceful-fs version 4.1.11 (https://github.com/isaacs/node-graceful-fs)
-120.	has-unicode version 2.0.1 (https://github.com/iarna/has-unicode)
-121.	has-value version 0.3.1 (https://github.com/jonschlinkert/has-value)
-122.	has-value version 1.0.0 (https://github.com/jonschlinkert/has-value)
-123.	has-values version 0.1.4 (https://github.com/jonschlinkert/has-values)
-124.	has-values version 1.0.0 (https://github.com/jonschlinkert/has-values)
-125.	highlight.js version 9.15.8 (https://github.com/highlightjs/highlight.js)
-126.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-127.	http-proxy-agent version 2.1.0 (https://github.com/TooTallNate/node-http-proxy-agent)
-128.	https-proxy-agent version 2.2.1 (https://github.com/TooTallNate/node-https-proxy-agent)
-129.	iconv-lite version 0.4.24 (https://github.com/ashtuchkin/iconv-lite)
-130.	iconv-lite version 0.5.0 (https://github.com/ashtuchkin/iconv-lite)
-131.	Ikuyadeu/vscode-R version 0.5.5 (https://github.com/Ikuyadeu/vscode-R)
-132.	image-size version 0.5.5 (https://github.com/image-size/image-size)
-133.	inflight version 1.0.6 (https://github.com/npm/inflight)
-134.	inherits version 2.0.3 (https://github.com/isaacs/inherits)
-135.	ini version 1.3.4 (https://github.com/npm/ini)
-136.	inno setup version 5.5.6 (https://github.com/jrsoftware/issrc)
-137.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
-138.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
-139.	ip version 1.1.5 (https://github.com/indutny/node-ip)
-140.	is-accessor-descriptor version 0.1.6 (https://github.com/jonschlinkert/is-accessor-descriptor)
-141.	is-accessor-descriptor version 1.0.0 (https://github.com/jonschlinkert/is-accessor-descriptor)
-142.	is-arrayish version 0.3.2 (https://github.com/qix-/node-is-arrayish)
-143.	is-binary-path version 1.0.1 (https://github.com/sindresorhus/is-binary-path)
-144.	is-buffer version 1.1.4 (https://github.com/feross/is-buffer)
-145.	is-buffer version 1.1.6 (https://github.com/feross/is-buffer)
-146.	is-data-descriptor version 0.1.4 (https://github.com/jonschlinkert/is-data-descriptor)
-147.	is-data-descriptor version 1.0.0 (https://github.com/jonschlinkert/is-data-descriptor)
-148.	is-descriptor version 0.1.6 (https://github.com/jonschlinkert/is-descriptor)
-149.	is-descriptor version 1.0.2 (https://github.com/jonschlinkert/is-descriptor)
-150.	is-extendable version 0.1.1 (https://github.com/jonschlinkert/is-extendable)
-151.	is-extendable version 1.0.1 (https://github.com/jonschlinkert/is-extendable)
-152.	is-extglob version 2.1.1 (https://github.com/micromatch/is-extglob)
-153.	is-fullwidth-code-point version 1.0.0 (https://github.com/sindresorhus/is-fullwidth-code-point)
-154.	is-fullwidth-code-point version 2.0.0 (https://github.com/sindresorhus/is-fullwidth-code-point)
-155.	is-glob version 3.1.0 (https://github.com/micromatch/is-glob)
-156.	is-glob version 4.0.0 (https://github.com/micromatch/is-glob)
-157.	is-number version 3.0.0 (https://github.com/jonschlinkert/is-number)
-158.	is-plain-object version 2.0.4 (https://github.com/jonschlinkert/is-plain-object)
-159.	is-windows version 1.0.2 (https://github.com/jonschlinkert/is-windows)
-160.	isarray version 1.0.0 (https://github.com/juliangruber/isarray)
-161.	isexe version 2.0.0 (https://github.com/isaacs/isexe)
-162.	isobject version 2.1.0 (https://github.com/jonschlinkert/isobject)
-163.	isobject version 3.0.1 (https://github.com/jonschlinkert/isobject)
-164.	jeff-hykin/cpp-textmate-grammar version 1.12.11 (https://github.com/jeff-hykin/cpp-textmate-grammar)
-165.	jeff-hykin/cpp-textmate-grammar version 1.12.18 (https://github.com/jeff-hykin/cpp-textmate-grammar)
-166.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
-167.	jschardet version 1.6.0 (https://github.com/aadsm/jschardet)
-168.	jsonc-parser version 1.0.0 (https://github.com/Microsoft/node-jsonc-parser)
-169.	jsonc-parser version 2.0.1 (https://github.com/Microsoft/node-jsonc-parser)
-170.	jsonc-parser version 2.0.2 (https://github.com/Microsoft/node-jsonc-parser)
-171.	jsonc-parser version 2.1.0 (https://github.com/Microsoft/node-jsonc-parser)
-172.	jsonfile version 4.0.0 (https://github.com/jprichardson/node-jsonfile)
-173.	keytar version 4.11.0 (https://github.com/atom/node-keytar)
-174.	kind-of version 3.0.4 (https://github.com/jonschlinkert/kind-of)
-175.	kind-of version 3.2.2 (https://github.com/jonschlinkert/kind-of)
-176.	kind-of version 4.0.0 (https://github.com/jonschlinkert/kind-of)
-177.	kind-of version 5.1.0 (https://github.com/jonschlinkert/kind-of)
-178.	kind-of version 6.0.2 (https://github.com/jonschlinkert/kind-of)
-179.	language-docker (https://github.com/moby/moby)
-180.	language-go version 0.44.3 (https://github.com/atom/language-go)
-181.	language-less version 0.34.2 (https://github.com/atom/language-less)
-182.	language-php version 0.44.1 (https://github.com/atom/language-php)
-183.	language-rust version 0.4.12 (https://github.com/zargony/atom-language-rust)
-184.	lib-oniguruma version 5.9.3 (http://dl.fedoraproject.org/pub/epel/7/SRPMS/Packages/o/oniguruma-5.9.5-3.el7.src.rpm)
-185.	linkify-it version 2.0.3 (https://github.com/markdown-it/linkify-it)
-186.	lodash.isinteger version 4.0.4 (https://github.com/lodash/lodash)
-187.	lodash.isundefined version 3.0.1 (https://github.com/lodash/lodash)
-188.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
-189.	map-cache version 0.2.2 (https://github.com/jonschlinkert/map-cache)
-190.	map-visit version 1.0.0 (https://github.com/jonschlinkert/map-visit)
-191.	markdown-it version 8.4.0 (https://github.com/markdown-it/markdown-it)
-192.	markdown-it version 8.4.2 (https://github.com/markdown-it/markdown-it)
-193.	markdown-it-front-matter version 0.1.2 (https://github.com/craigdmckenna/markdown-it-front-matter)
-194.	marked version 0.6.2 (https://github.com/markedjs/marked)
-195.	mdn-data version 1.1.12 (https://github.com/mdn/data)
-196.	mdurl version 1.0.1 (https://github.com/markdown-it/mdurl)
-197.	micromatch version 3.1.10 (https://github.com/micromatch/micromatch)
-198.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
-199.	Microsoft/vscode-JSON.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
-200.	Microsoft/vscode-mssql version 1.6.0 (https://github.com/Microsoft/vscode-mssql)
-201.	mimic-response version 1.0.0 (https://github.com/sindresorhus/mimic-response)
-202.	minimatch version 3.0.4 (https://github.com/isaacs/minimatch)
-203.	minimist version 0.0.8 (https://github.com/substack/minimist)
-204.	minimist version 1.2.0 (https://github.com/substack/minimist)
-205.	mixin-deep version 1.3.1 (https://github.com/jonschlinkert/mixin-deep)
-206.	mkdirp version 0.5.1 (https://github.com/substack/node-mkdirp)
-207.	mmims/language-batchfile version 0.7.5 (https://github.com/mmims/language-batchfile)
-208.	mrhooray/crc-rs version 1.7.0 (https://github.com/mrhooray/crc-rs)
-209.	ms version 2.0.0 (https://github.com/zeit/ms)
-210.	ms version 2.1.1 (https://github.com/zeit/ms)
-211.	nan version 2.12.1 (https://github.com/nodejs/nan)
-212.	nan version 2.14.0 (https://github.com/nodejs/nan)
-213.	nanomatch version 1.2.13 (https://github.com/micromatch/nanomatch)
-214.	napi-build-utils version 1.0.1 (https://github.com/inspiredware/napi-build-utils)
-215.	native-is-elevated version 0.2.1 (https://github.com/arkon/native-is-elevated)
-216.	native-keymap version 2.0.0 (https://github.com/Microsoft/node-native-keymap)
-217.	native-watchdog version 1.0.0 (https://github.com/Microsoft/node-native-watchdog)
-218.	node-abi version 2.9.0 (https://github.com/lgeiger/node-abi)
-219.	node-addon-api version 1.6.2 (https://github.com/nodejs/node-addon-api)
-220.	node-pty version 0.9.0-beta19 (https://github.com/microsoft/node-pty)
-221.	nodejs version 10.11.0 (https://github.com/nodejs/node)
-222.	noice-json-rpc version 1.2.0 (https://github.com/nojvek/noice-json-rpc)
-223.	noop-logger version 0.1.1 (https://github.com/segmentio/noop-logger)
-224.	normalize-path version 3.0.0 (https://github.com/jonschlinkert/normalize-path)
-225.	npmlog version 4.1.2 (https://github.com/npm/npmlog)
-226.	nsfw version 1.2.5 (https://github.com/Axosoft/nsfw)
-227.	number-is-nan version 1.0.1 (https://github.com/sindresorhus/number-is-nan)
-228.	object-assign version 4.1.1 (https://github.com/sindresorhus/object-assign)
-229.	object-copy version 0.1.0 (https://github.com/jonschlinkert/object-copy)
-230.	object-visit version 1.0.1 (https://github.com/jonschlinkert/object-visit)
-231.	object.pick version 1.3.0 (https://github.com/jonschlinkert/object.pick)
-232.	octicons version 8.3.0 (https://github.com/primer/octicons)
-233.	octref/language-css version 0.42.11 (https://github.com/octref/language-css)
-234.	once version 1.4.0 (https://github.com/isaacs/once)
-235.	onigasm-umd version 2.2.2 (https://github.com/alexandrudima/onigasm-umd)
-236.	oniguruma version 7.2.0 (https://github.com/atom/node-oniguruma)
-237.	os-homedir version 1.0.2 (https://github.com/sindresorhus/os-homedir)
-238.	parse5 version 3.0.2 (https://github.com/inikulin/parse5)
-239.	pascalcase version 0.1.1 (https://github.com/jonschlinkert/pascalcase)
-240.	path-dirname version 1.0.2 (https://github.com/gulpjs/path-dirname)
-241.	path-is-absolute version 1.0.1 (https://github.com/sindresorhus/path-is-absolute)
-242.	pend version 1.2.0 (https://github.com/andrewrk/node-pend)
-243.	picomatch version 2.0.7 (https://github.com/micromatch/picomatch)
-244.	posix-character-classes version 0.1.1 (https://github.com/micromatch/posix-character-classes)
-245.	PowerShell/EditorSyntax (https://github.com/powershell/editorsyntax)
-246.	prebuild-install version 5.3.0 (https://github.com/prebuild/prebuild-install)
-247.	process-nextick-args version 1.0.7 (https://github.com/calvinmetcalf/process-nextick-args)
-248.	process-nextick-args version 2.0.0 (https://github.com/calvinmetcalf/process-nextick-args)
-249.	promise-polyfill version 8.0.0 (https://github.com/taylorhakes/promise-polyfill)
-250.	pump version 1.0.3 (https://github.com/mafintosh/pump)
-251.	pump version 2.0.1 (https://github.com/mafintosh/pump)
-252.	rc version 1.2.8 (https://github.com/dominictarr/rc)
-253.	readable-stream version 2.3.3 (https://github.com/nodejs/readable-stream)
-254.	readable-stream version 2.3.6 (https://github.com/nodejs/readable-stream)
-255.	readdirp version 2.2.1 (https://github.com/paulmillr/readdirp)
-256.	redox-os/syscall version 0.1.37 (https://github.com/redox-os/syscall)
-257.	redox-os/termion version 1.5.1 (https://github.com/redox-os/termion)
-258.	redox-os/termios version 0.1.1 (https://github.com/redox-os/termios)
-259.	reem/rust-unreachable version 1.0.0 (https://github.com/reem/rust-unreachable)
-260.	reem/rust-void version 1.0.2 (https://github.com/reem/rust-void)
-261.	regex-not version 1.0.2 (https://github.com/jonschlinkert/regex-not)
-262.	repeat-element version 1.1.2 (https://github.com/jonschlinkert/repeat-element)
-263.	repeat-string version 1.6.1 (https://github.com/jonschlinkert/repeat-string)
-264.	request-light version 0.2.4 (https://github.com/Microsoft/node-request-light)
-265.	resolve-url version 0.2.1 (https://github.com/lydell/resolve-url)
-266.	ret version 0.1.15 (https://github.com/fent/ret.js)
-267.	retep998/winapi-rs version 0.1.1 (https://github.com/retep998/winapi-rs)
-268.	retep998/winapi-rs version 0.2.2 (https://github.com/retep998/winapi-rs)
-269.	retep998/winapi-rs version 0.2.8 (https://github.com/retep998/winapi-rs)
-270.	retep998/winapi-rs version 0.3.4 (https://github.com/retep998/winapi-rs)
-271.	retep998/winapi-rs version 0.4.0 (https://github.com/retep998/winapi-rs)
-272.	rimraf version 2.6.3 (https://github.com/isaacs/rimraf)
-273.	ripgrep version 0.10.0 (https://github.com/BurntSushi/ripgrep)
-274.	rust-lang-nursery/lazy-static.rs version 1.0.0 (https://github.com/rust-lang-nursery/lazy-static.rs)
-275.	rust-lang/libc version 0.2.36 (https://github.com/rust-lang/libc)
-276.	rust-lang/time version 0.1.39 (https://github.com/rust-lang-deprecated/time)
-277.	rust-num/num version 0.1.41 (https://github.com/rust-num/num)
-278.	rust-num/num-integer version 0.1.35 (https://github.com/rust-num/num-integer)
-279.	rust-num/num-iter version 0.1.34 (https://github.com/rust-num/num-iter)
-280.	rust-num/num-traits version 0.1.42 (https://github.com/rust-num/num-traits)
-281.	safe-buffer version 5.1.1 (https://github.com/feross/safe-buffer)
-282.	safe-regex version 1.1.0 (https://github.com/substack/safe-regex)
-283.	safer-buffer version 2.1.2 (https://github.com/ChALkeR/safer-buffer)
-284.	semver version 5.4.1 (https://github.com/npm/node-semver)
-285.	semver version 5.5.0 (https://github.com/npm/node-semver)
-286.	semver version 5.5.1 (https://github.com/npm/node-semver)
-287.	semver-umd version 5.5.3 (https://github.com/Microsoft/semver-umd)
-288.	set-blocking version 2.0.0 (https://github.com/yargs/set-blocking)
-289.	set-value version 0.4.3 (https://github.com/jonschlinkert/set-value)
-290.	set-value version 2.0.0 (https://github.com/jonschlinkert/set-value)
-291.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
-292.	Sgeo/take_mut version 0.2.0 (https://github.com/Sgeo/take_mut)
-293.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
-294.	signal-exit version 3.0.2 (https://github.com/tapjs/signal-exit)
-295.	simple-concat version 1.0.0 (https://github.com/feross/simple-concat)
-296.	simple-get version 2.8.1 (https://github.com/feross/simple-get)
-297.	simple-swizzle version 0.2.2 (https://github.com/qix-/node-simple-swizzle)
-298.	slog-rs/async version 2.2.0 (https://github.com/slog-rs/async)
-299.	slog-rs/slog version 2.1.1 (https://github.com/slog-rs/slog)
-300.	slog-rs/term version 2.3.0 (https://github.com/slog-rs/term)
-301.	smart-buffer version 4.0.1 (https://github.com/JoshGlazebrook/smart-buffer)
-302.	snapdragon version 0.8.2 (https://github.com/here-be/snapdragon)
-303.	snapdragon-node version 2.1.1 (https://github.com/here-be/snapdragon-node)
-304.	snapdragon-util version 3.0.1 (https://github.com/here-be/snapdragon-util)
-305.	socks version 2.2.1 (https://github.com/JoshGlazebrook/socks)
-306.	socks-proxy-agent version 4.0.1 (https://github.com/TooTallNate/node-socks-proxy-agent)
-307.	source-map version 0.5.7 (https://github.com/mozilla/source-map)
-308.	source-map version 0.6.1 (https://github.com/mozilla/source-map)
-309.	source-map-resolve version 0.5.2 (https://github.com/lydell/source-map-resolve)
-310.	source-map-url version 0.4.0 (https://github.com/lydell/source-map-url)
-311.	spdlog version 0.9.0 (https://github.com/Microsoft/node-spdlog)
-312.	spdlog original version 0.14.0 (https://github.com/gabime/spdlog)
-313.	split-string version 3.1.0 (https://github.com/jonschlinkert/split-string)
-314.	sprintf-js version 1.0.3 (https://github.com/alexei/sprintf.js)
-315.	static-extend version 0.1.2 (https://github.com/jonschlinkert/static-extend)
-316.	Stebalien/term version 0.4.6 (https://github.com/Stebalien/term)
-317.	string-width version 1.0.2 (https://github.com/sindresorhus/string-width)
-318.	string-width version 2.1.1 (https://github.com/sindresorhus/string-width)
-319.	string_decoder version 1.0.3 (https://github.com/nodejs/string_decoder)
-320.	string_decoder version 1.1.1 (https://github.com/nodejs/string_decoder)
-321.	strip-ansi version 3.0.1 (https://github.com/chalk/strip-ansi)
-322.	strip-ansi version 4.0.0 (https://github.com/chalk/strip-ansi)
-323.	strip-json-comments version 2.0.1 (https://github.com/sindresorhus/strip-json-comments)
-324.	sudo-prompt version 9.0.0 (https://github.com/jorangreef/sudo-prompt)
-325.	tar-fs version 1.16.2 (https://github.com/mafintosh/tar-fs)
-326.	tar-stream version 1.6.1 (https://github.com/mafintosh/tar-stream)
-327.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-328.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-329.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-330.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-331.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-332.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-333.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-334.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-335.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-336.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
-337.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-338.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-339.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-340.	to-buffer version 1.1.1 (https://github.com/mafintosh/to-buffer)
-341.	to-object-path version 0.3.0 (https://github.com/jonschlinkert/to-object-path)
-342.	to-regex version 3.0.2 (https://github.com/jonschlinkert/to-regex)
-343.	to-regex-range version 2.1.1 (https://github.com/micromatch/to-regex-range)
-344.	tunnel-agent version 0.6.0 (https://github.com/request/tunnel-agent)
-345.	typescript version 2.6.2 (https://github.com/Microsoft/TypeScript)
-346.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
-347.	TypeScript-TmLanguage version 1.0.0 (https://github.com/Microsoft/TypeScript-TmLanguage)
-348.	uc.micro version 1.0.3 (https://github.com/markdown-it/uc.micro)
-349.	uc.micro version 1.0.5 (https://github.com/markdown-it/uc.micro)
-350.	ultron version 1.1.1 (https://github.com/primus/ultron)
-351.	Unicode version 12.0.0 (http://www.unicode.org/)
-352.	union-value version 1.0.0 (https://github.com/jonschlinkert/union-value)
-353.	universalify version 0.1.2 (https://github.com/RyanZim/universalify)
-354.	unset-value version 1.0.0 (https://github.com/jonschlinkert/unset-value)
-355.	upath version 1.1.2 (https://github.com/anodynos/upath)
-356.	urix version 0.1.0 (https://github.com/lydell/urix)
-357.	use version 3.1.1 (https://github.com/jonschlinkert/use)
-358.	util-deprecate version 1.0.2 (https://github.com/TooTallNate/util-deprecate)
-359.	v8-inspect-profiler version 0.0.20 (https://github.com/jrieken/v8-inspect-profiler)
-360.	vitiral/build_const version 0.2.0 (https://github.com/vitiral/build_const)
-361.	vscode-anymatch version 3.0.3 (https://github.com/micromatch/anymatch)
-362.	vscode-chokidar version 2.1.7 (https://github.com/paulmillr/chokidar)
-363.	vscode-chrome-debug-core version 6.7.46 (https://github.com/Microsoft/vscode-chrome-debug-core)
-364.	vscode-css-languageservice version 4.0.3-next.1 (https://github.com/Microsoft/vscode-css-languageservice)
-365.	vscode-debugadapter version 1.33.0-pre.2 (https://github.com/Microsoft/vscode-debugadapter-node)
-366.	vscode-debugadapter version 1.34.0 (https://github.com/Microsoft/vscode-debugadapter-node)
-367.	vscode-debugadapter version 1.35.0 (https://github.com/Microsoft/vscode-debugadapter-node)
-368.	vscode-debugprotocol version 1.32.0 (https://github.com/Microsoft/vscode-debugadapter-node)
-369.	vscode-debugprotocol version 1.34.0 (https://github.com/Microsoft/vscode-debugadapter-node)
-370.	vscode-debugprotocol version 1.35.0 (https://github.com/Microsoft/vscode-debugadapter-node)
-371.	vscode-emmet-helper version 1.2.15 (https://github.com/Microsoft/vscode-emmet-helper)
-372.	vscode-extension-telemetry version 0.1.1 (https://github.com/Microsoft/vscode-extension-telemetry)
-373.	vscode-fsevents version 1.2.12 (https://github.com/fsevents/fsevents)
-374.	vscode-html-languageservice version 3.0.3 (https://github.com/Microsoft/vscode-html-languageservice)
-375.	vscode-html-languageservice version 3.0.4-next.0 (https://github.com/Microsoft/vscode-html-languageservice)
-376.	vscode-json-languageservice version 3.3.0 (https://github.com/Microsoft/vscode-json-languageservice)
-377.	vscode-jsonrpc version 4.1.0-next.2 (https://github.com/Microsoft/vscode-languageserver-node)
-378.	vscode-languageclient version 5.3.0-next.6 (https://github.com/Microsoft/vscode-languageserver-node)
-379.	vscode-languageserver version 5.3.0-next.8 (https://github.com/Microsoft/vscode-languageserver-node)
-380.	vscode-languageserver-protocol version 3.15.0-next.6 (https://github.com/Microsoft/vscode-languageserver-node)
-381.	vscode-languageserver-types version 3.15.0-next.2 (https://github.com/Microsoft/vscode-languageserver-node)
-382.	vscode-languageserver-types version 3.6.0-next.1 (https://github.com/Microsoft/vscode-languageserver-node)
-383.	vscode-logfile-highlighter version 2.4.1 (https://github.com/emilast/vscode-logfile-highlighter)
-384.	vscode-nls version 4.0.0 (https://github.com/Microsoft/vscode-nls)
-385.	vscode-nls version 4.1.1 (https://github.com/Microsoft/vscode-nls)
-386.	vscode-octicons-font version 1.3.1 (https://github.com/Microsoft/vscode-octicons-font)
-387.	vscode-proxy-agent version 0.4.0 (https://github.com/Microsoft/vscode-proxy-agent)
-388.	vscode-ripgrep version 1.5.5 (https://github.com/roblourens/vscode-ripgrep)
-389.	vscode-sqlite3 version 4.0.8 (https://github.com/mapbox/node-sqlite3)
-390.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
-391.	vscode-textbuffer version 1.0.0 (https://github.com/microsoft/vscode-textbuffer)
-392.	vscode-textmate version 4.2.2 (https://github.com/Microsoft/vscode-textmate)
-393.	vscode-uri version 1.0.6 (https://github.com/Microsoft/vscode-uri)
-394.	vscode-uri version 2.0.0 (https://github.com/Microsoft/vscode-uri)
-395.	vscode-uri version 2.0.1 (https://github.com/Microsoft/vscode-uri)
-396.	vscode-uri version 2.0.3 (https://github.com/Microsoft/vscode-uri)
-397.	vscode-windows-ca-certs version 0.1.0 (https://github.com/Microsoft/vscode-windows-ca-certs)
-398.	vscode-windows-registry version 1.0.1 (https://github.com/Microsoft/vscode-windows-registry)
-399.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
-400.	which version 1.3.0 (https://github.com/npm/node-which)
-401.	which-pm-runs version 1.0.0 (https://github.com/zkochan/which-pm-runs)
-402.	wide-align version 1.1.3 (https://github.com/iarna/wide-align)
-403.	windows-foreground-love version 0.2.0 (https://github.com/the-ress/node-windows-foreground-love)
-404.	windows-mutex version 0.3.0 (https://github.com/Microsoft/node-windows-mutex)
-405.	windows-process-tree version 0.2.4 (https://github.com/Microsoft/vscode-windows-process-tree)
-406.	wrappy version 1.0.2 (https://github.com/npm/wrappy)
-407.	ws version 3.3.3 (https://github.com/websockets/ws)
-408.	ws version 6.2.0 (https://github.com/websockets/ws)
-409.	xtend version 4.0.1 (https://github.com/Raynos/xtend)
-410.	xterm version 3.15.0-beta89 (https://github.com/xtermjs/xterm.js)
-411.	xterm-addon-search version 0.2.0-beta3 ()
-412.	xterm-addon-web-links version 0.1.0-beta10 ()
-413.	yauzl version 2.10.0 (https://github.com/thejoshwolfe/yauzl)
-414.	yazl version 2.4.3 (https://github.com/thejoshwolfe/yazl)
-415.	zone.js version 0.7.6 (https://github.com/angular/zone.js)
+7.	@microsoft/applicationinsights-analytics-js version 2.1.1 (https://github.com/microsoft/ApplicationInsights-JS/tree/master/vNext/extensions/applicationinsights-analytics-js)
+8.	@microsoft/applicationinsights-channel-js version 2.1.1 (https://github.com/Microsoft/applicationinsights-js)
+9.	@microsoft/applicationinsights-common version 2.1.1 (https://github.com/microsoft/ApplicationInsights-JS/tree/master/vNext/shared/AppInsightsCommon)
+10.	@microsoft/applicationinsights-core-js version 2.1.1 (https://github.com/microsoft/ApplicationInsights-JS/tree/master/vNext/shared/AppInsightsCore)
+11.	@microsoft/applicationinsights-dependencies-js version 2.1.1 (https://github.com/microsoft/ApplicationInsights-JS/tree/master/vNext/extensions/applicationinsights-dependencies-js)
+12.	@microsoft/applicationinsights-properties-js version 2.1.1 (https://github.com/microsoft/ApplicationInsights-JS/tree/master/vNext/extensions/applicationinsights-properties-js)
+13.	@microsoft/applicationinsights-web version 2.1.1 (https://github.com/microsoft/ApplicationInsights-JS)
+14.	@types/node version 6.0.78 (https://www.github.com/DefinitelyTyped/DefinitelyTyped)
+15.	@types/source-map version 0.1.29 (https://www.github.com/DefinitelyTyped/DefinitelyTyped)
+16.	agent-base version 4.1.2 (https://github.com/TooTallNate/node-agent-base)
+17.	agent-base version 4.2.0 (https://github.com/TooTallNate/node-agent-base)
+18.	agent-base version 4.2.1 (https://github.com/TooTallNate/node-agent-base)
+19.	agent-base version 4.3.0 (https://github.com/TooTallNate/node-agent-base)
+20.	Amanieu/thread_local-rs version 0.3.5 (https://github.com/Amanieu/thread_local-rs)
+21.	ansi-regex version 2.1.1 (https://github.com/chalk/ansi-regex)
+22.	ansi-regex version 3.0.0 (https://github.com/chalk/ansi-regex)
+23.	applicationinsights version 1.0.8 (https://github.com/Microsoft/ApplicationInsights-node.js)
+24.	aproba version 1.2.0 (https://github.com/iarna/aproba)
+25.	are-we-there-yet version 1.1.5 (https://github.com/npm/are-we-there-yet)
+26.	argparse version 1.0.9 (https://github.com/nodeca/argparse)
+27.	arr-diff version 4.0.0 (https://github.com/jonschlinkert/arr-diff)
+28.	arr-flatten version 1.1.0 (https://github.com/jonschlinkert/arr-flatten)
+29.	arr-union version 3.1.0 (https://github.com/jonschlinkert/arr-union)
+30.	array-unique version 0.3.2 (https://github.com/jonschlinkert/array-unique)
+31.	assign-symbols version 1.0.0 (https://github.com/jonschlinkert/assign-symbols)
+32.	async-each version 1.0.1 (https://github.com/paulmillr/async-each)
+33.	async-limiter version 1.0.0 (https://github.com/strml/async-limiter)
+34.	atob version 2.1.1 (https://git.coolaj86.com/coolaj86/atob.js)
+35.	atom/language-clojure version 0.22.7 (https://github.com/atom/language-clojure)
+36.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
+37.	atom/language-java version 0.31.3 (https://github.com/atom/language-java)
+38.	atom/language-sass version 0.61.4 (https://github.com/atom/language-sass)
+39.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
+40.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
+41.	balanced-match version 1.0.0 (https://github.com/juliangruber/balanced-match)
+42.	base version 0.11.2 (https://github.com/base/base)
+43.	binary-extensions version 1.10.0 (https://github.com/sindresorhus/binary-extensions)
+44.	bindings version 1.3.0 (https://github.com/TooTallNate/node-bindings)
+45.	bindings version 1.5.0 (https://github.com/TooTallNate/node-bindings)
+46.	bl version 1.2.2 (https://github.com/rvagg/bl)
+47.	brace-expansion version 1.1.11 (https://github.com/juliangruber/brace-expansion)
+48.	brace-expansion version 1.1.8 (https://github.com/juliangruber/brace-expansion)
+49.	braces version 2.3.2 (https://github.com/micromatch/braces)
+50.	buffer-alloc version 1.1.0 (https://github.com/linusu/buffer-alloc)
+51.	buffer-alloc-unsafe version 0.1.1 (https://github.com/linusu/buffer-alloc-unsafe)
+52.	buffer-crc32 version 0.2.13 (https://github.com/brianloveswords/buffer-crc32)
+53.	buffer-fill version 0.1.1 (https://github.com/LinusU/buffer-fill)
+54.	BurntSushi/byteorder version 1.2.1 (https://github.com/BurntSushi/byteorder)
+55.	byline version 5.0.0 (https://github.com/jahewson/node-byline)
+56.	cache-base version 1.0.1 (https://github.com/jonschlinkert/cache-base)
+57.	chownr version 1.0.1 (https://github.com/isaacs/chownr)
+58.	chrome-remote-interface version 0.26.1 (https://github.com/cyrus-and/chrome-remote-interface)
+59.	chromium version 69.0.3497.128 (https://chromium.googlesource.com/chromium/src)
+60.	chronotope/chrono version 0.4.0 (https://github.com/chronotope/chrono)
+61.	class-utils version 0.3.6 (https://github.com/jonschlinkert/class-utils)
+62.	code-point-at version 1.1.0 (https://github.com/sindresorhus/code-point-at)
+63.	collection-visit version 1.0.0 (https://github.com/jonschlinkert/collection-visit)
+64.	color version 3.1.0 (https://github.com/Qix-/color)
+65.	color-convert version 1.9.1 (https://github.com/Qix-/color-convert)
+66.	color-name version 1.1.3 (https://github.com/colorjs/color-name)
+67.	color-string version 1.5.3 (https://github.com/Qix-/color-string)
+68.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
+69.	commander version 2.11.0 (https://github.com/tj/commander.js)
+70.	component-emitter version 1.2.1 (https://github.com/component/emitter)
+71.	concat-map version 0.0.1 (https://github.com/substack/node-concat-map)
+72.	console-control-strings version 1.1.0 (https://github.com/iarna/console-control-strings)
+73.	copy-descriptor version 0.1.1 (https://github.com/jonschlinkert/copy-descriptor)
+74.	core-util-is version 1.0.2 (https://github.com/isaacs/core-util-is)
+75.	daaain/Handlebars version 1.8.0 (https://github.com/daaain/Handlebars)
+76.	davidrios/pug-tmbundle (https://github.com/davidrios/pug-tmbundle)
+77.	debug version 2.6.9 (https://github.com/visionmedia/debug)
+78.	debug version 3.1.0 (https://github.com/visionmedia/debug)
+79.	debug version 3.2.6 (https://github.com/visionmedia/debug)
+80.	decode-uri-component version 0.2.0 (https://github.com/samverschueren/decode-uri-component)
+81.	decompress-response version 3.3.0 (https://github.com/sindresorhus/decompress-response)
+82.	deep-extend version 0.6.0 (https://github.com/unclechu/node-deep-extend)
+83.	define-property version 0.2.5 (https://github.com/jonschlinkert/define-property)
+84.	define-property version 1.0.0 (https://github.com/jonschlinkert/define-property)
+85.	define-property version 2.0.2 (https://github.com/jonschlinkert/define-property)
+86.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
+87.	delegates version 1.0.0 (https://github.com/tj/node-delegates)
+88.	demyte/language-cshtml version 0.3.0 (https://github.com/demyte/language-cshtml)
+89.	detect-libc version 1.0.3 (https://github.com/lovell/detect-libc)
+90.	devtools-protocol version 0.0.588169 (https://github.com/ChromeDevTools/devtools-protocol)
+91.	diagnostic-channel version 0.2.0 (https://github.com/Microsoft/node-diagnostic-channel)
+92.	diagnostic-channel-publishers version 0.2.1 (https://github.com/Microsoft/node-diagnostic-channel)
+93.	Document Object Model version 4.0.0 (https://www.w3.org/DOM/)
+94.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
+95.	dtolnay/isatty version 0.1.6 (https://github.com/dtolnay/isatty)
+96.	electron version 4.2.9 (https://github.com/electron/electron)
+97.	end-of-stream version 1.4.0 (https://github.com/mafintosh/end-of-stream)
+98.	entities version 1.1.1 (https://github.com/fb55/entities)
+99.	es6-promise version 4.1.1 (https://github.com/stefanpenner/es6-promise)
+100.	es6-promise version 4.2.4 (https://github.com/stefanpenner/es6-promise)
+101.	es6-promise version 4.2.6 (https://github.com/stefanpenner/es6-promise)
+102.	es6-promise version 4.2.8 (https://github.com/stefanpenner/es6-promise)
+103.	es6-promisify version 5.0.0 (https://github.com/digitaldesignlabs/es6-promisify)
+104.	expand-abbreviation version 0.5.8 (https://github.com/emmetio/expand-abbreviation)
+105.	expand-brackets version 2.1.4 (https://github.com/micromatch/expand-brackets)
+106.	expand-template version 2.0.3 (https://github.com/ralphtheninja/expand-template)
+107.	extend-shallow version 2.0.1 (https://github.com/jonschlinkert/extend-shallow)
+108.	extend-shallow version 3.0.2 (https://github.com/jonschlinkert/extend-shallow)
+109.	extglob version 2.0.4 (https://github.com/micromatch/extglob)
+110.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
+111.	fd-slicer version 1.1.0 (https://github.com/andrewrk/node-fd-slicer)
+112.	file-type version 7.2.0 (https://github.com/sindresorhus/file-type)
+113.	file-uri-to-path version 1.0.0 (https://github.com/TooTallNate/file-uri-to-path)
+114.	fill-range version 4.0.0 (https://github.com/jonschlinkert/fill-range)
+115.	for-in version 1.0.2 (https://github.com/jonschlinkert/for-in)
+116.	fragment-cache version 0.2.1 (https://github.com/jonschlinkert/fragment-cache)
+117.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
+118.	fs-constants version 1.0.0 (https://github.com/mafintosh/fs-constants)
+119.	fs-extra version 7.0.1 (https://github.com/jprichardson/node-fs-extra)
+120.	fs.realpath version 1.0.0 (https://github.com/isaacs/fs.realpath)
+121.	gauge version 2.7.4 (https://github.com/npm/gauge)
+122.	get-value version 2.0.6 (https://github.com/jonschlinkert/get-value)
+123.	github-from-package (https://github.com/substack/github-from-package)
+124.	glob version 7.1.3 (https://github.com/isaacs/node-glob)
+125.	glob version 7.1.4 (https://github.com/isaacs/node-glob)
+126.	glob-parent version 3.1.0 (https://github.com/gulpjs/glob-parent)
+127.	graceful-fs version 4.1.11 (https://github.com/isaacs/node-graceful-fs)
+128.	has-unicode version 2.0.1 (https://github.com/iarna/has-unicode)
+129.	has-value version 0.3.1 (https://github.com/jonschlinkert/has-value)
+130.	has-value version 1.0.0 (https://github.com/jonschlinkert/has-value)
+131.	has-values version 0.1.4 (https://github.com/jonschlinkert/has-values)
+132.	has-values version 1.0.0 (https://github.com/jonschlinkert/has-values)
+133.	highlight.js version 9.15.8 (https://github.com/highlightjs/highlight.js)
+134.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
+135.	http-proxy-agent version 2.1.0 (https://github.com/TooTallNate/node-http-proxy-agent)
+136.	https-proxy-agent version 2.2.1 (https://github.com/TooTallNate/node-https-proxy-agent)
+137.	https-proxy-agent version 2.2.2 (https://github.com/TooTallNate/node-https-proxy-agent)
+138.	iconv-lite version 0.4.24 (https://github.com/ashtuchkin/iconv-lite)
+139.	iconv-lite version 0.5.0 (https://github.com/ashtuchkin/iconv-lite)
+140.	Ikuyadeu/vscode-R version 0.5.5 (https://github.com/Ikuyadeu/vscode-R)
+141.	image-size version 0.5.5 (https://github.com/image-size/image-size)
+142.	inflight version 1.0.6 (https://github.com/npm/inflight)
+143.	inherits version 2.0.3 (https://github.com/isaacs/inherits)
+144.	inherits version 2.0.4 (https://github.com/isaacs/inherits)
+145.	ini version 1.3.4 (https://github.com/npm/ini)
+146.	inno setup version 5.5.6 (https://github.com/jrsoftware/issrc)
+147.	insane version 2.6.2 (https://github.com/bevacqua/insane)
+148.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
+149.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
+150.	ip version 1.1.5 (https://github.com/indutny/node-ip)
+151.	is-accessor-descriptor version 0.1.6 (https://github.com/jonschlinkert/is-accessor-descriptor)
+152.	is-accessor-descriptor version 1.0.0 (https://github.com/jonschlinkert/is-accessor-descriptor)
+153.	is-arrayish version 0.3.2 (https://github.com/qix-/node-is-arrayish)
+154.	is-binary-path version 1.0.1 (https://github.com/sindresorhus/is-binary-path)
+155.	is-buffer version 1.1.4 (https://github.com/feross/is-buffer)
+156.	is-buffer version 1.1.6 (https://github.com/feross/is-buffer)
+157.	is-data-descriptor version 0.1.4 (https://github.com/jonschlinkert/is-data-descriptor)
+158.	is-data-descriptor version 1.0.0 (https://github.com/jonschlinkert/is-data-descriptor)
+159.	is-descriptor version 0.1.6 (https://github.com/jonschlinkert/is-descriptor)
+160.	is-descriptor version 1.0.2 (https://github.com/jonschlinkert/is-descriptor)
+161.	is-extendable version 0.1.1 (https://github.com/jonschlinkert/is-extendable)
+162.	is-extendable version 1.0.1 (https://github.com/jonschlinkert/is-extendable)
+163.	is-extglob version 2.1.1 (https://github.com/micromatch/is-extglob)
+164.	is-fullwidth-code-point version 1.0.0 (https://github.com/sindresorhus/is-fullwidth-code-point)
+165.	is-fullwidth-code-point version 2.0.0 (https://github.com/sindresorhus/is-fullwidth-code-point)
+166.	is-glob version 3.1.0 (https://github.com/micromatch/is-glob)
+167.	is-glob version 4.0.0 (https://github.com/micromatch/is-glob)
+168.	is-number version 3.0.0 (https://github.com/jonschlinkert/is-number)
+169.	is-plain-object version 2.0.4 (https://github.com/jonschlinkert/is-plain-object)
+170.	is-windows version 1.0.2 (https://github.com/jonschlinkert/is-windows)
+171.	isarray version 1.0.0 (https://github.com/juliangruber/isarray)
+172.	isexe version 2.0.0 (https://github.com/isaacs/isexe)
+173.	isobject version 2.1.0 (https://github.com/jonschlinkert/isobject)
+174.	isobject version 3.0.1 (https://github.com/jonschlinkert/isobject)
+175.	jeff-hykin/cpp-textmate-grammar version 1.12.11 (https://github.com/jeff-hykin/cpp-textmate-grammar)
+176.	jeff-hykin/cpp-textmate-grammar version 1.13.2 (https://github.com/jeff-hykin/cpp-textmate-grammar)
+177.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
+178.	jschardet version 1.6.0 (https://github.com/aadsm/jschardet)
+179.	jsonc-parser version 1.0.0 (https://github.com/Microsoft/node-jsonc-parser)
+180.	jsonc-parser version 2.1.0 (https://github.com/Microsoft/node-jsonc-parser)
+181.	jsonc-parser version 2.1.1 (https://github.com/Microsoft/node-jsonc-parser)
+182.	jsonfile version 4.0.0 (https://github.com/jprichardson/node-jsonfile)
+183.	keytar version 4.11.0 (https://github.com/atom/node-keytar)
+184.	kind-of version 3.0.4 (https://github.com/jonschlinkert/kind-of)
+185.	kind-of version 3.2.2 (https://github.com/jonschlinkert/kind-of)
+186.	kind-of version 4.0.0 (https://github.com/jonschlinkert/kind-of)
+187.	kind-of version 5.1.0 (https://github.com/jonschlinkert/kind-of)
+188.	kind-of version 6.0.2 (https://github.com/jonschlinkert/kind-of)
+189.	language-docker (https://github.com/moby/moby)
+190.	language-go version 0.44.3 (https://github.com/atom/language-go)
+191.	language-less version 0.34.2 (https://github.com/atom/language-less)
+192.	language-php version 0.44.1 (https://github.com/atom/language-php)
+193.	language-rust version 0.4.12 (https://github.com/zargony/atom-language-rust)
+194.	lib-oniguruma version 5.9.3 (http://dl.fedoraproject.org/pub/epel/7/SRPMS/Packages/o/oniguruma-5.9.5-3.el7.src.rpm)
+195.	linkify-it version 2.0.3 (https://github.com/markdown-it/linkify-it)
+196.	lodash.isinteger version 4.0.4 (https://github.com/lodash/lodash)
+197.	lodash.isundefined version 3.0.1 (https://github.com/lodash/lodash)
+198.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
+199.	map-cache version 0.2.2 (https://github.com/jonschlinkert/map-cache)
+200.	map-visit version 1.0.0 (https://github.com/jonschlinkert/map-visit)
+201.	markdown-it version 8.4.0 (https://github.com/markdown-it/markdown-it)
+202.	markdown-it version 9.1.0 (https://github.com/markdown-it/markdown-it)
+203.	markdown-it-front-matter version 0.1.2 (https://github.com/craigdmckenna/markdown-it-front-matter)
+204.	marked version 0.6.2 (https://github.com/markedjs/marked)
+205.	mdn-data version 1.1.12 (https://github.com/mdn/data)
+206.	mdurl version 1.0.1 (https://github.com/markdown-it/mdurl)
+207.	micromatch version 3.1.10 (https://github.com/micromatch/micromatch)
+208.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
+209.	Microsoft/vscode-JSON.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
+210.	Microsoft/vscode-mssql version 1.6.0 (https://github.com/Microsoft/vscode-mssql)
+211.	mimic-response version 1.0.0 (https://github.com/sindresorhus/mimic-response)
+212.	minimatch version 3.0.4 (https://github.com/isaacs/minimatch)
+213.	minimist version 0.0.8 (https://github.com/substack/minimist)
+214.	minimist version 1.2.0 (https://github.com/substack/minimist)
+215.	mixin-deep version 1.3.1 (https://github.com/jonschlinkert/mixin-deep)
+216.	mkdirp version 0.5.1 (https://github.com/substack/node-mkdirp)
+217.	mmims/language-batchfile version 0.7.5 (https://github.com/mmims/language-batchfile)
+218.	mrhooray/crc-rs version 1.7.0 (https://github.com/mrhooray/crc-rs)
+219.	ms version 2.0.0 (https://github.com/zeit/ms)
+220.	ms version 2.1.1 (https://github.com/zeit/ms)
+221.	ms version 2.1.2 (https://github.com/zeit/ms)
+222.	nan version 2.14.0 (https://github.com/nodejs/nan)
+223.	nanomatch version 1.2.13 (https://github.com/micromatch/nanomatch)
+224.	napi-build-utils version 1.0.1 (https://github.com/inspiredware/napi-build-utils)
+225.	native-is-elevated version 0.3.0 (https://github.com/arkon/native-is-elevated)
+226.	native-keymap version 2.0.0 (https://github.com/Microsoft/node-native-keymap)
+227.	native-watchdog version 1.0.0 (https://github.com/Microsoft/node-native-watchdog)
+228.	node-abi version 2.9.0 (https://github.com/lgeiger/node-abi)
+229.	node-addon-api version 1.6.2 (https://github.com/nodejs/node-addon-api)
+230.	node-pty version 0.9.0-beta19 (https://github.com/microsoft/node-pty)
+231.	nodejs version 10.11.0 (https://github.com/nodejs/node)
+232.	noice-json-rpc version 1.2.0 (https://github.com/nojvek/noice-json-rpc)
+233.	noop-logger version 0.1.1 (https://github.com/segmentio/noop-logger)
+234.	normalize-path version 3.0.0 (https://github.com/jonschlinkert/normalize-path)
+235.	npmlog version 4.1.2 (https://github.com/npm/npmlog)
+236.	nsfw version 1.2.5 (https://github.com/Axosoft/nsfw)
+237.	number-is-nan version 1.0.1 (https://github.com/sindresorhus/number-is-nan)
+238.	object-assign version 4.1.1 (https://github.com/sindresorhus/object-assign)
+239.	object-copy version 0.1.0 (https://github.com/jonschlinkert/object-copy)
+240.	object-visit version 1.0.1 (https://github.com/jonschlinkert/object-visit)
+241.	object.pick version 1.3.0 (https://github.com/jonschlinkert/object.pick)
+242.	octicons version 8.3.0 (https://github.com/primer/octicons)
+243.	octref/language-css version 0.42.11 (https://github.com/octref/language-css)
+244.	once version 1.4.0 (https://github.com/isaacs/once)
+245.	onigasm-umd version 2.2.2 (https://github.com/alexandrudima/onigasm-umd)
+246.	oniguruma version 7.2.0 (https://github.com/atom/node-oniguruma)
+247.	os-homedir version 1.0.2 (https://github.com/sindresorhus/os-homedir)
+248.	parse5 version 3.0.2 (https://github.com/inikulin/parse5)
+249.	pascalcase version 0.1.1 (https://github.com/jonschlinkert/pascalcase)
+250.	path-dirname version 1.0.2 (https://github.com/gulpjs/path-dirname)
+251.	path-is-absolute version 1.0.1 (https://github.com/sindresorhus/path-is-absolute)
+252.	pend version 1.2.0 (https://github.com/andrewrk/node-pend)
+253.	picomatch version 2.0.7 (https://github.com/micromatch/picomatch)
+254.	posix-character-classes version 0.1.1 (https://github.com/micromatch/posix-character-classes)
+255.	PowerShell/EditorSyntax version 1.0.0 (https://github.com/PowerShell/EditorSyntax)
+256.	prebuild-install version 5.3.0 (https://github.com/prebuild/prebuild-install)
+257.	process-nextick-args version 1.0.7 (https://github.com/calvinmetcalf/process-nextick-args)
+258.	process-nextick-args version 2.0.0 (https://github.com/calvinmetcalf/process-nextick-args)
+259.	promise-polyfill version 8.0.0 (https://github.com/taylorhakes/promise-polyfill)
+260.	pump version 1.0.3 (https://github.com/mafintosh/pump)
+261.	pump version 2.0.1 (https://github.com/mafintosh/pump)
+262.	rc version 1.2.8 (https://github.com/dominictarr/rc)
+263.	readable-stream version 2.3.3 (https://github.com/nodejs/readable-stream)
+264.	readable-stream version 2.3.6 (https://github.com/nodejs/readable-stream)
+265.	readdirp version 2.2.1 (https://github.com/paulmillr/readdirp)
+266.	redox-os/syscall version 0.1.37 (https://github.com/redox-os/syscall)
+267.	redox-os/termion version 1.5.1 (https://github.com/redox-os/termion)
+268.	redox-os/termios version 0.1.1 (https://github.com/redox-os/termios)
+269.	reem/rust-unreachable version 1.0.0 (https://github.com/reem/rust-unreachable)
+270.	reem/rust-void version 1.0.2 (https://github.com/reem/rust-void)
+271.	regex-not version 1.0.2 (https://github.com/jonschlinkert/regex-not)
+272.	repeat-element version 1.1.2 (https://github.com/jonschlinkert/repeat-element)
+273.	repeat-string version 1.6.1 (https://github.com/jonschlinkert/repeat-string)
+274.	request-light version 0.2.4 (https://github.com/Microsoft/node-request-light)
+275.	resolve-url version 0.2.1 (https://github.com/lydell/resolve-url)
+276.	ret version 0.1.15 (https://github.com/fent/ret.js)
+277.	retep998/winapi-rs version 0.1.1 (https://github.com/retep998/winapi-rs)
+278.	retep998/winapi-rs version 0.2.2 (https://github.com/retep998/winapi-rs)
+279.	retep998/winapi-rs version 0.2.8 (https://github.com/retep998/winapi-rs)
+280.	retep998/winapi-rs version 0.3.4 (https://github.com/retep998/winapi-rs)
+281.	retep998/winapi-rs version 0.4.0 (https://github.com/retep998/winapi-rs)
+282.	rimraf version 2.6.3 (https://github.com/isaacs/rimraf)
+283.	ripgrep version 0.10.0 (https://github.com/BurntSushi/ripgrep)
+284.	rust-lang-nursery/lazy-static.rs version 1.0.0 (https://github.com/rust-lang-nursery/lazy-static.rs)
+285.	rust-lang/libc version 0.2.36 (https://github.com/rust-lang/libc)
+286.	rust-lang/time version 0.1.39 (https://github.com/rust-lang-deprecated/time)
+287.	rust-num/num version 0.1.41 (https://github.com/rust-num/num)
+288.	rust-num/num-integer version 0.1.35 (https://github.com/rust-num/num-integer)
+289.	rust-num/num-iter version 0.1.34 (https://github.com/rust-num/num-iter)
+290.	rust-num/num-traits version 0.1.42 (https://github.com/rust-num/num-traits)
+291.	safe-buffer version 5.1.1 (https://github.com/feross/safe-buffer)
+292.	safe-regex version 1.1.0 (https://github.com/substack/safe-regex)
+293.	safer-buffer version 2.1.2 (https://github.com/ChALkeR/safer-buffer)
+294.	semver version 5.4.1 (https://github.com/npm/node-semver)
+295.	semver version 5.5.0 (https://github.com/npm/node-semver)
+296.	semver version 5.5.1 (https://github.com/npm/node-semver)
+297.	semver-umd version 5.5.3 (https://github.com/Microsoft/semver-umd)
+298.	set-blocking version 2.0.0 (https://github.com/yargs/set-blocking)
+299.	set-value version 0.4.3 (https://github.com/jonschlinkert/set-value)
+300.	set-value version 2.0.0 (https://github.com/jonschlinkert/set-value)
+301.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+302.	Sgeo/take_mut version 0.2.0 (https://github.com/Sgeo/take_mut)
+303.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
+304.	signal-exit version 3.0.2 (https://github.com/tapjs/signal-exit)
+305.	simple-concat version 1.0.0 (https://github.com/feross/simple-concat)
+306.	simple-get version 2.8.1 (https://github.com/feross/simple-get)
+307.	simple-swizzle version 0.2.2 (https://github.com/qix-/node-simple-swizzle)
+308.	slog-rs/async version 2.2.0 (https://github.com/slog-rs/async)
+309.	slog-rs/slog version 2.1.1 (https://github.com/slog-rs/slog)
+310.	slog-rs/term version 2.3.0 (https://github.com/slog-rs/term)
+311.	smart-buffer version 4.0.1 (https://github.com/JoshGlazebrook/smart-buffer)
+312.	snapdragon version 0.8.2 (https://github.com/here-be/snapdragon)
+313.	snapdragon-node version 2.1.1 (https://github.com/here-be/snapdragon-node)
+314.	snapdragon-util version 3.0.1 (https://github.com/here-be/snapdragon-util)
+315.	socks version 2.2.1 (https://github.com/JoshGlazebrook/socks)
+316.	socks-proxy-agent version 4.0.1 (https://github.com/TooTallNate/node-socks-proxy-agent)
+317.	source-map version 0.5.7 (https://github.com/mozilla/source-map)
+318.	source-map version 0.6.1 (https://github.com/mozilla/source-map)
+319.	source-map-resolve version 0.5.2 (https://github.com/lydell/source-map-resolve)
+320.	source-map-url version 0.4.0 (https://github.com/lydell/source-map-url)
+321.	spdlog version 0.9.0 (https://github.com/Microsoft/node-spdlog)
+322.	spdlog original version 0.14.0 (https://github.com/gabime/spdlog)
+323.	split-string version 3.1.0 (https://github.com/jonschlinkert/split-string)
+324.	sprintf-js version 1.0.3 (https://github.com/alexei/sprintf.js)
+325.	static-extend version 0.1.2 (https://github.com/jonschlinkert/static-extend)
+326.	Stebalien/term version 0.4.6 (https://github.com/Stebalien/term)
+327.	string-width version 1.0.2 (https://github.com/sindresorhus/string-width)
+328.	string-width version 2.1.1 (https://github.com/sindresorhus/string-width)
+329.	string_decoder version 1.0.3 (https://github.com/nodejs/string_decoder)
+330.	string_decoder version 1.1.1 (https://github.com/nodejs/string_decoder)
+331.	strip-ansi version 3.0.1 (https://github.com/chalk/strip-ansi)
+332.	strip-ansi version 4.0.0 (https://github.com/chalk/strip-ansi)
+333.	strip-json-comments version 2.0.1 (https://github.com/sindresorhus/strip-json-comments)
+334.	sudo-prompt version 9.0.0 (https://github.com/jorangreef/sudo-prompt)
+335.	tar-fs version 1.16.2 (https://github.com/mafintosh/tar-fs)
+336.	tar-stream version 1.6.1 (https://github.com/mafintosh/tar-stream)
+337.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+338.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+339.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+340.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+341.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+342.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+343.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+344.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+345.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+346.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+347.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+348.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
+349.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
+350.	to-buffer version 1.1.1 (https://github.com/mafintosh/to-buffer)
+351.	to-object-path version 0.3.0 (https://github.com/jonschlinkert/to-object-path)
+352.	to-regex version 3.0.2 (https://github.com/jonschlinkert/to-regex)
+353.	to-regex-range version 2.1.1 (https://github.com/micromatch/to-regex-range)
+354.	tslib version 1.10.0 (https://github.com/Microsoft/tslib)
+355.	tunnel-agent version 0.6.0 (https://github.com/request/tunnel-agent)
+356.	typescript version 2.6.2 (https://github.com/Microsoft/TypeScript)
+357.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
+358.	TypeScript-TmLanguage version 1.0.0 (https://github.com/Microsoft/TypeScript-TmLanguage)
+359.	uc.micro version 1.0.3 (https://github.com/markdown-it/uc.micro)
+360.	uc.micro version 1.0.5 (https://github.com/markdown-it/uc.micro)
+361.	ultron version 1.1.1 (https://github.com/primus/ultron)
+362.	Unicode version 12.0.0 (http://www.unicode.org/)
+363.	union-value version 1.0.0 (https://github.com/jonschlinkert/union-value)
+364.	universalify version 0.1.2 (https://github.com/RyanZim/universalify)
+365.	unset-value version 1.0.0 (https://github.com/jonschlinkert/unset-value)
+366.	upath version 1.1.2 (https://github.com/anodynos/upath)
+367.	urix version 0.1.0 (https://github.com/lydell/urix)
+368.	use version 3.1.1 (https://github.com/jonschlinkert/use)
+369.	util-deprecate version 1.0.2 (https://github.com/TooTallNate/util-deprecate)
+370.	v8-inspect-profiler version 0.0.20 (https://github.com/jrieken/v8-inspect-profiler)
+371.	vitiral/build_const version 0.2.0 (https://github.com/vitiral/build_const)
+372.	vscode-anymatch version 3.0.3 (https://github.com/micromatch/anymatch)
+373.	vscode-chokidar version 2.1.7 (https://github.com/paulmillr/chokidar)
+374.	vscode-chrome-debug-core version 6.7.46 (https://github.com/Microsoft/vscode-chrome-debug-core)
+375.	vscode-css-languageservice version 4.0.3-next.4 (https://github.com/Microsoft/vscode-css-languageservice)
+376.	vscode-debugadapter version 1.33.0-pre.2 (https://github.com/Microsoft/vscode-debugadapter-node)
+377.	vscode-debugadapter version 1.34.0 (https://github.com/Microsoft/vscode-debugadapter-node)
+378.	vscode-debugadapter version 1.35.0 (https://github.com/Microsoft/vscode-debugadapter-node)
+379.	vscode-debugprotocol version 1.32.0 (https://github.com/Microsoft/vscode-debugadapter-node)
+380.	vscode-debugprotocol version 1.34.0 (https://github.com/Microsoft/vscode-debugadapter-node)
+381.	vscode-debugprotocol version 1.35.0 (https://github.com/Microsoft/vscode-debugadapter-node)
+382.	vscode-emmet-helper version 1.2.15 (https://github.com/Microsoft/vscode-emmet-helper)
+383.	vscode-extension-telemetry version 0.1.1 (https://github.com/Microsoft/vscode-extension-telemetry)
+384.	vscode-fsevents version 1.2.12 (https://github.com/fsevents/fsevents)
+385.	vscode-html-languageservice version 3.0.3 (https://github.com/Microsoft/vscode-html-languageservice)
+386.	vscode-html-languageservice version 3.0.4-next.1 (https://github.com/Microsoft/vscode-html-languageservice)
+387.	vscode-json-languageservice version 3.3.1 (https://github.com/Microsoft/vscode-json-languageservice)
+388.	vscode-jsonrpc version 4.1.0-next.2 (https://github.com/Microsoft/vscode-languageserver-node)
+389.	vscode-languageclient version 5.3.0-next.6 (https://github.com/Microsoft/vscode-languageserver-node)
+390.	vscode-languageserver version 5.3.0-next.8 (https://github.com/Microsoft/vscode-languageserver-node)
+391.	vscode-languageserver-protocol version 3.15.0-next.6 (https://github.com/Microsoft/vscode-languageserver-node)
+392.	vscode-languageserver-types version 3.15.0-next.2 (https://github.com/Microsoft/vscode-languageserver-node)
+393.	vscode-languageserver-types version 3.6.0-next.1 (https://github.com/Microsoft/vscode-languageserver-node)
+394.	vscode-logfile-highlighter version 2.4.1 (https://github.com/emilast/vscode-logfile-highlighter)
+395.	vscode-minimist version 1.2.1 (https://github.com/substack/minimist)
+396.	vscode-nls version 4.0.0 (https://github.com/Microsoft/vscode-nls)
+397.	vscode-nls version 4.1.1 (https://github.com/Microsoft/vscode-nls)
+398.	vscode-octicons-font version 1.3.1 (https://github.com/Microsoft/vscode-octicons-font)
+399.	vscode-proxy-agent version 0.4.0 (https://github.com/Microsoft/vscode-proxy-agent)
+400.	vscode-ripgrep version 1.5.6 (https://github.com/microsoft/vscode-ripgrep)
+401.	vscode-sqlite3 version 4.0.8 (https://github.com/mapbox/node-sqlite3)
+402.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+403.	vscode-textbuffer version 1.0.0 (https://github.com/microsoft/vscode-textbuffer)
+404.	vscode-textmate version 4.2.2 (https://github.com/Microsoft/vscode-textmate)
+405.	vscode-uri version 1.0.6 (https://github.com/Microsoft/vscode-uri)
+406.	vscode-uri version 2.0.0 (https://github.com/Microsoft/vscode-uri)
+407.	vscode-uri version 2.0.3 (https://github.com/Microsoft/vscode-uri)
+408.	vscode-windows-ca-certs version 0.1.0 (https://github.com/Microsoft/vscode-windows-ca-certs)
+409.	vscode-windows-registry version 1.0.2 (https://github.com/Microsoft/vscode-windows-registry)
+410.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
+411.	which version 1.3.0 (https://github.com/npm/node-which)
+412.	which-pm-runs version 1.0.0 (https://github.com/zkochan/which-pm-runs)
+413.	wide-align version 1.1.3 (https://github.com/iarna/wide-align)
+414.	windows-foreground-love version 0.2.0 (https://github.com/the-ress/node-windows-foreground-love)
+415.	windows-mutex version 0.3.0 (https://github.com/Microsoft/node-windows-mutex)
+416.	windows-process-tree version 0.2.4 (https://github.com/Microsoft/vscode-windows-process-tree)
+417.	wrappy version 1.0.2 (https://github.com/npm/wrappy)
+418.	ws version 3.3.3 (https://github.com/websockets/ws)
+419.	ws version 6.2.0 (https://github.com/websockets/ws)
+420.	xtend version 4.0.1 (https://github.com/Raynos/xtend)
+421.	xterm version 3.15.0-beta101 (https://github.com/xtermjs/xterm.js)
+422.	xterm-addon-search version 0.2.0-beta5 ()
+423.	xterm-addon-web-links version 0.1.0-beta10 ()
+424.	yauzl version 2.10.0 (https://github.com/thejoshwolfe/yauzl)
+425.	yazl version 2.4.3 (https://github.com/thejoshwolfe/yazl)
+426.	zone.js version 0.7.6 (https://github.com/angular/zone.js)
 
 
 %% @emmetio/css-parser NOTICES AND INFORMATION BEGIN HERE
@@ -577,6 +588,60 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 =========================================
 END OF @emmetio/stream-reader-utils NOTICES AND INFORMATION
+
+%% @microsoft/applicationinsights-analytics-js NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Please follow the [link](http://go.microsoft.com/fwlink/?LinkID=510709)
+=========================================
+END OF @microsoft/applicationinsights-analytics-js NOTICES AND INFORMATION
+
+%% @microsoft/applicationinsights-channel-js NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Please follow the [link](http://go.microsoft.com/fwlink/?LinkID=510709)
+=========================================
+END OF @microsoft/applicationinsights-channel-js NOTICES AND INFORMATION
+
+%% @microsoft/applicationinsights-common NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Please follow the [link](http://go.microsoft.com/fwlink/?LinkID=510709)
+=========================================
+END OF @microsoft/applicationinsights-common NOTICES AND INFORMATION
+
+%% @microsoft/applicationinsights-core-js NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Please follow the [link](http://go.microsoft.com/fwlink/?LinkID=510709)
+=========================================
+END OF @microsoft/applicationinsights-core-js NOTICES AND INFORMATION
+
+%% @microsoft/applicationinsights-dependencies-js NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Please follow the [link](http://go.microsoft.com/fwlink/?LinkID=510709)
+=========================================
+END OF @microsoft/applicationinsights-dependencies-js NOTICES AND INFORMATION
+
+%% @microsoft/applicationinsights-properties-js NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Please follow the [link](http://go.microsoft.com/fwlink/?LinkID=510709)
+=========================================
+END OF @microsoft/applicationinsights-properties-js NOTICES AND INFORMATION
+
+%% @microsoft/applicationinsights-web NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Please follow the [link](http://go.microsoft.com/fwlink/?LinkID=510709)
+=========================================
+END OF @microsoft/applicationinsights-web NOTICES AND INFORMATION
 
 %% @types/node NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -3814,6 +3879,31 @@ http://www.jrsoftware.org/
 =========================================
 END OF inno setup NOTICES AND INFORMATION
 
+%% insane NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright © 2015 Nicolas Bevacqua
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+=========================================
+END OF insane NOTICES AND INFORMATION
+
 %% Ionic documentation NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright Drifty Co. http://drifty.com/.
@@ -4363,21 +4453,19 @@ Chardet was originally ported from C++ by Mark Pilgrim. It is now maintained
  (https://github.com/aadsm/jschardet) and transformed into an npm package by
 Markus Ast (https://github.com/brainafk)
 
-GNU LESSER GENERAL PUBLIC LICENSE
-		       Version 2.1, February 1999
+                  GNU LESSER GENERAL PUBLIC LICENSE
+                       Version 2.1, February 1999
 
- Copyright (C) 1991,
-1999 Free Software Foundation, Inc.
-     51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ Copyright (C) 1991, 1999 Free Software Foundation, Inc.
+ 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  Everyone is permitted to copy and distribute verbatim copies
  of this license document, but changing it is not allowed.
 
-[This is the first released version of the Lesser GPL.  It also counts
+(This is the first released version of the Lesser GPL.  It also counts
  as the successor of the GNU Library Public License, version 2, hence
- the version number 2.1.
-]
+ the version number 2.1.)
 
-			    Preamble
+                            Preamble
 
   The licenses for most software are designed to take away your
 freedom to share and change it.  By contrast, the GNU General Public
@@ -4479,7 +4567,7 @@ modification follow.  Pay close attention to the difference between a
 former contains code derived from the library, whereas the latter must
 be combined with the library in order to run.
 
-		  GNU LESSER GENERAL PUBLIC LICENSE
+                  GNU LESSER GENERAL PUBLIC LICENSE
    TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
   0. This License Agreement applies to any software library or other
@@ -4799,7 +4887,7 @@ decision will be guided by the two goals of preserving the free status
 of all derivatives of our free software and of promoting the sharing
 and reuse of software generally.
 
-			    NO WARRANTY
+                            NO WARRANTY
 
   15. BECAUSE THE LIBRARY IS LICENSED FREE OF CHARGE, THERE IS NO
 WARRANTY FOR THE LIBRARY, TO THE EXTENT PERMITTED BY APPLICABLE LAW.
@@ -4822,7 +4910,7 @@ FAILURE OF THE LIBRARY TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF
 SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGES.
 
-		     END OF TERMS AND CONDITIONS
+                     END OF TERMS AND CONDITIONS
 
            How to Apply These Terms to Your New Libraries
 
@@ -4837,8 +4925,8 @@ safest to attach them to the start of each source file to most effectively
 convey the exclusion of warranty; and each file should have at least the
 "copyright" line and a pointer to where the full notice is found.
 
-    <one line to give the library's name and a brief idea of what it does.>
-    Copyright (C) <year>  <name of author>
+    {description}
+    Copyright (C) {year} {fullname}
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -4852,8 +4940,8 @@ convey the exclusion of warranty; and each file should have at least the
 
     You should have received a copy of the GNU Lesser General Public
     License along with this library; if not, write to the Free Software
-    Foundation, Inc.,
-51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
 
 Also add information on how to contact you by electronic and paper mail.
 
@@ -4862,10 +4950,10 @@ school, if any, to sign a "copyright disclaimer" for the library, if
 necessary.  Here is a sample; alter the names:
 
   Yoyodyne, Inc., hereby disclaims all copyright interest in the
-  library `Frob' (a library for tweaking knobs) written by James Random Hacker.
+  library `Frob' (a library for tweaking knobs) written by James Random
+  Hacker.
 
-  <signature of Ty Coon>,
-1 April 1990
+  {signature of Ty Coon}, 1 April 1990
   Ty Coon, President of Vice
 
 That's all there is to it!
@@ -8190,6 +8278,25 @@ The externally maintained libraries used by Node.js are:
     ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
   """
+
+- rimraf, located at lib/internal/fs/rimraf.js, is licensed as follows:
+  """
+    The ISC License
+
+    Copyright (c) Isaac Z. Schlueter and Contributors
+
+    Permission to use, copy, modify, and/or distribute this software for any
+    purpose with or without fee is hereby granted, provided that the above
+    copyright notice and this permission notice appear in all copies.
+
+    THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+    WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+    MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+    ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+    IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+  """
 =========================================
 END OF nodejs NOTICES AND INFORMATION
 
@@ -8620,7 +8727,7 @@ END OF parse5 NOTICES AND INFORMATION
 =========================================
 The MIT License (MIT)
 
-Copyright (c) 2015, Jon Schlinkert.
+Copyright (c) 2015-present, Jon Schlinkert.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -10414,7 +10521,7 @@ END OF static-extend NOTICES AND INFORMATION
 
 %% Stebalien/term NOTICES AND INFORMATION BEGIN HERE
 =========================================
-Copyright (c) 2014 The Rust Project Developers
+Copyright (c) 2019 The Rust Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -10967,6 +11074,66 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 =========================================
 END OF to-regex-range NOTICES AND INFORMATION
+
+%% tslib NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Apache License
+
+Version 2.0, January 2004
+
+http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+"License" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9 of this document.
+
+"Licensor" shall mean the copyright owner or entity authorized by the copyright owner that is granting the License.
+
+"Legal Entity" shall mean the union of the acting entity and all other entities that control, are controlled by, or are under common control with that entity. For the purposes of this definition, "control" means (i) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (ii) ownership of fifty percent (50%) or more of the outstanding shares, or (iii) beneficial ownership of such entity.
+
+"You" (or "Your") shall mean an individual or Legal Entity exercising permissions granted by this License.
+
+"Source" form shall mean the preferred form for making modifications, including but not limited to software source code, documentation source, and configuration files.
+
+"Object" form shall mean any form resulting from mechanical transformation or translation of a Source form, including but not limited to compiled object code, generated documentation, and conversions to other media types.
+
+"Work" shall mean the work of authorship, whether in Source or Object form, made available under the License, as indicated by a copyright notice that is included in or attached to the work (an example is provided in the Appendix below).
+
+"Derivative Works" shall mean any work, whether in Source or Object form, that is based on (or derived from) the Work and for which the editorial revisions, annotations, elaborations, or other modifications represent, as a whole, an original work of authorship. For the purposes of this License, Derivative Works shall not include works that remain separable from, or merely link (or bind by name) to the interfaces of, the Work and Derivative Works thereof.
+
+"Contribution" shall mean any work of authorship, including the original version of the Work and any modifications or additions to that Work or Derivative Works thereof, that is intentionally submitted to Licensor for inclusion in the Work by the copyright owner or by an individual or Legal Entity authorized to submit on behalf of the copyright owner. For the purposes of this definition, "submitted" means any form of electronic, verbal, or written communication sent to the Licensor or its representatives, including but not limited to communication on electronic mailing lists, source code control systems, and issue tracking systems that are managed by, or on behalf of, the Licensor for the purpose of discussing and improving the Work, but excluding communication that is conspicuously marked or otherwise designated in writing by the copyright owner as "Not a Contribution."
+
+"Contributor" shall mean Licensor and any individual or Legal Entity on behalf of whom a Contribution has been received by Licensor and subsequently incorporated within the Work.
+
+2. Grant of Copyright License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable (except as stated in this section) patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer the Work, where such license applies only to those patent claims licensable by such Contributor that are necessarily infringed by their Contribution(s) alone or by combination of their Contribution(s) with the Work to which such Contribution(s) was submitted. If You institute patent litigation against any entity (including a cross-claim or counterclaim in a lawsuit) alleging that the Work or a Contribution incorporated within the Work constitutes direct or contributory patent infringement, then any patent licenses granted to You under this License for that Work shall terminate as of the date such litigation is filed.
+
+4. Redistribution. You may reproduce and distribute copies of the Work or Derivative Works thereof in any medium, with or without modifications, and in Source or Object form, provided that You meet the following conditions:
+
+You must give any other recipients of the Work or Derivative Works a copy of this License; and
+
+You must cause any modified files to carry prominent notices stating that You changed the files; and
+
+You must retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark, and attribution notices from the Source form of the Work, excluding those notices that do not pertain to any part of the Derivative Works; and
+
+If the Work includes a "NOTICE" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License. You may add Your own copyright statement to Your modifications and may provide additional or different license terms and conditions for use, reproduction, or distribution of Your modifications, or for any such Derivative Works as a whole, provided Your use, reproduction, and distribution of the Work otherwise complies with the conditions stated in this License.
+
+5. Submission of Contributions. Unless You explicitly state otherwise, any Contribution intentionally submitted for inclusion in the Work by You to the Licensor shall be under the terms and conditions of this License, without any additional terms or conditions. Notwithstanding the above, nothing herein shall supersede or modify the terms of any separate license agreement you may have executed with Licensor regarding such Contributions.
+
+6. Trademarks. This License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor, except as required for reasonable and customary use in describing the origin of the Work and reproducing the content of the NOTICE file.
+
+7. Disclaimer of Warranty. Unless required by applicable law or agreed to in writing, Licensor provides the Work (and each Contributor provides its Contributions) on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied, including, without limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. You are solely responsible for determining the appropriateness of using or redistributing the Work and assume any risks associated with Your exercise of permissions under this License.
+
+8. Limitation of Liability. In no event and under no legal theory, whether in tort (including negligence), contract, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but not limited to damages for loss of goodwill, work stoppage, computer failure or malfunction, or any and all other commercial damages or losses), even if such Contributor has been advised of the possibility of such damages.
+
+9. Accepting Warranty or Additional Liability. While redistributing the Work or Derivative Works thereof, You may choose to offer, and charge a fee for, acceptance of support, warranty, indemnity, or other liability obligations and/or rights consistent with this License. However, in accepting such obligations, You may act only on Your own behalf and on Your sole responsibility, not on behalf of any other Contributor, and only if You agree to indemnify, defend, and hold each Contributor harmless for any liability incurred by, or claims asserted against, such Contributor by reason of your accepting any such warranty or additional liability.
+
+END OF TERMS AND CONDITIONS
+=========================================
+END OF tslib NOTICES AND INFORMATION
 
 %% tunnel-agent NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -11900,6 +12067,29 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 =========================================
 END OF vscode-logfile-highlighter NOTICES AND INFORMATION
+
+%% vscode-minimist NOTICES AND INFORMATION BEGIN HERE
+=========================================
+This software is released under the MIT license:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+=========================================
+END OF vscode-minimist NOTICES AND INFORMATION
 
 %% vscode-nls NOTICES AND INFORMATION BEGIN HERE
 =========================================
