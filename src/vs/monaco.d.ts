@@ -2495,6 +2495,11 @@ declare namespace monaco.editor {
 	export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'never';
 
 	/**
+	 * Configuration options for typing over closing quotes or brackets
+	 */
+	export type EditorAutoClosingOvertypeStrategy = 'always' | 'auto' | 'never';
+
+	/**
 	 * Configuration options for editor minimap
 	 */
 	export interface IEditorMinimapOptions {
@@ -2922,6 +2927,10 @@ declare namespace monaco.editor {
 		 * Defaults to language defined behavior.
 		 */
 		autoClosingQuotes?: EditorAutoClosingStrategy;
+		/**
+		 * Options for typing over closing quotes or brackets.
+		 */
+		autoClosingOvertype?: EditorAutoClosingOvertypeStrategy;
 		/**
 		 * Options for auto surrounding.
 		 * Defaults to always allowing auto surrounding.
@@ -3385,6 +3394,7 @@ declare namespace monaco.editor {
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: EditorAutoClosingStrategy;
 		readonly autoClosingQuotes: EditorAutoClosingStrategy;
+		readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 		readonly autoSurround: EditorAutoSurroundStrategy;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
@@ -3526,6 +3536,7 @@ declare namespace monaco.editor {
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly autoClosingQuotes: boolean;
+		readonly autoClosingOvertype: boolean;
 		readonly autoSurround: boolean;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;

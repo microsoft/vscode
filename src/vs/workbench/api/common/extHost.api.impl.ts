@@ -539,9 +539,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		};
 
 		// namespace: workspace
+		let warnedRootPathDeprecated = false;
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
-				console.warn(`[Deprecation Warning] 'workspace.rootPath' is deprecated and should no longer be used. Please use 'workspace.workspaceFolders' instead. (${extension.publisher}.${extension.name})`);
+				if (extension.isUnderDevelopment && !warnedRootPathDeprecated) {
+					warnedRootPathDeprecated = true;
+					console.warn(`[Deprecation Warning] 'workspace.rootPath' is deprecated and should no longer be used. Please use 'workspace.workspaceFolders' instead. More details: https://aka.ms/vscode-eliminating-rootpath`);
+				}
+
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {

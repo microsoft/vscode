@@ -309,7 +309,8 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IProgressService progressService: IProgressService,
 		@IDialogService dialogService: IDialogService,
-		@ICommandService commandService: ICommandService
+		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
@@ -318,6 +319,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 			let lastLocation: ProgressLocation | null = null;
 			let currentTimer: ReconnectionTimer | null = null;
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
+			let disposableListener: IDisposable | null = null;
 
 			function showProgress(location: ProgressLocation, buttons?: string[]) {
 				if (currentProgressPromiseResolve) {
@@ -331,7 +333,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 					// Show dialog
 					progressService!.withProgress(
 						{ location: ProgressLocation.Dialog, buttons },
-						(progress) => { progressReporter = new ProgressReporter(progress); return promise; },
+						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
 						(choice?) => {
 							// Handle choice from dialog
 							if (choice === 0 && buttons && reconnectWaitEvent) {
@@ -351,7 +353,6 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 							// Handle choice from notification
 							if (choice === 0 && buttons && reconnectWaitEvent) {
 								reconnectWaitEvent.skipWait();
-								progressReporter!.report();
 							} else {
 								hideProgress();
 							}
@@ -365,7 +366,6 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				}
 
 				currentProgressPromiseResolve = null;
-				progressReporter = null;
 			}
 
 			connection.onDidStateChange((e) => {
@@ -373,9 +373,15 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 					currentTimer.dispose();
 					currentTimer = null;
 				}
+
+				if (disposableListener) {
+					disposableListener.dispose();
+					disposableListener = null;
+				}
 				switch (e.type) {
 					case PersistentConnectionEventType.ConnectionLost:
 						if (!currentProgressPromiseResolve) {
+							progressReporter = new ProgressReporter(null);
 							showProgress(ProgressLocation.Dialog, [nls.localize('reconnectNow', "Reconnect Now")]);
 						}
 
@@ -391,9 +397,24 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						hideProgress();
 						showProgress(lastLocation || ProgressLocation.Notification);
 						progressReporter!.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
+
+						// Register to listen for quick input is opened
+						disposableListener = contextKeyService.onDidChangeContext((contextKeyChangeEvent) => {
+							const reconnectInteraction = new Set<string>(['inQuickOpen']);
+							if (contextKeyChangeEvent.affectsSome(reconnectInteraction)) {
+								// Need to move from dialog if being shown and user needs to type in a prompt
+								if (lastLocation === ProgressLocation.Dialog && progressReporter !== null) {
+									hideProgress();
+									showProgress(ProgressLocation.Notification);
+									progressReporter.report();
+								}
+							}
+						});
+
 						break;
 					case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						hideProgress();
+						progressReporter = null;
 
 						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(choice => {
 							// Reload the window
@@ -404,6 +425,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						break;
 					case PersistentConnectionEventType.ConnectionGain:
 						hideProgress();
+						progressReporter = null;
 						break;
 				}
 			});
