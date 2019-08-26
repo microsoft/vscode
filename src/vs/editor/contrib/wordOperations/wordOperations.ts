@@ -177,7 +177,7 @@ export class CursorWordAccessibilityLeft extends WordLeftCommand {
 	constructor() {
 		super({
 			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordAcessibility,
+			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityLeft',
 			precondition: undefined,
 			kbOpts: {
@@ -198,7 +198,7 @@ export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
 	constructor() {
 		super({
 			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordAcessibility,
+			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilitLeftSelecty',
 			precondition: undefined,
 			kbOpts: {
@@ -297,7 +297,7 @@ export class CursorWordAccessibilityRight extends WordRightCommand {
 	constructor() {
 		super({
 			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordAcessibility,
+			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityRight',
 			precondition: undefined,
 			kbOpts: {
@@ -318,7 +318,7 @@ export class CursorWordAccessibilityRightSelect extends WordRightCommand {
 	constructor() {
 		super({
 			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordAcessibility,
+			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityRightSelect',
 			precondition: undefined,
 			kbOpts: {

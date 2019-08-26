@@ -337,7 +337,7 @@ suite('WordOperations', () => {
 	});
 
 	test('cursorWordAccessibilityLeft', () => {
-		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/|  '].join('\n');
+		const EXPECTED = ['|   /* |Just |some   |more   |text |a+= |3 +|5-|3 + |7 */  '].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -351,16 +351,14 @@ suite('WordOperations', () => {
 	});
 
 	test('cursorWordAccessibilityRight', () => {
-		const EXPECTED = [
-			'console|.log|(err|)|',
-		].join('\n');
+		const EXPECTED = ['   /* Just| some|   more|   text| a|+= 3| +5|-3| + 7| */  |'].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1, 1),
 			ed => cursorWordAccessibilityRight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 17))
+			ed => ed.getPosition()!.equals(new Position(1, 50))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);

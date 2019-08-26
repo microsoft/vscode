@@ -40,7 +40,7 @@ export const enum WordNavigationType {
 	WordStart = 0,
 	WordStartFast = 1,
 	WordEnd = 2,
-	WordAcessibility = 3 // Respect chrome defintion of a word
+	WordAccessibility = 3 // Respect chrome defintion of a word
 }
 
 export class WordOperations {
@@ -203,13 +203,12 @@ export class WordOperations {
 			return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.start + 1 : 1);
 		}
 
-		if (wordNavigationType === WordNavigationType.WordAcessibility) {
+		if (wordNavigationType === WordNavigationType.WordAccessibility) {
 			while (
 				prevWordOnLine
 				&& prevWordOnLine.wordType === WordType.Separator
-				&& prevWordOnLine.end - prevWordOnLine.start === 1
 			) {
-				// Skip over a word made up of one single separator
+				// Skip over words made up of only separators
 				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
 			}
 
@@ -289,19 +288,18 @@ export class WordOperations {
 			} else {
 				column = model.getLineMaxColumn(lineNumber);
 			}
-		} else if (wordNavigationType === WordNavigationType.WordAcessibility) {
+		} else if (wordNavigationType === WordNavigationType.WordAccessibility) {
 
 			while (
 				nextWordOnLine
 				&& nextWordOnLine.wordType === WordType.Separator
-				&& nextWordOnLine.end - nextWordOnLine.start === 1
 			) {
 				// Skip over a word made up of one single separator
-				nextWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
+				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 			}
 
 			if (nextWordOnLine) {
-				column = nextWordOnLine.start + 1;
+				column = nextWordOnLine.end + 1;
 			} else {
 				column = model.getLineMaxColumn(lineNumber);
 			}
