@@ -11,6 +11,13 @@
 			"es5",
 			"es2015.iterable",
 			"webworker"
+		],
+		"types": [
+			"keytar",
+			"mocha",
+			"semver",
+			"sinon",
+			"winreg"
 		]
 	},
 	"include": [

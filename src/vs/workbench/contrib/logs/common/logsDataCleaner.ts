@@ -22,7 +22,7 @@ export class LogsDataCleaner extends Disposable {
 	}
 
 	private cleanUpOldLogsSoon(): void {
-		let handle: NodeJS.Timeout | undefined = setTimeout(async () => {
+		let handle: any = setTimeout(async () => {
 			handle = undefined;
 			const logsPath = URI.file(this.environmentService.logsPath).with({ scheme: this.environmentService.logFile.scheme });
 			const stat = await this.fileService.resolve(dirname(logsPath));

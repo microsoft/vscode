@@ -617,10 +617,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
 			if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
 				const model = editor.getModel();
-				this.configurationService.getValue('editor.lineNumbers', { resource: model.uri });
-			} else {
-				editor.updateOptions({ lineNumbers });
+				lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri });
 			}
+			if (!lineNumbers) {
+				lineNumbers = this.configurationService.getValue('editor.lineNumbers');
+			}
+
+			editor.updateOptions({ lineNumbers });
 		});
 
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode
@@ -1236,7 +1239,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const editorNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.EDITOR_PART },
-			size: this.state.panel.position === Position.BOTTOM ? middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) : editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize)
+			size: this.state.panel.position === Position.BOTTOM ? middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) : editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize),
+			visible: true
 		};
 
 		const panelNode: ISerializedLeafNode = {
@@ -1292,4 +1296,3 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.disposed = true;
 	}
 }
-

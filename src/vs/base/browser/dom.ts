@@ -1202,5 +1202,8 @@ export function asDomUri(uri: URI): URI {
  * returns url('...')
  */
 export function asCSSUrl(uri: URI): string {
+	if (!uri) {
+		return `url('')`;
+	}
 	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }

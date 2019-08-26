@@ -55,7 +55,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				if (activeEditor instanceof DiffEditorInput) {
 					activeEditor = activeEditor.modifiedInput;
 				}
-				const fileResource = toResource(activeEditor, { filterByScheme: Schemas.file });
+				const fileResource = toResource(activeEditor, { filterByScheme: [Schemas.file, Schemas.userData] });
 				if (!fileResource) {
 					return undefined;
 				}

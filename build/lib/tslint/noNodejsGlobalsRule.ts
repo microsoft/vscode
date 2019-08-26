@@ -37,6 +37,7 @@ class NoNodejsGlobalsRuleWalker extends AbstractGlobalsRuleWalker {
 	getDisallowedGlobals(): string[] {
 		// https://nodejs.org/api/globals.html#globals_global_objects
 		return [
+			"NodeJS",
 			"Buffer",
 			"__dirname",
 			"__filename",

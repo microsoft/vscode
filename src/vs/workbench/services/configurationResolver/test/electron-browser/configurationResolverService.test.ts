@@ -20,7 +20,6 @@ import * as Types from 'vs/base/common/types';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -632,11 +631,7 @@ class MockInputsConfigurationService extends TestConfigurationService {
 
 class MockWorkbenchEnvironmentService extends WorkbenchEnvironmentService {
 
-	constructor(private env: platform.IProcessEnvironment) {
-		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
-	}
-
-	get configuration(): IWindowConfiguration {
-		return { userEnv: this.env } as IWindowConfiguration;
+	constructor(env: platform.IProcessEnvironment) {
+		super({ userEnv: env } as IWindowConfiguration, process.execPath);
 	}
 }

@@ -1,9 +1,5 @@
-trigger:
-  branches:
-    include: ['master']
-pr:
-  branches:
-    include: ['master']
+pool:
+  vmImage: 'Ubuntu-16.04'
 
 steps:
 - task: NodeTool@0
@@ -28,10 +24,20 @@ steps:
     git config user.email "vscode@microsoft.com"
     git config user.name "VSCode"
 
-    git checkout origin/ben/electron-test
+    git checkout origin/electron-6.0.x
     git merge origin/master
 
     # Push master branch into exploration branch
-    git push origin HEAD:ben/electron-test
+    git push origin HEAD:electron-6.0.x
 
   displayName: Sync & Merge Exploration
+
+trigger: none
+pr: none
+
+schedules:
+- cron: "0 5 * * Mon-Fri"
+  displayName: Mon-Fri at 7:00
+  branches:
+    include:
+    - master
