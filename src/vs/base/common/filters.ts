@@ -532,6 +532,12 @@ export interface FuzzyScorer {
 
 export function fuzzyScore(pattern: string, patternLow: string, patternPos: number, word: string, wordLow: string, wordPos: number, firstMatchCanBeWeak: boolean): FuzzyScore | undefined {
 
+	if (patternPos > 0) {
+		pattern = pattern.substr(patternPos);
+		patternLow = patternLow.substr(patternPos);
+		patternPos = 0;
+	}
+
 	const patternLen = pattern.length > _maxLen ? _maxLen : pattern.length;
 	const wordLen = word.length > _maxLen ? _maxLen : word.length;
 
