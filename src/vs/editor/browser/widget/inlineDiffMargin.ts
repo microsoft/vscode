@@ -80,17 +80,21 @@ export class InlineDiffMargin extends Disposable {
 
 		let currentLineNumberOffset = 0;
 
-		const copyLineAction = new Action(
-			'diff.clipboard.copyDeletedLineContent',
-			nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line {0} content to clipboard", diff.originalStartLineNumber),
-			undefined,
-			true,
-			async () => {
-				await this._clipboardService.writeText(diff.originalContent[currentLineNumberOffset]);
-			}
-		);
+		let copyLineAction: Action | undefined = undefined;
 
-		actions.push(copyLineAction);
+		if (diff.originalEndLineNumber > diff.modifiedStartLineNumber) {
+			copyLineAction = new Action(
+				'diff.clipboard.copyDeletedLineContent',
+				nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line {0} content to clipboard", diff.originalStartLineNumber),
+				undefined,
+				true,
+				async () => {
+					await this._clipboardService.writeText(diff.originalContent[currentLineNumberOffset]);
+				}
+			);
+
+			actions.push(copyLineAction);
+		}
 
 		const readOnly = editor.getConfiguration().readOnly;
 		if (!readOnly) {
@@ -128,7 +132,9 @@ export class InlineDiffMargin extends Disposable {
 					};
 				},
 				getActions: () => {
-					copyLineAction.label = nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line {0} content to clipboard", diff.originalStartLineNumber + currentLineNumberOffset);
+					if (copyLineAction) {
+						copyLineAction.label = nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line {0} content to clipboard", diff.originalStartLineNumber + currentLineNumberOffset);
+					}
 					return actions;
 				},
 				autoSelectFirstItem: true
