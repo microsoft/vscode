@@ -713,14 +713,17 @@ export class EditorOptions implements IEditorOptions {
 	}
 
 	/**
-	 * Tells the editor to not receive keyboard focus when the editor is being opened. By default,
-	 * the editor will receive keyboard focus on open.
+	 * Tells the editor to not receive keyboard focus when the editor is being opened. This
+	 * will also prevent the group the editor opens in to become active. This can be overridden
+	 * via the `forceActive` option.
+	 *
+	 * By default, the editor will receive keyboard focus on open.
 	 */
 	preserveFocus: boolean | undefined;
 
 	/**
-	 * Tells the group the editor opens in to become active. By default, an editor group will not
-	 * become active if either `preserveFocus: true` or `inactive: true`.
+	 * Tells the group the editor opens in to become active even if either `preserveFocus: true`
+	 * or `inactive: true` are specified.
 	 */
 	forceActive: boolean | undefined;
 
@@ -754,7 +757,8 @@ export class EditorOptions implements IEditorOptions {
 
 	/**
 	 * An active editor that is opened will show its contents directly. Set to true to open an editor
-	 * in the background.
+	 * in the background. This will also prevent the group the editor opens in to become active. This
+	 * can be overridden via the `forceActive` option.
 	 */
 	inactive: boolean | undefined;
 
