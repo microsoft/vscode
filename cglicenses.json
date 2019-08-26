@@ -10,7 +10,7 @@
 		// Reason: The license at https://github.com/aadsm/jschardet/blob/master/LICENSE
 		// does not include a clear Copyright statement and does not credit authors.
 		"name": "jschardet",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"Chardet was originally ported from C++ by Mark Pilgrim. It is now maintained",
 			" by Dan Blanchard and Ian Cordasco, and was formerly maintained by Erik Rose.",
 			" JSChardet was ported from python to JavaScript by António Afonso ",
@@ -530,7 +530,7 @@
 		// The module `parse5` is shipped via the `extension-editing` built-in extension.
 		// The module `parse5` does not want to remove it https://github.com/inikulin/parse5/issues/225
 		"name": "@types/node",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"This project is licensed under the MIT license.",
 			"Copyrights are respective of each contributor listed at the beginning of each definition file.",
 			"",
@@ -546,7 +546,7 @@
 		// https://github.com/Microsoft/TypeScript/blob/master/LICENSE.txt
 		// because it does not contain a Copyright statement
 		"name": "typescript",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"Copyright (c) Microsoft Corporation. All rights reserved.",
 			"",
 			"Apache License",
@@ -609,7 +609,7 @@
 	{
 		// This module comes in from https://github.com/Microsoft/vscode-node-debug2/blob/master/package-lock.json
 		"name": "@types/source-map",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"This project is licensed under the MIT license.",
 			"Copyrights are respective of each contributor listed at the beginning of each definition file.",
 			"",
@@ -622,7 +622,7 @@
 	},
 	{
 		"name": "tunnel-agent",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"Copyright (c) tunnel-agent authors",
 			"",
 			"Apache License",
@@ -685,7 +685,7 @@
 	{
 		// Waiting for https://github.com/segmentio/noop-logger/issues/2
 		"name": "noop-logger",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"This project is licensed under the MIT license.",
 			"Copyrights are respective of each contributor listed at the beginning of each definition file.",
 			"",
@@ -698,7 +698,7 @@
 	},
 	{
 		"name": "xterm-addon-search",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"Copyright (c) 2017, The xterm.js authors (https://github.com/xtermjs/xterm.js)",
 			"",
 			"Permission is hereby granted, free of charge, to any person obtaining a copy",
@@ -722,7 +722,7 @@
 	},
 	{
 		"name": "xterm-addon-web-links",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"Copyright (c) 2017, The xterm.js authors (https://github.com/xtermjs/xterm.js)",
 			"",
 			"Permission is hereby granted, free of charge, to any person obtaining a copy",
@@ -746,7 +746,7 @@
 	},
 	{
 		"name": "atob",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"The MIT License (MIT)",
 			"",
 			"Copyright (c) 2015 AJ ONeal",
