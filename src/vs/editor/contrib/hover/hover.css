@@ -32,6 +32,10 @@
 	word-wrap: break-word;
 }
 
+.monaco-editor-hover p > code {
+	font-family: var(--monaco-inline-monospace-font);
+}
+
 .monaco-editor-hover p,
 .monaco-editor-hover ul {
 	margin: 8px 0;
