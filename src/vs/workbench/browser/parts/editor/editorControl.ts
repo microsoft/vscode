@@ -112,7 +112,7 @@ export class EditorControl extends Disposable {
 		if (!control.getContainer()) {
 			const controlInstanceContainer = document.createElement('div');
 			addClass(controlInstanceContainer, 'editor-instance');
-			controlInstanceContainer.id = descriptor.getId();
+			controlInstanceContainer.setAttribute('data-editor-id', descriptor.getId());
 
 			control.create(controlInstanceContainer);
 		}
