@@ -69,7 +69,7 @@ class UserDataSyncStatusContribution extends Disposable implements IWorkbenchCon
 		this.userDataSyncStatusAccessor = this.statusbarService.addEntry({
 			text: '',
 			command: ShowUserDataSyncActions.ID
-		}, 'userDataSyncStatusEntry', '', StatusbarAlignment.LEFT);
+		}, 'userDataSyncStatusEntry', localize('user data sync', "Sync User Data"), StatusbarAlignment.LEFT, 10);
 		this.updateUserDataSyncStatusAccessor();
 		this._register(Event.any<any>(
 			this.userIdentityService.onDidRegisterUserIdentities, this.userIdentityService.onDidDeregisterUserIdentities,
