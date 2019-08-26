@@ -94,10 +94,10 @@
 	display: inline-block;
 }
 
-.monaco-editor .margin-view-zones .octicon-zap {
-	opacity: 0.7;
+.monaco-editor .margin-view-zones .octicon-light-bulb {
+	opacity: 0.6;
 }
 
-.monaco-editor .margin-view-zones .octicon-zap:hover {
+.monaco-editor .margin-view-zones .octicon-light-bulb:hover {
 	cursor: pointer;
 }

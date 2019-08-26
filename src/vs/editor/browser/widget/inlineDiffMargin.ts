@@ -56,7 +56,7 @@ export class InlineDiffMargin extends Disposable {
 		this._marginDomNode.style.zIndex = '10';
 
 		this._diffActions = document.createElement('div');
-		this._diffActions.className = 'octicon octicon-zap';
+		this._diffActions.className = 'octicon octicon-light-bulb';
 		this._diffActions.style.position = 'absolute';
 		const lineHeight = editor.getConfiguration().lineHeight;
 		const lineFeed = editor.getModel()!.getEOL();
