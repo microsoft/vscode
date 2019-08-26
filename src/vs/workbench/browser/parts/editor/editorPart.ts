@@ -325,6 +325,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return groupView;
 	}
 
+	restoreGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+		const groupView = this.assertGroupView(group);
+		this.doRestoreGroup(groupView);
+
+		return groupView;
+	}
+
 	getSize(group: IEditorGroupView | GroupIdentifier): { width: number, height: number } {
 		const groupView = this.assertGroupView(group);
 
@@ -337,7 +344,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.gridWidget.resizeView(groupView, size);
 	}
 
-	arrangeGroups(arrangement: GroupsArrangement): void {
+	arrangeGroups(arrangement: GroupsArrangement, target = this.activeGroup): void {
 		if (this.count < 2) {
 			return; // require at least 2 groups to show
 		}
@@ -351,10 +358,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				this.gridWidget.distributeViewSizes();
 				break;
 			case GroupsArrangement.MINIMIZE_OTHERS:
-				this.gridWidget.maximizeViewSize(this.activeGroup);
+				this.gridWidget.maximizeViewSize(target);
 				break;
 			case GroupsArrangement.TOGGLE:
-				if (this.isGroupMaximized(this.activeGroup)) {
+				if (this.isGroupMaximized(target)) {
 					this.arrangeGroups(GroupsArrangement.EVEN);
 				} else {
 					this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
@@ -576,15 +583,19 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		group.setActive(true);
 
 		// Maximize the group if it is currently minimized
-		if (this.gridWidget) {
-			const viewSize = this.gridWidget.getViewSize(group);
-			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
-				this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
-			}
-		}
+		this.doRestoreGroup(group);
 
 		// Event
 		this._onDidActiveGroupChange.fire(group);
+	}
+
+	private doRestoreGroup(group: IEditorGroupView): void {
+		if (this.gridWidget) {
+			const viewSize = this.gridWidget.getViewSize(group);
+			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
+				this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS, group);
+			}
+		}
 	}
 
 	private doUpdateMostRecentActive(group: IEditorGroupView, makeMostRecentlyActive?: boolean): void {

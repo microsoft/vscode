@@ -65,7 +65,7 @@ export class InlineDiffMargin extends Disposable {
 			undefined,
 			true,
 			async () => {
-				await this._clipboardService.writeText(diff.originalContent[currentLineNumberOffset] + lineFeed);
+				await this._clipboardService.writeText(diff.originalContent[currentLineNumberOffset]);
 			}
 		);
 

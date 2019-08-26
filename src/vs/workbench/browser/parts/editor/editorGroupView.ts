@@ -481,7 +481,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private onDidEditorOpen(editor: EditorInput): void {
 
-		// Telemetry
 		/* __GDPR__
 			"editorOpened" : {
 				"${include}": [
@@ -520,14 +519,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		});
 
-		// Telemetry
 		/* __GDPR__
-				"editorClosed" : {
-					"${include}": [
-						"${EditorTelemetryDescriptor}"
-					]
-				}
-			*/
+			"editorClosed" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(event.editor));
 
 		// Update container
@@ -833,12 +831,28 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			openEditorOptions.active = true;
 		}
 
-		// Set group active unless we open inactive or preserve focus
+		let activateGroup = false;
+		let restoreGroup = false;
+
+		if (options && options.forceActive) {
+			// Always respect option to force activate an editor group.
+			activateGroup = true;
+		} else if (openEditorOptions.active) {
+			// Otherwise, we only activate/restore an editor which is
+			// opening as active editor.
+			// If preserveFocus is enabled, we only restore but never
+			// activate the group.
+			activateGroup = !options || !options.preserveFocus;
+			restoreGroup = !activateGroup;
+		}
+
 		// Do this before we open the editor in the group to prevent a false
 		// active editor change event before the editor is loaded
 		// (see https://github.com/Microsoft/vscode/issues/51679)
-		if (openEditorOptions.active && (!options || !options.preserveFocus)) {
+		if (activateGroup) {
 			this.accessor.activateGroup(this);
+		} else if (restoreGroup) {
+			this.accessor.restoreGroup(this);
 		}
 
 		// Actually move the editor if a specific index is provided and we figure

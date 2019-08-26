@@ -420,7 +420,7 @@ export class BufferedEmitter<T> {
 				// it is important to deliver these messages after this call, but before
 				// other messages have a chance to be received (to guarantee in order delivery)
 				// that's why we're using here nextTick and not other types of timeouts
-				process.nextTick(() => this._deliverMessages);
+				process.nextTick(() => this._deliverMessages());
 			},
 			onLastListenerRemove: () => {
 				this._hasListeners = false;
@@ -443,7 +443,11 @@ export class BufferedEmitter<T> {
 
 	public fire(event: T): void {
 		if (this._hasListeners) {
-			this._emitter.fire(event);
+			if (this._bufferedMessages.length > 0) {
+				this._bufferedMessages.push(event);
+			} else {
+				this._emitter.fire(event);
+			}
 		} else {
 			this._bufferedMessages.push(event);
 		}
