@@ -7,7 +7,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -33,8 +33,48 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IdleValue } from 'vs/base/common/async';
 import { isObject } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
+import { IPosition } from 'vs/editor/common/core/position';
+import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 
 const _sticky = false; // for development purposes only
+
+class LineSuffix {
+
+	private readonly _marker: string[] | undefined;
+
+	constructor(private readonly _model: ITextModel, private readonly _position: IPosition) {
+		// spy on what's happening right of the cursor. two cases:
+		// 1. end of line -> check that it's still end of line
+		// 2. mid of line -> add a marker and compute the delta
+		const maxColumn = _model.getLineMaxColumn(_position.lineNumber);
+		if (maxColumn !== _position.column) {
+			const offset = _model.getOffsetAt(_position);
+			const end = _model.getPositionAt(offset + 1);
+			this._marker = _model.deltaDecorations([], [{
+				range: Range.fromPositions(_position, end),
+				options: { stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+			}]);
+		}
+	}
+
+	dispose(): void {
+		if (this._marker) {
+			this._model.deltaDecorations(this._marker, []);
+		}
+	}
+
+	delta(position: IPosition): number {
+		if (this._position.lineNumber !== position.lineNumber) {
+			return 0;
+		} else if (this._marker) {
+			const range = this._model.getDecorationRange(this._marker[0]);
+			const end = this._model.getOffsetAt(range!.getStartPosition());
+			return end - this._model.getOffsetAt(position);
+		} else {
+			return this._model.getLineMaxColumn(position.lineNumber) - position.column;
+		}
+	}
+}
 
 export class SuggestController implements IEditorContribution {
 
@@ -47,8 +87,8 @@ export class SuggestController implements IEditorContribution {
 	private readonly _model: SuggestModel;
 	private readonly _widget: IdleValue<SuggestWidget>;
 	private readonly _alternatives: IdleValue<SuggestAlternatives>;
+	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
 	private readonly _toDispose = new DisposableStore();
-
 
 	constructor(
 		private _editor: ICodeEditor,
@@ -115,6 +155,7 @@ export class SuggestController implements IEditorContribution {
 
 		this._toDispose.add(this._model.onDidTrigger(e => {
 			this._widget.getValue().showTriggered(e.auto, e.shy ? 250 : 50);
+			this._lineSuffix.value = new LineSuffix(this._editor.getModel()!, e.position);
 		}));
 		this._toDispose.add(this._model.onDidSuggest(e => {
 			if (!e.shy) {
@@ -123,7 +164,7 @@ export class SuggestController implements IEditorContribution {
 			}
 		}));
 		this._toDispose.add(this._model.onDidCancel(e => {
-			if (this._widget && !e.retrigger) {
+			if (!e.retrigger) {
 				this._widget.getValue().hideWidget();
 			}
 		}));
@@ -154,6 +195,7 @@ export class SuggestController implements IEditorContribution {
 		this._toDispose.dispose();
 		this._widget.dispose();
 		this._model.dispose();
+		this._lineSuffix.dispose();
 	}
 
 	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
@@ -192,7 +234,7 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		const overwriteBefore = position.column - suggestion.range.startColumn;
-		const overwriteAfter = suggestion.range.endColumn - position.column;
+		const overwriteAfter = (suggestion.range.endColumn - position.column) + this._lineSuffix.value!.delta(this._editor.getPosition());
 
 		SnippetController2.get(this._editor).insert(insertText, {
 			overwriteBefore: overwriteBefore + columnDelta,

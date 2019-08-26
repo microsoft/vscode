@@ -10,7 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, DisposableStore, isDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind, CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
@@ -28,6 +28,7 @@ export interface ICancelEvent {
 export interface ITriggerEvent {
 	readonly auto: boolean;
 	readonly shy: boolean;
+	readonly position: IPosition;
 }
 
 export interface ISuggestEvent {
@@ -365,7 +366,7 @@ export class SuggestModel implements IDisposable {
 		// Cancel previous requests, change state & update UI
 		this.cancel(retrigger);
 		this._state = auto ? State.Auto : State.Manual;
-		this._onDidTrigger.fire({ auto, shy: context.shy });
+		this._onDidTrigger.fire({ auto, shy: context.shy, position: this._editor.getPosition() });
 
 		// Capture context when request was sent
 		this._context = ctx;
