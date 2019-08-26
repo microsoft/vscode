@@ -234,11 +234,12 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		const overwriteBefore = position.column - suggestion.range.startColumn;
-		const overwriteAfter = (suggestion.range.endColumn - position.column) + this._lineSuffix.value!.delta(this._editor.getPosition());
+		const overwriteAfter = suggestion.range.endColumn - position.column;
+		const suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(this._editor.getPosition()) : 0;
 
 		SnippetController2.get(this._editor).insert(insertText, {
 			overwriteBefore: overwriteBefore + columnDelta,
-			overwriteAfter,
+			overwriteAfter: overwriteAfter + suffixDelta,
 			undoStopBefore: false,
 			undoStopAfter: false,
 			adjustWhitespace: !(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
