@@ -772,36 +772,36 @@ export class EditorOptions implements IEditorOptions {
 	 * Overwrites option values from the provided bag.
 	 */
 	overwrite(options: IEditorOptions): EditorOptions {
-		if (options.forceReload) {
-			this.forceReload = true;
+		if (typeof options.forceReload === 'boolean') {
+			this.forceReload = options.forceReload;
 		}
 
-		if (options.revealIfVisible) {
-			this.revealIfVisible = true;
+		if (typeof options.revealIfVisible === 'boolean') {
+			this.revealIfVisible = options.revealIfVisible;
 		}
 
-		if (options.revealIfOpened) {
-			this.revealIfOpened = true;
+		if (typeof options.revealIfOpened === 'boolean') {
+			this.revealIfOpened = options.revealIfOpened;
 		}
 
-		if (options.preserveFocus) {
-			this.preserveFocus = true;
+		if (typeof options.preserveFocus === 'boolean') {
+			this.preserveFocus = options.preserveFocus;
 		}
 
-		if (options.forceActive) {
-			this.forceActive = true;
+		if (typeof options.forceActive === 'boolean') {
+			this.forceActive = options.forceActive;
 		}
 
-		if (options.pinned) {
-			this.pinned = true;
+		if (typeof options.pinned === 'boolean') {
+			this.pinned = options.pinned;
 		}
 
-		if (options.inactive) {
-			this.inactive = true;
+		if (typeof options.inactive === 'boolean') {
+			this.inactive = options.inactive;
 		}
 
-		if (options.ignoreError) {
-			this.ignoreError = true;
+		if (typeof options.ignoreError === 'boolean') {
+			this.ignoreError = options.ignoreError;
 		}
 
 		if (typeof options.index === 'number') {
@@ -857,8 +857,8 @@ export class TextEditorOptions extends EditorOptions {
 			this.editorViewState = options.viewState as IEditorViewState;
 		}
 
-		if (options.revealInCenterIfOutsideViewport) {
-			this.revealInCenterIfOutsideViewport = true;
+		if (typeof options.revealInCenterIfOutsideViewport === 'boolean') {
+			this.revealInCenterIfOutsideViewport = options.revealInCenterIfOutsideViewport;
 		}
 
 		return this;
