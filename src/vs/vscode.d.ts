@@ -5927,7 +5927,7 @@ declare module 'vscode' {
 		/**
 		 * Convert a uri for the local file system to one that can be used inside webviews.
 		 *
-		 * Webviews cannot directly load resoruces from the workspace or local file system using `file:` uris. The
+		 * Webviews cannot directly load resources from the workspace or local file system using `file:` uris. The
 		 * `asWebviewUri` function takes a local `file:` uri and converts it into a uri that can be used inside of
 		 * a webview to load the same resource:
 		 *

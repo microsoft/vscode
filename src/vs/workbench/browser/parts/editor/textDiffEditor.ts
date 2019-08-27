@@ -31,6 +31,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -176,7 +177,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 			// because we are triggering another openEditor() call
 			// and do not control the initial intent that resulted
 			// in us now opening as binary.
-			options.overwrite({ preserveActive: true, forceActive: false });
+			options.overwrite({ activation: EditorActivation.PRESERVE });
 
 			this.editorService.openEditor(binaryDiffInput, options, this.group);
 

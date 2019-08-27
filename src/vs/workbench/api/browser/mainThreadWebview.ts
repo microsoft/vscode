@@ -5,6 +5,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { startsWith } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
@@ -270,6 +271,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			}
 			webview.webview.state = newState;
 		});
+		input.webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value));
 	}
 
 	private updateWebviewViewStates() {
@@ -314,7 +316,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		if (MainThreadWebviews.standardSupportedLinkSchemes.has(link.scheme)) {
 			return true;
 		}
-		if (this._productService.urlProtocol === link.scheme) {
+		if (!isWeb && this._productService.urlProtocol === link.scheme) {
 			return true;
 		}
 		return !!webview.webview.contentOptions.enableCommandUris && link.scheme === 'command';

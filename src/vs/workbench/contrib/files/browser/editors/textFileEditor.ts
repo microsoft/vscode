@@ -32,6 +32,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 /**
  * An implementation of editor for file system resources.
@@ -230,7 +231,7 @@ export class TextFileEditor extends BaseTextEditor {
 		// because we are triggering another openEditor() call
 		// and do not control the initial intent that resulted
 		// in us now opening as binary.
-		options.overwrite({ preserveActive: true, forceActive: false });
+		options.overwrite({ activation: EditorActivation.PRESERVE });
 
 		this.editorService.openEditor(input, options, this.group);
 	}

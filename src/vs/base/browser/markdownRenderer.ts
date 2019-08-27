@@ -172,7 +172,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		renderer
 	};
 
-	const allowedSchemes = ['http', 'https', 'mailto'];
+	const allowedSchemes = ['http', 'https', 'mailto', 'data'];
 	if (markdown.isTrusted) {
 		allowedSchemes.push('command');
 	}

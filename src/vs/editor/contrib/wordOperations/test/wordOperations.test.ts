@@ -9,7 +9,7 @@ import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
-import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from 'vs/editor/contrib/wordOperations/wordOperations';
+import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight, CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect } from 'vs/editor/contrib/wordOperations/wordOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('WordOperations', () => {
@@ -26,6 +26,10 @@ suite('WordOperations', () => {
 	const _cursorWordStartRightSelect = new CursorWordStartRightSelect();
 	const _cursorWordEndRightSelect = new CursorWordEndRightSelect();
 	const _cursorWordRightSelect = new CursorWordRightSelect();
+	const _cursorWordAccessibilityLeft = new CursorWordAccessibilityLeft();
+	const _cursorWordAccessibilityLeftSelect = new CursorWordAccessibilityLeftSelect();
+	const _cursorWordAccessibilityRight = new CursorWordAccessibilityRight();
+	const _cursorWordAccessibilityRightSelect = new CursorWordAccessibilityRightSelect();
 	const _deleteWordLeft = new DeleteWordLeft();
 	const _deleteWordStartLeft = new DeleteWordStartLeft();
 	const _deleteWordEndLeft = new DeleteWordEndLeft();
@@ -38,6 +42,12 @@ suite('WordOperations', () => {
 	}
 	function cursorWordLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordLeftSelect : _cursorWordLeft);
+	}
+	function cursorWordAccessibilityLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
+		runEditorCommand(editor, inSelectionMode ? _cursorWordAccessibilityLeft : _cursorWordAccessibilityLeftSelect);
+	}
+	function cursorWordAccessibilityRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
+		runEditorCommand(editor, inSelectionMode ? _cursorWordAccessibilityRightSelect : _cursorWordAccessibilityRight);
 	}
 	function cursorWordStartLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordStartLeftSelect : _cursorWordStartLeft);
@@ -321,6 +331,34 @@ suite('WordOperations', () => {
 			ed => moveWordStartRight(ed),
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(2, 12))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordAccessibilityLeft', () => {
+		const EXPECTED = ['|   /* |Just |some   |more   |text |a+= |3 +|5-|3 + |7 */  '].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1000, 1000),
+			ed => cursorWordAccessibilityLeft(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordAccessibilityRight', () => {
+		const EXPECTED = ['   /* Just| some|   more|   text| a|+= 3| +5|-3| + 7| */  |'].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => cursorWordAccessibilityRight(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 50))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);

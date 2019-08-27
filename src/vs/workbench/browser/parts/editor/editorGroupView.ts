@@ -49,6 +49,7 @@ import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -834,14 +835,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let activateGroup = false;
 		let restoreGroup = false;
 
-		if (options && options.forceActive) {
-			// First, respect option to force activate an editor group.
+		if (options && options.activation === EditorActivation.ACTIVATE) {
+			// Respect option to force activate an editor group.
 			activateGroup = true;
-		} else if (options && options.preserveActive) {
-			// Second, respect option to preserve active editor group.
+		} else if (options && options.activation === EditorActivation.PRESERVE) {
+			// Respect option to preserve active editor group.
 			activateGroup = false;
 		} else if (openEditorOptions.active) {
-			// Third, we only activate/restore an editor which is
+			// Finally, we only activate/restore an editor which is
 			// opening as active editor.
 			// If preserveFocus is enabled, we only restore but never
 			// activate the group.

@@ -9,7 +9,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -715,33 +715,19 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Tells the editor to not receive keyboard focus when the editor is being opened.
 	 *
-	 * Will also not activate the group the editor opens in unless the group is already the active one.
-	 * This behaviour can be overridden via the `forceActive` option.
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	preserveFocus: boolean | undefined;
 
 	/**
-	 * This option is only relevant if an editor is opened into a group that is not active. In
-	 * most cases opening an editor into an inactive group will cause it to become active. With
-	 * `preserveActive: true` in combination with `preserveFocus: true` an editor can be opened
-	 * while keeping the current group active.
+	 * This option is only relevant if an editor is opened into a group that is not active
+	 * already and allows to control if the inactive group should become active or not.
 	 *
-	 * Other options like `preserveFocus`, `inactive` and `forceActive` can have an impact on
-	 * whether a group gets activated or not.
-	 *
-	 * Note: `forceActive: true` will always win over `preserveActive: true`.
+	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
+	 * is specified.
 	 */
-	preserveActive: boolean | undefined;
-
-	/**
-	 * This option is only relevant if an editor is opened into a group that is not active. In
-	 * most cases opening an editor into an inactive group will cause it to become active. With
-	 * `forceActive` the inactive group will become active independent of other options such as
-	 * `preserveFocus` or `inactive`.
-	 *
-	 * Note: `forceActive: true` will always win over `preserveActive: true`.
-	 */
-	forceActive: boolean | undefined;
+	activation: EditorActivation | undefined;
 
 	/**
 	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
@@ -775,8 +761,8 @@ export class EditorOptions implements IEditorOptions {
 	 * An active editor that is opened will show its contents directly. Set to true to open an editor
 	 * in the background without loading its contents.
 	 *
-	 * Will also not activate the group the editor opens in unless the group is already the active one.
-	 * This behaviour can be overridden via the `forceActive` option.
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	inactive: boolean | undefined;
 
@@ -806,12 +792,8 @@ export class EditorOptions implements IEditorOptions {
 			this.preserveFocus = options.preserveFocus;
 		}
 
-		if (typeof options.preserveActive === 'boolean') {
-			this.preserveActive = options.preserveActive;
-		}
-
-		if (typeof options.forceActive === 'boolean') {
-			this.forceActive = options.forceActive;
+		if (typeof options.activation === 'number') {
+			this.activation = options.activation;
 		}
 
 		if (typeof options.pinned === 'boolean') {
