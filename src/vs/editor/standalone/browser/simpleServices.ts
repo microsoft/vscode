@@ -45,7 +45,7 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
 import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
-import { basename } from 'vs/base/common/path';
+import { basename } from 'vs/base/common/resources';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -671,7 +671,7 @@ export class SimpleUriLabelService implements ILabelService {
 	}
 
 	getUriBasenameLabel(resource: URI): string {
-		return basename(this.getUriLabel(resource));
+		return basename(resource);
 	}
 
 	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {

@@ -52,7 +52,6 @@ import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult, BaseFolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { relativePath } from 'vs/base/common/resources';
@@ -148,7 +147,6 @@ export class SearchView extends ViewletPanel {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IThemeService protected themeService: IThemeService,
 		@ISearchHistoryService private readonly searchHistoryService: ISearchHistoryService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -1569,10 +1567,6 @@ export class SearchView extends ViewletPanel {
 				);
 			} else {
 				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
-			}
-
-			if (editor) {
-				this.editorGroupsService.activateGroup(editor.group!);
 			}
 		}, errors.onUnexpectedError);
 	}

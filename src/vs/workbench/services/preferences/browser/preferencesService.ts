@@ -214,7 +214,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private openSettings2(options?: ISettingsEditorOptions): Promise<IEditor> {
 		const input = this.settingsEditor2Input;
-		return this.editorGroupService.activeGroup.openEditor(input, options)
+		return this.editorService.openEditor(input, options)
 			.then(() => this.editorGroupService.activeGroup.activeControl!);
 	}
 

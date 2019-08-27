@@ -194,7 +194,7 @@ class CodeRendererMain extends Disposable {
 		const signService = new SignService();
 		serviceCollection.set(ISignService, signService);
 
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService.configuration, this.environmentService, remoteAuthorityResolverService, signService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService.configuration, this.environmentService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files

@@ -16,6 +16,7 @@ import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench
 import { RevivedWebviewEditorInput, WebviewEditorInput } from './webviewEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -146,7 +147,11 @@ export class WebviewEditorService implements IWebviewEditorService {
 		const webview = this.createWebiew(id, extension, options);
 
 		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, extension, new UnownedDisposable(webview));
-		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
+		this._editorService.openEditor(webviewInput, {
+			pinned: true,
+			preserveFocus: showOptions.preserveFocus,
+			activation: showOptions.preserveFocus ? EditorActivation.PRESERVE : undefined // preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+		}, showOptions.group);
 		return webviewInput;
 	}
 
@@ -156,7 +161,10 @@ export class WebviewEditorService implements IWebviewEditorService {
 		preserveFocus: boolean
 	): void {
 		if (webview.group === group.id) {
-			this._editorService.openEditor(webview, { preserveFocus }, webview.group);
+			this._editorService.openEditor(webview, {
+				preserveFocus,
+				activation: preserveFocus ? EditorActivation.PRESERVE : undefined // preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+			}, webview.group);
 		} else {
 			const groupView = this._editorGroupService.getGroup(webview.group!);
 			if (groupView) {

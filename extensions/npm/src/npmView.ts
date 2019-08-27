@@ -258,7 +258,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let document: TextDocument = await workspace.openTextDocument(uri);
 		let offset = this.findScript(document, selection instanceof NpmScript ? selection : undefined);
 		let position = document.positionAt(offset);
-		await window.showTextDocument(document, { selection: new Selection(position, position) });
+		await window.showTextDocument(document, { preserveFocus: true, selection: new Selection(position, position) });
 	}
 
 	public refresh() {

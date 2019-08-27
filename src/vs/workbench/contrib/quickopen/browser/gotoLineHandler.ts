@@ -87,8 +87,10 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 
 	private parseInput(line: string) {
 		const numbers = line.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
-		this.line = numbers[0];
+		const endLine = this.getMaxLineNumber() + 1;
+
 		this.column = numbers[1];
+		this.line = numbers[0] > 0 ? numbers[0] : endLine + numbers[0];
 	}
 
 	getLabel(): string {
@@ -113,7 +115,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 	}
 
 	private invalidRange(maxLineNumber: number = this.getMaxLineNumber()): boolean {
-		return !this.line || !types.isNumber(this.line) || (maxLineNumber > 0 && types.isNumber(this.line) && this.line > maxLineNumber);
+		return !this.line || !types.isNumber(this.line) || (maxLineNumber > 0 && types.isNumber(this.line) && this.line > maxLineNumber) || this.line < 0;
 	}
 
 	private getMaxLineNumber(): number {

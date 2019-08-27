@@ -16,6 +16,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 
@@ -74,9 +76,11 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IClipboardService clipboardService: IClipboardService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService);
+		super(domElement, parentEditor.getRawConfiguration(), editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, clipboardService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

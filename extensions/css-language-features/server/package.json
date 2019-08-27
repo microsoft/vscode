@@ -10,7 +10,7 @@
   "main": "./out/cssServerMain",
   "dependencies": {
     "requireresolveproxy": "0.0.1",
-    "vscode-css-languageservice": "^4.0.3-next.3",
+    "vscode-css-languageservice": "^4.0.3-next.4",
     "vscode-languageserver": "^5.3.0-next.8"
   },
   "devDependencies": {

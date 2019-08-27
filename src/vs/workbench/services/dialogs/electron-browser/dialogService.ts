@@ -18,6 +18,7 @@ import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 interface IMassagedMessageBoxOptions {
 
@@ -45,12 +46,13 @@ export class DialogService implements IDialogService {
 		@ILayoutService layoutService: ILayoutService,
 		@IThemeService themeService: IThemeService,
 		@IWindowService windowService: IWindowService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 
 		// Use HTML based dialogs
 		if (configurationService.getValue('workbench.dialogs.customEnabled') === true) {
-			this.impl = new HTMLDialogService(logService, layoutService, themeService);
+			this.impl = new HTMLDialogService(logService, layoutService, themeService, keybindingService);
 		}
 		// Electron dialog service
 		else {
