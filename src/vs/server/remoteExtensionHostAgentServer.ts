@@ -156,7 +156,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const machineId = await getMachineId();
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(this._logService)),
-				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', machineId, this._environmentService.installSourcePath, 'remoteAgent'),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', machineId, product.msftInternalDomains, this._environmentService.installSourcePath, 'remoteAgent'),
 				piiPaths: [this._environmentService.appRoot]
 			};
 
