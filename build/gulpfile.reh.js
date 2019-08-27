@@ -133,11 +133,14 @@ const serverWithWebEntryPoints = [
 	...serverEntryPoints,
 
 	// Include workbench web
-	buildfile.workbenchWeb,
-	buildfile.serviceWorker,
-	buildfile.workerExtensionHost,
-	buildfile.keyboardMaps,
-	buildfile.base
+	..._.flatten([
+		buildfile.entrypoint('vs/workbench/workbench.web.api'),
+		buildfile.base,
+		buildfile.serviceWorker,
+		buildfile.workerExtensionHost,
+		buildfile.keyboardMaps,
+		buildfile.workbenchWeb
+	])
 ];
 
 function getNodeVersion() {
