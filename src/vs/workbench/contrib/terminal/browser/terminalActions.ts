@@ -298,6 +298,28 @@ export class SendSequenceTerminalCommand extends Command {
 	}
 }
 
+export class CreateNewTerminalHereCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.NEW_HERE;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.newHere', "Create New Integrated Terminal In Custom Path");
+
+	public runCommand(accessor: ServicesAccessor, cwd: string | undefined): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const configurationResolverService = accessor.get(IConfigurationResolverService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const historyService = accessor.get(IHistoryService);
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+
+		const resolvedCwd = configurationResolverService.resolve(lastActiveWorkspaceRoot, cwd || '');
+		const instance = terminalService.createTerminal({ cwd: resolvedCwd });
+		if (!instance) {
+			return Promise.resolve(undefined);
+		}
+		terminalService.setActiveInstance(instance);
+		return terminalService.showPanel(true);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW;

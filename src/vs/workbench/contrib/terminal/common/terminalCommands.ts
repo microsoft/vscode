@@ -24,6 +24,7 @@ export const enum TERMINAL_COMMAND_ID {
 	NEW = 'workbench.action.terminal.new',
 	NEW_LOCAL = 'workbench.action.terminal.newLocal',
 	NEW_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.newInActiveWorkspace',
+	NEW_HERE = 'workbench.action.terminal.newHere',
 	SPLIT = 'workbench.action.terminal.split',
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
 	FOCUS_PREVIOUS_PANE = 'workbench.action.terminal.focusPreviousPane',
