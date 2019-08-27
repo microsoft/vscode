@@ -76,7 +76,7 @@ suite('OutlineModel', function () {
 			name,
 			detail: 'fake',
 			kind: SymbolKind.Boolean,
-			kindTags: [],
+			tags: [],
 			selectionRange: range,
 			range: range
 		};

@@ -109,6 +109,11 @@ export type EditorAutoClosingStrategy = 'always' | 'languageDefined' | 'beforeWh
 export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'never';
 
 /**
+ * Configuration options for typing over closing quotes or brackets
+ */
+export type EditorAutoClosingOvertypeStrategy = 'always' | 'auto' | 'never';
+
+/**
  * Configuration options for editor minimap
  */
 export interface IEditorMinimapOptions {
@@ -544,6 +549,10 @@ export interface IEditorOptions {
 	 * Defaults to language defined behavior.
 	 */
 	autoClosingQuotes?: EditorAutoClosingStrategy;
+	/**
+	 * Options for typing over closing quotes or brackets.
+	 */
+	autoClosingOvertype?: EditorAutoClosingOvertypeStrategy;
 	/**
 	 * Options for auto surrounding.
 	 * Defaults to always allowing auto surrounding.
@@ -1073,6 +1082,7 @@ export interface IValidatedEditorOptions {
 	readonly wordWrapBreakObtrusiveCharacters: string;
 	readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 	readonly autoSurround: EditorAutoSurroundStrategy;
 	readonly autoIndent: boolean;
 	readonly dragAndDrop: boolean;
@@ -1111,6 +1121,7 @@ export class InternalEditorOptions {
 	readonly wordSeparators: string;
 	readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 	readonly autoSurround: EditorAutoSurroundStrategy;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
@@ -1141,6 +1152,7 @@ export class InternalEditorOptions {
 		wordSeparators: string;
 		autoClosingBrackets: EditorAutoClosingStrategy;
 		autoClosingQuotes: EditorAutoClosingStrategy;
+		autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 		autoSurround: EditorAutoSurroundStrategy;
 		autoIndent: boolean;
 		useTabStops: boolean;
@@ -1166,6 +1178,7 @@ export class InternalEditorOptions {
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
 		this.autoClosingQuotes = source.autoClosingQuotes;
+		this.autoClosingOvertype = source.autoClosingOvertype;
 		this.autoSurround = source.autoSurround;
 		this.autoIndent = source.autoIndent;
 		this.useTabStops = source.useTabStops;
@@ -1197,6 +1210,7 @@ export class InternalEditorOptions {
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.autoClosingQuotes === other.autoClosingQuotes
+			&& this.autoClosingOvertype === other.autoClosingOvertype
 			&& this.autoSurround === other.autoSurround
 			&& this.autoIndent === other.autoIndent
 			&& this.useTabStops === other.useTabStops
@@ -1229,6 +1243,7 @@ export class InternalEditorOptions {
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
 			autoClosingQuotes: (this.autoClosingQuotes !== newOpts.autoClosingQuotes),
+			autoClosingOvertype: (this.autoClosingOvertype !== newOpts.autoClosingOvertype),
 			autoSurround: (this.autoSurround !== newOpts.autoSurround),
 			autoIndent: (this.autoIndent !== newOpts.autoIndent),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
@@ -1634,6 +1649,7 @@ export interface IConfigurationChangedEvent {
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
 	readonly autoClosingQuotes: boolean;
+	readonly autoClosingOvertype: boolean;
 	readonly autoSurround: boolean;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
@@ -1846,6 +1862,7 @@ export class EditorOptionsValidator {
 			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
 			autoClosingBrackets,
 			autoClosingQuotes,
+			autoClosingOvertype: _stringSet<EditorAutoClosingOvertypeStrategy>(opts.autoClosingOvertype, defaults.autoClosingOvertype, ['always', 'auto', 'never']),
 			autoSurround,
 			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
@@ -2142,7 +2159,6 @@ export class EditorOptionsValidator {
 export class InternalEditorOptionsFactory {
 
 	private static _tweakValidatedOptions(opts: IValidatedEditorOptions, accessibilitySupport: AccessibilitySupport): IValidatedEditorOptions {
-		const accessibilityIsOn = (accessibilitySupport === AccessibilitySupport.Enabled);
 		const accessibilityIsOff = (accessibilitySupport === AccessibilitySupport.Disabled);
 		return {
 			inDiffEditor: opts.inDiffEditor,
@@ -2162,6 +2178,7 @@ export class InternalEditorOptionsFactory {
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
 			autoClosingBrackets: opts.autoClosingBrackets,
 			autoClosingQuotes: opts.autoClosingQuotes,
+			autoClosingOvertype: opts.autoClosingOvertype,
 			autoSurround: opts.autoSurround,
 			autoIndent: opts.autoIndent,
 			dragAndDrop: opts.dragAndDrop,
@@ -2185,7 +2202,7 @@ export class InternalEditorOptionsFactory {
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
 				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
-				roundedSelection: (accessibilityIsOn ? false : opts.viewInfo.roundedSelection), // DISABLED WHEN SCREEN READER IS ATTACHED
+				roundedSelection: opts.viewInfo.roundedSelection,
 				overviewRulerLanes: opts.viewInfo.overviewRulerLanes,
 				overviewRulerBorder: opts.viewInfo.overviewRulerBorder,
 				cursorBlinking: opts.viewInfo.cursorBlinking,
@@ -2198,15 +2215,15 @@ export class InternalEditorOptionsFactory {
 				scrollBeyondLastColumn: opts.viewInfo.scrollBeyondLastColumn,
 				smoothScrolling: opts.viewInfo.smoothScrolling,
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
-				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
-				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderWhitespace: opts.viewInfo.renderWhitespace,
+				renderControlCharacters: opts.viewInfo.renderControlCharacters,
 				fontLigatures: opts.viewInfo.fontLigatures,
-				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderIndentGuides: opts.viewInfo.renderIndentGuides,
 				highlightActiveIndentGuide: opts.viewInfo.highlightActiveIndentGuide,
 				renderLineHighlight: opts.viewInfo.renderLineHighlight,
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
-					enabled: (accessibilityIsOn ? false : opts.viewInfo.minimap.enabled), // DISABLED WHEN SCREEN READER IS ATTACHED
+					enabled: opts.viewInfo.minimap.enabled,
 					side: opts.viewInfo.minimap.side,
 					renderCharacters: opts.viewInfo.minimap.renderCharacters,
 					showSlider: opts.viewInfo.minimap.showSlider,
@@ -2218,7 +2235,7 @@ export class InternalEditorOptionsFactory {
 			contribInfo: {
 				selectionClipboard: opts.contribInfo.selectionClipboard,
 				hover: opts.contribInfo.hover,
-				links: (accessibilityIsOn ? false : opts.contribInfo.links), // DISABLED WHEN SCREEN READER IS ATTACHED
+				links: opts.contribInfo.links,
 				contextmenu: opts.contribInfo.contextmenu,
 				quickSuggestions: opts.contribInfo.quickSuggestions,
 				quickSuggestionsDelay: opts.contribInfo.quickSuggestionsDelay,
@@ -2235,13 +2252,13 @@ export class InternalEditorOptionsFactory {
 				tabCompletion: opts.contribInfo.tabCompletion,
 				suggest: opts.contribInfo.suggest,
 				gotoLocation: opts.contribInfo.gotoLocation,
-				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
-				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
-				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
-				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
+				selectionHighlight: opts.contribInfo.selectionHighlight,
+				occurrencesHighlight: opts.contribInfo.occurrencesHighlight,
+				codeLens: opts.contribInfo.codeLens,
+				folding: opts.contribInfo.folding,
 				foldingStrategy: opts.contribInfo.foldingStrategy,
 				showFoldingControls: opts.contribInfo.showFoldingControls,
-				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
+				matchBrackets: opts.contribInfo.matchBrackets,
 				find: opts.contribInfo.find,
 				colorDecorators: opts.contribInfo.colorDecorators,
 				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
@@ -2390,6 +2407,7 @@ export class InternalEditorOptionsFactory {
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
 			autoClosingQuotes: opts.autoClosingQuotes,
+			autoClosingOvertype: opts.autoClosingOvertype,
 			autoSurround: opts.autoSurround,
 			autoIndent: opts.autoIndent,
 			useTabStops: opts.useTabStops,
@@ -2627,6 +2645,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapBreakObtrusiveCharacters: '.',
 	autoClosingBrackets: 'languageDefined',
 	autoClosingQuotes: 'languageDefined',
+	autoClosingOvertype: 'auto',
 	autoSurround: 'languageDefined',
 	autoIndent: true,
 	dragAndDrop: true,

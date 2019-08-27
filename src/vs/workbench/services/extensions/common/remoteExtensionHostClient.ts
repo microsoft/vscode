@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -49,7 +49,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 		private readonly _initDataProvider: IInitDataProvider,
 		private readonly _socketFactory: ISocketFactory,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ILogService private readonly _logService: ILogService,
@@ -79,7 +79,8 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 					return { host: authority.host, port: authority.port };
 				}
 			},
-			signService: this._signService
+			signService: this._signService,
+			logService: this._logService
 		};
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
 

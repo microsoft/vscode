@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { ITextFileService, IResourceEncodings, IResourceEncoding } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IResourceEncodings, IResourceEncoding, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -26,6 +26,10 @@ export class BrowserTextFileService extends TextFileService {
 	}
 
 	private doBeforeShutdownSync(): boolean {
+		if (this.models.getAll().some(model => model.hasState(ModelState.PENDING_SAVE) || model.hasState(ModelState.PENDING_AUTO_SAVE))) {
+			return true; // files are pending to be saved: veto
+		}
+
 		const dirtyResources = this.getDirty();
 		if (!dirtyResources.length) {
 			return false; // no dirty: no veto

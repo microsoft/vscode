@@ -558,6 +558,17 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.autoClosingQuotes,
 			'description': nls.localize('autoClosingQuotes', "Controls whether the editor should automatically close quotes after the user adds an opening quote.")
 		},
+		'editor.autoClosingOvertype': {
+			type: 'string',
+			enum: ['always', 'auto', 'never'],
+			enumDescriptions: [
+				nls.localize('editor.autoClosingOvertype.always', "Always type over closing quotes or brackets."),
+				nls.localize('editor.autoClosingOvertype.auto', "Type over closing quotes or brackets only if they were automatically inserted."),
+				nls.localize('editor.autoClosingOvertype.never', "Never type over closing quotes or brackets."),
+			],
+			'default': EDITOR_DEFAULTS.autoClosingOvertype,
+			'description': nls.localize('autoClosingOvertype', "Controls whether the editor should type over closing quotes or brackets.")
+		},
 		'editor.autoSurround': {
 			type: 'string',
 			enum: ['languageDefined', 'brackets', 'quotes', 'never'],

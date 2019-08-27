@@ -325,7 +325,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!this.screenReaderNotification) {
 			this.screenReaderNotification = this.notificationService.prompt(
 				Severity.Info,
-				nls.localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code? (Certain features like folding, minimap or word wrap are disabled when using a screen reader)"),
+				nls.localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code? (Certain features like word wrap are disabled when using a screen reader)"),
 				[{
 					label: nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"),
 					run: () => {
@@ -990,7 +990,7 @@ export class ChangeModeAction extends Action {
 	private configureFileAssociation(resource: URI): void {
 		const extension = extname(resource);
 		const base = basename(resource);
-		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(resource.with({ path: base }));
+		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(base));
 
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {

@@ -170,7 +170,11 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			});
 
 			templateData.elementDisposable = templateData.label.onDidRender(() => {
-				this.updateWidth(stat);
+				try {
+					this.updateWidth(stat);
+				} catch (e) {
+					// noop since the element might no longer be in the tree, no update of width necessery
+				}
 			});
 		}
 

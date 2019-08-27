@@ -70,7 +70,6 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-browser/workspacesService';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
-import { StaticExtensionsService, IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 
 registerSingleton(IClipboardService, ClipboardService, true);
 registerSingleton(IRequestService, RequestService, true);
@@ -82,7 +81,6 @@ registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
 registerSingleton(IWorkspacesService, WorkspacesService);
 registerSingleton(IMenubarService, MenubarService);
-registerSingleton(IStaticExtensionsService, class extends StaticExtensionsService { constructor() { super([]); } });
 
 //#endregion
 

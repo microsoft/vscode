@@ -768,7 +768,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 				return (nameRows + 1) * rowHeight;
 			}
 
-			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+			let valueRows = value ? (countNumberOfLines(value) + Math.floor(value.length / 150)) : 0;
 			return rowHeight * (nameRows + valueRows);
 		}
 

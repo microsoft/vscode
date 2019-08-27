@@ -298,8 +298,32 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
+	public $onMissingCsp(
+		_handle: WebviewPanelHandle,
+		extensionId: string
+	): void {
+		console.warn(`${extensionId} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
+	}
+
 	public $onDidChangeWebviewPanelViewStates(newStates: WebviewPanelViewStateData): void {
-		for (const handle of Object.keys(newStates)) {
+		const handles = Object.keys(newStates);
+		// Notify webviews of state changes in the following order:
+		// - Non-visible
+		// - Visible
+		// - Active
+		handles.sort((a, b) => {
+			const stateA = newStates[a];
+			const stateB = newStates[b];
+			if (stateA.active) {
+				return 1;
+			}
+			if (stateB.active) {
+				return -1;
+			}
+			return (+stateA.visible) - (+stateB.visible);
+		});
+
+		for (const handle of handles) {
 			const panel = this.getWebviewPanel(handle);
 			if (!panel || panel._isDisposed) {
 				continue;

@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -99,6 +99,7 @@ export class CursorConfiguration {
 	public readonly multiCursorMergeOverlapping: boolean;
 	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	public readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
 	public readonly autoIndent: boolean;
 	public readonly autoClosingPairsOpen2: Map<string, StandardAutoClosingPairConditional[]>;
@@ -117,6 +118,7 @@ export class CursorConfiguration {
 			|| e.multiCursorMergeOverlapping
 			|| e.autoClosingBrackets
 			|| e.autoClosingQuotes
+			|| e.autoClosingOvertype
 			|| e.autoSurround
 			|| e.useTabStops
 			|| e.lineHeight
@@ -146,6 +148,7 @@ export class CursorConfiguration {
 		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
 		this.autoClosingBrackets = c.autoClosingBrackets;
 		this.autoClosingQuotes = c.autoClosingQuotes;
+		this.autoClosingOvertype = c.autoClosingOvertype;
 		this.autoSurround = c.autoSurround;
 		this.autoIndent = c.autoIndent;
 
