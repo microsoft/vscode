@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { IEditorModel, EditorActivation } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput } from 'vs/workbench/common/editor';
@@ -406,6 +406,43 @@ suite('EditorService', () => {
 		assert.equal(part.activeGroup, rootGroup);
 		assert.equal(part.count, 2);
 		assert.equal(editor!.group, part.groups[1]);
+	});
+
+	test('pasero editor group activation', async () => {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(EditorPart);
+		part.create(document.createElement('div'));
+		part.layout(400, 300);
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
+
+		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1-openside'));
+		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openside'));
+
+		const rootGroup = part.activeGroup;
+
+		await part.whenRestored;
+
+		await service.openEditor(input1, { pinned: true }, rootGroup);
+		let editor = await service.openEditor(input2, { pinned: true, preserveFocus: true, activation: EditorActivation.ACTIVATE }, SIDE_GROUP);
+		const sideGroup = editor!.group;
+
+		assert.equal(part.activeGroup, sideGroup);
+
+		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.PRESERVE }, rootGroup);
+		assert.equal(part.activeGroup, sideGroup);
+
+		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.ACTIVATE }, rootGroup);
+		assert.equal(part.activeGroup, rootGroup);
+
+		editor = await service.openEditor(input2, { pinned: true, activation: EditorActivation.PRESERVE }, sideGroup);
+		assert.equal(part.activeGroup, rootGroup);
+
+		editor = await service.openEditor(input2, { pinned: true, activation: EditorActivation.ACTIVATE }, sideGroup);
+		assert.equal(part.activeGroup, sideGroup);
 	});
 
 	test('active editor change / visible editor change events', async function () {
