@@ -230,6 +230,9 @@ export class SplitView extends Disposable {
 	private _onDidSashReset = this._register(new Emitter<number>());
 	readonly onDidSashReset = this._onDidSashReset.event;
 
+	private _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
 	get length(): number {
 		return this.viewItems.length;
 	}
@@ -561,6 +564,8 @@ export class SplitView extends Disposable {
 			item.size = size;
 			this.relayout([index], undefined);
 		}
+
+		this._onDidChange.fire();
 	}
 
 	resizeView(index: number, size: number): void {
