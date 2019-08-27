@@ -228,6 +228,10 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	}
 
 	set dataProvider(dataProvider: ITreeViewDataProvider | undefined) {
+		if (this.tree === undefined) {
+			this.createTree();
+		}
+
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
@@ -578,7 +582,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private activate() {
 		if (!this.activated) {
-			this.createTree();
 			this.progressService.withProgress({ location: this.viewContainer.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
 				.then(() => {
