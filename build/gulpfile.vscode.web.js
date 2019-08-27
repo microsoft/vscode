@@ -117,6 +117,8 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')));
 
 		const favicon = gulp.src('resources/server/favicon.ico', { base: 'resources/server' });
+		const manifest = gulp.src('resources/server/manifest.json', { base: 'resources/server' });
+		const pwaicon = gulp.src('resources/server/code.png', { base: 'resources/server' });
 
 		let all = es.merge(
 			packageJsonStream,
@@ -124,7 +126,9 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			license,
 			sources,
 			deps,
-			favicon
+			favicon,
+			manifest,
+			pwaicon
 		);
 
 		let result = all
