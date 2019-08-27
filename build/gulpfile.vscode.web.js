@@ -53,13 +53,14 @@ const vscodeWebResources = [
 
 const buildfile = require('../src/buildfile');
 
-const vscodeWebEntryPoints = [
-	buildfile.workbenchWeb,
+const vscodeWebEntryPoints = _.flatten([
+	buildfile.entrypoint('vs/workbench/workbench.web.api'),
+	buildfile.base,
 	buildfile.serviceWorker,
 	buildfile.workerExtensionHost,
 	buildfile.keyboardMaps,
-	buildfile.base
-];
+	buildfile.workbenchWeb
+]);
 
 const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 	util.rimraf('out-vscode-web'),
