@@ -12,6 +12,7 @@ export interface ITelemetryInfo {
 	sessionId: string;
 	machineId: string;
 	instanceId: string;
+	msftInternal?: boolean;
 }
 
 export interface ITelemetryData {

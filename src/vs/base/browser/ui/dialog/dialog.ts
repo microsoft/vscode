@@ -109,13 +109,6 @@ export class Dialog extends Disposable {
 				return;
 			}
 
-			if (this.modal) {
-				this._register(domEvent(this.modal, 'mousedown')(e => {
-					// Used to stop focusing of modal with mouse
-					EventHelper.stop(e, true);
-				}));
-			}
-
 			clearNode(this.buttonsContainer);
 
 			let focusedButton = 0;

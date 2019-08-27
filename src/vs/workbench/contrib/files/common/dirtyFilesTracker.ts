@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import * as arrays from 'vs/base/common/arrays';
-import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class DirtyFilesTracker extends Disposable implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
@@ -88,7 +88,6 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 	}
 
 	private doOpenDirtyResources(resources: URI[]): void {
-		const activeEditor = this.editorService.activeControl;
 
 		// Open
 		this.editorService.openEditors(resources.map(resource => {
@@ -96,7 +95,7 @@ export class DirtyFilesTracker extends Disposable implements IWorkbenchContribut
 				resource,
 				options: { inactive: true, pinned: true, preserveFocus: true }
 			};
-		}), activeEditor ? activeEditor.group : ACTIVE_GROUP);
+		}));
 	}
 
 	private onTextFilesSaved(e: TextFileModelChangeEvent[]): void {

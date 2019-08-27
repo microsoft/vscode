@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceInput, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
@@ -250,19 +250,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		if (typedEditor && resolvedGroup) {
-			// Unless the editor opens as inactive editor or we are instructed to open a side group,
-			// ensure that the group gets activated even if preserveFocus: true.
-			//
-			// Not enforcing this for side groups supports a historic scenario we have: repeated
-			// Alt-clicking of files in the explorer always open into the same side group and not
-			// cause a group to be created each time.
 			if (
-				typedOptions && !typedOptions.inactive &&			// never for inactive editors
-				typedOptions.preserveFocus &&						// only if preserveFocus
-				typeof typedOptions.forceActive !== 'boolean' &&	// only if forceActive is not already defined (either true or false)
-				candidateGroup !== SIDE_GROUP						// never for the SIDE_GROUP
+				this.editorGroupService.activeGroup !== resolvedGroup && 	// only if target group is not already active
+				typedOptions && !typedOptions.inactive &&					// never for inactive editors
+				typedOptions.preserveFocus &&								// only if preserveFocus
+				typeof typedOptions.activation !== 'number' &&				// only if activation is not already defined (either true or false)
+				candidateGroup !== SIDE_GROUP								// never for the SIDE_GROUP
 			) {
-				typedOptions.overwrite({ forceActive: true });
+				// If the resolved group is not the active one, we typically
+				// want the group to become active. There are a few cases
+				// where we stay away from encorcing this, e.g. if the caller
+				// is already providing `activation`.
+				//
+				// Specifically for historic reasons we do not activate a
+				// group is it is opened as `SIDE_GROUP` with `preserveFocus:true`.
+				// repeated Alt-clicking of files in the explorer always open
+				// into the same side group and not cause a group to be created each time.
+				typedOptions.overwrite({ activation: EditorActivation.ACTIVATE });
 			}
 
 			return this.doOpenEditor(resolvedGroup, typedEditor, typedOptions);

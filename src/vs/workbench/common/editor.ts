@@ -9,7 +9,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -713,19 +713,21 @@ export class EditorOptions implements IEditorOptions {
 	}
 
 	/**
-	 * Tells the editor to not receive keyboard focus when the editor is being opened. This
-	 * will also prevent the group the editor opens in to become active. This can be overridden
-	 * via the `forceActive` option.
+	 * Tells the editor to not receive keyboard focus when the editor is being opened.
 	 *
-	 * By default, the editor will receive keyboard focus on open.
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	preserveFocus: boolean | undefined;
 
 	/**
-	 * Tells the group the editor opens in to become active even if either `preserveFocus: true`
-	 * or `inactive: true` are specified.
+	 * This option is only relevant if an editor is opened into a group that is not active
+	 * already and allows to control if the inactive group should become active or not.
+	 *
+	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
+	 * is specified.
 	 */
-	forceActive: boolean | undefined;
+	activation: EditorActivation | undefined;
 
 	/**
 	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
@@ -757,8 +759,10 @@ export class EditorOptions implements IEditorOptions {
 
 	/**
 	 * An active editor that is opened will show its contents directly. Set to true to open an editor
-	 * in the background. This will also prevent the group the editor opens in to become active. This
-	 * can be overridden via the `forceActive` option.
+	 * in the background without loading its contents.
+	 *
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	inactive: boolean | undefined;
 
@@ -772,36 +776,36 @@ export class EditorOptions implements IEditorOptions {
 	 * Overwrites option values from the provided bag.
 	 */
 	overwrite(options: IEditorOptions): EditorOptions {
-		if (options.forceReload) {
-			this.forceReload = true;
+		if (typeof options.forceReload === 'boolean') {
+			this.forceReload = options.forceReload;
 		}
 
-		if (options.revealIfVisible) {
-			this.revealIfVisible = true;
+		if (typeof options.revealIfVisible === 'boolean') {
+			this.revealIfVisible = options.revealIfVisible;
 		}
 
-		if (options.revealIfOpened) {
-			this.revealIfOpened = true;
+		if (typeof options.revealIfOpened === 'boolean') {
+			this.revealIfOpened = options.revealIfOpened;
 		}
 
-		if (options.preserveFocus) {
-			this.preserveFocus = true;
+		if (typeof options.preserveFocus === 'boolean') {
+			this.preserveFocus = options.preserveFocus;
 		}
 
-		if (options.forceActive) {
-			this.forceActive = true;
+		if (typeof options.activation === 'number') {
+			this.activation = options.activation;
 		}
 
-		if (options.pinned) {
-			this.pinned = true;
+		if (typeof options.pinned === 'boolean') {
+			this.pinned = options.pinned;
 		}
 
-		if (options.inactive) {
-			this.inactive = true;
+		if (typeof options.inactive === 'boolean') {
+			this.inactive = options.inactive;
 		}
 
-		if (options.ignoreError) {
-			this.ignoreError = true;
+		if (typeof options.ignoreError === 'boolean') {
+			this.ignoreError = options.ignoreError;
 		}
 
 		if (typeof options.index === 'number') {
@@ -857,8 +861,8 @@ export class TextEditorOptions extends EditorOptions {
 			this.editorViewState = options.viewState as IEditorViewState;
 		}
 
-		if (options.revealInCenterIfOutsideViewport) {
-			this.revealInCenterIfOutsideViewport = true;
+		if (typeof options.revealInCenterIfOutsideViewport === 'boolean') {
+			this.revealInCenterIfOutsideViewport = options.revealInCenterIfOutsideViewport;
 		}
 
 		return this;

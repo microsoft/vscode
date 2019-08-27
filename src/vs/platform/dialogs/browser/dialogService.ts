@@ -14,14 +14,18 @@ import { attachDialogStyler } from 'vs/platform/theme/common/styler';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class DialogService implements IDialogService {
 	_serviceBrand: any;
 
+	private allowableCommands = ['copy', 'cut'];
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) { }
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -50,7 +54,12 @@ export class DialogService implements IDialogService {
 				cancelId: 1,
 				type: confirmation.type,
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
-					EventHelper.stop(event, true);
+					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
+					if (resolved && resolved.commandId) {
+						if (this.allowableCommands.indexOf(resolved.commandId) === -1) {
+							EventHelper.stop(event, true);
+						}
+					}
 				},
 				checkboxChecked: confirmation.checkbox ? confirmation.checkbox.checked : undefined,
 				checkboxLabel: confirmation.checkbox ? confirmation.checkbox.label : undefined
@@ -82,7 +91,12 @@ export class DialogService implements IDialogService {
 				cancelId: options ? options.cancelId : undefined,
 				type: this.getDialogType(severity),
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
-					EventHelper.stop(event, true);
+					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
+					if (resolved && resolved.commandId) {
+						if (this.allowableCommands.indexOf(resolved.commandId) === -1) {
+							EventHelper.stop(event, true);
+						}
+					}
 				}
 			});
 
