@@ -13,6 +13,11 @@ function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 
 	switch (tag.name) {
 		case 'example':
+			// check for caption tags, fix for #79704
+			const captionTagMatches = tag.text.match('<caption>(.*?)<\/caption>\r');
+			if (captionTagMatches && captionTagMatches.index === 0) {
+				tag.text = captionTagMatches[1] + '\r\r' + tag.text.substr(captionTagMatches[0].length);
+			}
 		case 'default':
 			// Convert to markdown code block if it is not already one
 			if (tag.text.match(/^\s*[~`]{3}/g)) {
