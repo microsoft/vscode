@@ -793,6 +793,7 @@
 		"https://code.visualstudio.com",
 		"https://go.microsoft.com",
 		"https://marketplace.visualstudio.com",
-		"https://vscode-auth.github.com"
+		"https://vscode-auth.github.com",
+		"https://*.gallerycdn.vsassets.io"
 	]
 }
