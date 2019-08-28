@@ -125,12 +125,7 @@ abstract class ViewItem {
 		}
 	}
 
-	layout(_orthogonalSize: number | undefined): void {
-		this.container.scrollTop = 0;
-		this.container.scrollLeft = 0;
-	}
-
-	layoutView(orthogonalSize: number | undefined): void {
+	layout(orthogonalSize: number | undefined): void {
 		this.view.layout(this.size, orthogonalSize);
 	}
 
@@ -145,7 +140,6 @@ class VerticalViewItem extends ViewItem {
 	layout(orthogonalSize: number | undefined): void {
 		super.layout(orthogonalSize);
 		this.container.style.height = `${this.size}px`;
-		this.layoutView(orthogonalSize);
 	}
 }
 
@@ -154,7 +148,6 @@ class HorizontalViewItem extends ViewItem {
 	layout(orthogonalSize: number | undefined): void {
 		super.layout(orthogonalSize);
 		this.container.style.width = `${this.size}px`;
-		this.layoutView(orthogonalSize);
 	}
 }
 
