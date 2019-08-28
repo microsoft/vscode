@@ -220,8 +220,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private registerLayoutListeners(): void {
 
 		// Restore editor if hidden and it changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.setEditorHidden(false)));
-		this._register(this.editorGroupService.onDidActivateGroup(() => this.setEditorHidden(false)));
+		const showEditorIfHidden = () => {
+			if (this.state.editor.hidden) {
+				this.toggleMaximizedPanel();
+			}
+		};
+
+
+		this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
+		this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
@@ -1110,7 +1117,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (this.workbenchGrid instanceof Grid) {
 			const size = this.workbenchGrid.getViewSize(this.panelPartView);
 			if (!this.isPanelMaximized()) {
-				this.state.panel.sizeBeforeMaximize = this.state.panel.position === Position.BOTTOM ? size.height : size.width;
+				if (this.state.panel.hidden) {
+					this.state.panel.sizeBeforeMaximize = this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView) || this.panelPartView.minimumHeight;
+				} else {
+					this.state.panel.sizeBeforeMaximize = this.state.panel.position === Position.BOTTOM ? size.height : size.width;
+				}
+
 				this.storageService.store(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, this.state.panel.sizeBeforeMaximize, StorageScope.GLOBAL);
 				this.setEditorHidden(true);
 			} else {
