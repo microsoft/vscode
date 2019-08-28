@@ -787,7 +787,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	readonly snap = true;
 
-	get onDidChange(): Event<IViewSize | undefined> { return this.centeredLayoutWidget.onDidChange; }
+	get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
 	readonly priority: LayoutPriority = LayoutPriority.High;
 
 	private get gridSeparatorBorder(): Color {

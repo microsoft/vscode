@@ -250,6 +250,9 @@ class BranchNode implements ISplitView, IDisposable {
 		const onDidSashReset = Event.map(this.splitview.onDidSashReset, i => [i]);
 		this.splitviewSashResetDisposable = onDidSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 
+		const onDidChildrenChange = Event.map(Event.any(...this.children.map(c => c.onDidChange)), () => undefined);
+		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
+
 		const onDidChildrenSashReset = Event.any(...this.children.map((c, i) => Event.map(c.onDidSashReset, location => [i, ...location])));
 		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 	}

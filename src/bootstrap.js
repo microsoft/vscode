@@ -245,7 +245,7 @@ exports.setupNLS = function () {
 		const bundles = Object.create(null);
 
 		nlsConfig.loadBundle = function (bundle, language, cb) {
-			let result = bundles[bundle];
+			const result = bundles[bundle];
 			if (result) {
 				cb(undefined, result);
 
@@ -254,7 +254,7 @@ exports.setupNLS = function () {
 
 			const bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
 			exports.readFile(bundleFile).then(function (content) {
-				let json = JSON.parse(content);
+				const json = JSON.parse(content);
 				bundles[bundle] = json;
 
 				cb(undefined, json);
