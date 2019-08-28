@@ -1076,7 +1076,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
 			...setting.range,
-			message: nls.localize('unsupportedMachineSetting', "This setting can be applied only in user settings")
+			message: nls.localize('unsupportedMachineSetting', "This setting can only be applied in user settings in local window or in remote settings in remote window.")
 		};
 	}
 
