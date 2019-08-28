@@ -944,7 +944,8 @@ export class DebugService implements IDebugService {
 		return Promise.all(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)))
 			.then(() => this.sendFunctionBreakpoints(session))
 			// send exception breakpoints at the end since some debug adapters rely on the order
-			.then(() => this.sendExceptionBreakpoints(session));
+			.then(() => this.sendExceptionBreakpoints(session))
+			.then(() => this.sendDataBreakpoints(session));
 	}
 
 	private sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
