@@ -14,6 +14,7 @@ import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, end
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -43,6 +44,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
 	'WORKSPACE_NAME': true,
+	'WORKSPACE_FOLDER': true,
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -276,7 +278,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 				return path.basename(workspaceIdentifier.path);
 			}
 			if (variable.name === 'WORKSPACE_FOLDER') {
-				return workspaceIdentifier.fsPath;
+				return normalizeDriveLetter(workspaceIdentifier.fsPath);
 			}
 			return undefined;
 		}
@@ -287,7 +289,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			if (endsWith(folderpath, filename)) {
 				folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
 			}
-			return folderpath;
+			return (folderpath ? normalizeDriveLetter(folderpath) : '/');
 		}
 
 		if (endsWith(filename, WORKSPACE_EXTENSION)) {
