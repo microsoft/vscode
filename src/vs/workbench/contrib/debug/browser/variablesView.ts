@@ -179,7 +179,7 @@ export class VariablesView extends ViewletPanel {
 				const dataid = response.dataId;
 				if (dataid) {
 					actions.push(new Separator());
-					actions.push(new Action('debug.addDataBreakpoint', nls.localize('setDataBreakpoint', "Set Data Breakpoint"), undefined, true, () => {
+					actions.push(new Action('debug.breakWhenValueChanges', nls.localize('breakWhenValueChanges', "Break When Value Changes"), undefined, true, () => {
 						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist);
 					}));
 				}
