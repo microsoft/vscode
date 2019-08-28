@@ -375,7 +375,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				identityProvider: new CustomViewIdentityProvider(),
 				accessibilityProvider: {
 					getAriaLabel(element: ITreeItem): string {
-						return element.label ? element.label.label : '';
+						return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
 					}
 				},
 				ariaLabel: this.title,
