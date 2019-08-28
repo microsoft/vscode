@@ -143,6 +143,6 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 		{ type: 'manual', filter: { includeSourceActions: true, kind: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
 		CancellationToken.None);
 
-	setTimeout(() => codeActionSet.dispose(), 0);
+	setTimeout(() => codeActionSet.dispose(), 100);
 	return codeActionSet.actions;
 });

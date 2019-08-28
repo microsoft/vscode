@@ -110,6 +110,6 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 	}).finally(() => {
 		// make sure to return results, then (on next tick)
 		// dispose the results
-		setTimeout(() => disposables.dispose(), 0);
+		setTimeout(() => disposables.dispose(), 100);
 	});
 });
