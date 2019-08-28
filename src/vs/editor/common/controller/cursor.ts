@@ -643,9 +643,17 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 					autoClosedEnclosingRanges.push(new Range(lineNumber, openCharIndex + 1, lineNumber, closeCharIndex + 2));
 				}
 			}
-			return cursorStateComputer(undoEdits);
+			const selections = cursorStateComputer(undoEdits);
+			if (selections) {
+				// Don't recover the selection from markers because
+				// we know what it should be.
+				this._isHandling = true;
+			}
+
+			return selections;
 		});
 		if (selections) {
+			this._isHandling = false;
 			this.setSelections(source, selections);
 		}
 		if (autoClosedCharactersRanges.length > 0) {
