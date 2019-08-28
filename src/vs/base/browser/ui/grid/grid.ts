@@ -596,8 +596,8 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		super.layout(width, height);
 
 		if (this.initialLayoutContext) {
-			this.gridview.trySet2x2();
 			this.initialLayoutContext = false;
+			this.gridview.trySet2x2();
 		}
 	}
 }
