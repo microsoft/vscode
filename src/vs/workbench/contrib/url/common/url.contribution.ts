@@ -14,7 +14,11 @@ import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import {
+	IWorkbenchContribution,
+	IWorkbenchContributionsRegistry,
+	Extensions as WorkbenchExtensions
+} from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/product';
@@ -130,12 +134,7 @@ const configureTrustedDomainCommand = {
 			? [...productService.linkProtectionTrustedDomains]
 			: [];
 
-		return configureTrustedDomainsHandler(
-			quickInputService,
-			storageService,
-			trustedDomains,
-			domainToConfigure
-		);
+		return configureTrustedDomainsHandler(quickInputService, storageService, trustedDomains, domainToConfigure);
 	}
 };
 
@@ -178,9 +177,7 @@ class OpenerValidatorContributions implements IWorkbenchContribution {
 
 		const domainToOpen = `${scheme}://${authority}`;
 
-		if (isLocalhostAuthority(authority)) {
-			return true;
-		} else if (isDomainTrusted(domainToOpen, trustedDomains)) {
+		if (isURLDomainTrusted(resource, trustedDomains)) {
 			return true;
 		} else {
 			const choice = await this._dialogService.show(
@@ -207,7 +204,12 @@ class OpenerValidatorContributions implements IWorkbenchContribution {
 			}
 			// Configure Trusted Domains
 			else if (choice === 2) {
-				const pickedDomains = await configureTrustedDomainsHandler(this._quickInputService, this._storageService, trustedDomains, domainToOpen);
+				const pickedDomains = await configureTrustedDomainsHandler(
+					this._quickInputService,
+					this._storageService,
+					trustedDomains,
+					domainToOpen
+				);
 				if (pickedDomains.indexOf(domainToOpen) !== -1) {
 					return true;
 				}
@@ -224,8 +226,8 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	LifecyclePhase.Restored
 );
 
-const rLocalhost = /^localhost:\d+$/i;
-const r127 = /^127.0.0.1:\d+$/;
+const rLocalhost = /^localhost(:\d+)?$/i;
+const r127 = /^127.0.0.1(:\d+)?$/;
 
 function isLocalhostAuthority(authority: string) {
 	return rLocalhost.test(authority) || r127.test(authority);
@@ -234,8 +236,18 @@ function isLocalhostAuthority(authority: string) {
 /**
  * Check whether a domain like https://www.microsoft.com matches
  * the list of trusted domains.
+ *
+ * - Schemes must match
+ * - There's no subdomain matching. For example https://microsoft.com doesn't match https://www.microsoft.com
+ * - Star matches all. For example https://*.microsoft.com matches https://www.microsoft.com
  */
-function isDomainTrusted(domain: string, trustedDomains: string[]) {
+export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
+	if (isLocalhostAuthority(url.authority)) {
+		return true;
+	}
+
+	const domain = `${url.scheme}://${url.authority}`;
+
 	for (let i = 0; i < trustedDomains.length; i++) {
 		if (trustedDomains[i] === '*') {
 			return true;
@@ -244,8 +256,25 @@ function isDomainTrusted(domain: string, trustedDomains: string[]) {
 		if (trustedDomains[i] === domain) {
 			return true;
 		}
+
+		if (trustedDomains[i].indexOf('*') !== -1) {
+			const parsedTrustedDomain = URI.parse(trustedDomains[i]);
+			if (url.scheme === parsedTrustedDomain.scheme) {
+				const authoritySegments = url.authority.split('.');
+				const trustedDomainAuthoritySegments = parsedTrustedDomain.authority.split('.');
+
+				if (authoritySegments.length === trustedDomainAuthoritySegments.length) {
+					if (
+						authoritySegments.every(
+							(val, i) => trustedDomainAuthoritySegments[i] === '*' || val === trustedDomainAuthoritySegments[i]
+						)
+					) {
+						return true;
+					}
+				}
+			}
+		}
 	}
 
 	return false;
 }
-
