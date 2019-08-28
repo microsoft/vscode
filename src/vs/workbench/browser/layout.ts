@@ -608,6 +608,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return offset;
 	}
 
+	getMaximumEditorDimensions(): Dimension {
+		const takenWidth =
+			(this.isVisible(Parts.ACTIVITYBAR_PART) ? this.activityBarPartView.minimumWidth : 0) +
+			(this.isVisible(Parts.SIDEBAR_PART) ? this.sideBarPartView.minimumWidth : 0) +
+			(this.isVisible(Parts.PANEL_PART) && this.state.panel.position === Position.RIGHT ? this.panelPartView.minimumWidth : 0);
+
+		const takenHeight =
+			(this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0) +
+			(this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0) +
+			(this.isVisible(Parts.PANEL_PART) && this.state.panel.position === Position.BOTTOM ? this.panelPartView.minimumHeight : 0);
+
+		const availableWidth = this.dimension.width - takenWidth;
+		const availableHeight = this.dimension.height - takenHeight;
+
+		return { width: availableWidth, height: availableHeight };
+	}
+
 	getWorkbenchContainer(): HTMLElement {
 		return this.parent;
 	}

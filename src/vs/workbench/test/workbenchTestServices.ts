@@ -541,6 +541,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	public addClass(_clazz: string): void { }
 	public removeClass(_clazz: string): void { }
 
+	public getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
+
 	public getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
 	public getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
 
