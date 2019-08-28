@@ -36,7 +36,7 @@
         "properties": {
           "css.customData": {
             "type": "array",
-            "description": "%css.customData.desc%",
+            "markdownDescription": "%css.customData.desc%",
             "default": [],
             "items": {
               "type": "string"
