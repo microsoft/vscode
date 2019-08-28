@@ -60,6 +60,8 @@ enum Storage {
 	PANEL_SIZE = 'workbench.panel.size',
 	PANEL_SIZE_BEFORE_MAXIMIZED = 'workbench.panel.sizeBeforeMaximized',
 
+	EDITOR_HIDDEN = 'workbench.editor.hidden',
+
 	ZEN_MODE_ENABLED = 'workbench.zenmode.active',
 	CENTERED_LAYOUT_ENABLED = 'workbench.centerededitorlayout.active',
 
@@ -1009,6 +1011,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
+		// Remember in settings
+		if (hidden) {
+			this.storageService.store(Storage.EDITOR_HIDDEN, true, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE);
+		}
+
 		// The editor and panel cannot be hidden at the same time
 		if (hidden && this.state.panel.hidden) {
 			this.setPanelHidden(false, true);
@@ -1144,7 +1153,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setEditorHidden(true);
 			} else {
 				this.setEditorHidden(false);
-				this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.sizeBeforeMaximize, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.sizeBeforeMaximize : size.height });
 			}
 		} else {
 			this.workbenchGrid.layout({ toggleMaximizedPanel: true, source: Parts.PANEL_PART });
@@ -1244,6 +1252,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// At some point, we will not fall back to old keys from legacy layout, but for now, let's migrate the keys
 		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, this.storageService.getNumber('workbench.sidebar.width', StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300))!);
 		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(this.state.panel.position === Position.BOTTOM ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, workbenchDimensions.height / 3));
+		const wasEditorHidden = this.storageService.getBoolean(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE, false);
 
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
@@ -1275,7 +1284,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.PANEL_PART },
-			size: panelSize,
+			size: wasEditorHidden ? this.state.panel.sizeBeforeMaximize : panelSize,
 			visible: !this.state.panel.hidden
 		};
 
