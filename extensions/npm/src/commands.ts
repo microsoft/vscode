@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import {
-	runScript, findScriptAtPosition
-} from './tasks';
 import * as nls from 'vscode-nls';
+import * as vscode from 'vscode';
+
+import {
+	detectNpmScriptsForFolder,
+	findScriptAtPosition,
+	getPackageJsonUriFromTask,
+	runScript
+} from './tasks';
 
 const localize = nls.loadMessageBundle();
 
@@ -27,5 +31,30 @@ export function runSelectedScript() {
 	} else {
 		let message = localize('noScriptFound', 'Could not find a valid npm script at the selection.');
 		vscode.window.showErrorMessage(message);
+	}
+}
+
+export async function selectAndRunScriptFromFolder(folderInfo: vscode.Uri) {
+	type TaskMap = { [id: string]: vscode.Task; };
+	let taskList = await detectNpmScriptsForFolder(folderInfo.path);
+
+	if (taskList && taskList.length > 0) {
+		let taskMap: TaskMap = {};
+		taskList.forEach(t => {
+			let uri = getPackageJsonUriFromTask(t);
+			if (uri && uri.fsPath.length >= folderInfo.fsPath.length) {
+				let taskName = uri.fsPath.substring(folderInfo.fsPath.length, uri.fsPath.length - '/package.json'.length) + ' > ' + t.name.substring(0, t.name.search('-'));
+				taskMap[taskName] = t;
+			}
+		});
+		await vscode.window.showQuickPick(Object.keys(taskMap).sort(), {
+			placeHolder: `Run scripts on folder ${folderInfo.fsPath}...`,
+			onDidSelectItem: (taskToRun: string) => {
+				vscode.tasks.executeTask(taskMap[taskToRun]);
+			}
+		});
+	}
+	else {
+		vscode.window.showInformationMessage(`No scripts detected in folder ${folderInfo.path}`);
 	}
 }

@@ -155,6 +155,28 @@ async function detectNpmScripts(): Promise<Task[]> {
 	}
 }
 
+
+export async function detectNpmScriptsForFolder(folder: string): Promise<Task[]> {
+
+	let allTasks: Task[] = [];
+	let visitedPackageJsonFiles: Set<string> = new Set();
+
+	try {
+		let relativePattern = new RelativePattern(folder, '**/package.json');
+		let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
+		for (const path of paths) {
+			if (!visitedPackageJsonFiles.has(path.fsPath)) {
+				let tasks = await provideNpmScriptsForFolder(path);
+				visitedPackageJsonFiles.add(path.fsPath);
+				allTasks.push(...tasks);
+			}
+		}
+		return allTasks;
+	} catch (error) {
+		return Promise.reject(error);
+	}
+}
+
 export async function provideNpmScripts(): Promise<Task[]> {
 	if (!cachedTasks) {
 		cachedTasks = await detectNpmScripts();

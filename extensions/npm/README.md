@@ -35,4 +35,6 @@ The extension fetches data from https://registry.npmjs/org and https://registry.
 - `npm.enableScriptExplorer` - Enable an explorer view for npm scripts.
 - `npm.scriptExplorerAction` - The default click action: `open` or `run`, the default is `open`.
 - `npm.scriptCodeLens.enable` - Enable/disable the code lenses to run a script, the default is `false`.
+- `npm.enableRunFromFolderContextMenu` - Enable running npm scripts from the context menu of folders in Explorer, the default is `true`.
+
 

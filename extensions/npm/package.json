@@ -88,6 +88,10 @@
       {
         "command": "npm.runSelectedScript",
         "title": "%command.runSelectedScript%"
+      },
+      {
+        "command": "npm.runScriptsFromFolder",
+        "title": "%command.runScriptsFromFolder%"
       }
     ],
     "menus": {
@@ -172,7 +176,14 @@
           "when": "view == npm && viewItem == script",
           "group": "navigation@3"
         }
-      ]
+      ],
+      "explorer/context": [
+				{
+					"when": "config.npm.enableRunFromFolderContextMenu && explorerViewletVisible && explorerResourceIsFolder",
+          "command": "npm.runScriptsFromFolder",
+					"group": "2_workspace"
+				}
+			]
     },
     "configuration": {
       "id": "npm",
@@ -221,6 +232,12 @@
           "default": false,
           "scope": "resource",
           "description": "%config.npm.enableScriptExplorer%"
+        },
+        "npm.enableRunFromFolderContextMenu": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "%config.npm.enableRunFromFolderContextMenu%"
         },
         "npm.scriptExplorerAction": {
           "type": "string",
