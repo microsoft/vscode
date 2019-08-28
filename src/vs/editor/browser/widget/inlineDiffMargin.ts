@@ -66,26 +66,27 @@ export class InlineDiffMargin extends Disposable {
 		this._diffActions.style.lineHeight = `${lineHeight}px`;
 		this._marginDomNode.appendChild(this._diffActions);
 
-		const actions = [
-			new Action(
-				'diff.clipboard.copyDeletedContent',
-				nls.localize('diff.clipboard.copyDeletedContent.label', "Copy deleted lines content to clipboard"),
-				undefined,
-				true,
-				async () => {
-					await this._clipboardService.writeText(diff.originalContent.join(lineFeed) + lineFeed);
-				}
-			)
-		];
+		const actions: Action[] = [];
+
+		// default action
+		actions.push(new Action(
+			'diff.clipboard.copyDeletedContent',
+			diff.originalEndLineNumber > diff.modifiedStartLineNumber
+				? nls.localize('diff.clipboard.copyDeletedLinesContent.label', "Copy deleted lines")
+				: nls.localize('diff.clipboard.copyDeletedLinesContent.single.label', "Copy deleted line"),
+			undefined,
+			true,
+			async () => {
+				await this._clipboardService.writeText(diff.originalContent.join(lineFeed) + lineFeed);
+			}
+		));
 
 		let currentLineNumberOffset = 0;
-
 		let copyLineAction: Action | undefined = undefined;
-
 		if (diff.originalEndLineNumber > diff.modifiedStartLineNumber) {
 			copyLineAction = new Action(
 				'diff.clipboard.copyDeletedLineContent',
-				nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line {0} content to clipboard", diff.originalStartLineNumber),
+				nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})", diff.originalStartLineNumber),
 				undefined,
 				true,
 				async () => {
@@ -134,7 +135,7 @@ export class InlineDiffMargin extends Disposable {
 				},
 				getActions: () => {
 					if (copyLineAction) {
-						copyLineAction.label = nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line {0} content to clipboard", diff.originalStartLineNumber + currentLineNumberOffset);
+						copyLineAction.label = nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})", diff.originalStartLineNumber + currentLineNumberOffset);
 					}
 					return actions;
 				},
