@@ -795,16 +795,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
 
+		// View references for all parts
+		this.titleBarPartView = titleBar;
+		this.sideBarPartView = sideBar;
+		this.activityBarPartView = activityBar;
+		this.editorPartView = editorPart;
+		this.panelPartView = panelPart;
+		this.statusBarPartView = statusBar;
+
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
-
-			// View references for all parts
-			this.titleBarPartView = titleBar;
-			this.sideBarPartView = sideBar;
-			this.activityBarPartView = activityBar;
-			this.editorPartView = editorPart;
-			this.panelPartView = panelPart;
-			this.statusBarPartView = statusBar;
-
 			const viewMap = {
 				[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
 				[Parts.TITLEBAR_PART]: this.titleBarPartView,
