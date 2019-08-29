@@ -624,7 +624,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 		addClass(this.item, 'monaco-submenu-item');
 		this.item.setAttribute('aria-haspopup', 'true');
-		this.item.setAttribute("aria-expended", "true");
+		this.updateAriaExpanded('false');
 		this.submenuIndicator = append(this.item, $('span.submenu-indicator'));
 		this.submenuIndicator.setAttribute('aria-hidden', 'true');
 
@@ -688,7 +688,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		if (this.parentData.submenu && (force || (this.parentData.submenu !== this.mysubmenu))) {
 			this.parentData.submenu.dispose();
 			this.parentData.submenu = undefined;
-
+			this.updateAriaExpanded('false');
 			if (this.submenuContainer) {
 				this.submenuDisposables.clear();
 				this.submenuContainer = undefined;
@@ -702,9 +702,9 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 
 		if (!this.parentData.submenu) {
+			this.updateAriaExpanded('true');
 			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
-
 			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
 			if (this.menuStyle) {
 				this.parentData.submenu.style(this.menuStyle);
@@ -766,6 +766,10 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		} else {
 			this.parentData.submenu.focus(false);
 		}
+	}
+
+	private updateAriaExpanded(value: string) :void {
+		this.item.setAttribute('aria-expanded', value);
 	}
 
 	protected applyStyle(): void {
