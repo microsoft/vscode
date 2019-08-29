@@ -297,28 +297,32 @@
 			"friendlyName": "Microsoft Edge",
 			"windowsPath": "%USERPROFILE%\\AppData\\Local\\Microsoft\\Edge\\Application\\msedge.exe",
 			"recommendations": [
-				"msjsdiag.debugger-for-edge"
+				"msjsdiag.debugger-for-edge",
+				"ms-edgedevtools.vscode-edge-devtools"
 			]
 		},
 		"Microsoft Edge Dev": {
 			"friendlyName": "Microsoft Edge Dev",
 			"windowsPath": "%USERPROFILE%\\AppData\\Local\\Microsoft\\Edge Dev\\Application\\msedge.exe",
 			"recommendations": [
-				"msjsdiag.debugger-for-edge"
+				"msjsdiag.debugger-for-edge",
+				"ms-edgedevtools.vscode-edge-devtools"
 			]
 		},
 		"Microsoft Edge Beta": {
 			"friendlyName": "Microsoft Edge Beta",
 			"windowsPath": "%USERPROFILE%\\AppData\\Local\\Microsoft\\Edge Beta\\Application\\msedge.exe",
 			"recommendations": [
-				"msjsdiag.debugger-for-edge"
+				"msjsdiag.debugger-for-edge",
+				"ms-edgedevtools.vscode-edge-devtools"
 			]
 		},
 		"Microsoft Edge Canary": {
 			"friendlyName": "Microsoft Edge Canary",
 			"windowsPath": "%USERPROFILE%\\AppData\\Local\\Microsoft\\Edge SxS\\Application\\msedge.exe",
 			"recommendations": [
-				"msjsdiag.debugger-for-edge"
+				"msjsdiag.debugger-for-edge",
+				"ms-edgedevtools.vscode-edge-devtools"
 			]
 		},
 		"react-native": {
