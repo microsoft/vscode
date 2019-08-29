@@ -583,8 +583,8 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		return data ? data.verified : true;
 	}
 
-	get idFromAdapter(): number | undefined {
-		const data = this.getSessionData();
+	getIdFromAdapter(sessionId: string): number | undefined {
+		const data = this.sessionData.get(sessionId);
 		return data ? data.id : undefined;
 	}
 
