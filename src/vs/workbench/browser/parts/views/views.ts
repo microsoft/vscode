@@ -522,9 +522,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	}
 
 	private saveWorkspaceViewsStates(): void {
-		const storedViewsStates: { [id: string]: IStoredWorkspaceViewState } = {};
-
-		let hasState = false;
+		const storedViewsStates: { [id: string]: IStoredWorkspaceViewState } = JSON.parse(this.storageService.get(this.workspaceViewsStateStorageId, StorageScope.WORKSPACE, '{}'));
 		for (const viewDescriptor of this.viewDescriptors) {
 			const viewState = this.viewStates.get(viewDescriptor.id);
 			if (viewState) {
@@ -534,11 +532,10 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 					size: viewState.size,
 					order: viewDescriptor.workspace && viewState ? viewState.order : undefined
 				};
-				hasState = true;
 			}
 		}
 
-		if (hasState) {
+		if (Object.keys(storedViewsStates).length > 0) {
 			this.storageService.store(this.workspaceViewsStateStorageId, JSON.stringify(storedViewsStates), StorageScope.WORKSPACE);
 		} else {
 			this.storageService.remove(this.workspaceViewsStateStorageId, StorageScope.WORKSPACE);
