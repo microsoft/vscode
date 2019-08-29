@@ -722,7 +722,8 @@ export class EditorOptions implements IEditorOptions {
 
 	/**
 	 * This option is only relevant if an editor is opened into a group that is not active
-	 * already and allows to control if the inactive group should become active or not.
+	 * already and allows to control if the inactive group should become active, restored
+	 * or preserved.
 	 *
 	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
 	 * is specified.
