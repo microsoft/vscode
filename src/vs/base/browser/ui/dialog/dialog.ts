@@ -55,6 +55,7 @@ export class Dialog extends Disposable {
 	private buttonGroup: ButtonGroup | undefined;
 	private styles: IDialogStyles | undefined;
 	private focusToReturn: HTMLElement | undefined;
+	private checkboxHasFocus: boolean = false;
 
 	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
 		super();
@@ -139,14 +140,27 @@ export class Dialog extends Disposable {
 
 				let eventHandled = false;
 				if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
-					focusedButton = focusedButton + buttonGroup.buttons.length - 1;
-					focusedButton = focusedButton % buttonGroup.buttons.length;
-					buttonGroup.buttons[focusedButton].focus();
+					if (!this.checkboxHasFocus && focusedButton === 0) {
+						this.checkbox!.domNode.focus();
+						this.checkboxHasFocus = true;
+					} else {
+						focusedButton = (this.checkboxHasFocus ? 0 : focusedButton) + buttonGroup.buttons.length - 1;
+						focusedButton = focusedButton % buttonGroup.buttons.length;
+						buttonGroup.buttons[focusedButton].focus();
+						this.checkboxHasFocus = false;
+					}
+
 					eventHandled = true;
 				} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
-					focusedButton++;
-					focusedButton = focusedButton % buttonGroup.buttons.length;
-					buttonGroup.buttons[focusedButton].focus();
+					if (!this.checkboxHasFocus && focusedButton === buttonGroup.buttons.length - 1) {
+						this.checkbox!.domNode.focus();
+						this.checkboxHasFocus = true;
+					} else {
+						focusedButton = this.checkboxHasFocus ? 0 : focusedButton + 1;
+						focusedButton = focusedButton % buttonGroup.buttons.length;
+						buttonGroup.buttons[focusedButton].focus();
+						this.checkboxHasFocus = false;
+					}
 					eventHandled = true;
 				}
 
