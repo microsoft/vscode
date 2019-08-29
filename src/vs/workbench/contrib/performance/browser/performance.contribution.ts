@@ -13,8 +13,7 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { Extensions as Input, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { StartupProfiler } from './startupProfiler';
-import { StartupTimings } from '../browser/startupTimings';
+import { StartupTimings } from './startupTimings';
 
 // -- startup performance view
 
@@ -48,12 +47,6 @@ MenuRegistry.addCommand({
 });
 
 
-// -- startup profiler
-
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	StartupProfiler,
-	LifecyclePhase.Restored
-);
 
 // -- startup timings
 

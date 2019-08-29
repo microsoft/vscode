@@ -237,4 +237,7 @@ import 'vs/workbench/contrib/experiments/browser/experiments.contribution';
 // Send a Smile
 import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
+// Performance
+import 'vs/workbench/contrib/performance/browser/performance.contribution';
+
 //#endregion

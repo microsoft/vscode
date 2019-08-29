@@ -130,7 +130,7 @@ import 'vs/workbench/contrib/surveys/electron-browser/nps.contribution';
 import 'vs/workbench/contrib/surveys/electron-browser/languageSurveys.contribution';
 
 // Performance
-import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
+import 'vs/workbench/contrib/performance/electron-browser/startupProfiler';
 
 // CLI
 import 'vs/workbench/contrib/cli/node/cli.contribution';

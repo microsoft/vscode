@@ -12,12 +12,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/node/product';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Extensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
@@ -121,3 +122,10 @@ export class StartupProfiler implements IWorkbenchContribution {
 		this._openerService.open(URI.parse(`${baseUrl}${queryStringPrefix}body=${encodeURIComponent(body)}`));
 	}
 }
+
+// -- register as workbench contribution
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	StartupProfiler,
+	LifecyclePhase.Restored
+);
