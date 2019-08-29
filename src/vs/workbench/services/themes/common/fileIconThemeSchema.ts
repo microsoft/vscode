@@ -12,6 +12,7 @@ const schemaId = 'vscode://schemas/icon-theme';
 const schema: IJSONSchema = {
 	type: 'object',
 	allowComments: true,
+	allowsTrailingCommas: true,
 	definitions: {
 		folderExpanded: {
 			type: 'string',
