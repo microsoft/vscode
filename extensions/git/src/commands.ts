@@ -1260,7 +1260,7 @@ export class CommandCenter {
 
 			if (documents.length > 0) {
 				const message = documents.length === 1
-					? localize('unsaved files single', "The following file is unsaved and will not be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?", path.basename(documents[0].uri.fsPath))
+					? localize('unsaved files single', "The following file has unsaved changes which won't be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?", path.basename(documents[0].uri.fsPath))
 					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", documents.length);
 				const saveAndCommit = localize('save and commit', "Save All & Commit");
 				const commit = localize('commit', "Commit Anyway");
