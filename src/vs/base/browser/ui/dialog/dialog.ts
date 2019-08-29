@@ -56,13 +56,16 @@ export class Dialog extends Disposable {
 	private styles: IDialogStyles | undefined;
 	private focusToReturn: HTMLElement | undefined;
 	private checkboxHasFocus: boolean = false;
+	private buttons: string[];
 
-	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
+	constructor(private container: HTMLElement, private message: string, buttons: string[], private options: IDialogOptions) {
 		super();
 		this.modal = this.container.appendChild($(`.dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
 		this.element = this.modal.appendChild($('.dialog-box'));
 		hide(this.element);
 
+		// If no button is provided, default to OK
+		this.buttons = buttons.length ? buttons : [nls.localize('ok', "OK")];
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
