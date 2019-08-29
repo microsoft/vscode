@@ -12,6 +12,8 @@ import { IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Event } from 'vs/base/common/event';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
@@ -22,11 +24,16 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 	) {
 		const connection = remoteAgentService.getConnection();
 
-		if (!connection) {
-			throw new Error('Missing agent connection');
+		let channel: IChannel;
+		if (connection) {
+			channel = connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName);
+		} else {
+			channel = { call: async () => undefined, listen: () => Event.None } as any;
+			// TODO@weinand TODO@isidorn fallback?
+			console.warn('Extension Host Debugging not available due to missing connection.');
 		}
 
-		super(connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
+		super(channel);
 
 		this._register(this.onReload(event => {
 			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {

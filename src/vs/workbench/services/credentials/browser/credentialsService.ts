@@ -13,6 +13,7 @@ export interface ICredentialsProvider {
 	setPassword(service: string, account: string, password: string): Promise<void>;
 	deletePassword(service: string, account: string): Promise<boolean>;
 	findPassword(service: string): Promise<string | null>;
+	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
 }
 
 export class BrowserCredentialsService implements ICredentialsService {
@@ -29,20 +30,24 @@ export class BrowserCredentialsService implements ICredentialsService {
 		}
 	}
 
-	async getPassword(service: string, account: string): Promise<string | null> {
+	getPassword(service: string, account: string): Promise<string | null> {
 		return this.credentialsProvider.getPassword(service, account);
 	}
 
-	async setPassword(service: string, account: string, password: string): Promise<void> {
+	setPassword(service: string, account: string, password: string): Promise<void> {
 		return this.credentialsProvider.setPassword(service, account, password);
 	}
 
-	async deletePassword(service: string, account: string): Promise<boolean> {
+	deletePassword(service: string, account: string): Promise<boolean> {
 		return this.credentialsProvider.deletePassword(service, account);
 	}
 
-	async findPassword(service: string): Promise<string | null> {
+	findPassword(service: string): Promise<string | null> {
 		return this.credentialsProvider.findPassword(service);
+	}
+
+	findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+		return this.credentialsProvider.findCredentials(service);
 	}
 }
 
@@ -126,6 +131,12 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	async findPassword(service: string): Promise<string | null> {
 		return this.doGetPassword(service);
+	}
+
+	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+		return this.credentials
+			.filter(credential => credential.service === service)
+			.map(({ account, password }) => ({ account, password }));
 	}
 }
 

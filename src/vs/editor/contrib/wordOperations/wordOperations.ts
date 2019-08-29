@@ -199,7 +199,7 @@ export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
 		super({
 			inSelectionMode: true,
 			wordNavigationType: WordNavigationType.WordAccessibility,
-			id: 'cursorWordAccessibilitLeftSelecty',
+			id: 'cursorWordAccessibilityLeftSelect',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),

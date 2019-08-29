@@ -1017,12 +1017,12 @@ class UnsupportedSettingsRenderer extends Disposable {
 	}
 
 	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
-		if (this.workbenchEnvironmentService.configuration.remote && configuration.scope === ConfigurationScope.MACHINE) {
+		if (this.workbenchEnvironmentService.configuration.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
 				...setting.range,
-				message: nls.localize('unsupportedRemoteMachineSetting', "This setting can be applied only in remote machine settings")
+				message: nls.localize('unsupportedRemoteMachineSetting', "This setting cannot be applied now. It will be applied when you open local window.")
 			});
 		}
 	}
@@ -1076,7 +1076,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
 			...setting.range,
-			message: nls.localize('unsupportedMachineSetting', "This setting can be applied only in user settings")
+			message: nls.localize('unsupportedMachineSetting', "This setting can only be applied in user settings in local window or in remote settings in remote window.")
 		};
 	}
 

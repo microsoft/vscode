@@ -1160,7 +1160,7 @@ export class ChangeEncodingAction extends Action {
 
 		let guessedEncoding: string | undefined = undefined;
 		if (this.fileService.canHandleResource(resource)) {
-			const content = await this.textFileService.read(resource, { autoGuessEncoding: true, acceptTextOnly: true });
+			const content = await this.textFileService.read(resource, { autoGuessEncoding: true });
 			guessedEncoding = content.encoding;
 		}
 

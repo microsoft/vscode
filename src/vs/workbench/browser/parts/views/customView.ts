@@ -375,7 +375,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				identityProvider: new CustomViewIdentityProvider(),
 				accessibilityProvider: {
 					getAriaLabel(element: ITreeItem): string {
-						return element.label ? element.label.label : '';
+						return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
 					}
 				},
 				ariaLabel: this.title,
@@ -855,13 +855,18 @@ class MultipleSelectionActionRunner extends ActionRunner {
 	runAction(action: IAction, context: TreeViewItemHandleArg): Promise<any> {
 		const selection = this.getSelectedResources();
 		let selectionHandleArgs: TreeViewItemHandleArg[] | undefined = undefined;
+		let actionInSelected: boolean = false;
 		if (selection.length > 1) {
-			selectionHandleArgs = [];
-			selection.forEach(selected => {
-				if (selected.handle !== context.$treeItemHandle) {
-					selectionHandleArgs!.push({ $treeViewId: context.$treeViewId, $treeItemHandle: selected.handle });
+			selectionHandleArgs = selection.map(selected => {
+				if (selected.handle === context.$treeItemHandle) {
+					actionInSelected = true;
 				}
+				return { $treeViewId: context.$treeViewId, $treeItemHandle: selected.handle };
 			});
+		}
+
+		if (!actionInSelected) {
+			selectionHandleArgs = undefined;
 		}
 
 		return action.run(...[context, selectionHandleArgs]);

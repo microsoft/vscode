@@ -145,6 +145,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	setPanelPosition(position: Position): void;
 
 	/**
+	 * Gets the maximum possible size for editor.
+	 */
+	getMaximumEditorDimensions(): Dimension;
+
+	/**
 	 * Returns the element that is parent of the workbench element.
 	 */
 	getWorkbenchContainer(): HTMLElement;

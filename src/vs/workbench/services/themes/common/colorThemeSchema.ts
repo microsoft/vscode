@@ -192,6 +192,7 @@ export const colorThemeSchemaId = 'vscode://schemas/color-theme';
 const colorThemeSchema: IJSONSchema = {
 	type: 'object',
 	allowComments: true,
+	allowsTrailingCommas: true,
 	properties: {
 		colors: {
 			description: nls.localize('schema.workbenchColors', 'Colors in the workbench'),

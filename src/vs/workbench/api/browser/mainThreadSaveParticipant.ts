@@ -124,16 +124,12 @@ export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 			return;
 		}
 
-		let prevSelection: Selection[] = [];
+		const edits = [EditOperation.insert(new Position(lineCount, model.getLineMaxColumn(lineCount)), model.getEOL())];
 		const editor = findEditor(model, this.codeEditorService);
 		if (editor) {
-			prevSelection = editor.getSelections();
-		}
-
-		model.pushEditOperations(prevSelection, [EditOperation.insert(new Position(lineCount, model.getLineMaxColumn(lineCount)), model.getEOL())], edits => prevSelection);
-
-		if (editor) {
-			editor.setSelections(prevSelection);
+			editor.executeEdits('insertFinalNewLine', edits, editor.getSelections());
+		} else {
+			model.pushEditOperations([], edits, () => null);
 		}
 	}
 }

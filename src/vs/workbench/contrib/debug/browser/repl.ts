@@ -444,7 +444,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
-		this.replInputContainer.title = nls.localize('debugConsole', "Debug Console");
 
 		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
 		this.historyNavigationEnablement = historyNavigationEnablement;
@@ -455,6 +454,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		const options = getSimpleEditorOptions();
 		options.readOnly = true;
+		options.ariaLabel = nls.localize('debugConsole', "Debug Console");
+
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
 		this._register(this.replInput.onDidScrollChange(e => {

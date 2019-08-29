@@ -113,21 +113,23 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 						const scanner = this.htmlLS.createScanner(document.getText(), node.start);
 						let tokenType = scanner.scan();
 						let prevAttr = undefined;
+						let styleAttrValueRange: [number, number] | undefined = undefined;
 						while (tokenType !== TokenType.EOS && (scanner.getTokenEnd() <= positionOffset)) {
 							tokenType = scanner.scan();
 							if (tokenType === TokenType.AttributeName) {
 								prevAttr = scanner.getTokenText();
 							}
+							else if (tokenType === TokenType.AttributeValue && prevAttr === 'style') {
+								styleAttrValueRange = [scanner.getTokenOffset(), scanner.getTokenEnd()];
+							}
 						}
-						if (prevAttr === 'style') {
+						if (prevAttr === 'style' && styleAttrValueRange && positionOffset > styleAttrValueRange[0] && positionOffset < styleAttrValueRange[1]) {
 							syntax = 'css';
 							validateLocation = false;
 						}
 					}
 				}
 			}
-
-
 		}
 
 		const extractAbbreviationResults = helper.extractAbbreviation(document, position, !isStyleSheet(syntax));

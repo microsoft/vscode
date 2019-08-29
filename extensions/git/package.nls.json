@@ -73,7 +73,7 @@
 	"config.autofetch": "When enabled, commits will automatically be fetched from the default remote of the current Git repository.",
 	"config.autofetchPeriod": "Duration in seconds between each automatic git fetch, when `git.autofetch` is enabled.",
 	"config.confirmSync": "Confirm before synchronizing git repositories.",
-	"config.countBadge": "Controls the git badge counter.",
+	"config.countBadge": "Controls the Git count badge.",
 	"config.countBadge.all": "Count all changes.",
 	"config.countBadge.tracked": "Count only tracked changes.",
 	"config.countBadge.off": "Turn off counter.",

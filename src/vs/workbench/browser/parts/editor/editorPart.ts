@@ -140,7 +140,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -780,14 +780,15 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#region Part
 
-	get minimumWidth(): number { return this.centeredLayoutWidget.minimumWidth; }
+	// TODO @sbatten @joao find something better to prevent editor taking over #79897
+	get minimumWidth(): number { return Math.min(this.centeredLayoutWidget.minimumWidth, this.layoutService.getMaximumEditorDimensions().width); }
 	get maximumWidth(): number { return this.centeredLayoutWidget.maximumWidth; }
-	get minimumHeight(): number { return this.centeredLayoutWidget.minimumHeight; }
+	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions().height); }
 	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
 
 	readonly snap = true;
 
-	get onDidChange(): Event<IViewSize | undefined> { return this.centeredLayoutWidget.onDidChange; }
+	get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
 	readonly priority: LayoutPriority = LayoutPriority.High;
 
 	private get gridSeparatorBorder(): Color {

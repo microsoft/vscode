@@ -19,7 +19,7 @@ export interface IWorkbenchConstructionOptions {
 	 * Experimental: the remote authority is the IP:PORT from where the workbench is served
 	 * from. It is for example being used for the websocket connections as address.
 	 */
-	remoteAuthority: string;
+	remoteAuthority?: string;
 
 	/**
 	 * The connection token to send to the server.

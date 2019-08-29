@@ -32,9 +32,9 @@ import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialog
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator2, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchErrorCode, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -108,7 +108,6 @@ export class SearchView extends ViewletPanel {
 	private tree: WorkbenchObjectTree<RenderableMatch>;
 	private treeLabels: ResourceLabels;
 	private viewletState: MementoObject;
-	private globalMemento: MementoObject;
 	private messagesElement: HTMLElement;
 	private messageDisposables: IDisposable[] = [];
 	private searchWidgetsContainerElement: HTMLElement;
@@ -173,7 +172,6 @@ export class SearchView extends ViewletPanel {
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.memento = new Memento(this.id, storageService);
 		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE);
-		this.globalMemento = this.memento.getMemento(StorageScope.GLOBAL);
 
 		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this._register(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
@@ -1383,10 +1381,6 @@ export class SearchView extends ViewletPanel {
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
 
-				if (e.code === SearchErrorCode.regexParseError && !this.configurationService.getValue('search.usePCRE2')) {
-					this.showPcre2Hint();
-				}
-
 				return Promise.resolve();
 			}
 		};
@@ -1419,23 +1413,6 @@ export class SearchView extends ViewletPanel {
 
 		return this.viewModel.search(query)
 			.then(onComplete, onError);
-	}
-
-	private showPcre2Hint(): void {
-		if (!this.globalMemento['disablePcre2Hint']) {
-			// If the regex parsed in JS but not rg, it likely uses features that are supported in JS and PCRE2 but not Rust
-			this.notificationService.prompt(Severity.Info, nls.localize('rgRegexError', "You can enable \"search.usePCRE2\" to enable some extra regex features like lookbehind and backreferences."), [
-				{
-					label: nls.localize('neverAgain', "Don't Show Again"),
-					run: () => this.globalMemento['disablePcre2Hint'] = true,
-					isSecondary: true
-				},
-				{
-					label: nls.localize('otherEncodingWarning.openSettingsLabel', "Open Settings"),
-					run: () => this.openSettings('search.usePCRE2')
-				}
-			]);
-		}
 	}
 
 	private addClickEvents = (element: HTMLElement, handler: (event: any) => void): void => {
