@@ -856,12 +856,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		const selection = this.getSelectedResources();
 		let selectionHandleArgs: TreeViewItemHandleArg[] | undefined = undefined;
 		if (selection.length > 1) {
-			selectionHandleArgs = [];
-			selection.forEach(selected => {
-				if (selected.handle !== context.$treeItemHandle) {
-					selectionHandleArgs!.push({ $treeViewId: context.$treeViewId, $treeItemHandle: selected.handle });
-				}
-			});
+			selectionHandleArgs = selection.map(selected => { return { $treeViewId: context.$treeViewId, $treeItemHandle: selected.handle }; });
 		}
 
 		return action.run(...[context, selectionHandleArgs]);
