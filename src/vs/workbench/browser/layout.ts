@@ -1152,6 +1152,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.setEditorHidden(true);
 			} else {
 				this.setEditorHidden(false);
+				this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.sizeBeforeMaximize, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.sizeBeforeMaximize : size.height });
 			}
 		} else {
 			this.workbenchGrid.layout({ toggleMaximizedPanel: true, source: Parts.PANEL_PART });
