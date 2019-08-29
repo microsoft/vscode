@@ -47,12 +47,12 @@ export async function selectAndRunScriptFromFolder(folderInfo: vscode.Uri) {
 				taskMap[taskName] = t;
 			}
 		});
-		await vscode.window.showQuickPick(Object.keys(taskMap).sort(), {
+		let result = await vscode.window.showQuickPick(Object.keys(taskMap).sort(), {
 			placeHolder: `Run scripts on folder ${folderInfo.fsPath}...`,
-			onDidSelectItem: (taskToRun: string) => {
-				vscode.tasks.executeTask(taskMap[taskToRun]);
-			}
 		});
+		if (result) {
+			vscode.tasks.executeTask(taskMap[result]);
+		}
 	}
 	else {
 		vscode.window.showInformationMessage(`No scripts detected in folder ${folderInfo.path}`);
