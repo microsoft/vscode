@@ -580,9 +580,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Border color
 		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
-		container.style.borderTopWidth = borderColor ? '1px' : null;
-		container.style.borderTopStyle = borderColor ? 'solid' : null;
-		container.style.borderTopColor = borderColor;
+		if (borderColor) {
+			addClass(container, 'status-border-top');
+			container.style.setProperty('--status-border-top-color', borderColor.toString());
+		} else {
+			removeClass(container, 'status-border-top');
+			container.style.removeProperty('--status-border-top-color');
+		}
 
 		// Notification Beak
 		if (!this.styleElement) {
