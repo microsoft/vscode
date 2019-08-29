@@ -150,7 +150,9 @@ export class WebviewEditorService implements IWebviewEditorService {
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
-			activation: showOptions.preserveFocus ? EditorActivation.PRESERVE : undefined // preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
+			activation: showOptions.preserveFocus ? EditorActivation.RESTORE : undefined
 		}, showOptions.group);
 		return webviewInput;
 	}
@@ -163,7 +165,9 @@ export class WebviewEditorService implements IWebviewEditorService {
 		if (webview.group === group.id) {
 			this._editorService.openEditor(webview, {
 				preserveFocus,
-				activation: preserveFocus ? EditorActivation.PRESERVE : undefined // preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+				// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+				// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
+				activation: preserveFocus ? EditorActivation.RESTORE : undefined
 			}, webview.group);
 		} else {
 			const groupView = this._editorGroupService.getGroup(webview.group!);

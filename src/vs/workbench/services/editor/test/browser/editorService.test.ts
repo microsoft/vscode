@@ -12,7 +12,7 @@ import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -408,7 +408,7 @@ suite('EditorService', () => {
 		assert.equal(editor!.group, part.groups[1]);
 	});
 
-	test('pasero editor group activation', async () => {
+	test('editor group activation', async () => {
 		const partInstantiator = workbenchInstantiationService();
 
 		const part = partInstantiator.createInstance(EditorPart);
@@ -442,6 +442,10 @@ suite('EditorService', () => {
 		assert.equal(part.activeGroup, rootGroup);
 
 		editor = await service.openEditor(input2, { pinned: true, activation: EditorActivation.ACTIVATE }, sideGroup);
+		assert.equal(part.activeGroup, sideGroup);
+
+		part.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.RESTORE }, rootGroup);
 		assert.equal(part.activeGroup, sideGroup);
 	});
 
