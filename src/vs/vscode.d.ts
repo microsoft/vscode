@@ -5918,7 +5918,8 @@ declare module 'vscode' {
 		/**
 		 * Post a message to the webview content.
 		 *
-		 * Messages are only delivered if the webview is visible.
+		 * Messages are only delivered if the webview is live (either visible or in the
+		 * background with `retainContextWhenHidden`).
 		 *
 		 * @param message Body of the message.
 		 */
