@@ -11,10 +11,10 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as Input, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';
+import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StartupProfiler } from './startupProfiler';
-import { StartupTimings } from './startupTimings';
+import { StartupTimings } from '../browser/startupTimings';
 
 // -- startup performance view
 

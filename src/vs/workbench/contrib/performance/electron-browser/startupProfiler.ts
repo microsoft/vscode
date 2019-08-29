@@ -13,7 +13,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import product from 'vs/platform/product/node/product';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';
+import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';

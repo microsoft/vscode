@@ -70,6 +70,8 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-browser/workspacesService';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { TimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
 
 registerSingleton(IClipboardService, ClipboardService, true);
 registerSingleton(IRequestService, RequestService, true);
@@ -81,6 +83,7 @@ registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
 registerSingleton(IWorkspacesService, WorkspacesService);
 registerSingleton(IMenubarService, MenubarService);
+registerSingleton(ITimerService, TimerService, true);
 
 //#endregion
 

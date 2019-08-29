@@ -12,7 +12,7 @@ import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/platf
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/browser/timerService';
 import { repeat } from 'vs/base/common/strings';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import * as perf from 'vs/base/common/performance';
@@ -20,8 +20,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
+import { IProductService } from 'vs/platform/product/common/product';
 
 export class PerfviewContrib {
 
@@ -73,6 +72,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ITimerService private readonly _timerService: ITimerService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IProductService private readonly _productService: IProductService,
 	) { }
 
 	provideTextContent(resource: URI): Promise<ITextModel> {
@@ -127,7 +127,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _addSummary(md: MarkdownBuilder, metrics: IStartupMetrics): void {
 		md.heading(2, 'System Info');
-		md.li(`${product.nameShort}: ${pkg.version} (${product.commit || '0000000'})`);
+		md.li(`${this._productService.nameShort}: ${this._productService.version} (${this._productService.commit || '0000000'})`);
 		md.li(`OS: ${metrics.platform}(${metrics.release})`);
 		if (metrics.cpus) {
 			md.li(`CPUs: ${metrics.cpus.model}(${metrics.cpus.count} x ${metrics.cpus.speed})`);
