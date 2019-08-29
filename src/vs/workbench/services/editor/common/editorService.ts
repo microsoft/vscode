@@ -26,6 +26,9 @@ export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
+export const BOTTOM_GROUP = -3;
+export type BOTTOM_GROUP_TYPE = typeof BOTTOM_GROUP;
+
 export interface IOpenEditorOverrideHandler {
 	(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined;
 }

@@ -18,8 +18,8 @@ import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IResourceEditor, SIDE_GROUP, BOTTOM_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, BOTTOM_GROUP_TYPE, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
@@ -30,7 +30,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
-type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
+type OpenInEditorGroup = IEditorGroup | GroupIdentifier | BOTTOM_GROUP_TYPE | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
@@ -292,6 +292,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			targetGroup = this.findSideBySideGroup();
 		}
 
+		// Group: Bottom Group
+		else if (group === BOTTOM_GROUP) {
+			targetGroup = this.findBottomGroup();
+		}
+
 		// Group: Specific Group
 		else if (typeof group === 'number' && group >= 0) {
 			targetGroup = this.editorGroupService.getGroup(group);
@@ -348,6 +353,17 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return targetGroup;
 	}
 
+	private findBottomGroup(): IEditorGroup {
+		const direction = GroupDirection.DOWN;
+
+		let neighbourGroup = this.editorGroupService.findGroup({ direction });
+		if (!neighbourGroup) {
+			neighbourGroup = this.editorGroupService.addGroup(this.editorGroupService.activeGroup, direction);
+		}
+
+		return neighbourGroup;
+	}
+
 	private findSideBySideGroup(): IEditorGroup {
 		const direction = preferredSideBySideGroupDirection(this.configurationService);
 
@@ -394,6 +410,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const mapGroupToEditors = new Map<IEditorGroup, IEditorInputWithOptions[]>();
 		if (group === SIDE_GROUP) {
 			mapGroupToEditors.set(this.findSideBySideGroup(), typedEditors);
+		} else if (group === BOTTOM_GROUP) {
+			mapGroupToEditors.set(this.findBottomGroup(), typedEditors);
 		} else {
 			typedEditors.forEach(typedEditor => {
 				const targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);

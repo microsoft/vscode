@@ -34,7 +34,7 @@ import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/edito
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, BOTTOM_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basename, toLocalResource, joinPath } from 'vs/base/common/resources';
@@ -51,6 +51,7 @@ export const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "R
 export const REVEAL_IN_EXPLORER_COMMAND_ID = 'revealInExplorer';
 export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
 export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
+export const OPEN_TO_BOTTOM_COMMAND_ID = 'explorer.openToBottom';
 export const SELECT_FOR_COMPARE_COMMAND_ID = 'selectForCompare';
 
 export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
@@ -281,6 +282,31 @@ CommandsRegistry.registerCommand({
 			} catch (error) {
 				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => basename(r)).join(', '), toErrorMessage(error, false)));
 			}
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ExplorerFocusCondition,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_I,
+	mac: {
+		primary: KeyMod.WinCtrl | KeyCode.KEY_I
+	},
+	id: OPEN_TO_BOTTOM_COMMAND_ID, handler: async (accessor, resource: URI | object) => {
+		const editorService = accessor.get(IEditorService);
+		const listService = accessor.get(IListService);
+		const fileService = accessor.get(IFileService);
+		const resources = getMultiSelectedResources(resource, listService, editorService);
+
+		// Set side input
+		if (resources.length) {
+			const resolved = await fileService.resolveAll(resources.map(resource => ({ resource })));
+			const editors = resolved.filter(r => r.stat && r.success && !r.stat.isDirectory).map(r => ({
+				resource: r.stat!.resource
+			}));
+
+			await editorService.openEditors(editors, BOTTOM_GROUP);
 		}
 	}
 });
