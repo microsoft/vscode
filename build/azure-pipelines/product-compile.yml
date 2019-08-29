@@ -100,6 +100,12 @@ steps:
 
 - script: |
     set -e
+    AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
+    ./build/azure-pipelines/common/publish-webview.sh
+  displayName: Publish Webview
+
+- script: |
+    set -e
     yarn gulp compile-build
     yarn gulp compile-extensions-build
     yarn gulp minify-vscode
