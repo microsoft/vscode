@@ -5,7 +5,7 @@
 		"preserveConstEnums": true,
 		"sourceMap": false,
 		"outDir": "../out",
-		"target": "es6",
+		"target": "es2017",
 		"lib": [
 			"dom",
 			"es5",
