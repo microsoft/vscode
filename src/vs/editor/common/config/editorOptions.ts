@@ -997,7 +997,6 @@ export interface InternalEditorViewOptions {
 	readonly renderLineNumbers: RenderLineNumbersType;
 	readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
 	readonly cursorSurroundingLines: number;
-	readonly renderFinalNewline: boolean;
 	readonly selectOnLineNumbers: boolean;
 	readonly glyphMargin: boolean;
 	readonly revealHorizontalRightPadding: number;
@@ -1230,8 +1229,14 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
-	public createChangeEvent(newOpts: InternalEditorOptions): IConfigurationChangedEvent {
+	public createChangeEvent(newOpts: InternalEditorOptions, changeEvent: ChangedEditorOptions | null): IConfigurationChangedEvent {
 		return {
+			hasChanged: (id: EditorOptionId) => {
+				if (!changeEvent) {
+					return false;
+				}
+				return changeEvent.get(id);
+			},
 			canUseLayerHinting: (this.canUseLayerHinting !== newOpts.canUseLayerHinting),
 			pixelRatio: (this.pixelRatio !== newOpts.pixelRatio),
 			editorClassName: (this.editorClassName !== newOpts.editorClassName),
@@ -1312,7 +1317,6 @@ export class InternalEditorOptions {
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
 			&& a.cursorSurroundingLines === b.cursorSurroundingLines
-			&& a.renderFinalNewline === b.renderFinalNewline
 			&& a.selectOnLineNumbers === b.selectOnLineNumbers
 			&& a.glyphMargin === b.glyphMargin
 			&& a.revealHorizontalRightPadding === b.revealHorizontalRightPadding
@@ -1638,6 +1642,7 @@ export interface EditorLayoutInfo {
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
+	hasChanged(id: EditorOptionId): boolean;
 	readonly canUseLayerHinting: boolean;
 	readonly pixelRatio: boolean;
 	readonly editorClassName: boolean;
@@ -2076,7 +2081,6 @@ export class EditorOptionsValidator {
 			cursorSurroundingLines: _clampedInt(opts.cursorSurroundingLines, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			renderLineNumbers: renderLineNumbers,
 			renderCustomLineNumbers: renderCustomLineNumbers,
-			renderFinalNewline: _boolean(opts.renderFinalNewline, defaults.renderFinalNewline),
 			selectOnLineNumbers: _boolean(opts.selectOnLineNumbers, defaults.selectOnLineNumbers),
 			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
 			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
@@ -2198,7 +2202,6 @@ export class InternalEditorOptionsFactory {
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
 				cursorSurroundingLines: opts.viewInfo.cursorSurroundingLines,
-				renderFinalNewline: opts.viewInfo.renderFinalNewline,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
 				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
@@ -2665,7 +2668,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
 		cursorSurroundingLines: 0,
-		renderFinalNewline: true,
 		selectOnLineNumbers: true,
 		glyphMargin: true,
 		revealHorizontalRightPadding: 30,
@@ -2769,4 +2771,128 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		codeActionsOnSave: {},
 		codeActionsOnSaveTimeout: 750
 	},
+};
+
+export interface IRawEditorOptionsBag {
+	[key: string]: any;
+}
+
+/**
+ * @internal
+ */
+export class RawEditorOptions {
+	private readonly _values: any[] = [];
+	public _read<T>(id: EditorOptionId): T | undefined {
+		return this._values[id];
+	}
+	public _write<T>(id: EditorOptionId, value: T | undefined): void {
+		this._values[id] = value;
+	}
+}
+
+/**
+ * @internal
+ */
+export class ValidatedEditorOptions {
+	private readonly _values: any[] = [];
+	public _read<T>(option: EditorOptionId): T {
+		return this._values[option];
+	}
+	public _write<T>(option: EditorOptionId, value: T): void {
+		this._values[option] = value;
+	}
+}
+
+export interface IComputedEditorOptions {
+	get<T1, T2, T3>(id: EditorOptionId, option: IEditorOption<T1, T2, T3>): T3;
+}
+
+/**
+ * @internal
+ */
+export class ComputedEditorOptions {
+	private readonly _values: any[] = [];
+	public _read<T>(id: EditorOptionId): T {
+		return this._values[id];
+	}
+	public get<T1, T2, T3>(id: EditorOptionId, option: IEditorOption<T1, T2, T3>): T3 {
+		return this._values[id];
+	}
+	public _write<T>(id: EditorOptionId, value: T): void {
+		this._values[id] = value;
+	}
+}
+
+/**
+ * @internal
+ */
+export class ChangedEditorOptions {
+	private readonly _values: boolean[] = [];
+	public get(id: EditorOptionId): boolean {
+		return this._values[id];
+	}
+	public _write(id: EditorOptionId, value: boolean): void {
+		this._values[id] = value;
+	}
+}
+
+interface IEditorOption<T1, T2 = T1, T3 = T2> {
+	readonly id: EditorOptionId;
+	readonly name: string;
+	readonly defaultValue: T1;
+	read(options: IRawEditorOptionsBag): T1 | undefined;
+	mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined;
+	validate(input: T1 | undefined): T2;
+	compute(value: T2): T3;
+	equals(a: T3, b: T3): boolean;
+}
+
+class BooleanEditorOption implements IEditorOption<boolean> {
+	public readonly id: EditorOptionId;
+	public readonly name: string;
+	public readonly defaultValue: boolean;
+
+	constructor(id: EditorOptionId, name: string, defaultValue: boolean) {
+		this.id = id;
+		this.name = name;
+		this.defaultValue = defaultValue;
+	}
+
+	public read(options: IRawEditorOptionsBag): boolean | undefined {
+		return options[this.name];
+	}
+
+	public mix(a: boolean | undefined, b: boolean | undefined): boolean | undefined {
+		return (typeof b !== 'undefined' ? b : a);
+	}
+
+	public validate(input: boolean | undefined): boolean {
+		return _boolean(input, this.defaultValue);
+	}
+
+	public compute(value: boolean): boolean {
+		return value;
+	}
+
+	public equals(a: boolean, b: boolean): boolean {
+		return (a === b);
+	}
+}
+
+/**
+ * @internal
+ */
+export const editorOptionsRegistry: IEditorOption<any>[] = [];
+
+function registerEditorOption<T1, T2, T3>(option: IEditorOption<T1, T2, T3>): IEditorOption<T1, T2, T3> {
+	editorOptionsRegistry[option.id] = option;
+	return option;
+}
+
+export const enum EditorOptionId {
+	RenderFinalNewline,
+}
+
+export const EditorOption = {
+	RenderFinalNewline: registerEditorOption(new BooleanEditorOption(EditorOptionId.RenderFinalNewline, 'renderFinalNewline', true))
 };

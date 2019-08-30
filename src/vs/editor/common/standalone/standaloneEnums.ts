@@ -430,6 +430,10 @@ export enum RenderLineNumbersType {
 	Custom = 4
 }
 
+export enum EditorOptionId {
+	RenderFinalNewline = 0
+}
+
 /**
  * A positioning preference for rendering content widgets.
  */

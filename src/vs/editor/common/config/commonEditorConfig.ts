@@ -63,6 +63,58 @@ export interface IEnvConfiguration {
 
 const hasOwnProperty = Object.hasOwnProperty;
 
+export class EditorConfiguration2 {
+	public static readOptions(options: editorOptions.IEditorOptions): editorOptions.RawEditorOptions {
+		// console.log(`parseOptions`, options);
+		const result = new editorOptions.RawEditorOptions();
+		for (const editorOption of editorOptions.editorOptionsRegistry) {
+			result._write(editorOption.id, editorOption.read(options));
+		}
+		return result;
+	}
+
+	public static mixOptions(a: editorOptions.RawEditorOptions, b: editorOptions.IEditorOptions): editorOptions.RawEditorOptions {
+		// console.log(`mixOptions`, a, b);
+		const result = new editorOptions.RawEditorOptions();
+		for (const editorOption of editorOptions.editorOptionsRegistry) {
+			result._write(editorOption.id, editorOption.mix(a._read(editorOption.id), editorOption.read(b)));
+		}
+		return result;
+	}
+
+	public static validateOptions(options: editorOptions.RawEditorOptions): editorOptions.ValidatedEditorOptions {
+		// console.log(`validateOptions`, options);
+		const result = new editorOptions.ValidatedEditorOptions();
+		for (const editorOption of editorOptions.editorOptionsRegistry) {
+			result._write(editorOption.id, editorOption.validate(options._read(editorOption.id)));
+		}
+		return result;
+	}
+
+	public static computeOptions(options: editorOptions.ValidatedEditorOptions, env: editorOptions.IEnvironmentalOptions): editorOptions.ComputedEditorOptions {
+		// console.log(`computeOptions`, options, env);
+		const result = new editorOptions.ComputedEditorOptions();
+		for (const editorOption of editorOptions.editorOptionsRegistry) {
+			result._write(editorOption.id, editorOption.compute(options._read(editorOption.id)));
+		}
+		return result;
+	}
+
+	public static checkEquals(a: editorOptions.ComputedEditorOptions, b: editorOptions.ComputedEditorOptions): editorOptions.ChangedEditorOptions | null {
+		// console.log(`equals`, a, b);
+		const result = new editorOptions.ChangedEditorOptions();
+		let somethingChanged = false;
+		for (const editorOption of editorOptions.editorOptionsRegistry) {
+			const equals = editorOption.equals(a._read(editorOption.id), b._read(editorOption.id));
+			result._write(editorOption.id, equals);
+			if (!equals) {
+				somethingChanged = true;
+			}
+		}
+		return (somethingChanged ? result : null);
+	}
+}
+
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
 	public readonly isSimpleWidget: boolean;
@@ -74,6 +126,10 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	private _onDidChange = this._register(new Emitter<editorOptions.IConfigurationChangedEvent>());
 	public readonly onDidChange: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChange.event;
+
+	private _rawOptions2: editorOptions.RawEditorOptions;
+	private _validatedOptions2: editorOptions.ValidatedEditorOptions;
+	public options!: editorOptions.ComputedEditorOptions;
 
 	constructor(isSimpleWidget: boolean, options: editorOptions.IEditorOptions) {
 		super();
@@ -89,6 +145,10 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions.parameterHints = objects.mixin({}, this._rawOptions.parameterHints || {});
 
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
+
+		this._rawOptions2 = EditorConfiguration2.readOptions(options);
+		this._validatedOptions2 = EditorConfiguration2.validateOptions(this._rawOptions2);
+
 		this._isDominatedByLongLines = false;
 		this._lineNumbersDigitCount = 1;
 
@@ -105,16 +165,20 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	protected _recomputeOptions(): void {
 		const oldOptions = this.editor;
-		const newOptions = this._computeInternalOptions();
+		const oldOptions2 = this.options;
+		const [newOptions, newOptions2] = this._computeInternalOptions();
 
-		if (oldOptions && oldOptions.equals(newOptions)) {
+		const changeEvent = (oldOptions2 ? EditorConfiguration2.checkEquals(oldOptions2, newOptions2) : null);
+
+		if (oldOptions && oldOptions.equals(newOptions) && oldOptions2 && changeEvent === null) {
 			return;
 		}
 
 		this.editor = newOptions;
+		this.options = newOptions2;
 
 		if (oldOptions) {
-			this._onDidChange.fire(oldOptions.createChangeEvent(newOptions));
+			this._onDidChange.fire(oldOptions.createChangeEvent(newOptions, changeEvent));
 		}
 	}
 
@@ -122,7 +186,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return this._rawOptions;
 	}
 
-	private _computeInternalOptions(): editorOptions.InternalEditorOptions {
+	private _computeInternalOptions(): [editorOptions.InternalEditorOptions, editorOptions.ComputedEditorOptions] {
 		const opts = this._validatedOptions;
 		const partialEnv = this._getEnvConfiguration();
 		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, partialEnv.zoomLevel, this.isSimpleWidget);
@@ -138,7 +202,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			tabFocusMode: TabFocus.getTabFocusMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport
 		};
-		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
+		const r = editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
+		const r2 = EditorConfiguration2.computeOptions(this._validatedOptions2, env);
+		return [r, r2];
 	}
 
 	private static _primitiveArrayEquals(a: any[], b: any[]): boolean {
@@ -189,7 +255,11 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			return;
 		}
 		this._rawOptions = objects.mixin(this._rawOptions, newOptions || {});
+		this._rawOptions2 = EditorConfiguration2.mixOptions(this._rawOptions2, newOptions);
+
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
+		this._validatedOptions2 = EditorConfiguration2.validateOptions(this._rawOptions2);
+
 		this._recomputeOptions();
 	}
 
@@ -275,7 +345,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.renderFinalNewline': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.renderFinalNewline,
+			'default': editorOptions.EditorOption.RenderFinalNewline.defaultValue,
 			'description': nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.")
 		},
 		'editor.rulers': {

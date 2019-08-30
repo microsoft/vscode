@@ -3312,7 +3312,6 @@ declare namespace monaco.editor {
 		readonly renderLineNumbers: RenderLineNumbersType;
 		readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
 		readonly cursorSurroundingLines: number;
-		readonly renderFinalNewline: boolean;
 		readonly selectOnLineNumbers: boolean;
 		readonly glyphMargin: boolean;
 		readonly revealHorizontalRightPadding: number;
@@ -3525,6 +3524,7 @@ declare namespace monaco.editor {
 	 * An event describing that the configuration of the editor has changed.
 	 */
 	export interface IConfigurationChangedEvent {
+		hasChanged(id: EditorOptionId): boolean;
 		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: boolean;
 		readonly editorClassName: boolean;
@@ -3550,6 +3550,33 @@ declare namespace monaco.editor {
 		readonly wrappingInfo: boolean;
 		readonly contribInfo: boolean;
 	}
+
+	export interface IRawEditorOptionsBag {
+		[key: string]: any;
+	}
+
+	export interface IComputedEditorOptions {
+		get<T1, T2, T3>(id: EditorOptionId, option: IEditorOption<T1, T2, T3>): T3;
+	}
+
+	interface IEditorOption<T1, T2 = T1, T3 = T2> {
+		readonly id: EditorOptionId;
+		readonly name: string;
+		readonly defaultValue: T1;
+		read(options: IRawEditorOptionsBag): T1 | undefined;
+		mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined;
+		validate(input: T1 | undefined): T2;
+		compute(value: T2): T3;
+		equals(a: T3, b: T3): boolean;
+	}
+
+	export enum EditorOptionId {
+		RenderFinalNewline = 0
+	}
+
+	export const EditorOption: {
+		RenderFinalNewline: IEditorOption<boolean, boolean, boolean>;
+	};
 
 	/**
 	 * A view zone is a full horizontal rectangle that 'pushes' text down.
