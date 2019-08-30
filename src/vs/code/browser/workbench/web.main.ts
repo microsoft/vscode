@@ -103,6 +103,12 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	async findPassword(service: string): Promise<string | null> {
 		return this.doGetPassword(service);
 	}
+
+	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+		return this.credentials
+			.filter(credential => credential.service === service)
+			.map(({ account, password }) => ({ account, password }));
+	}
 }
 
 class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvider {
