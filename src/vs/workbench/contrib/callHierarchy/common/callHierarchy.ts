@@ -6,7 +6,6 @@
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
-import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { URI } from 'vs/base/common/uri';
