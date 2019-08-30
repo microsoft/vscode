@@ -5,7 +5,7 @@
 
 import * as Assert from 'vs/base/common/assert';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { INavigator } from 'vs/base/common/iterator';
 import * as _ from './tree';
 import { Event, Emitter, EventMultiplexer, Relay } from 'vs/base/common/event';
@@ -865,7 +865,7 @@ export class TreeModel {
 	private lock!: Lock;
 	private input: Item | null;
 	private registry: ItemRegistry = new ItemRegistry();
-	private registryDisposable!: IDisposable;
+	private registryDisposable: IDisposable = Disposable.None;
 	private traitsToItems: ITraitMap;
 
 	private _onSetInput = new Emitter<IInputEvent>();
