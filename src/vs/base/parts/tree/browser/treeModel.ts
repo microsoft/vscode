@@ -192,7 +192,7 @@ export class ItemRegistry {
 	}
 
 	public dispose(): void {
-		this.items = null!; // StrictNullOverride: nulling out ok in dispose
+		this.items = {};
 
 		this._onDidRevealItem.dispose();
 		this._onExpandItem.dispose();
@@ -1471,11 +1471,7 @@ export class TreeModel {
 	}
 
 	public dispose(): void {
-		if (this.registry) {
-			this.registry.dispose();
-			this.registry = null!; // StrictNullOverride: nulling out ok in dispose
-		}
-
+		this.registry.dispose();
 		this._onSetInput.dispose();
 		this._onDidSetInput.dispose();
 		this._onRefresh.dispose();

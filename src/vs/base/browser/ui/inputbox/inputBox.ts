@@ -220,13 +220,7 @@ export class InputBox extends Widget {
 			});
 		}
 
-		setTimeout(() => {
-			if (!this.input) {
-				return;
-			}
-
-			this.updateMirror();
-		}, 0);
+		setTimeout(() => this.updateMirror(), 0);
 
 		// Support actions
 		if (this.options.actions) {
@@ -246,21 +240,17 @@ export class InputBox extends Widget {
 	}
 
 	public setPlaceHolder(placeHolder: string): void {
-		if (this.input) {
-			this.input.setAttribute('placeholder', placeHolder);
-			this.input.title = placeHolder;
-		}
+		this.input.setAttribute('placeholder', placeHolder);
+		this.input.title = placeHolder;
 	}
 
 	public setAriaLabel(label: string): void {
 		this.ariaLabel = label;
 
-		if (this.input) {
-			if (label) {
-				this.input.setAttribute('aria-label', this.ariaLabel);
-			} else {
-				this.input.removeAttribute('aria-label');
-			}
+		if (label) {
+			this.input.setAttribute('aria-label', this.ariaLabel);
+		} else {
+			this.input.removeAttribute('aria-label');
 		}
 	}
 
@@ -560,20 +550,18 @@ export class InputBox extends Widget {
 	}
 
 	protected applyStyles(): void {
-		if (this.element) {
-			const background = this.inputBackground ? this.inputBackground.toString() : null;
-			const foreground = this.inputForeground ? this.inputForeground.toString() : null;
-			const border = this.inputBorder ? this.inputBorder.toString() : null;
+		const background = this.inputBackground ? this.inputBackground.toString() : null;
+		const foreground = this.inputForeground ? this.inputForeground.toString() : null;
+		const border = this.inputBorder ? this.inputBorder.toString() : null;
 
-			this.element.style.backgroundColor = background;
-			this.element.style.color = foreground;
-			this.input.style.backgroundColor = background;
-			this.input.style.color = foreground;
+		this.element.style.backgroundColor = background;
+		this.element.style.color = foreground;
+		this.input.style.backgroundColor = background;
+		this.input.style.color = foreground;
 
-			this.element.style.borderWidth = border ? '1px' : null;
-			this.element.style.borderStyle = border ? 'solid' : null;
-			this.element.style.borderColor = border;
-		}
+		this.element.style.borderWidth = border ? '1px' : null;
+		this.element.style.borderStyle = border ? 'solid' : null;
+		this.element.style.borderColor = border;
 	}
 
 	public layout(): void {
@@ -594,13 +582,11 @@ export class InputBox extends Widget {
 	public dispose(): void {
 		this._hideMessage();
 
-		this.element = null!; // StrictNullOverride: nulling out ok in dispose
-		this.input = null!; // StrictNullOverride: nulling out ok in dispose
-		this.contextViewProvider = undefined;
 		this.message = null;
-		this.validation = undefined;
-		this.state = null!; // StrictNullOverride: nulling out ok in dispose
-		this.actionbar = undefined;
+
+		if (this.actionbar) {
+			this.actionbar.dispose();
+		}
 
 		super.dispose();
 	}
