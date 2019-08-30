@@ -1066,14 +1066,17 @@ export interface ICodeLensDto {
 	command?: ICommandDto;
 }
 
-export interface ICallHierarchyDto {
-	_id: number;
+export interface ICallHierarchySymbolDto {
 	kind: modes.SymbolKind;
 	name: string;
 	detail?: string;
 	uri: UriComponents;
 	range: IRange;
 	selectionRange: IRange;
+}
+export interface ICallHierarchyItemDto {
+	source: ICallHierarchySymbolDto;
+	targets: ICallHierarchySymbolDto[];
 }
 
 export interface ExtHostLanguageFeaturesShape {
@@ -1110,8 +1113,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined>;
 	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]>;
-	$provideCallHierarchyItem(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ICallHierarchyDto | undefined>;
-	$resolveCallHierarchyItem(handle: number, item: callHierarchy.CallHierarchyItem, direction: callHierarchy.CallHierarchyDirection, token: CancellationToken): Promise<[ICallHierarchyDto, modes.Location[]][]>;
+	$provideCallHierarchyItems(handle: number, resource: UriComponents, position: IPosition, direction: callHierarchy.CallHierarchyDirection, token: CancellationToken): Promise<ICallHierarchyItemDto[] | undefined>;
 }
 
 export interface ExtHostQuickOpenShape {

@@ -1152,8 +1152,9 @@ export enum CallHierarchyDirection {
 	CallsTo = 2,
 }
 
-export class CallHierarchyItem {
+export class CallHierarchySymbol {
 	kind: SymbolKind;
+	tags?: SymbolTag[];
 	name: string;
 	detail?: string;
 	uri: URI;
@@ -1168,6 +1169,11 @@ export class CallHierarchyItem {
 		this.range = range;
 		this.selectionRange = selectionRange;
 	}
+}
+
+export class CallHierarchyItem {
+	source: CallHierarchySymbol;
+	targets: CallHierarchySymbol[];
 }
 
 @es5ClassCompat

@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyDto, ISuggestDataDto, ICodeActionDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ISuggestDataDto, ICodeActionDto, ICallHierarchyItemDto } from '../common/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -111,11 +111,15 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return <modes.ILink>data;
 	}
 
-	private static _reviveCallHierarchyItemDto(data: ICallHierarchyDto | undefined): callh.CallHierarchyItem {
-		if (data) {
-			data.uri = URI.revive(data.uri);
+	private static _reviveCallHierarchyItemDto(data: ICallHierarchyItemDto[] | undefined): callh.CallHierarchyItem[] {
+		if (!data) {
+			return [];
 		}
-		return data as callh.CallHierarchyItem;
+		return <callh.CallHierarchyItem[]>data.map(value => {
+			value.source.uri = URI.revive(value.source.uri);
+			value.targets.forEach(target => target.uri = URI.revive(target.uri));
+			return value;
+		});
 	}
 
 	//#endregion
@@ -494,22 +498,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
-			provideCallHierarchyItem: (document, position, token) => {
-				return this._proxy.$provideCallHierarchyItem(handle, document.uri, position, token).then(MainThreadLanguageFeatures._reviveCallHierarchyItemDto);
-			},
-			resolveCallHierarchyItem: (item, direction, token) => {
-				return this._proxy.$resolveCallHierarchyItem(handle, item, direction, token).then(data => {
-					if (data) {
-						for (let i = 0; i < data.length; i++) {
-							const [item, locations] = data[i];
-							data[i] = [
-								MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
-								MainThreadLanguageFeatures._reviveLocationDto(locations)
-							];
-						}
-					}
-					return data as [callh.CallHierarchyItem, modes.Location[]][];
-				});
+			provideCallHierarchyItems: (uri, position, direction, token) => {
+				return this._proxy.$provideCallHierarchyItems(handle, uri, position, direction, token).then(MainThreadLanguageFeatures._reviveCallHierarchyItemDto);
 			}
 		}));
 	}

@@ -95,7 +95,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	private _parent!: HTMLElement;
 	private _message!: HTMLElement;
 	private _splitView!: SplitView;
-	private _tree!: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
+	private _tree!: WorkbenchAsyncDataTree<CallHierarchyItem[], callHTree.Call, FuzzyScore>;
 	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
 	private _editor!: EmbeddedCodeEditorWidget;
 	private _dim!: Dimension;
@@ -244,7 +244,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		// update editor
 		this._disposables.add(this._tree.onDidChangeFocus(e => {
 			const [element] = e.elements;
-			if (element && isNonEmptyArray(element.locations)) {
+			if (element && isNonEmptyArray(element.targets)) {
 
 				localDispose = dispose(localDispose);
 
@@ -258,31 +258,31 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				};
 				let decorations: IModelDeltaDecoration[] = [];
 				let fullRange: IRange | undefined;
-				for (const { range } of element.locations) {
+				for (const { range } of element.targets) {
 					decorations.push({ range, options });
 					fullRange = !fullRange ? range : Range.plusRange(range, fullRange);
 				}
 
-				this._textModelService.createModelReference(element.item.uri).then(value => {
+				this._textModelService.createModelReference(element.source.uri).then(value => {
 					this._editor.setModel(value.object.textEditorModel);
 					this._editor.revealRangeInCenter(fullRange!, ScrollType.Smooth);
-					this._editor.revealLine(element.item.range.startLineNumber, ScrollType.Smooth);
+					this._editor.revealLine(element.source.range.startLineNumber, ScrollType.Smooth);
 					const ids = this._editor.deltaDecorations([], decorations);
 					localDispose.push({ dispose: () => this._editor.deltaDecorations(ids, []) });
 					localDispose.push(value);
 				});
 
 				let node: callHTree.Call | CallHierarchyItem = element;
-				let names = [element.item.name];
+				let names = [element.source.name];
 				while (true) {
 					let parent = this._tree.getParentElement(node);
 					if (!(parent instanceof callHTree.Call)) {
 						break;
 					}
 					if (this._direction === CallHierarchyDirection.CallsTo) {
-						names.push(parent.item.name);
+						names.push(parent.source.name);
 					} else {
-						names.unshift(parent.item.name);
+						names.unshift(parent.source.name);
 					}
 					node = parent;
 				}
@@ -301,7 +301,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			}
 			this.dispose();
 			this._editorService.openEditor({
-				resource: focus.item.uri,
+				resource: focus.source.uri,
 				options: { selection: target.range! }
 			});
 
@@ -312,11 +312,11 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				return;
 			}
 
-			if (e.element && isNonEmptyArray(e.element.locations)) {
+			if (e.element && isNonEmptyArray(e.element.targets)) {
 				this.dispose();
 				this._editorService.openEditor({
-					resource: e.element.item.uri,
-					options: { selection: e.element.locations[0].range }
+					resource: e.element.source.uri,
+					options: { selection: e.element.targets[0].range }
 				});
 			}
 		}));
@@ -324,11 +324,11 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._disposables.add(this._tree.onDidChangeSelection(e => {
 			const [element] = e.elements;
 			// don't close on click
-			if (element && isNonEmptyArray(element.locations) && e.browserEvent instanceof KeyboardEvent) {
+			if (element && isNonEmptyArray(element.targets) && e.browserEvent instanceof KeyboardEvent) {
 				this.dispose();
 				this._editorService.openEditor({
-					resource: element.item.uri,
-					options: { selection: element.locations[0].range }
+					resource: element.source.uri,
+					options: { selection: element.targets[0].range }
 				});
 			}
 		}));
@@ -349,31 +349,31 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._message.focus();
 	}
 
-	async showItem(item: CallHierarchyItem): Promise<void> {
+	async showItem(items: CallHierarchyItem[]): Promise<void> {
 
 		this._show();
 		const viewState = this._treeViewStates.get(this._direction);
-		await this._tree.setInput(item, viewState);
+		await this._tree.setInput(items, viewState);
 
-		const [root] = this._tree.getNode(item).children;
+		const [root] = this._tree.getNode(items).children;
 		await this._tree.expand(root.element as callHTree.Call);
 		const firstChild = this._tree.getFirstElementChild(root.element);
-		if (!(firstChild instanceof callHTree.Call)) {
+		if (false && !(firstChild instanceof callHTree.Call)) {
 			//
 			this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
-				? localize('empt.callsFrom', "No calls from '{0}'", item.name)
-				: localize('empt.callsTo', "No calls to '{0}'", item.name));
+				? localize('empt.callsFrom', "No calls from")
+				: localize('empt.callsTo', "No calls to"));
 
 		} else {
 			this._parent.dataset['state'] = State.Data;
 			this._tree.domFocus();
-			if (!viewState) {
-				this._tree.setFocus([firstChild]);
-			}
-			this.setTitle(
-				item.name,
-				item.detail || this._labelService.getUriLabel(item.uri, { relative: true }),
-			);
+			// if (!viewState) {
+			// 	this._tree.setFocus([firstChild]);
+			// }
+			// this.setTitle(
+			// 	items.name,
+			// 	items.detail || this._labelService.getUriLabel(items.uri, { relative: true }),
+			// );
 		}
 
 		if (!this._changeDirectionAction) {
@@ -381,7 +381,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				if (this._direction !== newDirection) {
 					this._treeViewStates.set(this._direction, this._tree.getViewState());
 					this._direction = newDirection;
-					this.showItem(item);
+					this.showItem(items);
 				}
 			};
 			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);

@@ -25,7 +25,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { LRUCache } from 'vs/base/common/map';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 
@@ -1011,55 +1010,39 @@ class SelectionRangeAdapter {
 
 class CallHierarchyAdapter {
 
-	// todo@joh keep object (heap service, lifecycle)
-	private readonly _cache = new LRUCache<number, vscode.CallHierarchyItem>(1000, 0.8);
-	private _idPool = 0;
-
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.CallHierarchyItemProvider
 	) { }
 
-	provideCallHierarchyItem(resource: URI, pos: IPosition, token: CancellationToken): Promise<undefined | callHierarchy.CallHierarchyItem> {
+	provideCallHierarchyItems(resource: URI, pos: IPosition, direction: callHierarchy.CallHierarchyDirection, token: CancellationToken): Promise<undefined | callHierarchy.CallHierarchyItem[]> {
 		const document = this._documents.getDocument(resource);
 		const position = typeConvert.Position.to(pos);
 
-		return asPromise(() => this._provider.provideCallHierarchyItem(document, position, token)).then(item => {
-			if (!item) {
+		return asPromise(() => this._provider.provideCallHierarchyItems(document, position, direction as number /*todo@joh proper convert*/, token)).then(items => {
+			if (!items) {
 				return undefined;
 			}
-			return this._fromItem(item);
+			return items.map(CallHierarchyAdapter._fromItem);
 		});
 	}
 
-	resolveCallHierarchyItem(item: callHierarchy.CallHierarchyItem, direction: callHierarchy.CallHierarchyDirection, token: CancellationToken): Promise<[callHierarchy.CallHierarchyItem, modes.Location[]][]> {
-		return asPromise(() => this._provider.resolveCallHierarchyItem(
-			this._cache.get(item._id)!,
-			direction as number, token) // todo@joh proper convert
-		).then(data => {
-			if (!data) {
-				return [];
-			}
-			return data.map(tuple => {
-				return <[callHierarchy.CallHierarchyItem, modes.Location[]]>[
-					this._fromItem(tuple[0]),
-					tuple[1].map(typeConvert.location.from)
-				];
-			});
-		});
-	}
-
-	private _fromItem(item: vscode.CallHierarchyItem, _id: number = this._idPool++): callHierarchy.CallHierarchyItem {
-		const res = <callHierarchy.CallHierarchyItem>{
-			_id,
-			name: item.name,
-			detail: item.detail,
-			kind: typeConvert.SymbolKind.from(item.kind),
-			uri: item.uri,
-			range: typeConvert.Range.from(item.range),
-			selectionRange: typeConvert.Range.from(item.selectionRange),
+	private static _fromItem(item: vscode.CallHierarchyItem): callHierarchy.CallHierarchyItem {
+		return {
+			source: CallHierarchyAdapter._fromSymbol(item.source),
+			targets: item.targets.map(CallHierarchyAdapter._fromSymbol)
 		};
-		this._cache.set(_id, item);
+	}
+
+	private static _fromSymbol(symbol: vscode.CallHierarchySymbol): callHierarchy.CallHierarchySymbol {
+		const res = <callHierarchy.CallHierarchySymbol>{
+			name: symbol.name,
+			detail: symbol.detail,
+			kind: typeConvert.SymbolKind.from(symbol.kind),
+			uri: symbol.uri,
+			range: typeConvert.Range.from(symbol.range),
+			selectionRange: typeConvert.Range.from(symbol.selectionRange),
+		};
 		return res;
 	}
 }
@@ -1496,13 +1479,10 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCallHierarchyItem(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<undefined | callHierarchy.CallHierarchyItem> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallHierarchyItem(URI.revive(resource), position, token), undefined);
+	$provideCallHierarchyItems(handle: number, resource: UriComponents, position: IPosition, direction: callHierarchy.CallHierarchyDirection, token: CancellationToken): Promise<undefined | callHierarchy.CallHierarchyItem[]> {
+		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallHierarchyItems(URI.revive(resource), position, direction, token), undefined);
 	}
 
-	$resolveCallHierarchyItem(handle: number, item: callHierarchy.CallHierarchyItem, direction: callHierarchy.CallHierarchyDirection, token: CancellationToken): Promise<[callHierarchy.CallHierarchyItem, modes.Location[]][]> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.resolveCallHierarchyItem(item, direction, token), []);
-	}
 
 	// --- configuration
 

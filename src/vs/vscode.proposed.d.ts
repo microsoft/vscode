@@ -34,8 +34,9 @@ declare module 'vscode' {
 		CallsTo = 2,
 	}
 
-	export class CallHierarchyItem {
+	export class CallHierarchySymbol {
 		kind: SymbolKind;
+		tags?: ReadonlyArray<SymbolTag>;
 		name: string;
 		detail?: string;
 		uri: Uri;
@@ -45,33 +46,13 @@ declare module 'vscode' {
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
+	export class CallHierarchyItem {
+		source: CallHierarchySymbol;
+		targets: ReadonlyArray<CallHierarchySymbol>;
+	}
+
 	export interface CallHierarchyItemProvider {
-
-		/**
-		 * Given a document and position compute a call hierarchy item. This is justed as
-		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
-		 */
-		provideCallHierarchyItem(
-			document: TextDocument,
-			position: Position,
-			token: CancellationToken
-		): ProviderResult<CallHierarchyItem>;
-
-		/**
-		 * Resolve a call hierarchy item, e.g. compute all calls from or to a function.
-		 * The result is an array of item/location-tuples. The location in the returned tuples
-		 * is always relative to the "caller" with the caller either being the provided item or
-		 * the returned item.
-		 *
-		 * @param item A call hierarchy item previously returned from `provideCallHierarchyItem` or `resolveCallHierarchyItem`
-		 * @param direction Resolve calls from a function or calls to a function
-		 * @param token A cancellation token
-		 */
-		resolveCallHierarchyItem(
-			item: CallHierarchyItem,
-			direction: CallHierarchyDirection,
-			token: CancellationToken
-		): ProviderResult<[CallHierarchyItem, Location[]][]>;
+		provideCallHierarchyItems(document: TextDocument, position: Position, direction: CallHierarchyDirection, token: CancellationToken): ProviderResult<CallHierarchyItem[]>;
 	}
 
 	export namespace languages {
