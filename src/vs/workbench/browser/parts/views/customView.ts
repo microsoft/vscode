@@ -372,24 +372,24 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 		this.tree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CustomView', this.treeContainer, new CustomTreeDelegate(), [renderer],
 			dataSource, {
-			identityProvider: new CustomViewIdentityProvider(),
-			accessibilityProvider: {
-				getAriaLabel(element: ITreeItem): string {
-					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
-				}
-			},
-			ariaLabel: this.title,
-			keyboardNavigationLabelProvider: {
-				getKeyboardNavigationLabel: (item: ITreeItem) => {
-					return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
-				}
-			},
-			expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
-			collapseByDefault: (e: ITreeItem): boolean => {
-				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
-			},
-			multipleSelectionSupport: this.canSelectMany,
-		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+				identityProvider: new CustomViewIdentityProvider(),
+				accessibilityProvider: {
+					getAriaLabel(element: ITreeItem): string {
+						return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
+					}
+				},
+				ariaLabel: this.title,
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (item: ITreeItem) => {
+						return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
+					}
+				},
+				expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
+				collapseByDefault: (e: ITreeItem): boolean => {
+					return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
+				},
+				multipleSelectionSupport: this.canSelectMany,
+			}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		aligner.tree = this.tree;
 		const actionRunner = new MultipleSelectionActionRunner(() => this.tree!.getSelection());
 		renderer.actionRunner = actionRunner;

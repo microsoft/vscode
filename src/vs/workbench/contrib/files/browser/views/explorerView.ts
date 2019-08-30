@@ -277,33 +277,33 @@ export class ExplorerView extends ViewletPanel {
 
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), [filesRenderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
-			accessibilityProvider: new ExplorerAccessibilityProvider(),
-			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
-			identityProvider: {
-				getId: (stat: ExplorerItem) => {
-					if (stat instanceof NewExplorerItem) {
-						return `new:${stat.resource}`;
-					}
+				accessibilityProvider: new ExplorerAccessibilityProvider(),
+				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
+				identityProvider: {
+					getId: (stat: ExplorerItem) => {
+						if (stat instanceof NewExplorerItem) {
+							return `new:${stat.resource}`;
+						}
 
-					return stat.resource;
-				}
-			},
-			keyboardNavigationLabelProvider: {
-				getKeyboardNavigationLabel: (stat: ExplorerItem) => {
-					if (this.explorerService.isEditable(stat)) {
-						return undefined;
+						return stat.resource;
 					}
+				},
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (stat: ExplorerItem) => {
+						if (this.explorerService.isEditable(stat)) {
+							return undefined;
+						}
 
-					return stat.name;
-				}
-			},
-			multipleSelectionSupport: true,
-			filter: this.filter,
-			sorter: this.instantiationService.createInstance(FileSorter),
-			dnd: this.instantiationService.createInstance(FileDragAndDrop),
-			autoExpandSingleChildren: true,
-			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT
-		});
+						return stat.name;
+					}
+				},
+				multipleSelectionSupport: true,
+				filter: this.filter,
+				sorter: this.instantiationService.createInstance(FileSorter),
+				dnd: this.instantiationService.createInstance(FileDragAndDrop),
+				autoExpandSingleChildren: true,
+				additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT
+			});
 		this._register(this.tree);
 
 		// Bind context keys
