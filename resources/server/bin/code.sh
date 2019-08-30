@@ -1,14 +1,8 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
 #
-
-if [[ "$OSTYPE" == "darwin"* ]]; then
-	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
-else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
-fi
+ROOT=$(dirname "$(dirname "$0")")
 
 APP_NAME="@@APPNAME@@"
 VERSION="@@VERSION@@"
