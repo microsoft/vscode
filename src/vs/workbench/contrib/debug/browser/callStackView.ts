@@ -113,40 +113,40 @@ export class CallStackView extends ViewletPanel {
 			new LoadMoreRenderer(),
 			new ShowMoreRenderer()
 		], this.dataSource, {
-			accessibilityProvider: new CallStackAccessibilityProvider(),
-			ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
-			identityProvider: {
-				getId: (element: CallStackItem) => {
-					if (typeof element === 'string') {
-						return element;
-					}
-					if (element instanceof Array) {
-						return `showMore ${element[0].getId()}`;
-					}
+				accessibilityProvider: new CallStackAccessibilityProvider(),
+				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
+				identityProvider: {
+					getId: (element: CallStackItem) => {
+						if (typeof element === 'string') {
+							return element;
+						}
+						if (element instanceof Array) {
+							return `showMore ${element[0].getId()}`;
+						}
 
-					return element.getId();
-				}
-			},
-			keyboardNavigationLabelProvider: {
-				getKeyboardNavigationLabel: (e: CallStackItem) => {
-					if (isDebugSession(e)) {
-						return e.getLabel();
+						return element.getId();
 					}
-					if (e instanceof Thread) {
-						return `${e.name} ${e.stateLabel}`;
-					}
-					if (e instanceof StackFrame || typeof e === 'string') {
-						return e;
-					}
-					if (e instanceof ThreadAndSessionIds) {
-						return LoadMoreRenderer.LABEL;
-					}
+				},
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (e: CallStackItem) => {
+						if (isDebugSession(e)) {
+							return e.getLabel();
+						}
+						if (e instanceof Thread) {
+							return `${e.name} ${e.stateLabel}`;
+						}
+						if (e instanceof StackFrame || typeof e === 'string') {
+							return e;
+						}
+						if (e instanceof ThreadAndSessionIds) {
+							return LoadMoreRenderer.LABEL;
+						}
 
-					return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
-				}
-			},
-			expandOnlyOnTwistieClick: true
-		});
+						return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
+					}
+				},
+				expandOnlyOnTwistieClick: true
+			});
 
 		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
 
