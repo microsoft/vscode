@@ -864,7 +864,7 @@ export class TreeModel {
 	private context: _.ITreeContext;
 	private lock!: Lock;
 	private input: Item | null;
-	private registry!: ItemRegistry;
+	private registry: ItemRegistry = new ItemRegistry();
 	private registryDisposable!: IDisposable;
 	private traitsToItems: ITraitMap;
 
