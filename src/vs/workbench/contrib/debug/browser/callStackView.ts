@@ -227,6 +227,7 @@ export class CallStackView extends ViewletPanel {
 		}));
 
 		this._register(this.debugService.onDidNewSession(s => {
+			this._register(s.onDidChangeName(() => this.tree.rerender(s)));
 			if (s.parentSession) {
 				// Auto expand sessions that have sub sessions
 				this.parentSessionToExpand.add(s.parentSession);

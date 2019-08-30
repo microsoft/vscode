@@ -687,6 +687,13 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession);
 	}
 
+	public async $acceptDebugSessionNameChanged(sessionDto: IDebugSessionDto, name: string): Promise<void> {
+		const session = await this.getSession(sessionDto);
+		if (session) {
+			session._acceptNameChanged(name);
+		}
+	}
+
 	public async $acceptDebugSessionCustomEvent(sessionDto: IDebugSessionDto, event: any): Promise<void> {
 		const session = await this.getSession(sessionDto);
 		const ee: vscode.DebugSessionCustomEvent = {
@@ -915,6 +922,15 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 
 	public get name(): string {
 		return this._name;
+	}
+
+	public set name(name: string) {
+		this._name = name;
+		this._debugServiceProxy.$setDebugSessionName(this._id, name);
+	}
+
+	_acceptNameChanged(name: string) {
+		this._name = name;
 	}
 
 	public get workspaceFolder(): vscode.WorkspaceFolder | undefined {

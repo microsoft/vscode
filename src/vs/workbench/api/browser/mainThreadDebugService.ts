@@ -35,6 +35,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose.add(debugService.onDidNewSession(session => {
 			this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
+			this._toDispose.add(session.onDidChangeName(name => {
+				this._proxy.$acceptDebugSessionNameChanged(this.getSessionDto(session), name);
+			}));
 		}));
 		// Need to start listening early to new session events because a custom event can come while a session is initialising
 		this._toDispose.add(debugService.onWillNewSession(session => {
@@ -223,6 +226,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		}, err => {
 			return Promise.reject(new Error(err && err.message ? err.message : 'cannot start debugging'));
 		});
+	}
+
+	public $setDebugSessionName(sessionId: DebugSessionUUID, name: string): void {
+		const session = this.debugService.getModel().getSession(sessionId);
+		if (session) {
+			session.setName(name);
+		}
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
