@@ -505,7 +505,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		let renderer = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
 
-		this.list = new List(this.listElement, this, [renderer], {
+		this.list = new List('SuggestWidget', this.listElement, this, [renderer], {
 			useShadows: false,
 			openController: { shouldOpen: () => false },
 			mouseSupport: false

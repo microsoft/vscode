@@ -317,6 +317,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
 		this._tree = this._instantiationService.createInstance(
 			WorkbenchDataTree,
+			'OutlinePanel',
 			treeContainer,
 			new OutlineVirtualDelegate(),
 			[new OutlineGroupRenderer(), this._treeRenderer],

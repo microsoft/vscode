@@ -86,14 +86,14 @@ export class VariablesView extends ViewletPanel {
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new VariablesDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
 			new VariablesDataSource(), {
-				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
-				accessibilityProvider: new VariablesAccessibilityProvider(),
-				identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e }
-			});
+			ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
+			accessibilityProvider: new VariablesAccessibilityProvider(),
+			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e }
+		});
 
 		this.tree.setInput(this.debugService.getViewModel()).then(null, onUnexpectedError);
 

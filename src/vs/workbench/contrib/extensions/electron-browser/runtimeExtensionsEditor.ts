@@ -404,7 +404,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			}
 		};
 
-		this._list = this._instantiationService.createInstance(WorkbenchList, parent, delegate, [renderer], {
+		this._list = this._instantiationService.createInstance(WorkbenchList,
+			'RuntimeExtensions',
+			parent, delegate, [renderer], {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false
