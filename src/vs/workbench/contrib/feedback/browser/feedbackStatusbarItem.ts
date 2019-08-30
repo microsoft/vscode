@@ -42,7 +42,7 @@ class TwitterFeedbackService implements IFeedbackDelegate {
 		} else {
 			TwitterFeedbackService.NEGATIVE_HASHTAGS.forEach(element => {
 				length += element.length + 2;
-			})
+			});
 		}
 
 		if (TwitterFeedbackService.VIA_NAME) {
