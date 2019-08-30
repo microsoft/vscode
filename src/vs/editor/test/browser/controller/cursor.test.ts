@@ -4740,6 +4740,37 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #78833 - Add config to use old brackets/quotes overtyping', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingOvertype: 'always'
+			}
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(2, 4, 2, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(2), 'y=();');
+		});
+		mode.dispose();
+	});
+
 	test('issue #15825: accents on mac US intl keyboard', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({

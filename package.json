@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.38.0",
-  "distro": "b8b5d79d26bc7b35031b45ab31961959c6c199d2",
+  "distro": "14ac84f3187726a88e68734b178e0361e14a7531",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -104,7 +104,6 @@
     "gulp-uglify": "^3.0.0",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
-    "http-server": "^0.11.1",
     "husky": "^0.13.1",
     "innosetup": "5.6.1",
     "is": "^3.1.0",
@@ -140,7 +139,7 @@
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
     "vsce": "1.48.0",
-    "vscode-debugprotocol": "1.36.0-pre.0",
+    "vscode-debugprotocol": "1.36.0",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^4.16.5",
     "webpack-cli": "^3.1.0",

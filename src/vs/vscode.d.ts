@@ -5912,22 +5912,27 @@ declare module 'vscode' {
 
 		/**
 		 * Fired when the webview content posts a message.
+		 *
+		 * Webview content can post strings or json serilizable objects back to a VS Code extension. They cannot
+		 * post `Blob`, `File`, `ImageData` and other DOM specific objects since the extension that receives the
+		 * message does not run in a browser environment.
 		 */
 		readonly onDidReceiveMessage: Event<any>;
 
 		/**
 		 * Post a message to the webview content.
 		 *
-		 * Messages are only delivered if the webview is visible.
+		 * Messages are only delivered if the webview is live (either visible or in the
+		 * background with `retainContextWhenHidden`).
 		 *
-		 * @param message Body of the message.
+		 * @param message Body of the message. This must be a string or other json serilizable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
 		/**
 		 * Convert a uri for the local file system to one that can be used inside webviews.
 		 *
-		 * Webviews cannot directly load resoruces from the workspace or local file system using `file:` uris. The
+		 * Webviews cannot directly load resources from the workspace or local file system using `file:` uris. The
 		 * `asWebviewUri` function takes a local `file:` uri and converts it into a uri that can be used inside of
 		 * a webview to load the same resource:
 		 *
@@ -6886,7 +6891,7 @@ declare module 'vscode' {
 		/**
 		 * Whether the tree supports multi-select. When the tree supports multi-select and a command is executed from the tree,
 		 * the first argument to the command is the tree item that the command was executed on and the second argument is an
-		 * array containing the other selected tree items.
+		 * array containing all selected tree items.
 		 */
 		canSelectMany?: boolean;
 	}
@@ -8090,8 +8095,7 @@ declare module 'vscode' {
 		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
 
 		/**
-		 * Get all diagnostics for a given resource. *Note* that this includes diagnostics from
-		 * all extensions but *not yet* from the task framework.
+		 * Get all diagnostics for a given resource.
 		 *
 		 * @param resource A resource
 		 * @returns An array of [diagnostics](#Diagnostic) objects or an empty array.
@@ -8099,8 +8103,7 @@ declare module 'vscode' {
 		export function getDiagnostics(resource: Uri): Diagnostic[];
 
 		/**
-		 * Get all diagnostics. *Note* that this includes diagnostics from
-		 * all extensions but *not yet* from the task framework.
+		 * Get all diagnostics.
 		 *
 		 * @returns An array of uri-diagnostics tuples or an empty array.
 		 */

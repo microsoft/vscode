@@ -78,7 +78,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					break;
 
 				case CharCode.Space:
-					partContent += '&nbsp';
+					partContent += '&nbsp;';
 					break;
 
 				default:

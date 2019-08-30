@@ -348,7 +348,9 @@ export class ProgressService extends Disposable implements IProgressService {
 		const disposables = new DisposableStore();
 		const allowableCommands = [
 			'workbench.action.quit',
-			'workbench.action.reloadWindow'
+			'workbench.action.reloadWindow',
+			'copy',
+			'cut'
 		];
 
 		let dialog: Dialog;

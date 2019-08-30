@@ -1104,7 +1104,7 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 	}
 
 	private readonly _onDidChangeRepositories = new Emitter<void>();
-	private readonly onDidFinishStartup = Event.once(Event.debounce(this._onDidChangeRepositories.event, () => null, 1000));
+	private readonly _onHaveChangedRepositories = Event.debounce(this._onDidChangeRepositories.event, () => null, 1000);
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -1135,8 +1135,9 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 			}
 		}));
 
-		this._register(this.onDidFinishStartup(this.onAfterStartup, this));
+		this._register(Event.once(this._onHaveChangedRepositories)(this.onAfterStartup, this));
 		this._register(this.viewsModel.onDidRemove(this.onDidHideView, this));
+		this._register(contextService.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this));
 	}
 
 	create(parent: HTMLElement): void {
@@ -1219,6 +1220,16 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 				this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
 			}
 		});
+	}
+
+	private onDidChangeWorkspaceFolders(): void {
+		Event.once(this._onHaveChangedRepositories)(this.onHaveChangedWorkspaceFolders, this);
+	}
+
+	private onHaveChangedWorkspaceFolders(): void {
+		if (this.repositoryCount > 1) {
+			this.viewsModel.setVisible(MainPanel.ID, true);
+		}
 	}
 
 	focus(): void {

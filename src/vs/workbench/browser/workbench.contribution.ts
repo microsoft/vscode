@@ -242,7 +242,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 			},
 			'workbench.octiconsUpdate.enabled': {
 				'type': 'boolean',
-				'default': true,
+				'default': false,
 				'description': nls.localize('workbench.octiconsUpdate.enabled', "Controls the visibility of the new Octicons style in the workbench.")
 			}
 		}
