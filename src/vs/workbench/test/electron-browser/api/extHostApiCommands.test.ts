@@ -78,7 +78,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			});
 			instantiationService.stub(IMarkerService, new MarkerService());
 			instantiationService.stub(IModelService, <IModelService>{
-				_serviceBrand: IModelService,
+				_serviceBrand: undefined,
 				getModel(): any { return model; },
 				createModel() { throw new Error(); },
 				updateModel() { throw new Error(); },

@@ -121,7 +121,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 
 export class TextModelResolverService implements ITextModelService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private resourceModelCollection: ResourceModelCollection;
 

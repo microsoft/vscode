@@ -157,7 +157,7 @@ interface IWorkspacePathToOpen {
 
 export class WindowsManager extends Disposable implements IWindowsMainService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static readonly windowsStateStorageKey = 'windowsState';
 

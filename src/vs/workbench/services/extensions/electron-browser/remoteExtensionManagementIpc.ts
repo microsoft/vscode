@@ -22,7 +22,7 @@ import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagemen
 
 export class RemoteExtensionManagementChannelClient extends ExtensionManagementChannelClient {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		channel: IChannel,

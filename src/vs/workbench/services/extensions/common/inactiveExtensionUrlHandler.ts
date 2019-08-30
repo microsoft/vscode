@@ -37,7 +37,7 @@ function isExtensionId(value: string): boolean {
 export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('inactiveExtensionUrlHandler');
 
 export interface IExtensionUrlHandler {
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void;
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
 }
@@ -53,7 +53,7 @@ export interface IExtensionUrlHandler {
  */
 class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private extensionHandlers = new Map<string, IURLHandler>();
 	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();

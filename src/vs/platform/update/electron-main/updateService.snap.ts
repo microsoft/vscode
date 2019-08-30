@@ -17,7 +17,7 @@ import { UpdateNotAvailableClassification } from 'vs/platform/update/electron-ma
 
 abstract class AbstractUpdateService2 implements IUpdateService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _state: State = State.Uninitialized;
 
@@ -134,7 +134,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 export class SnapUpdateService extends AbstractUpdateService2 {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		private snap: string,

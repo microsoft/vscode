@@ -7,7 +7,7 @@ import { IOutputChannelModelService, AsbtractOutputChannelModelService } from 'v
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class OutputChannelModelService extends AsbtractOutputChannelModelService implements IOutputChannelModelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 }
 
 registerSingleton(IOutputChannelModelService, OutputChannelModelService);

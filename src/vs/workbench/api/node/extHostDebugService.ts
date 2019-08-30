@@ -41,7 +41,7 @@ import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugServic
 
 export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugServiceShape {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private _configProviderHandleCounter: number;
 	private _configProviders: ConfigProviderTuple[];

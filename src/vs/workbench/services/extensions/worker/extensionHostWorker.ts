@@ -38,7 +38,7 @@ self.caches.open = () => console.trace(`'indexedDB.caches' has been blocked`);
 //#endregion ---
 
 const hostUtil = new class implements IHostUtils {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	exit(_code?: number | undefined): void {
 		nativeClose();
 	}

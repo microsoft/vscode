@@ -19,7 +19,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: URI): Promise<IBackupFilesModel>;
@@ -106,7 +105,7 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 export class BackupFileService implements IBackupFileService {
 
-	_serviceBrand!: ServiceIdentifier<IBackupFileService>;
+	_serviceBrand: undefined;
 
 	private impl: IBackupFileService;
 
@@ -188,7 +187,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
 	private static readonly PREAMBLE_MAX_LENGTH = 10000;
 
-	_serviceBrand!: ServiceIdentifier<IBackupFileService>;
+	_serviceBrand: undefined;
 
 	private backupWorkspacePath!: URI;
 
@@ -398,7 +397,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 export class InMemoryBackupFileService implements IBackupFileService {
 
-	_serviceBrand!: ServiceIdentifier<IBackupFileService>;
+	_serviceBrand: undefined;
 
 	private backups: Map<string, ITextSnapshot> = new Map();
 

@@ -66,7 +66,7 @@ export class WebTelemetryAppender implements ITelemetryAppender {
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private impl: ITelemetryService;
 
