@@ -218,7 +218,7 @@ export interface IShellLaunchConfig {
 }
 
 export interface ITerminalService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
@@ -304,7 +304,7 @@ export interface ITerminalService {
  * Provides access to native or electron APIs to other terminal services.
  */
 export interface ITerminalNativeService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly linuxDistro: LinuxDistro;
 

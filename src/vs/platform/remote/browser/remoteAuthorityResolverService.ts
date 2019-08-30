@@ -8,7 +8,7 @@ import { RemoteAuthorities } from 'vs/base/common/network';
 
 export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor() {
 	}

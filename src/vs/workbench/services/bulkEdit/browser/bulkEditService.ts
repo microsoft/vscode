@@ -374,7 +374,7 @@ export class BulkEdit {
 
 export class BulkEditService implements IBulkEditService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,

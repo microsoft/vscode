@@ -9,7 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IExtensionStoragePaths = createDecorator<IExtensionStoragePaths>('IExtensionStoragePaths');
 
 export interface IExtensionStoragePaths {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	whenReady: Promise<any>;
 	workspaceValue(extension: IExtensionDescription): string | undefined;
 	globalValue(extension: IExtensionDescription): string;

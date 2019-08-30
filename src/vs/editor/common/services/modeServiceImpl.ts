@@ -40,7 +40,7 @@ class LanguageSelection extends Disposable implements ILanguageSelection {
 }
 
 export class ModeServiceImpl implements IModeService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _instantiatedModes: { [modeId: string]: IMode; };
 	private readonly _registry: LanguagesRegistry;

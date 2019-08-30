@@ -26,7 +26,7 @@ export interface ICreateWebViewShowOptions {
 }
 
 export interface IWebviewEditorService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createWebview(
 		id: string,
@@ -120,7 +120,7 @@ class RevivalPool {
 }
 
 export class WebviewEditorService implements IWebviewEditorService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _revivers = new Set<WebviewReviver>();
 	private readonly _revivalPool = new RevivalPool();

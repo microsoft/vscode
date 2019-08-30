@@ -24,7 +24,7 @@ export const IWebviewService = createDecorator<IWebviewService>('webviewService'
  * Handles the creation of webview elements.
  */
 export interface IWebviewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createWebview(
 		id: string,

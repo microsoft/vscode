@@ -90,7 +90,7 @@ const PyModulesToLookFor = [
 ];
 
 export class WorkspaceStatsService implements IWorkspaceStatsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	private _tags: Tags;
 
 	constructor(

@@ -6,11 +6,10 @@
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class BrowserClipboardService implements IClipboardService {
 
-	_serviceBrand!: ServiceIdentifier<IClipboardService>;
+	_serviceBrand: undefined;
 
 	private _internalResourcesClipboard: URI[] | undefined;
 

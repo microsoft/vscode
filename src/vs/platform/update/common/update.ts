@@ -83,7 +83,7 @@ export interface IAutoUpdater extends Event.NodeEventEmitter {
 export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
 export interface IUpdateService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onStateChange: Event<State>;
 	readonly state: State;

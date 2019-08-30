@@ -10,7 +10,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
 export interface IConfigurationResolverService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	resolve(folder: IWorkspaceFolder | undefined, value: string): string;
 	resolve(folder: IWorkspaceFolder | undefined, value: string[]): string[];

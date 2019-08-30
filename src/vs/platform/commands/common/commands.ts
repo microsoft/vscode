@@ -19,7 +19,7 @@ export interface ICommandEvent {
 }
 
 export interface ICommandService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onWillExecuteCommand: Event<ICommandEvent>;
 	onDidExecuteCommand: Event<ICommandEvent>;
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;

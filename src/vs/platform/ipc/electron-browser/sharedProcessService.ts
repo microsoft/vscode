@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -14,7 +14,7 @@ export const ISharedProcessService = createDecorator<ISharedProcessService>('sha
 
 export interface ISharedProcessService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	getChannel(channelName: string): IChannel;
 
@@ -23,7 +23,7 @@ export interface ISharedProcessService {
 
 export class SharedProcessService implements ISharedProcessService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private withSharedProcessConnection: Promise<Client<string>>;
 
