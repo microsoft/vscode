@@ -175,6 +175,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 		];
 
 		super(
+			'CommentsTree',
 			container,
 			delegate,
 			renderers,

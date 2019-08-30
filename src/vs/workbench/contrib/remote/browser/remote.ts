@@ -315,6 +315,7 @@ class HelpPanel extends ViewletPanel {
 		container.appendChild(treeContainer);
 
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree,
+			'RemoteHelp',
 			treeContainer,
 			new HelpTreeVirtualDelegate(),
 			[new HelpTreeRenderer()],
