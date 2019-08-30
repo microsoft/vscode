@@ -11,7 +11,7 @@ import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewEl
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class ElectronWebviewService implements IWebviewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

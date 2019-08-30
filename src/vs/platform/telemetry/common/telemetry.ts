@@ -23,7 +23,7 @@ export interface ITelemetryData {
 
 export interface ITelemetryService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.

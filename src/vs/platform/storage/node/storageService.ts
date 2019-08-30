@@ -15,11 +15,10 @@ import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class StorageService extends Disposable implements IStorageService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private static WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static WORKSPACE_META_NAME = 'workspace.json';

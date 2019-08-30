@@ -6,12 +6,11 @@
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 
 export class WorkspacesService implements IWorkspacesService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private channel: IChannel;
 

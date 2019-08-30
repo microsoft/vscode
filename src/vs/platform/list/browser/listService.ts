@@ -38,7 +38,7 @@ export const IListService = createDecorator<IListService>('listService');
 
 export interface IListService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Returns the currently focused list widget if any.
@@ -53,7 +53,7 @@ interface IRegisteredList {
 
 export class ListService implements IListService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private lists: IRegisteredList[] = [];
 	private _lastFocusedWidget: ListWidget | undefined = undefined;

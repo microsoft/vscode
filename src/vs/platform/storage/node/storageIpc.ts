@@ -147,7 +147,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 export class GlobalStorageDatabaseChannelClient extends Disposable implements IStorageDatabase {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
 	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent> = this._onDidChangeItemsExternal.event;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
@@ -21,7 +21,7 @@ export interface IWillSaveStateEvent {
 
 export interface IStorageService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -118,7 +118,7 @@ export interface IWorkspaceStorageChangeEvent {
 
 export class InMemoryStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand = null as any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;

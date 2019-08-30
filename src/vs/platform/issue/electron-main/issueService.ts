@@ -21,7 +21,7 @@ import { listProcesses } from 'vs/base/node/ps';
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
 export class IssueService implements IIssueService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	_issueWindow: BrowserWindow | null = null;
 	_issueParentWindow: BrowserWindow | null = null;
 	_processExplorerWindow: BrowserWindow | null = null;

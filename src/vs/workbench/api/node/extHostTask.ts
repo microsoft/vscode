@@ -357,7 +357,7 @@ interface HandlerData {
 
 export class ExtHostTask implements ExtHostTaskShape {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadTaskShape;
 	private readonly _workspaceProvider: IExtHostWorkspaceProvider;

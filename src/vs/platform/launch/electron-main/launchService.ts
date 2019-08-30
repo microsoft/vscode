@@ -8,7 +8,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { OpenContext, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
@@ -53,7 +53,7 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 }
 
 export interface ILaunchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 	getMainProcessId(): Promise<number>;
 	getMainProcessInfo(): Promise<IMainProcessInfo>;
@@ -94,7 +94,7 @@ export class LaunchChannel implements IServerChannel {
 
 export class LaunchChannelClient implements ILaunchService {
 
-	_serviceBrand!: ServiceIdentifier<ILaunchService>;
+	_serviceBrand: undefined;
 
 	constructor(private channel: IChannel) { }
 
@@ -121,7 +121,7 @@ export class LaunchChannelClient implements ILaunchService {
 
 export class LaunchService implements ILaunchService {
 
-	_serviceBrand!: ServiceIdentifier<ILaunchService>;
+	_serviceBrand: undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

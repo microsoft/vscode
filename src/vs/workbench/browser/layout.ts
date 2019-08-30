@@ -21,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -80,7 +80,7 @@ enum Classes {
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTitleBarVisibilityChange: Event<void> = this._onTitleBarVisibilityChange.event;

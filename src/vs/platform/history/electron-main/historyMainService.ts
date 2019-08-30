@@ -22,7 +22,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
 import { toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/history/common/historyStorage';
 import { exists } from 'vs/base/node/pfs';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 
 export class HistoryMainService implements IHistoryMainService {
@@ -40,7 +39,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
-	_serviceBrand!: ServiceIdentifier<IHistoryMainService>;
+	_serviceBrand: undefined;
 
 	private _onRecentlyOpenedChange = new Emitter<void>();
 	readonly onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;

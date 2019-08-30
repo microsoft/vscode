@@ -46,7 +46,6 @@ import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedPr
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { DiagnosticsChannel } from 'vs/platform/diagnostics/node/diagnosticsIpc';
@@ -75,7 +74,7 @@ const eventPrefix = 'monacoworkbench';
 class MainProcessService implements IMainProcessService {
 	constructor(private server: Server, private mainRouter: StaticRouter) { }
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	getChannel(channelName: string): IChannel {
 		return this.server.getChannel(channelName, this.mainRouter);

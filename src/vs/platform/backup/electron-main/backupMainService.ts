@@ -22,7 +22,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export class BackupMainService implements IBackupMainService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	protected backupHome: string;
 	protected workspacesJsonPath: string;

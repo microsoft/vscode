@@ -1067,7 +1067,7 @@ export type RenderableMatch = BaseFolderMatch | FolderMatch | FileMatch | Match;
 
 export class SearchWorkbenchService implements ISearchWorkbenchService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	private _searchModel: SearchModel;
 
 	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
@@ -1084,7 +1084,7 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 export const ISearchWorkbenchService = createDecorator<ISearchWorkbenchService>('searchWorkbenchService');
 
 export interface ISearchWorkbenchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly searchModel: SearchModel;
 }
