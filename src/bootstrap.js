@@ -22,8 +22,6 @@ process.on('SIGPIPE', () => {
 
 //#region Add support for redirecting the loading of node modules
 
-const majorNodeVersion = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
-
 exports.injectNodeModuleLookupPath = function (injectPath) {
 	if (!injectPath) {
 		throw new Error('Missing injectPath');
@@ -38,39 +36,18 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 	// @ts-ignore
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-	// Support both node.js >=12 (electron)...
-	if (majorNodeVersion >= 12) {
-		// @ts-ignore
-		Module._resolveLookupPaths = function (moduleName, parent) {
-			const paths = originalResolveLookupPaths(moduleName, parent);
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === nodeModulesPath) {
-					paths.splice(i, 0, injectPath);
-					break;
-				}
+	// @ts-ignore
+	Module._resolveLookupPaths = function (moduleName, parent) {
+		const paths = originalResolveLookupPaths(moduleName, parent);
+		for (let i = 0, len = paths.length; i < len; i++) {
+			if (paths[i] === nodeModulesPath) {
+				paths.splice(i, 0, injectPath);
+				break;
 			}
+		}
 
-			return paths;
-		};
-	}
-
-	// ...as well  as node.js < 12 (server)
-	else {
-		// @ts-ignore
-		Module._resolveLookupPaths = function (moduleName, parent, newReturn) {
-			const result = originalResolveLookupPaths(moduleName, parent, newReturn);
-
-			const paths = newReturn ? result : result[1];
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === nodeModulesPath) {
-					paths.splice(i, 0, injectPath);
-					break;
-				}
-			}
-
-			return result;
-		};
-	}
+		return paths;
+	};
 };
 //#endregion
 
@@ -94,39 +71,18 @@ exports.enableASARSupport = function (nodeModulesPath) {
 	// @ts-ignore
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
 
-	// Support both node.js >=12 (electron)...
-	if (majorNodeVersion >= 12) {
-		// @ts-ignore
-		Module._resolveLookupPaths = function (request, parent) {
-			const paths = originalResolveLookupPaths(request, parent);
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === NODE_MODULES_PATH) {
-					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-					break;
-				}
+	// @ts-ignore
+	Module._resolveLookupPaths = function (request, parent) {
+		const paths = originalResolveLookupPaths(request, parent);
+		for (let i = 0, len = paths.length; i < len; i++) {
+			if (paths[i] === NODE_MODULES_PATH) {
+				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+				break;
 			}
+		}
 
-			return paths;
-		};
-	}
-
-	// ...as well  as node.js < 12 (server)
-	else {
-		// @ts-ignore
-		Module._resolveLookupPaths = function (request, parent, newReturn) {
-			const result = originalResolveLookupPaths(request, parent, newReturn);
-
-			const paths = newReturn ? result : result[1];
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === NODE_MODULES_PATH) {
-					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-					break;
-				}
-			}
-
-			return result;
-		};
-	}
+		return paths;
+	};
 };
 //#endregion
 
