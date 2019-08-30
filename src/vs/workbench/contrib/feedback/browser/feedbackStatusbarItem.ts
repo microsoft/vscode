@@ -20,13 +20,14 @@ class TwitterFeedbackService implements IFeedbackDelegate {
 	private static TWITTER_URL: string = 'https://twitter.com/intent/tweet';
 	private static VIA_NAME: string = 'code';
 	private static HASHTAGS: string[] = ['HappyCoding'];
+	private static NEGATIVE_HASHTAGS: string[] = ['IHateCoding'];
 
-	private combineHashTagsAsString(): string {
-		return TwitterFeedbackService.HASHTAGS.join(',');
+	private combineHashTagsAsString(sentient: number): string {
+		return sentient === 1 ? TwitterFeedbackService.HASHTAGS.join(',') : TwitterFeedbackService.NEGATIVE_HASHTAGS.join(',');
 	}
 
 	submitFeedback(feedback: IFeedback, openerService: IOpenerService): void {
-		const queryString = `?${feedback.sentiment === 1 ? `hashtags=${this.combineHashTagsAsString()}&` : null}ref_src=twsrc%5Etfw&related=twitterapi%2Ctwitter&text=${encodeURIComponent(feedback.feedback)}&tw_p=tweetbutton&via=${TwitterFeedbackService.VIA_NAME}`;
+		const queryString = `?${feedback.sentiment === 1 ? `hashtags=${this.combineHashTagsAsString(feedback.sentiment)}&` : null}ref_src=twsrc%5Etfw&related=twitterapi%2Ctwitter&text=${encodeURIComponent(feedback.feedback)}&tw_p=tweetbutton&via=${TwitterFeedbackService.VIA_NAME}`;
 		const url = TwitterFeedbackService.TWITTER_URL + queryString;
 
 		openerService.open(URI.parse(url));
@@ -38,6 +39,10 @@ class TwitterFeedbackService implements IFeedbackDelegate {
 			TwitterFeedbackService.HASHTAGS.forEach(element => {
 				length += element.length + 2;
 			});
+		} else {
+			TwitterFeedbackService.NEGATIVE_HASHTAGS.forEach(element => {
+				length += element.length + 2;
+			})
 		}
 
 		if (TwitterFeedbackService.VIA_NAME) {
