@@ -194,3 +194,10 @@ export const TreeDragOverReactions = {
 export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
 }
+
+export class TreeError extends Error {
+
+	constructor(user: string, message: string) {
+		super(`TreeError [${user}] ${message}`);
+	}
+}

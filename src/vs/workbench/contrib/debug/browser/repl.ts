@@ -406,6 +406,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
+			'DebugRepl',
 			treeContainer,
 			this.replDelegate,
 			[
