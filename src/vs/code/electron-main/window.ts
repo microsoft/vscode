@@ -903,7 +903,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		this._win.setSimpleFullScreen(fullscreen);
-		this._win.webContents.focus(); // workaround issue where focus is not going into window
+		this._win.webContents.focus(); // workaround issue in which focus is not going into window
 	}
 
 	private useNativeFullScreen(): boolean {
