@@ -22,14 +22,14 @@ export class CodeLensModel {
 
 	lenses: CodeLensItem[] = [];
 
-	private readonly disposables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 
 	dispose(): void {
-		this.disposables.dispose();
+		this._disposables.dispose();
 	}
 
 	add(list: CodeLensList, provider: CodeLensProvider): void {
-		this.disposables.add(list);
+		this._disposables.add(list);
 		for (const symbol of list.lenses) {
 			this.lenses.push({ symbol, provider });
 		}
