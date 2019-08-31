@@ -103,6 +103,8 @@ steps:
 
 - script: |
     set -e
+    APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
+    APP_ELECTRON="$(agent.builddirectory)/VSCode-darwin/$APP_NAME/Contents/MacOS/Electron"
     ./scripts/test-integration.sh --build --tfs "Integration Tests"
   displayName: Run integration tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
