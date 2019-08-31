@@ -42,7 +42,7 @@ export interface IWindowCreationOptions {
 	isExtensionTestHost?: boolean;
 }
 
-export const defaultWindowState = function(mode = WindowMode.Normal): IWindowState {
+export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
 	return {
 		width: 1024,
 		height: 768,
