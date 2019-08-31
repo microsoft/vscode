@@ -446,21 +446,13 @@ export class SearchView extends ViewletPanel {
 	refreshTree(event?: IChangeEvent): void {
 		const collapseResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').collapseResults;
 		if (!event || event.added || event.removed) {
+			// Refresh whole tree
 			this.tree.setChildren(null, this.createResultIterator(collapseResults));
 		} else {
+			// FileMatch modified, refresh those elements
 			event.elements.forEach(element => {
-				if (element instanceof BaseFolderMatch) {
-					// The folder may or may not be in the tree. Refresh the whole thing.
-					this.tree.setChildren(null, this.createResultIterator(collapseResults));
-					return;
-				}
-
-				if (element instanceof SearchResult) {
-					this.tree.setChildren(null, this.createIterator(element, collapseResults));
-				} else {
-					this.tree.setChildren(element, this.createIterator(element, collapseResults));
-					this.tree.rerender(element);
-				}
+				this.tree.setChildren(element, this.createIterator(element, collapseResults));
+				this.tree.rerender(element);
 			});
 		}
 	}

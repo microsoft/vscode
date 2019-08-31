@@ -400,7 +400,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 }
 
 export interface IChangeEvent {
-	elements: (FileMatch | FolderMatch | SearchResult)[];
+	elements: FileMatch[];
 	added?: boolean;
 	removed?: boolean;
 }
