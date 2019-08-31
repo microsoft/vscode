@@ -42,7 +42,7 @@ export interface IWindowCreationOptions {
 	isExtensionTestHost?: boolean;
 }
 
-export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
+export const defaultWindowState = function(mode = WindowMode.Normal): IWindowState {
 	return {
 		width: 1024,
 		height: 768,
@@ -63,21 +63,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: NodeJS.Timeout;
-	private _id: number;
-	private _win: Electron.BrowserWindow;
-	private _lastFocusTime: number;
 	private _readyState: ReadyState;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility;
 	private representedFilename: string;
-
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[];
-
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig?: IWindowConfiguration;
-
 	private marketplaceHeadersPromise: Promise<object>;
-
 	private readonly touchBarGroups: Electron.TouchBarSegmentedControl[];
 
 	constructor(
@@ -88,7 +81,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
-		@IBackupMainService private readonly backupMainService: IBackupMainService,
+		@IBackupMainService private readonly backupMainService: IBackupMainService
 	) {
 		super();
 
@@ -111,6 +104,355 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Eventing
 		this.registerListeners();
+	}
+
+	private _id: number;
+
+	get id(): number {
+		return this._id;
+	}
+
+	private _win: Electron.BrowserWindow;
+
+	get win(): Electron.BrowserWindow {
+		return this._win;
+	}
+
+	private _lastFocusTime: number;
+
+	get lastFocusTime(): number {
+		return this._lastFocusTime;
+	}
+
+	get isExtensionDevelopmentHost(): boolean {
+		return !!this.config.extensionDevelopmentPath;
+	}
+
+	get isExtensionTestHost(): boolean {
+		return !!this.config.extensionTestsPath;
+	}
+
+	get config(): IWindowConfiguration {
+		return this.currentConfig;
+	}
+
+	get backupPath(): string | undefined {
+		return this.currentConfig ? this.currentConfig.backupPath : undefined;
+	}
+
+	get openedWorkspace(): IWorkspaceIdentifier | undefined {
+		return this.currentConfig ? this.currentConfig.workspace : undefined;
+	}
+
+	get openedFolderUri(): URI | undefined {
+		return this.currentConfig ? this.currentConfig.folderUri : undefined;
+	}
+
+	get remoteAuthority(): string | undefined {
+		return this.currentConfig ? this.currentConfig.remoteAuthority : undefined;
+	}
+
+	get isReady(): boolean {
+		return this._readyState === ReadyState.READY;
+	}
+
+	hasHiddenTitleBarStyle(): boolean {
+		return this.hiddenTitleBarStyle;
+	}
+
+	setRepresentedFilename(filename: string): void {
+		if (isMacintosh) {
+			this.win.setRepresentedFilename(filename);
+		} else {
+			this.representedFilename = filename;
+		}
+	}
+
+	getRepresentedFilename(): string {
+		if (isMacintosh) {
+			return this.win.getRepresentedFilename();
+		}
+
+		return this.representedFilename;
+	}
+
+	focus(): void {
+		if (!this._win) {
+			return;
+		}
+
+		if (this._win.isMinimized()) {
+			this._win.restore();
+		}
+
+		this._win.focus();
+	}
+
+	setReady(): void {
+		this._readyState = ReadyState.READY;
+
+		// inform all waiting promises that we are ready now
+		while (this.whenReadyCallbacks.length) {
+			this.whenReadyCallbacks.pop()!(this);
+		}
+	}
+
+	ready(): Promise<ICodeWindow> {
+		return new Promise<ICodeWindow>(resolve => {
+			if (this.isReady) {
+				return resolve(this);
+			}
+
+			// otherwise keep and call later when we are ready
+			this.whenReadyCallbacks.push(resolve);
+		});
+	}
+
+	addTabbedWindow(window: ICodeWindow): void {
+		if (isMacintosh) {
+			this._win.addTabbedWindow(window.win);
+		}
+	}
+
+	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
+
+		// If this is the first time the window is loaded, we associate the paths
+		// directly with the window because we assume the loading will just work
+		if (this._readyState === ReadyState.NONE) {
+			this.currentConfig = config;
+		}
+
+		// Otherwise, the window is currently showing a folder and if there is an
+		// unload handler preventing the load, we cannot just associate the paths
+		// because the loading might be vetoed. Instead we associate it later when
+		// the window load event has fired.
+		else {
+			this.pendingLoadConfig = config;
+			this._readyState = ReadyState.NAVIGATING;
+		}
+
+		// Add disable-extensions to the config, but do not preserve it on currentConfig or
+		// pendingLoadConfig so that it is applied only on this load
+		const configuration = objects.assign({}, config);
+		if (disableExtensions !== undefined) {
+			configuration['disable-extensions'] = disableExtensions;
+		}
+
+		// Clear Document Edited if needed
+		if (isMacintosh && this._win.isDocumentEdited()) {
+			if (!isReload || !this.backupMainService.isHotExitEnabled()) {
+				this._win.setDocumentEdited(false);
+			}
+		}
+
+		// Clear Title and Filename if needed
+		if (!isReload) {
+			if (this.getRepresentedFilename()) {
+				this.setRepresentedFilename('');
+			}
+
+			this._win.setTitle(product.nameLong);
+		}
+
+		// Load URL
+		perf.mark('main:loadWindow');
+		this._win.loadURL(this.getUrl(configuration));
+
+		// Make window visible if it did not open in N seconds because this indicates an error
+		// Only do this when running out of sources and not when running tests
+		if (!this.environmentService.isBuilt && !this.environmentService.extensionTestsLocationURI) {
+			this.showTimeoutHandle = setTimeout(() => {
+				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
+					this._win.show();
+					this._win.focus();
+					this._win.webContents.openDevTools();
+				}
+			}, 10000);
+		}
+	}
+
+	reload(configurationIn?: IWindowConfiguration, cli?: ParsedArgs): void {
+
+		// If config is not provided, copy our current one
+		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
+
+		// Delete some properties we do not want during reload
+		delete configuration.filesToOpenOrCreate;
+		delete configuration.filesToDiff;
+		delete configuration.filesToWait;
+
+		// Some configuration things get inherited if the window is being reloaded and we are
+		// in extension development mode. These options are all development related.
+		if (this.isExtensionDevelopmentHost && cli) {
+			configuration.verbose = cli.verbose;
+			configuration['inspect-extensions'] = cli['inspect-extensions'];
+			configuration['inspect-brk-extensions'] = cli['inspect-brk-extensions'];
+			configuration.debugId = cli.debugId;
+			configuration['extensions-dir'] = cli['extensions-dir'];
+		}
+
+		configuration.isInitialStartup = false; // since this is a reload
+
+		// Load config
+		const disableExtensions = cli ? cli['disable-extensions'] : undefined;
+		this.load(configuration, true, disableExtensions);
+	}
+
+	serializeWindowState(): IWindowState {
+		if (!this._win) {
+			return defaultWindowState();
+		}
+
+		// fullscreen gets special treatment
+		if (this.isFullScreen()) {
+			const display = screen.getDisplayMatching(this.getBounds());
+
+			const defaultState = defaultWindowState();
+
+			const res = {
+				mode: WindowMode.Fullscreen,
+				display: display ? display.id : undefined,
+
+				// Still carry over window dimensions from previous sessions
+				// if we can compute it in fullscreen state.
+				// does not seem possible in all cases on Linux for example
+				// (https://github.com/Microsoft/vscode/issues/58218) so we
+				// fallback to the defaults in that case.
+				width: this.windowState.width || defaultState.width,
+				height: this.windowState.height || defaultState.height,
+				x: this.windowState.x || 0,
+				y: this.windowState.y || 0
+			};
+
+			return res;
+		}
+
+		const state: IWindowState = Object.create(null);
+		let mode: WindowMode;
+
+		// get window mode
+		if (!isMacintosh && this._win.isMaximized()) {
+			mode = WindowMode.Maximized;
+		} else {
+			mode = WindowMode.Normal;
+		}
+
+		// we don't want to save minimized state, only maximized or normal
+		if (mode === WindowMode.Maximized) {
+			state.mode = WindowMode.Maximized;
+		} else {
+			state.mode = WindowMode.Normal;
+		}
+
+		// only consider non-minimized window states
+		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
+			let bounds: Electron.Rectangle;
+			if (mode === WindowMode.Normal) {
+				bounds = this.getBounds();
+			} else {
+				bounds = this._win.getNormalBounds(); // make sure to persist the normal bounds when maximized to be able to restore them
+			}
+
+			state.x = bounds.x;
+			state.y = bounds.y;
+			state.width = bounds.width;
+			state.height = bounds.height;
+		}
+
+		return state;
+	}
+
+	getBounds(): Electron.Rectangle {
+		const pos = this._win.getPosition();
+		const dimension = this._win.getSize();
+
+		return { x: pos[0], y: pos[1], width: dimension[0], height: dimension[1] };
+	}
+
+	toggleFullScreen(): void {
+		this.setFullScreen(!this.isFullScreen());
+	}
+
+	isFullScreen(): boolean {
+		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
+	}
+
+	isMinimized(): boolean {
+		return this._win.isMinimized();
+	}
+
+	onWindowTitleDoubleClick(): void {
+
+		// Respect system settings on mac with regards to title click on windows title
+		if (isMacintosh) {
+			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
+			switch (action) {
+				case 'Minimize':
+					this.win.minimize();
+					break;
+				case 'None':
+					break;
+				case 'Maximize':
+				default:
+					if (this.win.isMaximized()) {
+						this.win.unmaximize();
+					} else {
+						this.win.maximize();
+					}
+			}
+		}
+
+		// Linux/Windows: just toggle maximize/minimized state
+		else {
+			if (this.win.isMaximized()) {
+				this.win.unmaximize();
+			} else {
+				this.win.maximize();
+			}
+		}
+	}
+
+	close(): void {
+		if (this._win) {
+			this._win.close();
+		}
+	}
+
+	sendWhenReady(channel: string, ...args: any[]): void {
+		if (this.isReady) {
+			this.send(channel, ...args);
+		} else {
+			this.ready().then(() => this.send(channel, ...args));
+		}
+	}
+
+	send(channel: string, ...args: any[]): void {
+		if (this._win) {
+			this._win.webContents.send(channel, ...args);
+		}
+	}
+
+	updateTouchBar(groups: ISerializableCommandAction[][]): void {
+		if (!isMacintosh) {
+			return; // only supported on macOS
+		}
+
+		// Update segments for all groups. Setting the segments property
+		// of the group directly prevents ugly flickering from happening
+		this.touchBarGroups.forEach((touchBarGroup, index) => {
+			const commands = groups[index];
+			touchBarGroup.segments = this.createTouchBarGroupSegments(commands);
+		});
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		if (this.showTimeoutHandle) {
+			clearTimeout(this.showTimeoutHandle);
+		}
+
+		this._win = null!; // Important to dereference the window object to allow for GC
 	}
 
 	private createBrowserWindow(config: IWindowCreationOptions): void {
@@ -215,102 +557,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
-	}
-
-	hasHiddenTitleBarStyle(): boolean {
-		return this.hiddenTitleBarStyle;
-	}
-
-	get isExtensionDevelopmentHost(): boolean {
-		return !!this.config.extensionDevelopmentPath;
-	}
-
-	get isExtensionTestHost(): boolean {
-		return !!this.config.extensionTestsPath;
-	}
-
-	get config(): IWindowConfiguration {
-		return this.currentConfig;
-	}
-
-	get id(): number {
-		return this._id;
-	}
-
-	get win(): Electron.BrowserWindow {
-		return this._win;
-	}
-
-	setRepresentedFilename(filename: string): void {
-		if (isMacintosh) {
-			this.win.setRepresentedFilename(filename);
-		} else {
-			this.representedFilename = filename;
-		}
-	}
-
-	getRepresentedFilename(): string {
-		if (isMacintosh) {
-			return this.win.getRepresentedFilename();
-		}
-
-		return this.representedFilename;
-	}
-
-	focus(): void {
-		if (!this._win) {
-			return;
-		}
-
-		if (this._win.isMinimized()) {
-			this._win.restore();
-		}
-
-		this._win.focus();
-	}
-
-	get lastFocusTime(): number {
-		return this._lastFocusTime;
-	}
-
-	get backupPath(): string | undefined {
-		return this.currentConfig ? this.currentConfig.backupPath : undefined;
-	}
-
-	get openedWorkspace(): IWorkspaceIdentifier | undefined {
-		return this.currentConfig ? this.currentConfig.workspace : undefined;
-	}
-
-	get openedFolderUri(): URI | undefined {
-		return this.currentConfig ? this.currentConfig.folderUri : undefined;
-	}
-
-	get remoteAuthority(): string | undefined {
-		return this.currentConfig ? this.currentConfig.remoteAuthority : undefined;
-	}
-
-	setReady(): void {
-		this._readyState = ReadyState.READY;
-
-		// inform all waiting promises that we are ready now
-		while (this.whenReadyCallbacks.length) {
-			this.whenReadyCallbacks.pop()!(this);
-		}
-	}
-
-	ready(): Promise<ICodeWindow> {
-		return new Promise<ICodeWindow>(resolve => {
-			if (this.isReady) {
-				return resolve(this);
-			}
-
-			// otherwise keep and call later when we are ready
-			this.whenReadyCallbacks.push(resolve);
-		});
-	}
-
-	get isReady(): boolean {
-		return this._readyState === ReadyState.READY;
 	}
 
 	private handleMarketplaceRequests(): void {
@@ -455,96 +701,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	addTabbedWindow(window: ICodeWindow): void {
-		if (isMacintosh) {
-			this._win.addTabbedWindow(window.win);
-		}
-	}
-
-	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
-
-		// If this is the first time the window is loaded, we associate the paths
-		// directly with the window because we assume the loading will just work
-		if (this._readyState === ReadyState.NONE) {
-			this.currentConfig = config;
-		}
-
-		// Otherwise, the window is currently showing a folder and if there is an
-		// unload handler preventing the load, we cannot just associate the paths
-		// because the loading might be vetoed. Instead we associate it later when
-		// the window load event has fired.
-		else {
-			this.pendingLoadConfig = config;
-			this._readyState = ReadyState.NAVIGATING;
-		}
-
-		// Add disable-extensions to the config, but do not preserve it on currentConfig or
-		// pendingLoadConfig so that it is applied only on this load
-		const configuration = objects.assign({}, config);
-		if (disableExtensions !== undefined) {
-			configuration['disable-extensions'] = disableExtensions;
-		}
-
-		// Clear Document Edited if needed
-		if (isMacintosh && this._win.isDocumentEdited()) {
-			if (!isReload || !this.backupMainService.isHotExitEnabled()) {
-				this._win.setDocumentEdited(false);
-			}
-		}
-
-		// Clear Title and Filename if needed
-		if (!isReload) {
-			if (this.getRepresentedFilename()) {
-				this.setRepresentedFilename('');
-			}
-
-			this._win.setTitle(product.nameLong);
-		}
-
-		// Load URL
-		perf.mark('main:loadWindow');
-		this._win.loadURL(this.getUrl(configuration));
-
-		// Make window visible if it did not open in N seconds because this indicates an error
-		// Only do this when running out of sources and not when running tests
-		if (!this.environmentService.isBuilt && !this.environmentService.extensionTestsLocationURI) {
-			this.showTimeoutHandle = setTimeout(() => {
-				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
-					this._win.show();
-					this._win.focus();
-					this._win.webContents.openDevTools();
-				}
-			}, 10000);
-		}
-	}
-
-	reload(configurationIn?: IWindowConfiguration, cli?: ParsedArgs): void {
-
-		// If config is not provided, copy our current one
-		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
-
-		// Delete some properties we do not want during reload
-		delete configuration.filesToOpenOrCreate;
-		delete configuration.filesToDiff;
-		delete configuration.filesToWait;
-
-		// Some configuration things get inherited if the window is being reloaded and we are
-		// in extension development mode. These options are all development related.
-		if (this.isExtensionDevelopmentHost && cli) {
-			configuration.verbose = cli.verbose;
-			configuration['inspect-extensions'] = cli['inspect-extensions'];
-			configuration['inspect-brk-extensions'] = cli['inspect-brk-extensions'];
-			configuration.debugId = cli.debugId;
-			configuration['extensions-dir'] = cli['extensions-dir'];
-		}
-
-		configuration.isInitialStartup = false; // since this is a reload
-
-		// Load config
-		const disableExtensions = cli ? cli['disable-extensions'] : undefined;
-		this.load(configuration, true, disableExtensions);
-	}
-
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
 
 		// Set window ID
@@ -606,70 +762,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private doGetUrl(config: object): string {
 		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
-	}
-
-	serializeWindowState(): IWindowState {
-		if (!this._win) {
-			return defaultWindowState();
-		}
-
-		// fullscreen gets special treatment
-		if (this.isFullScreen()) {
-			const display = screen.getDisplayMatching(this.getBounds());
-
-			const defaultState = defaultWindowState();
-
-			const res = {
-				mode: WindowMode.Fullscreen,
-				display: display ? display.id : undefined,
-
-				// Still carry over window dimensions from previous sessions
-				// if we can compute it in fullscreen state.
-				// does not seem possible in all cases on Linux for example
-				// (https://github.com/Microsoft/vscode/issues/58218) so we
-				// fallback to the defaults in that case.
-				width: this.windowState.width || defaultState.width,
-				height: this.windowState.height || defaultState.height,
-				x: this.windowState.x || 0,
-				y: this.windowState.y || 0
-			};
-
-			return res;
-		}
-
-		const state: IWindowState = Object.create(null);
-		let mode: WindowMode;
-
-		// get window mode
-		if (!isMacintosh && this._win.isMaximized()) {
-			mode = WindowMode.Maximized;
-		} else {
-			mode = WindowMode.Normal;
-		}
-
-		// we don't want to save minimized state, only maximized or normal
-		if (mode === WindowMode.Maximized) {
-			state.mode = WindowMode.Maximized;
-		} else {
-			state.mode = WindowMode.Normal;
-		}
-
-		// only consider non-minimized window states
-		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			let bounds: Electron.Rectangle;
-			if (mode === WindowMode.Normal) {
-				bounds = this.getBounds();
-			} else {
-				bounds = this._win.getNormalBounds(); // make sure to persist the normal bounds when maximized to be able to restore them
-			}
-
-			state.x = bounds.x;
-			state.y = bounds.y;
-			state.width = bounds.width;
-			state.height = bounds.height;
-		}
-
-		return state;
 	}
 
 	private restoreWindowState(state?: IWindowState): [IWindowState, boolean? /* has multiple displays */] {
@@ -781,17 +873,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return undefined;
 	}
 
-	getBounds(): Electron.Rectangle {
-		const pos = this._win.getPosition();
-		const dimension = this._win.getSize();
-
-		return { x: pos[0], y: pos[1], width: dimension[0], height: dimension[1] };
-	}
-
-	toggleFullScreen(): void {
-		this.setFullScreen(!this.isFullScreen());
-	}
-
 	private setFullScreen(fullscreen: boolean): void {
 
 		// Set fullscreen state
@@ -806,10 +887,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Respect configured menu bar visibility or default to toggle if not set
 		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
-	}
-
-	isFullScreen(): boolean {
-		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
 	}
 
 	private setNativeFullScreen(fullscreen: boolean): void {
@@ -842,10 +919,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return windowConfig.nativeFullScreen;
 	}
 
-	isMinimized(): boolean {
-		return this._win.isMinimized();
-	}
-
 	private getMenuBarVisibility(): MenuBarVisibility {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
@@ -867,7 +940,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		if (visibility === 'toggle') {
 			if (notify) {
-				this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
+				this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', 'You can still access the menu bar by pressing the Alt-key.'));
 			}
 		}
 
@@ -911,70 +984,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	onWindowTitleDoubleClick(): void {
-
-		// Respect system settings on mac with regards to title click on windows title
-		if (isMacintosh) {
-			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
-			switch (action) {
-				case 'Minimize':
-					this.win.minimize();
-					break;
-				case 'None':
-					break;
-				case 'Maximize':
-				default:
-					if (this.win.isMaximized()) {
-						this.win.unmaximize();
-					} else {
-						this.win.maximize();
-					}
-			}
-		}
-
-		// Linux/Windows: just toggle maximize/minimized state
-		else {
-			if (this.win.isMaximized()) {
-				this.win.unmaximize();
-			} else {
-				this.win.maximize();
-			}
-		}
-	}
-
-	close(): void {
-		if (this._win) {
-			this._win.close();
-		}
-	}
-
-	sendWhenReady(channel: string, ...args: any[]): void {
-		if (this.isReady) {
-			this.send(channel, ...args);
-		} else {
-			this.ready().then(() => this.send(channel, ...args));
-		}
-	}
-
-	send(channel: string, ...args: any[]): void {
-		if (this._win) {
-			this._win.webContents.send(channel, ...args);
-		}
-	}
-
-	updateTouchBar(groups: ISerializableCommandAction[][]): void {
-		if (!isMacintosh) {
-			return; // only supported on macOS
-		}
-
-		// Update segments for all groups. Setting the segments property
-		// of the group directly prevents ugly flickering from happening
-		this.touchBarGroups.forEach((touchBarGroup, index) => {
-			const commands = groups[index];
-			touchBarGroup.segments = this.createTouchBarGroupSegments(commands);
-		});
-	}
-
 	private createTouchBar(): void {
 		if (!isMacintosh) {
 			return; // only supported on macOS
@@ -1002,7 +1011,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			mode: 'buttons',
 			segmentStyle: 'automatic',
 			change: (selectedIndex) => {
-				this.sendWhenReady('vscode:runAction', { id: (control.segments[selectedIndex] as ITouchBarSegment).id, from: 'touchbar' });
+				this.sendWhenReady('vscode:runAction', {
+					id: (control.segments[selectedIndex] as ITouchBarSegment).id,
+					from: 'touchbar'
+				});
 			}
 		});
 
@@ -1032,15 +1044,5 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				icon
 			};
 		});
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		if (this.showTimeoutHandle) {
-			clearTimeout(this.showTimeoutHandle);
-		}
-
-		this._win = null!; // Important to dereference the window object to allow for GC
 	}
 }
