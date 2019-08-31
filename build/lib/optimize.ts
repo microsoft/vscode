@@ -278,6 +278,9 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 	const output = input
 		.pipe(flatmap((stream, f) => {
 			return stream.pipe(minify({
+				compress: {
+					hoist_funs: true
+				},
 				output: {
 					comments: preserveComments(<FileWithCopyright>f),
 					max_line_len: 1024

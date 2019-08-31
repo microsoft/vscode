@@ -202,6 +202,9 @@ function uglifyWithCopyrights() {
     const output = input
         .pipe(flatmap((stream, f) => {
         return stream.pipe(minify({
+            compress: {
+                hoist_funs: true
+            },
             output: {
                 comments: preserveComments(f),
                 max_line_len: 1024
