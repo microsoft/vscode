@@ -77,16 +77,16 @@ export class BreakpointsView extends ViewletPanel {
 			this.instantiationService.createInstance(DataBreakpointsRenderer),
 			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
 		], {
-				identityProvider: { getId: (element: IEnablement) => element.getId() },
-				multipleSelectionSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e },
-				ariaProvider: {
-					getSetSize: (_: IEnablement, index: number, listLength: number) => listLength,
-					getPosInSet: (_: IEnablement, index: number) => index,
-					getRole: (breakpoint: IEnablement) => 'checkbox',
-					isChecked: (breakpoint: IEnablement) => breakpoint.enabled
-				}
-			});
+			identityProvider: { getId: (element: IEnablement) => element.getId() },
+			multipleSelectionSupport: false,
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IEnablement) => e },
+			ariaProvider: {
+				getSetSize: (_: IEnablement, index: number, listLength: number) => listLength,
+				getPosInSet: (_: IEnablement, index: number) => index,
+				getRole: (breakpoint: IEnablement) => 'checkbox',
+				isChecked: (breakpoint: IEnablement) => breakpoint.enabled
+			}
+		});
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 
