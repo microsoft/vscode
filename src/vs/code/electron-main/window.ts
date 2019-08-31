@@ -7,13 +7,19 @@ import * as path from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display } from 'electron';
+import { app, BrowserWindow, Display, nativeImage, Rectangle, screen, systemPreferences, TouchBar } from 'electron';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product/node/product';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import {
+	getTitleBarStyle,
+	IWindowConfiguration,
+	IWindowSettings,
+	MenuBarVisibility,
+	ReadyState
+} from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -545,19 +551,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.windowId = this._win.id;
 		windowConfiguration.logLevel = this.logService.getLevel();
 
-		// Set zoomlevel
+		// Set zoomLevel
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		const zoomLevel = windowConfig && windowConfig.zoomLevel;
-		if (typeof zoomLevel === 'number') {
-			windowConfiguration.zoomLevel = zoomLevel;
-		}
+		windowConfiguration.zoomLevel = windowConfig && windowConfig.zoomLevel;
 
 		// Set fullscreen state
 		windowConfiguration.fullscreen = this.isFullScreen();
 
 		// Set Accessibility Config
 		let autoDetectHighContrast = true;
-		if (windowConfig && windowConfig.autoDetectHighContrast === false) {
+		if (windowConfig && !windowConfig.autoDetectHighContrast) {
 			autoDetectHighContrast = false;
 		}
 		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
@@ -730,12 +733,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return state;
 		}
 
-		// Multi Montior (fullscreen): try to find the previously used display
+		// Multi Monitor (fullscreen): try to find the previously used display
 		if (state.display && state.mode === WindowMode.Fullscreen) {
 			const display = displays.filter(d => d.id === state.display)[0];
-			if (display && display.bounds && typeof display.bounds.x === 'number' && typeof display.bounds.y === 'number') {
+			if (display && display.bounds) {
 				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
-				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
+				defaults.x = display.bounds.x; // careful to use displays x/y position so that the window ends up on the correct monitor
 				defaults.y = display.bounds.y;
 
 				return defaults;
@@ -828,7 +831,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private useNativeFullScreen(): boolean {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+		if (!windowConfig) {
 			return true; // default
 		}
 
@@ -836,7 +839,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return true; // https://github.com/electron/electron/issues/16142
 		}
 
-		return windowConfig.nativeFullScreen !== false;
+		return windowConfig.nativeFullScreen;
 	}
 
 	isMinimized(): boolean {
@@ -1007,7 +1010,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
-		const segments: ITouchBarSegment[] = items.map(item => {
+		return items.map(item => {
 			let icon: Electron.NativeImage | undefined;
 			if (item.iconLocation && item.iconLocation.dark.scheme === 'file') {
 				icon = nativeImage.createFromPath(URI.revive(item.iconLocation.dark).fsPath);
@@ -1029,8 +1032,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				icon
 			};
 		});
-
-		return segments;
 	}
 
 	dispose(): void {
