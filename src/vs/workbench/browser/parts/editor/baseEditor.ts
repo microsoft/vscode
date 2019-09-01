@@ -41,8 +41,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = Event.None;
 
-	protected _input: EditorInput | null;
-	protected _options: EditorOptions | null;
+	protected _input: EditorInput | null = null;
+	protected _options: EditorOptions | null = null;
 
 	private _group?: IEditorGroup;
 
@@ -172,7 +172,7 @@ interface MapGroupToMemento<T> {
 }
 
 export class EditorMemento<T> implements IEditorMemento<T> {
-	private cache: LRUCache<string, MapGroupToMemento<T>>;
+	private cache: LRUCache<string, MapGroupToMemento<T>> | undefined;
 	private cleanedUp = false;
 
 	constructor(
