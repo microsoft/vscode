@@ -70,12 +70,12 @@ const TextInputActions: IAction[] = [
 
 export class ElectronWindow extends Disposable {
 
-	private touchBarMenu?: IMenu;
-	private touchBarUpdater: RunOnceScheduler;
+	private touchBarMenu: IMenu | undefined;
+	private touchBarUpdater: RunOnceScheduler | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
-	private lastInstalledTouchedBar: ICommandAction[][];
+	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
 
-	private previousConfiguredZoomLevel: number;
+	private previousConfiguredZoomLevel: number | undefined;
 
 	private addFoldersScheduler: RunOnceScheduler;
 	private pendingFoldersToAdd: URI[];
@@ -406,7 +406,7 @@ export class ElectronWindow extends Disposable {
 		if (!this.touchBarMenu) {
 			this.touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
 			this.touchBarDisposables.add(this.touchBarMenu);
-			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => this.touchBarUpdater.schedule()));
+			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => this.touchBarUpdater!.schedule()));
 		}
 
 		const actions: Array<MenuItemAction | Separator> = [];
