@@ -15,8 +15,6 @@ cd $ROOT
 # Integration tests in AMD
 ./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
 
-echo $APP_ELECTRON
-
 # Tests in the extension host
 "$APP_ELECTRON" $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/singlefolder-tests --disable-extensions --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR
 "$APP_ELECTRON" $ROOT/extensions/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/workspace-tests --disable-extensions --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR
