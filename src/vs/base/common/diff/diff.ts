@@ -493,8 +493,8 @@ export class LcsDiff {
 	 * @param originalEnd The end bound of the original sequence range
 	 * @param modifiedStart The start bound of the modified sequence range
 	 * @param modifiedEnd The end bound of the modified sequence range
-	 * @param midOriginalArr The middle point of the original sequence range
-	 * @param midModifiedArr The middle point of the modified sequence range
+	 * @param midOriginal The middle point of the original sequence range
+	 * @param midModified The middle point of the modified sequence range
 	 * @returns The diff changes, if available, otherwise null
 	 */
 	private ComputeRecursionPoint(originalStart: number, originalEnd: number, modifiedStart: number, modifiedEnd: number, midOriginalArr: number[], midModifiedArr: number[], quitEarlyArr: boolean[]) {
@@ -576,7 +576,7 @@ export class LcsDiff {
 				} else {
 					originalIndex = forwardPoints[diagonal - 1] + 1;
 				}
-				modifiedIndex = (originalIndex - diagonalForwardOffset) - (diagonal - diagonalForwardBase);
+				modifiedIndex = originalIndex - (diagonal - diagonalForwardBase) - diagonalForwardOffset;
 
 				// Save the current originalIndex so we can test for false overlap in step 3
 				tempOriginalIndex = originalIndex;
@@ -768,6 +768,7 @@ export class LcsDiff {
 				changes[i] = mergedChangeArr[0]!;
 				changes.splice(i + 1, 1);
 				i--;
+				continue;
 			}
 		}
 
