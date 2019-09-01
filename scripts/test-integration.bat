@@ -5,7 +5,7 @@ pushd %~dp0\..
 
 set VSCODEUSERDATADIR=%TMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,5%
 
-if %INTEGRATION_TEST_ELECTRON_PATH%=="" (
+if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	:: code.bat makes sure Test Extensions are compiled
 	set INTEGRATION_TEST_ELECTRON_PATH=.\scripts\code.bat
 ) else (
