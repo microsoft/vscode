@@ -188,7 +188,8 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		const parts = variable.split(':');
 		if (parts.length > 1) {
 			variable = parts[0];
-			argument = parts[1];
+			parts.shift();
+			argument = parts.join(':');
 		}
 
 		// common error handling for all variables that require an open editor
