@@ -635,10 +635,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return input;
 	}
 
-	private toDiffLabel(input: EditorInput): string | null {
+	private toDiffLabel(input: EditorInput): string | undefined {
 		const res = input.getResource();
 		if (!res) {
-			return null;
+			return undefined;
 		}
 
 		// Do not try to extract any paths from simple untitled editors

@@ -61,7 +61,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return new EditorMemento(this.getId(), key, Object.create(null), limit, editorGroupService); // do not persist in storage as diff editors are never persisted
 	}
 
-	getTitle(): string | null {
+	getTitle(): string | undefined {
 		if (this.input) {
 			return this.input.getName();
 		}

@@ -46,7 +46,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
-	getTitle(): string | null {
+	getTitle(): string | undefined {
 		if (this.input) {
 			return this.input.getName();
 		}
