@@ -292,7 +292,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display name of this input.
 	 */
-	getName(): string | null;
+	getName(): string | undefined;
 
 	/**
 	 * Returns the display description of this input.
@@ -302,7 +302,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display title of this input.
 	 */
-	getTitle(verbosity?: Verbosity): string | null;
+	getTitle(verbosity?: Verbosity): string | undefined;
 
 	/**
 	 * Resolves the input.
@@ -358,8 +358,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
 	 * above the editor area when the input is shown.
 	 */
-	getName(): string | null {
-		return null;
+	getName(): string | undefined {
+		return undefined;
 	}
 
 	/**
@@ -374,7 +374,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the title of this input that can be shown to the user. Examples include showing the title of
 	 * the input above the editor area as hover over the input label.
 	 */
-	getTitle(verbosity?: Verbosity): string | null {
+	getTitle(verbosity?: Verbosity): string | undefined {
 		return this.getName();
 	}
 

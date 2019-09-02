@@ -21,7 +21,7 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 		return PreferencesEditorInput.ID;
 	}
 
-	getTitle(verbosity: Verbosity): string | null {
+	getTitle(verbosity: Verbosity): string | undefined {
 		return this.master.getTitle(verbosity);
 	}
 }

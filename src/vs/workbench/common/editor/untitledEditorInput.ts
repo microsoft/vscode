@@ -107,7 +107,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.labelService.getUriLabel(this.resource);
 	}
 
-	getTitle(verbosity: Verbosity): string | null {
+	getTitle(verbosity: Verbosity): string | undefined {
 		if (!this.hasAssociatedFilePath) {
 			return this.getName();
 		}
@@ -121,7 +121,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 				return this.longTitle;
 		}
 
-		return null;
+		return undefined;
 	}
 
 	isDirty(): boolean {
