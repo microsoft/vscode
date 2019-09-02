@@ -381,7 +381,7 @@ export class ContributableViewsModel extends Disposable {
 			return 0;
 		}
 
-		return (this.getViewOrder(a) - this.getViewOrder(b)) || this.getGroupOrderResult(a, b) || (a.id < b.id ? -1 : 1);
+		return (this.getViewOrder(a) - this.getViewOrder(b)) || this.getGroupOrderResult(a, b);
 	}
 
 	private getGroupOrderResult(a: IViewDescriptor, b: IViewDescriptor) {
@@ -433,7 +433,7 @@ export class ContributableViewsModel extends Disposable {
 		const splices = sortedDiff<IViewDescriptor>(
 			this.viewDescriptors,
 			viewDescriptors,
-			this.compareViewDescriptors.bind(this)
+			(a, b) => a.id === b.id ? 0 : a.id < b.id ? -1 : 1
 		).reverse();
 
 		const toRemove: { index: number, viewDescriptor: IViewDescriptor }[] = [];
