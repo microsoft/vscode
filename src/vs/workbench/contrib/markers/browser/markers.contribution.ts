@@ -118,6 +118,7 @@ registerAction({
 		group: 'navigation'
 	},
 	keybinding: {
+		weight: KeybindingWeight.WorkbenchContrib,
 		keys: {
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C
 		},
@@ -155,6 +156,7 @@ registerAction({
 	},
 	keybinding: {
 		when: Constants.MarkerPanelFilterFocusContextKey,
+		weight: KeybindingWeight.WorkbenchContrib,
 		keys: {
 			primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 		},
@@ -167,10 +169,17 @@ registerAction({
 	},
 	keybinding: {
 		when: Constants.MarkerPanelFocusContextKey,
+		weight: KeybindingWeight.WorkbenchContrib,
 		keys: {
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 		},
 	}
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: Constants.MARKERS_PANEL_FOCUS_FILTER,
+	when: Constants.MarkerPanelFilterFocusContextKey,
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 });
 registerAction({
 	id: Constants.MARKERS_PANEL_SHOW_MULTILINE_MESSAGE,
