@@ -99,7 +99,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private storage: IStorage;
 
-	private initializePromise: Promise<void>;
+	private initializePromise: Promise<void> | undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

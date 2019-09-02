@@ -17,8 +17,8 @@ export class ResourceEditorInput extends EditorInput implements IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
-	private cachedModel: ResourceEditorModel | null;
-	private modelReference: Promise<IReference<ITextEditorModel>> | null;
+	private cachedModel: ResourceEditorModel | null = null;
+	private modelReference: Promise<IReference<ITextEditorModel>> | null = null;
 
 	constructor(
 		private name: string,

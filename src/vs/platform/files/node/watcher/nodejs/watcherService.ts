@@ -13,7 +13,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { join, basename } from 'vs/base/common/path';
 
 export class FileWatcher extends Disposable {
-	private isDisposed: boolean;
+	private isDisposed: boolean | undefined;
 
 	private fileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(CHANGE_BUFFER_DELAY * 2 /* sync on delay from underlying library */));
 	private fileChangesBuffer: IDiskFileChange[] = [];

@@ -16,7 +16,7 @@ export class FileWatcher extends Disposable {
 
 	private isDisposed: boolean;
 	private restartCounter: number;
-	private service: WatcherChannelClient;
+	private service: WatcherChannelClient | undefined;
 
 	constructor(
 		private folders: IWatcherRequest[],
@@ -81,13 +81,18 @@ export class FileWatcher extends Disposable {
 
 	setVerboseLogging(verboseLogging: boolean): void {
 		this.verboseLogging = verboseLogging;
-		this.service.setVerboseLogging(verboseLogging);
+
+		if (this.service) {
+			this.service.setVerboseLogging(verboseLogging);
+		}
 	}
 
 	setFolders(folders: IWatcherRequest[]): void {
 		this.folders = folders;
 
-		this.service.setRoots(folders);
+		if (this.service) {
+			this.service.setRoots(folders);
+		}
 	}
 
 	dispose(): void {

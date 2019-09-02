@@ -91,7 +91,7 @@ const PyModulesToLookFor = [
 
 export class WorkspaceStatsService implements IWorkspaceStatsService {
 	_serviceBrand: undefined;
-	private _tags: Tags;
+	private _tags: Tags | undefined;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,

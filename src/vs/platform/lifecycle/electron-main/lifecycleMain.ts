@@ -139,10 +139,10 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
 
-	private pendingQuitPromise: Promise<boolean> | null;
-	private pendingQuitPromiseResolve: { (veto: boolean): void } | null;
+	private pendingQuitPromise: Promise<boolean> | null = null;
+	private pendingQuitPromiseResolve: { (veto: boolean): void } | null = null;
 
-	private pendingWillShutdownPromise: Promise<void> | null;
+	private pendingWillShutdownPromise: Promise<void> | null = null;
 
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }

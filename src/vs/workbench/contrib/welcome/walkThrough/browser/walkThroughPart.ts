@@ -251,7 +251,7 @@ export class WalkThroughPart extends BaseEditor {
 		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
-	setInput(input: WalkThroughInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	setInput(input: WalkThroughInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}

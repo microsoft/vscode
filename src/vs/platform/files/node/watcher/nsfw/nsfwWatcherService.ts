@@ -36,8 +36,8 @@ export class NsfwWatcherService implements IWatcherService {
 	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 
 	private _pathWatchers: { [watchPath: string]: IPathWatcher } = {};
-	private _verboseLogging: boolean;
-	private enospcErrorLogged: boolean;
+	private _verboseLogging: boolean | undefined;
+	private enospcErrorLogged: boolean | undefined;
 
 	private _onWatchEvent = new Emitter<IDiskFileChange[]>();
 	readonly onWatchEvent = this._onWatchEvent.event;

@@ -420,8 +420,8 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 }
 
 class SQLiteStorageDatabaseLogger {
-	private readonly logTrace: (msg: string) => void;
-	private readonly logError: (error: string | Error) => void;
+	private readonly logTrace: ((msg: string) => void) | undefined;
+	private readonly logError: ((error: string | Error) => void) | undefined;
 
 	constructor(options?: ISQLiteStorageDatabaseLoggingOptions) {
 		if (options && typeof options.logTrace === 'function') {
