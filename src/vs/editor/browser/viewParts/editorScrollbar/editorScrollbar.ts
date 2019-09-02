@@ -14,7 +14,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
 
 export class EditorScrollbar extends ViewPart {
 
@@ -31,9 +31,9 @@ export class EditorScrollbar extends ViewPart {
 
 
 		const options = this._context.configuration.options;
-		const scrollbar = options.get<typeof EditorOption.scrollbar>(EditorOptionId.scrollbar);
-		const mouseWheelScrollSensitivity = options.get<typeof EditorOption.mouseWheelScrollSensitivity>(EditorOptionId.mouseWheelScrollSensitivity);
-		const fastScrollSensitivity = options.get<typeof EditorOption.fastScrollSensitivity>(EditorOptionId.fastScrollSensitivity);
+		const scrollbar = options.get(EditorOptionId.scrollbar);
+		const mouseWheelScrollSensitivity = options.get(EditorOptionId.mouseWheelScrollSensitivity);
+		const fastScrollSensitivity = options.get(EditorOptionId.fastScrollSensitivity);
 
 		const scrollbarOptions: ScrollableElementCreationOptions = {
 			listenOnDomNode: viewDomNode.domNode,
@@ -101,11 +101,11 @@ export class EditorScrollbar extends ViewPart {
 
 	private _setLayout(): void {
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 
 		this.scrollbarDomNode.setLeft(layoutInfo.contentLeft);
 
-		const minimap = options.get<typeof EditorOption.minimap>(EditorOptionId.minimap);
+		const minimap = options.get(EditorOptionId.minimap);
 		const side = minimap.side;
 		if (side === 'right') {
 			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
@@ -136,9 +136,9 @@ export class EditorScrollbar extends ViewPart {
 			|| e.hasChanged(EditorOptionId.fastScrollSensitivity)
 		) {
 			const options = this._context.configuration.options;
-			const scrollbar = options.get<typeof EditorOption.scrollbar>(EditorOptionId.scrollbar);
-			const mouseWheelScrollSensitivity = options.get<typeof EditorOption.mouseWheelScrollSensitivity>(EditorOptionId.mouseWheelScrollSensitivity);
-			const fastScrollSensitivity = options.get<typeof EditorOption.fastScrollSensitivity>(EditorOptionId.fastScrollSensitivity);
+			const scrollbar = options.get(EditorOptionId.scrollbar);
+			const mouseWheelScrollSensitivity = options.get(EditorOptionId.mouseWheelScrollSensitivity);
+			const fastScrollSensitivity = options.get(EditorOptionId.fastScrollSensitivity);
 			const newOpts: ScrollableElementChangeOptions = {
 				handleMouseWheel: scrollbar.handleMouseWheel,
 				mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,

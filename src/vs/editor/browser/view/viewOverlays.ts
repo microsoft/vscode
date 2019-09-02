@@ -14,7 +14,8 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+
 
 export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOverlayLine> {
 
@@ -217,7 +218,7 @@ export class ContentViewOverlays extends ViewOverlays {
 	constructor(context: ViewContext) {
 		super(context);
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 		this._contentWidth = layoutInfo.contentWidth;
 
 		this.domNode.setHeight(0);
@@ -228,7 +229,7 @@ export class ContentViewOverlays extends ViewOverlays {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.hasChanged(EditorOptionId.layoutInfo)) {
 			const options = this._context.configuration.options;
-			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			const layoutInfo = options.get(EditorOptionId.layoutInfo);
 			this._contentWidth = layoutInfo.contentWidth;
 		}
 		return super.onConfigurationChanged(e);
@@ -254,7 +255,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		super(context);
 
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 		this._contentLeft = layoutInfo.contentLeft;
 
 		this.domNode.setClassName('margin-view-overlays');
@@ -271,7 +272,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		}
 		if (e.hasChanged(EditorOptionId.layoutInfo)) {
 			const options = this._context.configuration.options;
-			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			const layoutInfo = options.get(EditorOptionId.layoutInfo);
 			this._contentLeft = layoutInfo.contentLeft;
 			shouldRender = true;
 		}

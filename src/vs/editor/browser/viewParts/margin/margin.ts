@@ -8,7 +8,8 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+
 
 export class Margin extends ViewPart {
 
@@ -25,7 +26,7 @@ export class Margin extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 
 		this._canUseLayerHinting = this._context.configuration.editor.canUseLayerHinting;
 		this._contentLeft = layoutInfo.contentLeft;
@@ -62,7 +63,7 @@ export class Margin extends ViewPart {
 		}
 
 		if (e.hasChanged(EditorOptionId.layoutInfo)) {
-			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			const layoutInfo = options.get(EditorOptionId.layoutInfo);
 			this._contentLeft = layoutInfo.contentLeft;
 			this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 			this._glyphMarginWidth = layoutInfo.glyphMarginWidth;

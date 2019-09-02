@@ -12,7 +12,8 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
-import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+
 
 export interface IMyViewZone {
 	whitespaceId: string;
@@ -42,7 +43,7 @@ export class ViewZones extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._contentWidth = layoutInfo.contentWidth;
@@ -96,7 +97,7 @@ export class ViewZones extends ViewPart {
 		}
 
 		if (e.hasChanged(EditorOptionId.layoutInfo)) {
-			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			const layoutInfo = options.get(EditorOptionId.layoutInfo);
 			this._contentWidth = layoutInfo.contentWidth;
 			this._contentLeft = layoutInfo.contentLeft;
 		}

@@ -11,7 +11,8 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+
 
 export class ScrollDecorationViewPart extends ViewPart {
 
@@ -29,7 +30,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._updateWidth();
 		this._shouldShow = false;
 		const options = this._context.configuration.options;
-		const scrollbar = options.get<typeof EditorOption.scrollbar>(EditorOptionId.scrollbar);
+		const scrollbar = options.get(EditorOptionId.scrollbar);
 		this._useShadows = scrollbar.useShadows;
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._domNode.setAttribute('role', 'presentation');
@@ -55,7 +56,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 
 	private _updateWidth(): boolean {
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 		let newWidth = 0;
 		if (layoutInfo.renderMinimap === 0 || (layoutInfo.minimapWidth > 0 && layoutInfo.minimapLeft === 0)) {
 			newWidth = layoutInfo.width;
@@ -75,7 +76,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 		let shouldRender = false;
 		if (e.hasChanged(EditorOptionId.scrollbar)) {
 			const options = this._context.configuration.options;
-			const scrollbar = options.get<typeof EditorOption.scrollbar>(EditorOptionId.scrollbar);
+			const scrollbar = options.get(EditorOptionId.scrollbar);
 			this._useShadows = scrollbar.useShadows;
 		}
 		if (e.hasChanged(EditorOptionId.layoutInfo)) {

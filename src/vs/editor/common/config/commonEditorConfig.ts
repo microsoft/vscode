@@ -8,15 +8,12 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, RawEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, ComputedEditorOptions, ChangedEditorOptions, IValidatedEditorOptions, InternalEditorOptions, IConfigurationChangedEvent, EditorOptionsValidator, EDITOR_DEFAULTS, InternalEditorOptionsFactory, EDITOR_FONT_DEFAULTS, EditorOption, EDITOR_MODEL_DEFAULTS, blinkingStyleToString, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import EDITOR_DEFAULTS = editorOptions.EDITOR_DEFAULTS;
-import EDITOR_FONT_DEFAULTS = editorOptions.EDITOR_FONT_DEFAULTS;
-import EDITOR_MODEL_DEFAULTS = editorOptions.EDITOR_MODEL_DEFAULTS;
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 /**
@@ -64,47 +61,47 @@ export interface IEnvConfiguration {
 const hasOwnProperty = Object.hasOwnProperty;
 
 export class EditorConfiguration2 {
-	public static readOptions(options: editorOptions.IEditorOptions): editorOptions.RawEditorOptions {
+	public static readOptions(options: IEditorOptions): RawEditorOptions {
 		// console.log(`parseOptions`, options);
-		const result = new editorOptions.RawEditorOptions();
-		for (const editorOption of editorOptions.editorOptionsRegistry) {
+		const result = new RawEditorOptions();
+		for (const editorOption of editorOptionsRegistry) {
 			result._write(editorOption.id, editorOption.read(options));
 		}
 		return result;
 	}
 
-	public static mixOptions(a: editorOptions.RawEditorOptions, b: editorOptions.IEditorOptions): editorOptions.RawEditorOptions {
+	public static mixOptions(a: RawEditorOptions, b: IEditorOptions): RawEditorOptions {
 		// console.log(`mixOptions`, a, b);
-		const result = new editorOptions.RawEditorOptions();
-		for (const editorOption of editorOptions.editorOptionsRegistry) {
+		const result = new RawEditorOptions();
+		for (const editorOption of editorOptionsRegistry) {
 			result._write(editorOption.id, editorOption.mix(a._read(editorOption.id), editorOption.read(b)));
 		}
 		return result;
 	}
 
-	public static validateOptions(options: editorOptions.RawEditorOptions): editorOptions.ValidatedEditorOptions {
+	public static validateOptions(options: RawEditorOptions): ValidatedEditorOptions {
 		// console.log(`validateOptions`, options);
-		const result = new editorOptions.ValidatedEditorOptions();
-		for (const editorOption of editorOptions.editorOptionsRegistry) {
+		const result = new ValidatedEditorOptions();
+		for (const editorOption of editorOptionsRegistry) {
 			result._write(editorOption.id, editorOption.validate(options._read(editorOption.id)));
 		}
 		return result;
 	}
 
-	public static computeOptions(options: editorOptions.ValidatedEditorOptions, env: editorOptions.IEnvironmentalOptions): editorOptions.ComputedEditorOptions {
+	public static computeOptions(options: ValidatedEditorOptions, env: IEnvironmentalOptions): ComputedEditorOptions {
 		// console.log(`computeOptions`, options, env);
-		const result = new editorOptions.ComputedEditorOptions();
-		for (const editorOption of editorOptions.editorOptionsRegistry) {
+		const result = new ComputedEditorOptions();
+		for (const editorOption of editorOptionsRegistry) {
 			result._write(editorOption.id, editorOption.compute(env, result, options._read(editorOption.id)));
 		}
 		return result;
 	}
 
-	public static checkEquals(a: editorOptions.ComputedEditorOptions, b: editorOptions.ComputedEditorOptions): editorOptions.ChangedEditorOptions | null {
+	public static checkEquals(a: ComputedEditorOptions, b: ComputedEditorOptions): ChangedEditorOptions | null {
 		// console.log(`equals`, a, b);
-		const result = new editorOptions.ChangedEditorOptions();
+		const result = new ChangedEditorOptions();
 		let somethingChanged = false;
-		for (const editorOption of editorOptions.editorOptionsRegistry) {
+		for (const editorOption of editorOptionsRegistry) {
 			const changed = !editorOption.equals(a._read(editorOption.id), b._read(editorOption.id));
 			result._write(editorOption.id, changed);
 			if (changed) {
@@ -118,7 +115,7 @@ export class EditorConfiguration2 {
 /**
  * Compatibility with old options
  */
-function migrateOptions(options: editorOptions.IEditorOptions): void {
+function migrateOptions(options: IEditorOptions): void {
 	let wordWrap = options.wordWrap;
 	if (<any>wordWrap === true) {
 		options.wordWrap = 'on';
@@ -137,20 +134,20 @@ function migrateOptions(options: editorOptions.IEditorOptions): void {
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
 	public readonly isSimpleWidget: boolean;
-	protected _rawOptions: editorOptions.IEditorOptions;
-	protected _validatedOptions: editorOptions.IValidatedEditorOptions;
-	public editor!: editorOptions.InternalEditorOptions;
+	protected _rawOptions: IEditorOptions;
+	protected _validatedOptions: IValidatedEditorOptions;
+	public editor!: InternalEditorOptions;
 	private _isDominatedByLongLines: boolean;
 	private _lineNumbersDigitCount: number;
 
-	private _onDidChange = this._register(new Emitter<editorOptions.IConfigurationChangedEvent>());
-	public readonly onDidChange: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChange.event;
+	private _onDidChange = this._register(new Emitter<IConfigurationChangedEvent>());
+	public readonly onDidChange: Event<IConfigurationChangedEvent> = this._onDidChange.event;
 
-	private _rawOptions2: editorOptions.RawEditorOptions;
-	private _validatedOptions2: editorOptions.ValidatedEditorOptions;
-	public options!: editorOptions.ComputedEditorOptions;
+	private _rawOptions2: RawEditorOptions;
+	private _validatedOptions2: ValidatedEditorOptions;
+	public options!: ComputedEditorOptions;
 
-	constructor(isSimpleWidget: boolean, options: editorOptions.IEditorOptions) {
+	constructor(isSimpleWidget: boolean, options: IEditorOptions) {
 		super();
 		migrateOptions(options);
 
@@ -164,7 +161,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions.hover = objects.mixin({}, this._rawOptions.hover || {});
 		this._rawOptions.parameterHints = objects.mixin({}, this._rawOptions.parameterHints || {});
 
-		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
+		this._validatedOptions = EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 
 		this._rawOptions2 = EditorConfiguration2.readOptions(options);
 		this._validatedOptions2 = EditorConfiguration2.validateOptions(this._rawOptions2);
@@ -202,15 +199,15 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		}
 	}
 
-	public getRawOptions(): editorOptions.IEditorOptions {
+	public getRawOptions(): IEditorOptions {
 		return this._rawOptions;
 	}
 
-	private _computeInternalOptions(): [editorOptions.InternalEditorOptions, editorOptions.ComputedEditorOptions] {
+	private _computeInternalOptions(): [InternalEditorOptions, ComputedEditorOptions] {
 		const opts = this._validatedOptions;
 		const partialEnv = this._getEnvConfiguration();
 		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, partialEnv.zoomLevel, this.isSimpleWidget);
-		const env: editorOptions.IEnvironmentalOptions = {
+		const env: IEnvironmentalOptions = {
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight,
 			fontInfo: this.readConfiguration(bareFontInfo),
@@ -222,7 +219,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			tabFocusMode: TabFocus.getTabFocusMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport
 		};
-		const r = editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
+		const r = InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
 		const r2 = EditorConfiguration2.computeOptions(this._validatedOptions2, env);
 		return [r, r2];
 	}
@@ -267,7 +264,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return true;
 	}
 
-	public updateOptions(newOptions: editorOptions.IEditorOptions): void {
+	public updateOptions(newOptions: IEditorOptions): void {
 		if (typeof newOptions === 'undefined') {
 			return;
 		}
@@ -278,7 +275,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions = objects.mixin(this._rawOptions, newOptions || {});
 		this._rawOptions2 = EditorConfiguration2.mixOptions(this._rawOptions2, newOptions);
 
-		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
+		this._validatedOptions = EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this._validatedOptions2 = EditorConfiguration2.validateOptions(this._rawOptions2);
 
 		this._recomputeOptions();
@@ -366,7 +363,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.renderFinalNewline': {
 			'type': 'boolean',
-			'default': editorOptions.EditorOption.renderFinalNewline.defaultValue,
+			'default': EditorOption.renderFinalNewline.defaultValue,
 			'description': nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.")
 		},
 		'editor.rulers': {
@@ -434,29 +431,29 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.minimap.enabled': {
 			'type': 'boolean',
-			'default': editorOptions.EditorOption.minimap.defaultValue.enabled,
+			'default': EditorOption.minimap.defaultValue.enabled,
 			'description': nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
 		},
 		'editor.minimap.side': {
 			'type': 'string',
 			'enum': ['left', 'right'],
-			'default': editorOptions.EditorOption.minimap.defaultValue.side,
+			'default': EditorOption.minimap.defaultValue.side,
 			'description': nls.localize('minimap.side', "Controls the side where to render the minimap.")
 		},
 		'editor.minimap.showSlider': {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
-			'default': editorOptions.EditorOption.minimap.defaultValue.showSlider,
+			'default': EditorOption.minimap.defaultValue.showSlider,
 			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
-			'default': editorOptions.EditorOption.minimap.defaultValue.renderCharacters,
+			'default': EditorOption.minimap.defaultValue.renderCharacters,
 			'description': nls.localize('minimap.renderCharacters', "Render the actual characters on a line as opposed to color blocks.")
 		},
 		'editor.minimap.maxColumn': {
 			'type': 'number',
-			'default': editorOptions.EditorOption.minimap.defaultValue.maxColumn,
+			'default': EditorOption.minimap.defaultValue.maxColumn,
 			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
 		},
 		'editor.hover.enabled': {
@@ -515,7 +512,7 @@ const editorConfiguration: IConfigurationNode = {
 					]
 				}, "Lines will wrap at the minimum of viewport and `#editor.wordWrapColumn#`."),
 			],
-			'default': editorOptions.EditorOption.wordWrap.defaultValue,
+			'default': EditorOption.wordWrap.defaultValue,
 			'description': nls.localize({
 				key: 'wordWrap',
 				comment: [
@@ -526,7 +523,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wordWrapColumn': {
 			'type': 'integer',
-			'default': editorOptions.EditorOption.wordWrapColumn.defaultValue,
+			'default': EditorOption.wordWrapColumn.defaultValue,
 			'minimum': 1,
 			'markdownDescription': nls.localize({
 				key: 'wordWrapColumn',
@@ -550,12 +547,12 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.mouseWheelScrollSensitivity': {
 			'type': 'number',
-			'default': editorOptions.EditorOption.mouseWheelScrollSensitivity.defaultValue,
+			'default': EditorOption.mouseWheelScrollSensitivity.defaultValue,
 			'markdownDescription': nls.localize('mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
 		},
 		'editor.fastScrollSensitivity': {
 			'type': 'number',
-			'default': editorOptions.EditorOption.fastScrollSensitivity.defaultValue,
+			'default': EditorOption.fastScrollSensitivity.defaultValue,
 			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`.")
 		},
 		'editor.multiCursorModifier': {
@@ -972,7 +969,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.cursorBlinking': {
 			'type': 'string',
 			'enum': ['blink', 'smooth', 'phase', 'expand', 'solid'],
-			'default': editorOptions.blinkingStyleToString(EDITOR_DEFAULTS.viewInfo.cursorBlinking),
+			'default': blinkingStyleToString(EDITOR_DEFAULTS.viewInfo.cursorBlinking),
 			'description': nls.localize('cursorBlinking', "Control the cursor animation style.")
 		},
 		'editor.mouseWheelZoom': {
@@ -988,7 +985,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.cursorStyle': {
 			'type': 'string',
 			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],
-			'default': editorOptions.cursorStyleToString(EDITOR_DEFAULTS.viewInfo.cursorStyle),
+			'default': cursorStyleToString(EDITOR_DEFAULTS.viewInfo.cursorStyle),
 			'description': nls.localize('cursorStyle', "Controls the cursor style.")
 		},
 		'editor.cursorWidth': {
@@ -1052,7 +1049,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.folding': {
 			'type': 'boolean',
-			'default': editorOptions.EditorOption.folding.defaultValue,
+			'default': EditorOption.folding.defaultValue,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled.")
 		},
 		'editor.foldingStrategy': {
@@ -1105,7 +1102,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader."),
 				nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
 			],
-			'default': editorOptions.EditorOption.accessibilitySupport.defaultValue,
+			'default': EditorOption.accessibilitySupport.defaultValue,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 		},
 		'editor.showUnused': {
@@ -1158,7 +1155,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.selectionClipboard': {
 			'type': 'boolean',
-			'default': editorOptions.EditorOption.selectionClipboard.defaultValue,
+			'default': EditorOption.selectionClipboard.defaultValue,
 			'description': nls.localize('selectionClipboard', "Controls whether the Linux primary clipboard should be supported."),
 			'included': platform.isLinux
 		},

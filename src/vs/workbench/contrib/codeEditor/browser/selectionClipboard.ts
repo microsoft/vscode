@@ -9,7 +9,7 @@ import * as process from 'vs/base/common/process';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IConfigurationChangedEvent, EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -24,11 +24,11 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 		super();
 
 		if (platform.isLinux) {
-			let isEnabled = editor.getOption<typeof EditorOption.selectionClipboard>(EditorOptionId.selectionClipboard);
+			let isEnabled = editor.getOption(EditorOptionId.selectionClipboard);
 
 			this._register(editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 				if (e.hasChanged(EditorOptionId.selectionClipboard)) {
-					isEnabled = editor.getOption<typeof EditorOption.selectionClipboard>(EditorOptionId.selectionClipboard);
+					isEnabled = editor.getOption(EditorOptionId.selectionClipboard);
 				}
 			}));
 

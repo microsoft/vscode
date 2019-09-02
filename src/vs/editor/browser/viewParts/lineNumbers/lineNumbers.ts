@@ -6,7 +6,7 @@
 import 'vs/css!./lineNumbers';
 import * as platform from 'vs/base/common/platform';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { RenderLineNumbersType, EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { RenderLineNumbersType, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { editorActiveLineNumber, editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -44,11 +44,11 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		const options = this._context.configuration.options;
 		const config = this._context.configuration.editor;
 		this._lineHeight = config.lineHeight;
-		const renderLineNumbers = options.get<typeof EditorOption.renderLineNumbers>(EditorOptionId.renderLineNumbers);
+		const renderLineNumbers = options.get(EditorOptionId.renderLineNumbers);
 		this._renderLineNumbers = renderLineNumbers.renderType;
 		this._renderCustomLineNumbers = renderLineNumbers.renderFn;
-		this._renderFinalNewline = options.get<typeof EditorOption.renderFinalNewline>(EditorOptionId.renderFinalNewline);
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		this._renderFinalNewline = options.get(EditorOptionId.renderFinalNewline);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 		this._lineNumbersLeft = layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = layoutInfo.lineNumbersWidth;
 	}

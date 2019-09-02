@@ -26,6 +26,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -698,7 +699,7 @@ export class StartFindReplaceAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
-		if (!editor.hasModel() || editor.getConfiguration().readOnly) {
+		if (!editor.hasModel() || editor.getOption(EditorOptionId.readOnly)) {
 			return;
 		}
 

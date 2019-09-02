@@ -10,7 +10,8 @@ import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/v
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+
 
 interface IWidgetData {
 	widget: IOverlayWidget;
@@ -37,7 +38,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		super(context);
 
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 
 		this._widgets = {};
 		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
@@ -66,7 +67,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		const options = this._context.configuration.options;
 
 		if (e.hasChanged(EditorOptionId.layoutInfo)) {
-			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			const layoutInfo = options.get(EditorOptionId.layoutInfo);
 			this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
 			this._minimapWidth = layoutInfo.minimapWidth;
 			this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;

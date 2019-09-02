@@ -39,7 +39,6 @@ export class ViewConfigurationChangedEvent {
 	public readonly pixelRatio: boolean;
 	public readonly editorClassName: boolean;
 	public readonly lineHeight: boolean;
-	public readonly readOnly: boolean;
 	public readonly emptySelectionClipboard: boolean;
 	public readonly copyWithSyntaxHighlighting: boolean;
 	public readonly fontInfo: boolean;
@@ -51,7 +50,6 @@ export class ViewConfigurationChangedEvent {
 		this.pixelRatio = source.pixelRatio;
 		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight;
-		this.readOnly = source.readOnly;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.copyWithSyntaxHighlighting = source.copyWithSyntaxHighlighting;
 		this.fontInfo = source.fontInfo;

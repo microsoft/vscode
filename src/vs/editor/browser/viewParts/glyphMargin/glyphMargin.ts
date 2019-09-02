@@ -8,7 +8,8 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+
 
 export class DecorationToRender {
 	_decorationToRenderBrand: void;
@@ -86,7 +87,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		super();
 		this._context = context;
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
@@ -113,7 +114,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 			this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
 		}
 		if (e.hasChanged(EditorOptionId.layoutInfo)) {
-			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			const layoutInfo = options.get(EditorOptionId.layoutInfo);
 			this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 			this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		}

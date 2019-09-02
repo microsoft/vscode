@@ -37,7 +37,7 @@ import { COMMENTEDITOR_DECORATION_KEY, ReviewZoneWidget } from 'vs/workbench/con
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
 
 export const ID = 'editor.contrib.review';
 
@@ -603,7 +603,7 @@ export class ReviewController implements IEditorContribution {
 				}
 
 				const options = this.editor.getOptions();
-				if (options.get<typeof EditorOption.folding>(EditorOptionId.folding)) {
+				if (options.get(EditorOptionId.folding)) {
 					lineDecorationsWidth -= 16;
 				}
 				lineDecorationsWidth += 9;

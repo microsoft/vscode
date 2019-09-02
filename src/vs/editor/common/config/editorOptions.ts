@@ -729,7 +729,20 @@ export interface IEditorOptions {
 	 */
 	showUnused?: boolean;
 
+	/**
+	 * Do not use.
+	 * @internal
+	 */
+	tabFocusMode?: undefined;
+	/**
+	 * Do not use.
+	 * @internal
+	 */
 	layoutInfo?: undefined;
+	/**
+	 * Do not use.
+	 * @internal
+	 */
 	wrappingInfo?: undefined;
 }
 
@@ -1018,7 +1031,6 @@ export interface EditorContribOptions {
 export interface IValidatedEditorOptions {
 	readonly wordSeparators: string;
 	readonly lineDecorationsWidth: number | string;
-	readonly readOnly: boolean;
 	readonly mouseStyle: 'text' | 'default' | 'copy';
 	readonly disableLayerHinting: boolean;
 	readonly automaticLayout: boolean;
@@ -1049,11 +1061,6 @@ export class InternalEditorOptions {
 	readonly pixelRatio: number;
 	readonly editorClassName: string;
 	readonly lineHeight: number;
-	readonly readOnly: boolean;
-	/**
-	 * @internal
-	 */
-	readonly accessibilitySupport: AccessibilitySupport;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly multiCursorMergeOverlapping: boolean;
 	readonly showUnused: boolean;
@@ -1066,7 +1073,6 @@ export class InternalEditorOptions {
 	readonly autoSurround: EditorAutoSurroundStrategy;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
-	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
 	readonly copyWithSyntaxHighlighting: boolean;
@@ -1084,7 +1090,6 @@ export class InternalEditorOptions {
 		pixelRatio: number;
 		editorClassName: string;
 		lineHeight: number;
-		readOnly: boolean;
 		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		multiCursorMergeOverlapping: boolean;
 		wordSeparators: string;
@@ -1094,7 +1099,6 @@ export class InternalEditorOptions {
 		autoSurround: EditorAutoSurroundStrategy;
 		autoIndent: boolean;
 		useTabStops: boolean;
-		tabFocusMode: boolean;
 		dragAndDrop: boolean;
 		emptySelectionClipboard: boolean;
 		copyWithSyntaxHighlighting: boolean;
@@ -1107,7 +1111,6 @@ export class InternalEditorOptions {
 		this.pixelRatio = source.pixelRatio;
 		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight | 0;
-		this.readOnly = source.readOnly;
 		this.multiCursorModifier = source.multiCursorModifier;
 		this.multiCursorMergeOverlapping = source.multiCursorMergeOverlapping;
 		this.wordSeparators = source.wordSeparators;
@@ -1117,7 +1120,6 @@ export class InternalEditorOptions {
 		this.autoSurround = source.autoSurround;
 		this.autoIndent = source.autoIndent;
 		this.useTabStops = source.useTabStops;
-		this.tabFocusMode = source.tabFocusMode;
 		this.dragAndDrop = source.dragAndDrop;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.copyWithSyntaxHighlighting = source.copyWithSyntaxHighlighting;
@@ -1136,7 +1138,6 @@ export class InternalEditorOptions {
 			&& this.pixelRatio === other.pixelRatio
 			&& this.editorClassName === other.editorClassName
 			&& this.lineHeight === other.lineHeight
-			&& this.readOnly === other.readOnly
 			&& this.multiCursorModifier === other.multiCursorModifier
 			&& this.multiCursorMergeOverlapping === other.multiCursorMergeOverlapping
 			&& this.wordSeparators === other.wordSeparators
@@ -1146,7 +1147,6 @@ export class InternalEditorOptions {
 			&& this.autoSurround === other.autoSurround
 			&& this.autoIndent === other.autoIndent
 			&& this.useTabStops === other.useTabStops
-			&& this.tabFocusMode === other.tabFocusMode
 			&& this.dragAndDrop === other.dragAndDrop
 			&& this.showUnused === other.showUnused
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
@@ -1172,7 +1172,6 @@ export class InternalEditorOptions {
 			pixelRatio: (this.pixelRatio !== newOpts.pixelRatio),
 			editorClassName: (this.editorClassName !== newOpts.editorClassName),
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
-			readOnly: (this.readOnly !== newOpts.readOnly),
 			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
 			multiCursorMergeOverlapping: (this.multiCursorMergeOverlapping !== newOpts.multiCursorMergeOverlapping),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
@@ -1182,7 +1181,6 @@ export class InternalEditorOptions {
 			autoSurround: (this.autoSurround !== newOpts.autoSurround),
 			autoIndent: (this.autoIndent !== newOpts.autoIndent),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
-			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
 			dragAndDrop: (this.dragAndDrop !== newOpts.dragAndDrop),
 			emptySelectionClipboard: (this.emptySelectionClipboard !== newOpts.emptySelectionClipboard),
 			copyWithSyntaxHighlighting: (this.copyWithSyntaxHighlighting !== newOpts.copyWithSyntaxHighlighting),
@@ -1353,7 +1351,6 @@ export interface IConfigurationChangedEvent {
 	readonly pixelRatio: boolean;
 	readonly editorClassName: boolean;
 	readonly lineHeight: boolean;
-	readonly readOnly: boolean;
 	readonly multiCursorModifier: boolean;
 	readonly multiCursorMergeOverlapping: boolean;
 	readonly wordSeparators: boolean;
@@ -1363,7 +1360,6 @@ export interface IConfigurationChangedEvent {
 	readonly autoSurround: boolean;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
-	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
 	readonly copyWithSyntaxHighlighting: boolean;
@@ -1534,7 +1530,6 @@ export class EditorOptionsValidator {
 		return {
 			wordSeparators: _string(opts.wordSeparators, defaults.wordSeparators),
 			lineDecorationsWidth: (typeof opts.lineDecorationsWidth === 'undefined' ? defaults.lineDecorationsWidth : opts.lineDecorationsWidth),
-			readOnly: _boolean(opts.readOnly, defaults.readOnly),
 			mouseStyle: _stringSet<'text' | 'default' | 'copy'>(opts.mouseStyle, defaults.mouseStyle, ['text', 'default', 'copy']),
 			disableLayerHinting: _boolean(opts.disableLayerHinting, defaults.disableLayerHinting),
 			automaticLayout: _boolean(opts.automaticLayout, defaults.automaticLayout),
@@ -1768,7 +1763,6 @@ export class InternalEditorOptionsFactory {
 			pixelRatio: env.pixelRatio,
 			editorClassName: className,
 			lineHeight: env.fontInfo.lineHeight,
-			readOnly: opts.readOnly,
 			multiCursorModifier: opts.multiCursorModifier,
 			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
 			wordSeparators: opts.wordSeparators,
@@ -1778,7 +1772,6 @@ export class InternalEditorOptionsFactory {
 			autoSurround: opts.autoSurround,
 			autoIndent: opts.autoIndent,
 			useTabStops: opts.useTabStops,
-			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard && env.emptySelectionClipboard,
 			copyWithSyntaxHighlighting: opts.copyWithSyntaxHighlighting,
@@ -1858,7 +1851,6 @@ export const EDITOR_MODEL_DEFAULTS = {
 export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordSeparators: USUAL_WORD_SEPARATORS,
 	lineDecorationsWidth: 10,
-	readOnly: false,
 	mouseStyle: 'text',
 	disableLayerHinting: false,
 	automaticLayout: false,
@@ -1991,7 +1983,7 @@ export class ValidatedEditorOptions {
 }
 
 export interface IComputedEditorOptions {
-	get<T extends IEditorOption<any, any, any>>(id: EditorOptionId): ComputedEditorOptionValue<T>;
+	get<T extends EditorOptionId>(id: T): FindComputedEditorOptionValueById<T>;
 }
 
 /**
@@ -2002,7 +1994,7 @@ export class ComputedEditorOptions implements IComputedEditorOptions {
 	public _read<T>(id: EditorOptionId): T {
 		return this._values[id];
 	}
-	public get<T extends IEditorOption<any, any, any>>(id: EditorOptionId): ComputedEditorOptionValue<T> {
+	public get<T extends EditorOptionId>(id: T): FindComputedEditorOptionValueById<T> {
 		return this._values[id];
 	}
 	public _write<T>(id: EditorOptionId, value: T): void {
@@ -2025,8 +2017,8 @@ export class ChangedEditorOptions {
 
 export type PossibleKeyName<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
 
-export interface IEditorOption<T1, T2 = T1, T3 = T2> {
-	readonly id: EditorOptionId;
+export interface IEditorOption<K extends EditorOptionId, T1, T2 = T1, T3 = T2> {
+	readonly id: K;
 	readonly name: PossibleKeyName<T1>;
 	readonly defaultValue: T2;
 	read(options: IRawEditorOptionsBag): T1 | undefined;
@@ -2039,20 +2031,20 @@ export interface IEditorOption<T1, T2 = T1, T3 = T2> {
 /**
  * @internal
  */
-export const editorOptionsRegistry: IEditorOption<any>[] = [];
+export const editorOptionsRegistry: IEditorOption<EditorOptionId, any>[] = [];
 
-function registerEditorOption<T1, T2, T3>(option: IEditorOption<T1, T2, T3>): IEditorOption<T1, T2, T3> {
+function registerEditorOption<K extends EditorOptionId, T1, T2, T3>(option: IEditorOption<K, T1, T2, T3>): IEditorOption<K, T1, T2, T3> {
 	editorOptionsRegistry[option.id] = option;
 	return option;
 }
 
-export abstract class BaseEditorOption<T1, T2 = T1, T3 = T2> implements IEditorOption<T1, T2, T3> {
+export abstract class BaseEditorOption<K extends EditorOptionId, T1, T2 = T1, T3 = T2> implements IEditorOption<K, T1, T2, T3> {
 
-	public readonly id: EditorOptionId;
+	public readonly id: K;
 	public readonly name: PossibleKeyName<T1>;
 	public readonly defaultValue: T2;
 
-	constructor(id: EditorOptionId, name: PossibleKeyName<T1>, defaultValue: T2, deps: EditorOptionId[] = []) {
+	constructor(id: K, name: PossibleKeyName<T1>, defaultValue: T2, deps: EditorOptionId[] = []) {
 		this.id = id;
 		this.name = name;
 		this.defaultValue = defaultValue;
@@ -2082,7 +2074,7 @@ export abstract class BaseEditorOption<T1, T2 = T1, T3 = T2> implements IEditorO
 	}
 }
 
-class EditorBooleanOption extends BaseEditorOption<boolean> {
+class EditorBooleanOption<K extends EditorOptionId> extends BaseEditorOption<K, boolean> {
 	public validate(input: boolean | undefined): boolean {
 		return _boolean(input, this.defaultValue);
 	}
@@ -2091,10 +2083,10 @@ class EditorBooleanOption extends BaseEditorOption<boolean> {
 	}
 }
 
-class EditorIntOption extends BaseEditorOption<number> {
+class EditorIntOption<K extends EditorOptionId> extends BaseEditorOption<K, number> {
 	public readonly minimum: number;
 	public readonly maximum: number;
-	constructor(id: EditorOptionId, name: PossibleKeyName<number>, defaultValue: number, minimum: number, maximum: number, deps: EditorOptionId[] = []) {
+	constructor(id: K, name: PossibleKeyName<number>, defaultValue: number, minimum: number, maximum: number, deps: EditorOptionId[] = []) {
 		super(id, name, defaultValue, deps);
 		this.minimum = minimum;
 		this.maximum = maximum;
@@ -2107,9 +2099,9 @@ class EditorIntOption extends BaseEditorOption<number> {
 	}
 }
 
-class EditorFloatOption extends BaseEditorOption<number> {
+class EditorFloatOption<K extends EditorOptionId> extends BaseEditorOption<K, number> {
 	public readonly validationFn: (value: number) => number;
-	constructor(id: EditorOptionId, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number, deps: EditorOptionId[] = []) {
+	constructor(id: K, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number, deps: EditorOptionId[] = []) {
 		super(id, name, defaultValue, deps);
 		this.validationFn = validationFn;
 	}
@@ -2121,7 +2113,7 @@ class EditorFloatOption extends BaseEditorOption<number> {
 	}
 }
 
-class EditorStringOption extends BaseEditorOption<string> {
+class EditorStringOption<K extends EditorOptionId> extends BaseEditorOption<K, string> {
 	public validate(input: string | undefined): string {
 		return _string(input, this.defaultValue);
 	}
@@ -2130,10 +2122,10 @@ class EditorStringOption extends BaseEditorOption<string> {
 	}
 }
 
-class EditorEnumOption<T1, T2 = T1> extends BaseEditorOption<T1, T1, T2> {
+class EditorEnumOption<K extends EditorOptionId, T1, T2 = T1> extends BaseEditorOption<K, T1, T1, T2> {
 	public readonly allowedValues: T1[];
 	public readonly convert: (value: T1) => T2;
-	constructor(id: EditorOptionId, name: PossibleKeyName<T1>, defaultValue: T1, allowedValues: T1[], convert: (value: T1) => T2, deps: EditorOptionId[] = []) {
+	constructor(id: K, name: PossibleKeyName<T1>, defaultValue: T1, allowedValues: T1[], convert: (value: T1) => T2, deps: EditorOptionId[] = []) {
 		super(id, name, defaultValue, deps);
 		this.allowedValues = allowedValues;
 		this.convert = convert;
@@ -2146,7 +2138,7 @@ class EditorEnumOption<T1, T2 = T1> extends BaseEditorOption<T1, T1, T2> {
 	}
 }
 
-class EditorPassthroughOption<T> extends BaseEditorOption<T> {
+class EditorPassthroughOption<K extends EditorOptionId, T> extends BaseEditorOption<K, T> {
 	public validate(input: T | undefined): T {
 		if (typeof input === 'undefined') {
 			return this.defaultValue;
@@ -2175,7 +2167,7 @@ export interface InternalEditorRenderLineNumbersOptions {
 	readonly renderFn: ((lineNumber: number) => string) | null;
 }
 
-class EditorRenderLineNumbersOption extends BaseEditorOption<LineNumbersType, InternalEditorRenderLineNumbersOptions, InternalEditorRenderLineNumbersOptions> {
+class EditorRenderLineNumbersOption<K extends EditorOptionId> extends BaseEditorOption<K, LineNumbersType, InternalEditorRenderLineNumbersOptions, InternalEditorRenderLineNumbersOptions> {
 	public validate(lineNumbers: LineNumbersType | undefined): InternalEditorRenderLineNumbersOptions {
 		let renderType: RenderLineNumbersType = this.defaultValue.renderType;
 		let renderFn: ((lineNumber: number) => string) | null = this.defaultValue.renderFn;
@@ -2223,7 +2215,7 @@ export interface InternalEditorMinimapOptions {
 	readonly maxColumn: number;
 }
 
-class EditorMinimapOption extends BaseEditorOption<IEditorMinimapOptions, InternalEditorMinimapOptions, InternalEditorMinimapOptions> {
+class EditorMinimapOption<K extends EditorOptionId> extends BaseEditorOption<K, IEditorMinimapOptions, InternalEditorMinimapOptions, InternalEditorMinimapOptions> {
 	public validate(input: IEditorMinimapOptions | undefined): InternalEditorMinimapOptions {
 		if (typeof input !== 'object') {
 			return this.defaultValue;
@@ -2254,7 +2246,7 @@ class EditorMinimapOption extends BaseEditorOption<IEditorMinimapOptions, Intern
 
 //#region accessibilitySupport
 
-class EditorAccessibilitySupportOption extends BaseEditorOption<'auto' | 'off' | 'on', 'auto' | 'off' | 'on', AccessibilitySupport> {
+class EditorAccessibilitySupportOption<K extends EditorOptionId> extends BaseEditorOption<K, 'auto' | 'off' | 'on', 'auto' | 'off' | 'on', AccessibilitySupport> {
 	public validate(input: 'auto' | 'off' | 'on' | undefined): 'auto' | 'off' | 'on' {
 		return _stringSet<'auto' | 'off' | 'on'>(input, this.defaultValue, ['auto', 'off', 'on']);
 	}
@@ -2274,16 +2266,30 @@ class EditorAccessibilitySupportOption extends BaseEditorOption<'auto' | 'off' |
 
 //#region ariaLabel
 
-class EditorAriaLabel extends BaseEditorOption<string> {
+class EditorAriaLabel<K extends EditorOptionId> extends BaseEditorOption<K, string> {
 	public validate(input: string | undefined): string {
 		return _string(input, this.defaultValue);
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: string): string {
-		const accessibilitySupport = options.get<typeof EditorOption.accessibilitySupport>(EditorOptionId.accessibilitySupport);
+		const accessibilitySupport = options.get(EditorOptionId.accessibilitySupport);
 		if (accessibilitySupport === AccessibilitySupport.Disabled) {
 			return nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.");
 		}
 		return value;
+	}
+}
+
+//#endregion
+
+//#region tabFocusMode
+
+class EditorTabFocusMode<K extends EditorOptionId> extends BaseEditorOption<K, undefined, undefined, boolean> {
+	public validate(input: undefined): undefined {
+		return undefined;
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: undefined): boolean {
+		const readOnly = options.get(EditorOptionId.readOnly);
+		return (readOnly ? true : env.tabFocusMode);
 	}
 }
 
@@ -2305,7 +2311,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalSliderSize: number;
 }
 
-class EditorScrollbarOption extends BaseEditorOption<IEditorScrollbarOptions, InternalEditorScrollbarOptions, InternalEditorScrollbarOptions> {
+class EditorScrollbarOption<K extends EditorOptionId> extends BaseEditorOption<K, IEditorScrollbarOptions, InternalEditorScrollbarOptions, InternalEditorScrollbarOptions> {
 	public validate(input: IEditorScrollbarOptions | undefined): InternalEditorScrollbarOptions {
 		if (typeof input !== 'object') {
 			return this.defaultValue;
@@ -2475,18 +2481,18 @@ export interface EditorLayoutInfo {
 /**
  * @internal
  */
-export class EditorLayoutInfoComputer extends BaseEditorOption<undefined, undefined, EditorLayoutInfo> {
+export class EditorLayoutInfoComputer<K extends EditorOptionId> extends BaseEditorOption<K, undefined, undefined, EditorLayoutInfo> {
 	public validate(input: undefined): undefined {
 		return undefined;
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: undefined): EditorLayoutInfo {
-		const glyphMargin = options.get<typeof EditorOption.glyphMargin>(EditorOptionId.glyphMargin);
-		const lineNumbersMinChars = options.get<typeof EditorOption.lineNumbersMinChars>(EditorOptionId.lineNumbersMinChars);
-		const rawLineDecorationsWidth = options.get<typeof EditorOption.lineDecorationsWidth>(EditorOptionId.lineDecorationsWidth);
-		const folding = options.get<typeof EditorOption.folding>(EditorOptionId.folding);
-		const minimap = options.get<typeof EditorOption.minimap>(EditorOptionId.minimap);
-		const scrollbar = options.get<typeof EditorOption.scrollbar>(EditorOptionId.scrollbar);
-		const renderLineNumbers = options.get<typeof EditorOption.renderLineNumbers>(EditorOptionId.renderLineNumbers);
+		const glyphMargin = options.get(EditorOptionId.glyphMargin);
+		const lineNumbersMinChars = options.get(EditorOptionId.lineNumbersMinChars);
+		const rawLineDecorationsWidth = options.get(EditorOptionId.lineDecorationsWidth);
+		const folding = options.get(EditorOptionId.folding);
+		const minimap = options.get(EditorOptionId.minimap);
+		const scrollbar = options.get(EditorOptionId.scrollbar);
+		const renderLineNumbers = options.get(EditorOptionId.renderLineNumbers);
 
 		let lineDecorationsWidth: number;
 		if (typeof rawLineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(rawLineDecorationsWidth)) {
@@ -2547,9 +2553,6 @@ export class EditorLayoutInfoComputer extends BaseEditorOption<undefined, undefi
 		);
 	}
 
-	/**
-	 * @internal
-	 */
 	private static _equalsOverviewRuler(a: OverviewRulerPosition, b: OverviewRulerPosition): boolean {
 		return (
 			a.width === b.width
@@ -2703,7 +2706,7 @@ export interface EditorWrappingInfo {
 	readonly wrappingColumn: number;
 }
 
-class EditorWrappingInfoComputer extends BaseEditorOption<undefined, undefined, EditorWrappingInfo> {
+class EditorWrappingInfoComputer<K extends EditorOptionId> extends BaseEditorOption<K, undefined, undefined, EditorWrappingInfo> {
 	public mix(a: undefined, b: undefined): undefined {
 		return undefined;
 	}
@@ -2711,11 +2714,11 @@ class EditorWrappingInfoComputer extends BaseEditorOption<undefined, undefined, 
 		return undefined;
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: undefined): EditorWrappingInfo {
-		const wordWrap = options.get<typeof EditorOption.wordWrap>(EditorOptionId.wordWrap);
-		const wordWrapColumn = options.get<typeof EditorOption.wordWrapColumn>(EditorOptionId.wordWrapColumn);
-		const wordWrapMinified = options.get<typeof EditorOption.wordWrapMinified>(EditorOptionId.wordWrapMinified);
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
-		const accessibilitySupport = options.get<typeof EditorOption.accessibilitySupport>(EditorOptionId.accessibilitySupport);
+		const wordWrap = options.get(EditorOptionId.wordWrap);
+		const wordWrapColumn = options.get(EditorOptionId.wordWrapColumn);
+		const wordWrapMinified = options.get(EditorOptionId.wordWrapMinified);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
+		const accessibilitySupport = options.get(EditorOptionId.accessibilitySupport);
 
 		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } | null = null;
 		{
@@ -2793,11 +2796,13 @@ export const enum EditorOptionId {
 	lineNumbersMinChars,
 	minimap,
 	mouseWheelScrollSensitivity,
+	readOnly,
 	renderFinalNewline,
 	renderLineNumbers,
 	scrollbar,
 	selectionClipboard,
 	selectOnLineNumbers,
+	tabFocusMode,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
 	wordWrapBreakBeforeCharacters,
@@ -2817,7 +2822,7 @@ export const EditorOption = {
 	folding: registerEditorOption(new EditorBooleanOption(EditorOptionId.folding, 'folding', true)),
 	glyphMargin: registerEditorOption(new EditorBooleanOption(EditorOptionId.glyphMargin, 'glyphMargin', true)),
 	inDiffEditor: registerEditorOption(new EditorBooleanOption(EditorOptionId.inDiffEditor, 'inDiffEditor', false)),
-	lineDecorationsWidth: registerEditorOption(new EditorPassthroughOption<number | string>(EditorOptionId.lineDecorationsWidth, 'lineDecorationsWidth', 10)),
+	lineDecorationsWidth: registerEditorOption(new EditorPassthroughOption<EditorOptionId.lineDecorationsWidth, number | string>(EditorOptionId.lineDecorationsWidth, 'lineDecorationsWidth', 10)),
 	lineNumbersMinChars: registerEditorOption(new EditorIntOption(EditorOptionId.lineNumbersMinChars, 'lineNumbersMinChars', 5, 1, 10)),
 	minimap: registerEditorOption(new EditorMinimapOption(EditorOptionId.minimap, 'minimap', {
 		enabled: true,
@@ -2827,6 +2832,7 @@ export const EditorOption = {
 		maxColumn: 120,
 	})),
 	mouseWheelScrollSensitivity: registerEditorOption(new EditorFloatOption(EditorOptionId.mouseWheelScrollSensitivity, 'mouseWheelScrollSensitivity', 1, x => (x === 0 ? 1 : x))),
+	readOnly: registerEditorOption(new EditorBooleanOption(EditorOptionId.readOnly, 'readOnly', false)),
 	renderFinalNewline: registerEditorOption(new EditorBooleanOption(EditorOptionId.renderFinalNewline, 'renderFinalNewline', true)),
 	renderLineNumbers: registerEditorOption(new EditorRenderLineNumbersOption(EditorOptionId.renderLineNumbers, 'lineNumbers', { renderType: RenderLineNumbersType.On, renderFn: null })),
 	scrollbar: registerEditorOption(new EditorScrollbarOption(EditorOptionId.scrollbar, 'scrollbar', {
@@ -2844,17 +2850,21 @@ export const EditorOption = {
 	})),
 	selectionClipboard: registerEditorOption(new EditorBooleanOption(EditorOptionId.selectionClipboard, 'selectionClipboard', true)),
 	selectOnLineNumbers: registerEditorOption(new EditorBooleanOption(EditorOptionId.selectOnLineNumbers, 'selectOnLineNumbers', true)),
-	wordWrap: registerEditorOption(new EditorEnumOption<'off' | 'on' | 'wordWrapColumn' | 'bounded'>(EditorOptionId.wordWrap, 'wordWrap', 'off', ['off', 'on', 'wordWrapColumn', 'bounded'], x => x)),
+	tabFocusMode: registerEditorOption(new EditorTabFocusMode(EditorOptionId.tabFocusMode, 'tabFocusMode', undefined, [EditorOptionId.readOnly])),
+	wordWrap: registerEditorOption(new EditorEnumOption<EditorOptionId.wordWrap, 'off' | 'on' | 'wordWrapColumn' | 'bounded'>(EditorOptionId.wordWrap, 'wordWrap', 'off', ['off', 'on', 'wordWrapColumn', 'bounded'], x => x)),
 	wordWrapBreakAfterCharacters: registerEditorOption(new EditorStringOption(EditorOptionId.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters', ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣')),
 	wordWrapBreakBeforeCharacters: registerEditorOption(new EditorStringOption(EditorOptionId.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters', '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋')),
 	wordWrapBreakObtrusiveCharacters: registerEditorOption(new EditorStringOption(EditorOptionId.wordWrapBreakObtrusiveCharacters, 'wordWrapBreakObtrusiveCharacters', '.')),
 	wordWrapColumn: registerEditorOption(new EditorIntOption(EditorOptionId.wordWrapColumn, 'wordWrapColumn', 80, 1, Constants.MAX_SAFE_SMALL_INTEGER)),
 	wordWrapMinified: registerEditorOption(new EditorBooleanOption(EditorOptionId.wordWrapMinified, 'wordWrapMinified', true)),
-	wrappingIndent: registerEditorOption(new EditorEnumOption<'none' | 'same' | 'indent' | 'deepIndent', WrappingIndent>(EditorOptionId.wrappingIndent, 'wrappingIndent', 'same', ['none', 'same', 'indent', 'deepIndent'], _wrappingIndentFromString)),
+	wrappingIndent: registerEditorOption(new EditorEnumOption<EditorOptionId.wrappingIndent, 'none' | 'same' | 'indent' | 'deepIndent', WrappingIndent>(EditorOptionId.wrappingIndent, 'wrappingIndent', 'same', ['none', 'same', 'indent', 'deepIndent'], _wrappingIndentFromString)),
 
 	// Leave these at the end!
 	layoutInfo: registerEditorOption(new EditorLayoutInfoComputer(EditorOptionId.layoutInfo, 'layoutInfo', undefined, [EditorOptionId.glyphMargin, EditorOptionId.lineDecorationsWidth, EditorOptionId.folding, EditorOptionId.minimap, EditorOptionId.scrollbar, EditorOptionId.renderLineNumbers])),
 	wrappingInfo: registerEditorOption(new EditorWrappingInfoComputer(EditorOptionId.wrappingInfo, 'wrappingInfo', undefined, [EditorOptionId.wordWrap, EditorOptionId.wordWrapColumn, EditorOptionId.wordWrapMinified, EditorOptionId.layoutInfo, EditorOptionId.accessibilitySupport])),
 };
 
-export type ComputedEditorOptionValue<T extends IEditorOption<any, any, any>> = T extends IEditorOption<any, any, infer R> ? R : never;
+export type EditorOptionType = typeof EditorOption;
+export type FindEditorOptionKeyById<T extends EditorOptionId> = { [K in keyof EditorOptionType]: EditorOptionType[K]['id'] extends T ? K : never }[keyof EditorOptionType];
+export type ComputedEditorOptionValue<T extends IEditorOption<any, any, any, any>> = T extends IEditorOption<any, any, any, infer R> ? R : never;
+export type FindComputedEditorOptionValueById<T extends EditorOptionId> = ComputedEditorOptionValue<EditorOptionType[FindEditorOptionKeyById<T>]>;

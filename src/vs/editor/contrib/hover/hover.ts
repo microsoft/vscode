@@ -11,7 +11,7 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -265,7 +265,7 @@ class ShowHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = editor.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled;
+		const focus = editor.getOption(EditorOptionId.accessibilitySupport) === AccessibilitySupport.Enabled;
 		controller.showContentHover(range, HoverStartMode.Immediate, focus);
 	}
 }

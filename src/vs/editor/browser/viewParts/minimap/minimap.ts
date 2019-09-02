@@ -13,7 +13,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderMinimap, EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { RenderMinimap, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
@@ -109,13 +109,13 @@ class MinimapOptions {
 	constructor(configuration: IConfiguration) {
 		const options = configuration.options;
 		const pixelRatio = configuration.editor.pixelRatio;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 		const viewInfo = configuration.editor.viewInfo;
 		const fontInfo = configuration.editor.fontInfo;
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
 		this.scrollBeyondLastLine = viewInfo.scrollBeyondLastLine;
-		const minimapOpts = options.get<typeof EditorOption.minimap>(EditorOptionId.minimap);
+		const minimapOpts = options.get(EditorOptionId.minimap);
 		this.showSlider = minimapOpts.showSlider;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;

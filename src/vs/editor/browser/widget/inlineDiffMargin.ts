@@ -12,6 +12,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
 
 export interface IDiffLinesChange {
 	readonly originalStartLineNumber: number;
@@ -97,7 +98,7 @@ export class InlineDiffMargin extends Disposable {
 			actions.push(copyLineAction);
 		}
 
-		const readOnly = editor.getConfiguration().readOnly;
+		const readOnly = editor.getOption(EditorOptionId.readOnly);
 		if (!readOnly) {
 			actions.push(new Action('diff.inline.revertChange', nls.localize('diff.inline.revertChange.label', "Revert this change"), undefined, true, async () => {
 				if (diff.modifiedEndLineNumber === 0) {

@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IConfigurationChangedEvent, EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -28,7 +28,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 		this._configuration = configuration;
 		const options = this._configuration.options;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 
 		this._linesLayout = new LinesLayout(lineCount, this._configuration.editor.lineHeight);
 
@@ -64,7 +64,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		}
 		if (e.hasChanged(EditorOptionId.layoutInfo)) {
 			const options = this._configuration.options;
-			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			const layoutInfo = options.get(EditorOptionId.layoutInfo);
 			this.scrollable.setScrollDimensions({
 				width: layoutInfo.contentWidth,
 				height: layoutInfo.contentHeight
@@ -89,7 +89,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	private _getHorizontalScrollbarHeight(scrollDimensions: IScrollDimensions): number {
 		const options = this._configuration.options;
-		const scrollbar = options.get<typeof EditorOption.scrollbar>(EditorOptionId.scrollbar);
+		const scrollbar = options.get(EditorOptionId.scrollbar);
 		if (scrollbar.horizontal === ScrollbarVisibility.Hidden) {
 			// horizontal scrollbar not visible
 			return 0;
@@ -146,7 +146,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	private _computeScrollWidth(maxLineWidth: number, viewportWidth: number): number {
 		const options = this._configuration.options;
-		const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
+		const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
 		let isViewportWrapping = wrappingInfo.isViewportWrapping;
 		if (!isViewportWrapping) {
 			const extraHorizontalSpace = this._configuration.editor.viewInfo.scrollBeyondLastColumn * this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;

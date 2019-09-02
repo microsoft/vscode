@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -122,7 +122,7 @@ export class CursorConfiguration {
 			|| e.autoSurround
 			|| e.useTabStops
 			|| e.lineHeight
-			|| e.readOnly
+			|| e.hasChanged(EditorOptionId.readOnly)
 		);
 	}
 
@@ -135,9 +135,9 @@ export class CursorConfiguration {
 
 		const c = configuration.editor;
 		const options = configuration.options;
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 
-		this.readOnly = c.readOnly;
+		this.readOnly = options.get(EditorOptionId.readOnly);
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;

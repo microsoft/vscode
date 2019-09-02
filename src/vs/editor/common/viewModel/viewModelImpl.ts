@@ -6,7 +6,7 @@
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { IConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -61,11 +61,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		} else {
 			const conf = this.configuration.editor;
 			const options = this.configuration.options;
-			const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
-			const wordWrapBreakAfterCharacters = options.get<typeof EditorOption.wordWrapBreakAfterCharacters>(EditorOptionId.wordWrapBreakAfterCharacters);
-			const wordWrapBreakBeforeCharacters = options.get<typeof EditorOption.wordWrapBreakBeforeCharacters>(EditorOptionId.wordWrapBreakBeforeCharacters);
-			const wordWrapBreakObtrusiveCharacters = options.get<typeof EditorOption.wordWrapBreakObtrusiveCharacters>(EditorOptionId.wordWrapBreakObtrusiveCharacters);
-			const wrappingIndent = options.get<typeof EditorOption.wrappingIndent>(EditorOptionId.wrappingIndent);
+			const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
+			const wordWrapBreakAfterCharacters = options.get(EditorOptionId.wordWrapBreakAfterCharacters);
+			const wordWrapBreakBeforeCharacters = options.get(EditorOptionId.wordWrapBreakBeforeCharacters);
+			const wordWrapBreakObtrusiveCharacters = options.get(EditorOptionId.wordWrapBreakObtrusiveCharacters);
+			const wrappingIndent = options.get(EditorOptionId.wrappingIndent);
 
 			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
 				wordWrapBreakBeforeCharacters,
@@ -154,8 +154,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		const conf = this.configuration.editor;
 		const options = this.configuration.options;
-		const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
-		const wrappingIndent = options.get<typeof EditorOption.wrappingIndent>(EditorOptionId.wrappingIndent);
+		const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
+		const wrappingIndent = options.get(EditorOptionId.wrappingIndent);
 
 		if (this.lines.setWrappingSettings(wrappingIndent, wrappingInfo.wrappingColumn, conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
@@ -170,7 +170,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			}
 		}
 
-		if (e.readOnly) {
+		if (e.hasChanged(EditorOptionId.readOnly)) {
 			// Must read again all decorations due to readOnly filtering
 			this.decorations.reset();
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
@@ -561,7 +561,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
-		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.editor.readOnly, theme);
+		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.options.get(EditorOptionId.readOnly), theme);
 	}
 
 	public invalidateOverviewRulerColorCache(): void {

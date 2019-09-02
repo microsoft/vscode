@@ -708,7 +708,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				}
 			}
 
-			screenReaderMode = (editorWidget.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled);
+			screenReaderMode = (editorWidget.getOption(EditorOptionId.accessibilitySupport) === AccessibilitySupport.Enabled);
 		}
 
 		if (screenReaderMode === false && this.screenReaderNotification) {
@@ -758,7 +758,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private onEOLChange(editorWidget: ICodeEditor | undefined): void {
 		const info: StateDelta = { EOL: undefined };
 
-		if (editorWidget && !editorWidget.getConfiguration().readOnly) {
+		if (editorWidget && !editorWidget.getOption(EditorOptionId.readOnly)) {
 			const codeEditorModel = editorWidget.getModel();
 			if (codeEditorModel) {
 				info.EOL = codeEditorModel.getEOL();
@@ -819,8 +819,7 @@ function isWritableCodeEditor(codeEditor: ICodeEditor | undefined): boolean {
 	if (!codeEditor) {
 		return false;
 	}
-	const config = codeEditor.getConfiguration();
-	return (!config.readOnly);
+	return !codeEditor.getOption(EditorOptionId.readOnly);
 }
 
 function isWritableBaseEditor(e: IBaseEditor): boolean {

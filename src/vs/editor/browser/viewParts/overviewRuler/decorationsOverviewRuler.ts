@@ -15,7 +15,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ITheme } from 'vs/platform/theme/common/themeService';
-import { EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
 
 class Settings {
 
@@ -58,7 +58,7 @@ class Settings {
 
 		this.themeType = theme.type;
 
-		const minimapOpts = options.get<typeof EditorOption.minimap>(EditorOptionId.minimap);
+		const minimapOpts = options.get(EditorOptionId.minimap);
 		const minimapEnabled = minimapOpts.enabled;
 		const minimapSide = minimapOpts.side;
 		const backgroundColor = (minimapEnabled ? TokenizationRegistry.getDefaultBackground() : null);
@@ -68,7 +68,7 @@ class Settings {
 			this.backgroundColor = Color.Format.CSS.formatHex(backgroundColor);
 		}
 
-		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOptionId.layoutInfo);
 		const position = layoutInfo.overviewRuler;
 		this.top = position.top;
 		this.right = position.right;

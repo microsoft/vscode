@@ -20,6 +20,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -183,7 +184,7 @@ export class SuggestModel implements IDisposable {
 
 		dispose(this._triggerCharacterListener);
 
-		if (this._editor.getConfiguration().readOnly
+		if (this._editor.getOption(EditorOptionId.readOnly)
 			|| !this._editor.hasModel()
 			|| !this._editor.getConfiguration().contribInfo.suggestOnTriggerCharacters) {
 

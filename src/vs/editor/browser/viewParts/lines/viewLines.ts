@@ -18,7 +18,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Viewport } from 'vs/editor/common/viewModel/viewModel';
-import { EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
 
 class LastRenderedData {
 
@@ -92,7 +92,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		const conf = this._context.configuration;
 		const options = this._context.configuration.options;
-		const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
+		const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
 
 		this._lineHeight = conf.editor.lineHeight;
 		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
@@ -152,7 +152,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		}
 		if (e.hasChanged(EditorOptionId.wrappingInfo)) {
-			const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
+			const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
 			this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		}
 		if (e.viewInfo) {
