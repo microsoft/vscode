@@ -49,7 +49,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		);
 	}
 
-	private async openInternal(input: EditorInput, options: EditorOptions): Promise<void> {
+	private async openInternal(input: EditorInput, options: EditorOptions | undefined): Promise<void> {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
 

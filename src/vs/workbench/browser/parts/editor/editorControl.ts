@@ -15,7 +15,6 @@ import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progre
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -68,7 +67,7 @@ export class EditorControl extends Disposable {
 		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
-		const editorChanged = await this.doSetInput(control, editor, withUndefinedAsNull(options));
+		const editorChanged = await this.doSetInput(control, editor, options);
 		return { control, editorChanged };
 	}
 
@@ -151,7 +150,7 @@ export class EditorControl extends Disposable {
 		this._onDidSizeConstraintsChange.fire(undefined);
 	}
 
-	private async doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | null): Promise<boolean> {
+	private async doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | undefined): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
