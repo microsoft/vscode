@@ -536,6 +536,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	getConfiguration(): editorOptions.InternalEditorOptions;
 
+	getOption<T extends editorOptions.IEditorOption<any, any, any>>(id: editorOptions.EditorOptionId): editorOptions.ComputedEditorOptionValue<T>;
+
 	/**
 	 * Returns the 'raw' editor's configuration (without any validation or defaults).
 	 * @internal

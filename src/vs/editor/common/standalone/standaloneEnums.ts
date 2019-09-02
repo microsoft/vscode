@@ -431,7 +431,9 @@ export enum RenderLineNumbersType {
 }
 
 export enum EditorOptionId {
-	RenderFinalNewline = 0
+	renderFinalNewline = 0,
+	selectionClipboard = 1,
+	selectOnLineNumbers = 2
 }
 
 /**

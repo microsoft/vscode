@@ -997,7 +997,6 @@ export interface InternalEditorViewOptions {
 	readonly renderLineNumbers: RenderLineNumbersType;
 	readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
 	readonly cursorSurroundingLines: number;
-	readonly selectOnLineNumbers: boolean;
 	readonly glyphMargin: boolean;
 	readonly revealHorizontalRightPadding: number;
 	readonly roundedSelection: boolean;
@@ -1025,7 +1024,6 @@ export interface InternalEditorViewOptions {
 }
 
 export interface EditorContribOptions {
-	readonly selectionClipboard: boolean;
 	readonly hover: InternalEditorHoverOptions;
 	readonly links: boolean;
 	readonly contextmenu: boolean;
@@ -1317,7 +1315,6 @@ export class InternalEditorOptions {
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
 			&& a.cursorSurroundingLines === b.cursorSurroundingLines
-			&& a.selectOnLineNumbers === b.selectOnLineNumbers
 			&& a.glyphMargin === b.glyphMargin
 			&& a.revealHorizontalRightPadding === b.revealHorizontalRightPadding
 			&& a.roundedSelection === b.roundedSelection
@@ -1464,8 +1461,7 @@ export class InternalEditorOptions {
 	 */
 	private static _equalsContribOptions(a: EditorContribOptions, b: EditorContribOptions): boolean {
 		return (
-			a.selectionClipboard === b.selectionClipboard
-			&& this._equalsHoverOptions(a.hover, b.hover)
+			this._equalsHoverOptions(a.hover, b.hover)
 			&& a.links === b.links
 			&& a.contextmenu === b.contextmenu
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
@@ -2081,7 +2077,6 @@ export class EditorOptionsValidator {
 			cursorSurroundingLines: _clampedInt(opts.cursorSurroundingLines, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			renderLineNumbers: renderLineNumbers,
 			renderCustomLineNumbers: renderCustomLineNumbers,
-			selectOnLineNumbers: _boolean(opts.selectOnLineNumbers, defaults.selectOnLineNumbers),
 			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
 			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
 			roundedSelection: _boolean(opts.roundedSelection, defaults.roundedSelection),
@@ -2122,7 +2117,6 @@ export class EditorOptionsValidator {
 		}
 		const find = this._sanitizeFindOpts(opts.find, defaults.find);
 		return {
-			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
 			hover: this._sanitizeHoverOpts(opts.hover, defaults.hover),
 			links: _boolean(opts.links, defaults.links),
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
@@ -2202,7 +2196,6 @@ export class InternalEditorOptionsFactory {
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
 				cursorSurroundingLines: opts.viewInfo.cursorSurroundingLines,
-				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
 				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
 				roundedSelection: opts.viewInfo.roundedSelection,
@@ -2236,7 +2229,6 @@ export class InternalEditorOptionsFactory {
 			},
 
 			contribInfo: {
-				selectionClipboard: opts.contribInfo.selectionClipboard,
 				hover: opts.contribInfo.hover,
 				links: opts.contribInfo.links,
 				contextmenu: opts.contribInfo.contextmenu,
@@ -2668,7 +2660,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
 		cursorSurroundingLines: 0,
-		selectOnLineNumbers: true,
 		glyphMargin: true,
 		revealHorizontalRightPadding: 30,
 		roundedSelection: true,
@@ -2716,7 +2707,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	},
 
 	contribInfo: {
-		selectionClipboard: true,
 		hover: {
 			enabled: true,
 			delay: 300,
@@ -2803,19 +2793,12 @@ export class ValidatedEditorOptions {
 	}
 }
 
-export interface IComputedEditorOptions {
-	get<T1, T2, T3>(id: EditorOptionId, option: IEditorOption<T1, T2, T3>): T3;
-}
-
 /**
  * @internal
  */
 export class ComputedEditorOptions {
 	private readonly _values: any[] = [];
 	public _read<T>(id: EditorOptionId): T {
-		return this._values[id];
-	}
-	public get<T1, T2, T3>(id: EditorOptionId, option: IEditorOption<T1, T2, T3>): T3 {
 		return this._values[id];
 	}
 	public _write<T>(id: EditorOptionId, value: T): void {
@@ -2836,7 +2819,7 @@ export class ChangedEditorOptions {
 	}
 }
 
-interface IEditorOption<T1, T2 = T1, T3 = T2> {
+export interface IEditorOption<T1, T2 = T1, T3 = T2> {
 	readonly id: EditorOptionId;
 	readonly name: string;
 	readonly defaultValue: T1;
@@ -2890,9 +2873,15 @@ function registerEditorOption<T1, T2, T3>(option: IEditorOption<T1, T2, T3>): IE
 }
 
 export const enum EditorOptionId {
-	RenderFinalNewline,
+	renderFinalNewline,
+	selectionClipboard,
+	selectOnLineNumbers,
 }
 
 export const EditorOption = {
-	RenderFinalNewline: registerEditorOption(new BooleanEditorOption(EditorOptionId.RenderFinalNewline, 'renderFinalNewline', true))
+	renderFinalNewline: registerEditorOption(new BooleanEditorOption(EditorOptionId.renderFinalNewline, 'renderFinalNewline', true)),
+	selectionClipboard: registerEditorOption(new BooleanEditorOption(EditorOptionId.selectionClipboard, 'selectionClipboard', true)),
+	selectOnLineNumbers: registerEditorOption(new BooleanEditorOption(EditorOptionId.selectOnLineNumbers, 'selectOnLineNumbers', true)),
 };
+
+export type ComputedEditorOptionValue<T extends IEditorOption<any, any, any>> = T extends IEditorOption<any, any, infer R> ? R : never;

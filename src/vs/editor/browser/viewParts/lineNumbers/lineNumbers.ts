@@ -45,7 +45,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._lineHeight = config.lineHeight;
 		this._renderLineNumbers = config.viewInfo.renderLineNumbers;
 		this._renderCustomLineNumbers = config.viewInfo.renderCustomLineNumbers;
-		this._renderFinalNewline = this._context.configuration.options.get(EditorOptionId.RenderFinalNewline, EditorOption.RenderFinalNewline);
+		this._renderFinalNewline = this._context.configuration.getOption<typeof EditorOption.renderFinalNewline>(EditorOptionId.renderFinalNewline);
 		this._lineNumbersLeft = config.layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = config.layoutInfo.lineNumbersWidth;
 	}

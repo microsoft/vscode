@@ -152,7 +152,8 @@ export interface IConfiguration extends IDisposable {
 	onDidChange(listener: (e: editorOptions.IConfigurationChangedEvent) => void): IDisposable;
 
 	readonly editor: editorOptions.InternalEditorOptions;
-	readonly options: editorOptions.IComputedEditorOptions;
+
+	getOption<T extends editorOptions.IEditorOption<any, any, any>>(id: editorOptions.EditorOptionId): editorOptions.ComputedEditorOptionValue<T>;
 
 	setMaxLineNumber(maxLineNumber: number): void;
 	updateOptions(newOptions: editorOptions.IEditorOptions): void;

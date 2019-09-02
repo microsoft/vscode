@@ -370,6 +370,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._configuration.editor;
 	}
 
+	public getOption<T extends editorOptions.IEditorOption<any, any, any>>(id: editorOptions.EditorOptionId): editorOptions.ComputedEditorOptionValue<T> {
+		return this._configuration.getOption<T>(id);
+	}
+
 	public getRawConfiguration(): editorOptions.IEditorOptions {
 		return this._configuration.getRawOptions();
 	}

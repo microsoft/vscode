@@ -3312,7 +3312,6 @@ declare namespace monaco.editor {
 		readonly renderLineNumbers: RenderLineNumbersType;
 		readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
 		readonly cursorSurroundingLines: number;
-		readonly selectOnLineNumbers: boolean;
 		readonly glyphMargin: boolean;
 		readonly revealHorizontalRightPadding: number;
 		readonly roundedSelection: boolean;
@@ -3340,7 +3339,6 @@ declare namespace monaco.editor {
 	}
 
 	export interface EditorContribOptions {
-		readonly selectionClipboard: boolean;
 		readonly hover: InternalEditorHoverOptions;
 		readonly links: boolean;
 		readonly contextmenu: boolean;
@@ -3555,11 +3553,7 @@ declare namespace monaco.editor {
 		[key: string]: any;
 	}
 
-	export interface IComputedEditorOptions {
-		get<T1, T2, T3>(id: EditorOptionId, option: IEditorOption<T1, T2, T3>): T3;
-	}
-
-	interface IEditorOption<T1, T2 = T1, T3 = T2> {
+	export interface IEditorOption<T1, T2 = T1, T3 = T2> {
 		readonly id: EditorOptionId;
 		readonly name: string;
 		readonly defaultValue: T1;
@@ -3571,12 +3565,18 @@ declare namespace monaco.editor {
 	}
 
 	export enum EditorOptionId {
-		RenderFinalNewline = 0
+		renderFinalNewline = 0,
+		selectionClipboard = 1,
+		selectOnLineNumbers = 2
 	}
 
 	export const EditorOption: {
-		RenderFinalNewline: IEditorOption<boolean, boolean, boolean>;
+		renderFinalNewline: IEditorOption<boolean, boolean, boolean>;
+		selectionClipboard: IEditorOption<boolean, boolean, boolean>;
+		selectOnLineNumbers: IEditorOption<boolean, boolean, boolean>;
 	};
+
+	export type ComputedEditorOptionValue<T extends IEditorOption<any, any, any>> = T extends IEditorOption<any, any, infer R> ? R : never;
 
 	/**
 	 * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -4027,6 +4027,7 @@ declare namespace monaco.editor {
 		 * Returns the current editor's configuration
 		 */
 		getConfiguration(): InternalEditorOptions;
+		getOption<T extends IEditorOption<any, any, any>>(id: EditorOptionId): ComputedEditorOptionValue<T>;
 		/**
 		 * Get value of the current model attached to this editor.
 		 * @see `ITextModel.getValue`

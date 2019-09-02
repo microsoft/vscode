@@ -156,6 +156,10 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
 
+	public getOption<T extends editorOptions.IEditorOption<any, any, any>>(id: editorOptions.EditorOptionId): editorOptions.ComputedEditorOptionValue<T> {
+		return this.options._read(id);
+	}
+
 	public observeReferenceElement(dimension?: editorCommon.IDimension): void {
 	}
 
@@ -345,7 +349,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.renderFinalNewline': {
 			'type': 'boolean',
-			'default': editorOptions.EditorOption.RenderFinalNewline.defaultValue,
+			'default': editorOptions.EditorOption.renderFinalNewline.defaultValue,
 			'description': nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.")
 		},
 		'editor.rulers': {
@@ -1137,7 +1141,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.selectionClipboard': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,
+			'default': editorOptions.EditorOption.selectionClipboard.defaultValue,
 			'description': nls.localize('selectionClipboard', "Controls whether the Linux primary clipboard should be supported."),
 			'included': platform.isLinux
 		},
