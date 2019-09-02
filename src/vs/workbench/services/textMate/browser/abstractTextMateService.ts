@@ -31,7 +31,7 @@ import { IValidGrammarDefinition, IValidEmbeddedLanguagesMap, IValidTokenTypeMap
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 
 export abstract class AbstractTextMateService extends Disposable implements ITextMateService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = this._register(new Emitter<LanguageId>());
 	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;

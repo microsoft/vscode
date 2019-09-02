@@ -137,7 +137,7 @@ export class LazyOutputChannel implements vscode.OutputChannel {
 
 export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	protected readonly _proxy: MainThreadOutputServiceShape;
 

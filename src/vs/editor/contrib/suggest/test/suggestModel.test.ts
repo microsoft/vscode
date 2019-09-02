@@ -47,7 +47,7 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 			[ITelemetryService, NullTelemetryService],
 			[IStorageService, new InMemoryStorageService()],
 			[ISuggestMemoryService, new class implements ISuggestMemoryService {
-				_serviceBrand: any;
+				_serviceBrand: undefined;
 				memorize(): void {
 				}
 				select(): number {

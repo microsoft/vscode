@@ -9,11 +9,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILifecycleService, BeforeShutdownEvent, WillShutdownEvent, StartupKind, LifecyclePhase, LifecyclePhaseToString } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { mark } from 'vs/base/common/performance';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export abstract class AbstractLifecycleService extends Disposable implements ILifecycleService {
 
-	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand: undefined;
 
 	protected readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
 	readonly onBeforeShutdown: Event<BeforeShutdownEvent> = this._onBeforeShutdown.event;

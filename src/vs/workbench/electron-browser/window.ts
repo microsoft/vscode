@@ -70,12 +70,12 @@ const TextInputActions: IAction[] = [
 
 export class ElectronWindow extends Disposable {
 
-	private touchBarMenu?: IMenu;
-	private touchBarUpdater: RunOnceScheduler;
+	private touchBarMenu: IMenu | undefined;
+	private touchBarUpdater: RunOnceScheduler | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
-	private lastInstalledTouchedBar: ICommandAction[][];
+	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
 
-	private previousConfiguredZoomLevel: number;
+	private previousConfiguredZoomLevel: number | undefined;
 
 	private addFoldersScheduler: RunOnceScheduler;
 	private pendingFoldersToAdd: URI[];
@@ -325,24 +325,21 @@ export class ElectronWindow extends Disposable {
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
 
 		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			let isAdminPromise: Promise<boolean>;
+		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
+			let isAdmin: boolean;
 			if (isWindows) {
-				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated()); // not using async here due to https://github.com/microsoft/vscode/issues/74321
+				isAdmin = (await import('native-is-elevated'))();
 			} else {
-				isAdminPromise = Promise.resolve(isRootUser());
+				isAdmin = isRootUser();
 			}
 
-			return isAdminPromise.then(isAdmin => {
+			// Update title
+			this.titleService.updateProperties({ isAdmin });
 
-				// Update title
-				this.titleService.updateProperties({ isAdmin });
-
-				// Show warning message (unix only)
-				if (isAdmin && !isWindows) {
-					this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
-				}
-			});
+			// Show warning message (unix only)
+			if (isAdmin && !isWindows) {
+				this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
+			}
 		});
 
 		// Touchbar menu (if enabled)
@@ -406,7 +403,7 @@ export class ElectronWindow extends Disposable {
 		if (!this.touchBarMenu) {
 			this.touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
 			this.touchBarDisposables.add(this.touchBarMenu);
-			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => this.touchBarUpdater.schedule()));
+			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => this.touchBarUpdater!.schedule()));
 		}
 
 		const actions: Array<MenuItemAction | Separator> = [];

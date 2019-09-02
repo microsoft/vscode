@@ -11,7 +11,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 
 export class FileLogService extends AbstractLogService implements ILogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly queue: Queue<void>;
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -234,7 +234,7 @@ export interface IStatusMessageOptions {
  */
 export interface INotificationService {
 
-	_serviceBrand: ServiceIdentifier<INotificationService>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`

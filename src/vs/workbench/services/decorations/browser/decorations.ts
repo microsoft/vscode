@@ -40,7 +40,7 @@ export interface IResourceDecorationChangeEvent {
 
 export interface IDecorationsService {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent>;
 

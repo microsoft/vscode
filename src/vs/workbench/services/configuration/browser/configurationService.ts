@@ -31,7 +31,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private workspace: Workspace;
 	private completeWorkspaceBarrier: Barrier;

@@ -14,7 +14,7 @@ import Severity from 'vs/base/common/severity';
 
 export class MockDebugService implements IDebugService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public get state(): State {
 		throw new Error('not implemented');

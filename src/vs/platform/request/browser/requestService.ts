@@ -15,7 +15,7 @@ import { request } from 'vs/base/parts/request/browser/request';
  */
 export class RequestService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,

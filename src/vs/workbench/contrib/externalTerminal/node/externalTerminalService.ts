@@ -23,7 +23,7 @@ const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
 
 export class WindowsExternalTerminalService implements IExternalTerminalService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private static readonly CMD = 'cmd.exe';
 
@@ -118,7 +118,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 }
 
 export class MacExternalTerminalService implements IExternalTerminalService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
@@ -214,7 +214,7 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 }
 
 export class LinuxExternalTerminalService implements IExternalTerminalService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 

@@ -59,7 +59,7 @@ export enum ProfileSessionState {
 }
 
 export interface IExtensionHostProfileService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChangeState: Event<void>;
 	readonly onDidChangeLastProfile: Event<void>;
@@ -404,11 +404,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			}
 		};
 
-		this._list = this._instantiationService.createInstance(WorkbenchList, parent, delegate, [renderer], {
-			multipleSelectionSupport: false,
-			setRowLineHeight: false,
-			horizontalScrolling: false
-		});
+		this._list = this._instantiationService.createInstance(WorkbenchList,
+			'RuntimeExtensions',
+			parent, delegate, [renderer], {
+				multipleSelectionSupport: false,
+				setRowLineHeight: false,
+				horizontalScrolling: false
+			});
 
 		this._list.splice(0, this._list.length, this._elements || undefined);
 

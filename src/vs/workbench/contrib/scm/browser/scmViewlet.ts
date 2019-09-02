@@ -243,7 +243,7 @@ export class MainPanel extends ViewletPanel {
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false
 		});
@@ -848,7 +848,7 @@ export class RepositoryPanel extends ViewletPanel {
 			new ResourceRenderer(this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
+		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Repo`, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
 			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
 			horizontalScrolling: false

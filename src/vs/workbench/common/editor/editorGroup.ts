@@ -94,8 +94,8 @@ export class EditorGroup extends Disposable {
 	private mru: EditorInput[] = [];
 	private mapResourceToEditorCount: ResourceMap<number> = new ResourceMap<number>();
 
-	private preview: EditorInput | null; // editor in preview state
-	private active: EditorInput | null;  // editor in active state
+	private preview: EditorInput | null = null; // editor in preview state
+	private active: EditorInput | null = null;  // editor in active state
 
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
 	private focusRecentEditorAfterClose: boolean;

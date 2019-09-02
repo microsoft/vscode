@@ -111,7 +111,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _notificationService: INotificationService;
 
 	private _domNode!: HTMLElement;
-	private _cachedHeight: number | null;
+	private _cachedHeight: number | null = null;
 	private _findInput!: FindInput;
 	private _replaceInput!: ReplaceInput;
 

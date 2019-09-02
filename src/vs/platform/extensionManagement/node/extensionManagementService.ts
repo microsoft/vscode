@@ -101,7 +101,7 @@ interface InstallableExtension {
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private systemExtensionsPath: string;
 	private extensionsPath: string;

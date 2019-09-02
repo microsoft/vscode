@@ -17,7 +17,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private configuration: Configuration;
 	private userConfigModelWatcher: ConfigWatcher<ConfigurationModelParser> | undefined;

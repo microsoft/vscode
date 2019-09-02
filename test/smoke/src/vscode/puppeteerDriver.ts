@@ -168,7 +168,7 @@ export interface IElement {
 }
 
 export interface IDriver {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	getWindowIds(): Promise<number[]>;
 	capturePage(windowId: number): Promise<string>;
