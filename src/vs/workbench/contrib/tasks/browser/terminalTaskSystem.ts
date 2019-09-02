@@ -569,7 +569,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
+			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
+				if (skipLine) {
+					skipLine = false;
+					return;
+				}
 				watchingProblemMatcher.processLine(line);
 				if (!delayer) {
 					delayer = new Async.Delayer(3000);
@@ -647,7 +652,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
 			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
+			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
+				if (skipLine) {
+					skipLine = false;
+					return;
+				}
 				startStopProblemMatcher.processLine(line);
 			});
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
