@@ -206,7 +206,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			treeContainer,
 			new callHTree.VirtualDelegate(),
 			[this._instantiationService.createInstance(callHTree.CallRenderer)],
-			new callHTree.SingleDirectionDataSource(this._provider, () => this._direction),
+			this._instantiationService.createInstance(callHTree.SingleDirectionDataSource, this._provider, () => this._direction),
 			options
 		);
 

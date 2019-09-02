@@ -498,8 +498,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
-			provideCallHierarchyItems: (uri, position, direction, token) => {
-				return this._proxy.$provideCallHierarchyItems(handle, uri, position, direction, token).then(MainThreadLanguageFeatures._reviveCallHierarchyItemDto);
+			provideCallHierarchyItems: (model, position, direction, token) => {
+				return this._proxy.$provideCallHierarchyItems(handle, model.uri, position, direction, token).then(MainThreadLanguageFeatures._reviveCallHierarchyItemDto);
 			}
 		}));
 	}

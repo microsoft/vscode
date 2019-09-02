@@ -93,7 +93,7 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 		this._sessionDispose.push({ dispose() { cancel.cancel(); } });
 		this._sessionDispose.push(widget);
 
-		Promise.resolve(provider.provideCallHierarchyItems(model.uri, position, CallHierarchyDirection.CallsTo, cancel.token)).then(items => {
+		Promise.resolve(provider.provideCallHierarchyItems(model, position, CallHierarchyDirection.CallsTo, cancel.token)).then(items => {
 			if (cancel.token.isCancellationRequested) {
 				return;
 			}

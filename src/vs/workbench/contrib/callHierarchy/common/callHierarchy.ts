@@ -9,6 +9,7 @@ import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { URI } from 'vs/base/common/uri';
+import { ITextModel } from 'vs/editor/common/model';
 
 export const enum CallHierarchyDirection {
 	CallsFrom = 1,
@@ -33,7 +34,7 @@ export interface CallHierarchyItem {
 export interface CallHierarchyProvider {
 
 	provideCallHierarchyItems(
-		uri: URI,
+		model: ITextModel,
 		position: IPosition,
 		direction: CallHierarchyDirection,
 		token: CancellationToken

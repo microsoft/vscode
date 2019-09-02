@@ -11,6 +11,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { hash } from 'vs/base/common/hash';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class Call {
 	constructor(
@@ -24,7 +25,8 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 
 	constructor(
 		public provider: CallHierarchyProvider,
-		public getDirection: () => CallHierarchyDirection
+		public getDirection: () => CallHierarchyDirection,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 	) { }
 
 	hasChildren(): boolean {
@@ -42,8 +44,11 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 		const direction = this.getDirection();
 		const result: Call[] = [];
 		await Promise.all(callOrItems.targets.map(async item => {
+
+			const reference = await this._textModelService.createModelReference(item.uri);
+
 			const items = await this.provider.provideCallHierarchyItems(
-				item.uri,
+				reference.object.textEditorModel,
 				{ lineNumber: item.selectionRange.startLineNumber, column: item.selectionRange.startColumn },
 				direction,
 				CancellationToken.None
@@ -54,6 +59,8 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 					result.push(new Call(item.source, item.targets, callOrItems));
 				}
 			}
+
+			reference.dispose();
 		}));
 
 		return result;
