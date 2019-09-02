@@ -18,11 +18,26 @@ declare module 'vscode' {
 
 	//#region Joh - call hierarchy
 
+	/**
+	 * The call hierarchy direction represents to mode in which call hierarchy works.
+	 */
 	export enum CallHierarchyDirection {
+
+		/**
+		 * Denotes outgoing calls *from* a symbol, e.g all functions called by a function.
+		 */
 		CallsFrom = 1,
+
+		/**
+		 * Denotes incoming calls *to* a symbol, e.g. all functions calling a function.
+		 */
 		CallsTo = 2,
 	}
 
+	/**
+	 * Represents programming constructs like function, methods etc. that appear in call hierarchies. Call hierarchy
+	 * symbols are edges inside a call hierarchy graph and are connected by [`call hierarchy items`](#CallHierarchyItem).
+	 */
 	export class CallHierarchySymbol {
 		kind: SymbolKind;
 		tags?: ReadonlyArray<SymbolTag>;
@@ -35,16 +50,58 @@ declare module 'vscode' {
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
+	/**
+	 * Represents edges inside a call hierarchy graph, e.g. a single source vertex and one or
+	 * more target vertices. When using the [`CallsTo`-direction](#CallHierarchyItemProvider.CallsTo) the `source`
+	 * represents a symbol that is called from one or more `target`-symbols, e.g a function being called by other functions.
+	 * When using the [`CallsFrom`-direction](#CallHierarchyItemProvider.CallsFrom) then `source` represents a symbols
+	 * that calls one more more `target`-symbols, e.g a function calling other functions.
+	 */
 	export class CallHierarchyItem {
+
+		/**
+		 * The source symbol that calls or is called.
+		 */
 		source: CallHierarchySymbol;
+
+		/**
+		 * Target symbols that call `source` or are called by `source`.
+		 */
 		targets: ReadonlyArray<CallHierarchySymbol>;
 	}
 
+	/**
+	 * The call hierarchy provider interface defines the contract between extensions and the
+	 * 'call hierarchy'-feature.
+	 */
 	export interface CallHierarchyItemProvider {
+
+		/**
+		 * Provide a set of call hierarchy items for the given position and document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param direction The call hierarchy direction, e.g if outgoing calls from a symbol or incoming call to a symbol are requested.
+		 * @param token A cancellation token.
+		 * @return An array of call hierarchy items or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined`, `null`, or an empty array.
+		 */
 		provideCallHierarchyItems(document: TextDocument, position: Position, direction: CallHierarchyDirection, token: CancellationToken): ProviderResult<CallHierarchyItem[]>;
 	}
 
 	export namespace languages {
+
+		/**
+		 * Register a call hierarchy provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A call hierarchy provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
 		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyItemProvider): Disposable;
 	}
 
