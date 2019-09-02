@@ -175,12 +175,6 @@ registerAction({
 		},
 	}
 });
-KeybindingsRegistry.registerKeybindingRule({
-	id: Constants.MARKERS_PANEL_FOCUS_FILTER,
-	when: Constants.MarkerPanelFilterFocusContextKey,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-});
 registerAction({
 	id: Constants.MARKERS_PANEL_SHOW_MULTILINE_MESSAGE,
 	handler(accessor) {
