@@ -17,7 +17,7 @@ const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const path = require("path");
 const pump = require("pump");
-const uglifyes = require("uglify-es");
+const terser = require("terser");
 const VinylFile = require("vinyl");
 const bundle = require("./bundle");
 const i18n_1 = require("./i18n");
@@ -197,11 +197,14 @@ function uglifyWithCopyrights() {
             return false;
         };
     };
-    const minify = composer(uglifyes);
+    const minify = composer(terser);
     const input = es.through();
     const output = input
         .pipe(flatmap((stream, f) => {
         return stream.pipe(minify({
+            compress: {
+                hoist_funs: true // required due to https://github.com/microsoft/vscode/issues/80202
+            },
             output: {
                 comments: preserveComments(f),
                 max_line_len: 1024
