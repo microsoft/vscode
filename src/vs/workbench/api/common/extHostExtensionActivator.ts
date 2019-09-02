@@ -26,7 +26,6 @@ export interface IExtensionContext {
 	globalStoragePath: string;
 	asAbsolutePath(relativePath: string): string;
 	readonly logPath: string;
-	executionContext: number;
 }
 
 /**
