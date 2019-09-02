@@ -37,8 +37,6 @@ import { NullTelemetryService, ITelemetryAppender, NullAppender, combinedAppende
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -166,9 +164,6 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		}
 
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
-
-		const dialogChannel = this._socketServer.getChannel('dialog', router);
-		services.set(IDialogService, new DialogChannelClient(dialogChannel));
 
 		const downloadChannel = this._socketServer.getChannel('download', router);
 		services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, () => this._getUriTransformer('renderer') /* TODO: @Sandy @Joao need dynamic context based router */));
