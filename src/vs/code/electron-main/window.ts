@@ -1022,7 +1022,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			}
 
-			const title = (typeof item.title === 'string') ? item.title : title = item.title.value;
+			const title = (typeof item.title === 'string') ? item.title : item.title.value;
 
 			return {
 				id: item.id,
