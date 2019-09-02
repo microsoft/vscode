@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -112,7 +112,7 @@ export class CursorConfiguration {
 
 	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
 		return (
-			e.layoutInfo
+			e.hasChanged(EditorOptionId.layoutInfo)
 			|| e.wordSeparators
 			|| e.emptySelectionClipboard
 			|| e.multiCursorMergeOverlapping
@@ -133,13 +133,15 @@ export class CursorConfiguration {
 	) {
 		this._languageIdentifier = languageIdentifier;
 
-		let c = configuration.editor;
+		const c = configuration.editor;
+		const options = configuration.options;
+		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
 
 		this.readOnly = c.readOnly;
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
-		this.pageSize = Math.max(1, Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2);
+		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / c.fontInfo.lineHeight) - 2);
 		this.lineHeight = c.lineHeight;
 		this.useTabStops = c.useTabStops;
 		this.wordSeparators = c.wordSeparators;

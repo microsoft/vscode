@@ -95,7 +95,7 @@ export class EditorConfiguration2 {
 		// console.log(`computeOptions`, options, env);
 		const result = new editorOptions.ComputedEditorOptions();
 		for (const editorOption of editorOptions.editorOptionsRegistry) {
-			result._write(editorOption.id, editorOption.compute(options._read(editorOption.id)));
+			result._write(editorOption.id, editorOption.compute(env, result, options._read(editorOption.id)));
 		}
 		return result;
 	}
@@ -105,13 +105,32 @@ export class EditorConfiguration2 {
 		const result = new editorOptions.ChangedEditorOptions();
 		let somethingChanged = false;
 		for (const editorOption of editorOptions.editorOptionsRegistry) {
-			const equals = editorOption.equals(a._read(editorOption.id), b._read(editorOption.id));
-			result._write(editorOption.id, equals);
-			if (!equals) {
+			const changed = !editorOption.equals(a._read(editorOption.id), b._read(editorOption.id));
+			result._write(editorOption.id, changed);
+			if (changed) {
 				somethingChanged = true;
 			}
 		}
 		return (somethingChanged ? result : null);
+	}
+}
+
+/**
+ * Compatibility with old options
+ */
+function migrateOptions(options: editorOptions.IEditorOptions): void {
+	let wordWrap = options.wordWrap;
+	if (<any>wordWrap === true) {
+		options.wordWrap = 'on';
+	} else if (<any>wordWrap === false) {
+		options.wordWrap = 'off';
+	}
+
+	let lineNumbers = options.lineNumbers;
+	if (<any>lineNumbers === true) {
+		options.lineNumbers = 'on';
+	} else if (<any>lineNumbers === false) {
+		options.lineNumbers = 'off';
 	}
 }
 
@@ -133,6 +152,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	constructor(isSimpleWidget: boolean, options: editorOptions.IEditorOptions) {
 		super();
+		migrateOptions(options);
 
 		this.isSimpleWidget = isSimpleWidget;
 
@@ -154,10 +174,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
-	}
-
-	public getOption<T extends editorOptions.IEditorOption<any, any, any>>(id: editorOptions.EditorOptionId): editorOptions.ComputedEditorOptionValue<T> {
-		return this.options._read(id);
 	}
 
 	public observeReferenceElement(dimension?: editorCommon.IDimension): void {
@@ -255,6 +271,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		if (typeof newOptions === 'undefined') {
 			return;
 		}
+		migrateOptions(newOptions);
 		if (CommonEditorConfiguration._subsetEquals(this._rawOptions, newOptions)) {
 			return;
 		}
@@ -417,29 +434,29 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.minimap.enabled': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
+			'default': editorOptions.EditorOption.minimap.defaultValue.enabled,
 			'description': nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
 		},
 		'editor.minimap.side': {
 			'type': 'string',
 			'enum': ['left', 'right'],
-			'default': EDITOR_DEFAULTS.viewInfo.minimap.side,
+			'default': editorOptions.EditorOption.minimap.defaultValue.side,
 			'description': nls.localize('minimap.side', "Controls the side where to render the minimap.")
 		},
 		'editor.minimap.showSlider': {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
-			'default': EDITOR_DEFAULTS.viewInfo.minimap.showSlider,
+			'default': editorOptions.EditorOption.minimap.defaultValue.showSlider,
 			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.minimap.renderCharacters,
+			'default': editorOptions.EditorOption.minimap.defaultValue.renderCharacters,
 			'description': nls.localize('minimap.renderCharacters', "Render the actual characters on a line as opposed to color blocks.")
 		},
 		'editor.minimap.maxColumn': {
 			'type': 'number',
-			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,
+			'default': editorOptions.EditorOption.minimap.defaultValue.maxColumn,
 			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
 		},
 		'editor.hover.enabled': {
@@ -498,7 +515,7 @@ const editorConfiguration: IConfigurationNode = {
 					]
 				}, "Lines will wrap at the minimum of viewport and `#editor.wordWrapColumn#`."),
 			],
-			'default': EDITOR_DEFAULTS.wordWrap,
+			'default': editorOptions.EditorOption.wordWrap.defaultValue,
 			'description': nls.localize({
 				key: 'wordWrap',
 				comment: [
@@ -509,7 +526,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wordWrapColumn': {
 			'type': 'integer',
-			'default': EDITOR_DEFAULTS.wordWrapColumn,
+			'default': editorOptions.EditorOption.wordWrapColumn.defaultValue,
 			'minimum': 1,
 			'markdownDescription': nls.localize({
 				key: 'wordWrapColumn',
@@ -533,12 +550,12 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.mouseWheelScrollSensitivity': {
 			'type': 'number',
-			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.mouseWheelScrollSensitivity,
+			'default': editorOptions.EditorOption.mouseWheelScrollSensitivity.defaultValue,
 			'markdownDescription': nls.localize('mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
 		},
 		'editor.fastScrollSensitivity': {
 			'type': 'number',
-			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.fastScrollSensitivity,
+			'default': editorOptions.EditorOption.fastScrollSensitivity.defaultValue,
 			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`.")
 		},
 		'editor.multiCursorModifier': {
@@ -1035,7 +1052,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.folding': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.folding,
+			'default': editorOptions.EditorOption.folding.defaultValue,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled.")
 		},
 		'editor.foldingStrategy': {
@@ -1088,7 +1105,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader."),
 				nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
 			],
-			'default': EDITOR_DEFAULTS.accessibilitySupport,
+			'default': editorOptions.EditorOption.accessibilitySupport.defaultValue,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 		},
 		'editor.showUnused': {

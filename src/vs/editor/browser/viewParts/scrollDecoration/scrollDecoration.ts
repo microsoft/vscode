@@ -11,6 +11,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class ScrollDecorationViewPart extends ViewPart {
 
@@ -27,7 +28,9 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._width = 0;
 		this._updateWidth();
 		this._shouldShow = false;
-		this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
+		const options = this._context.configuration.options;
+		const scrollbar = options.get<typeof EditorOption.scrollbar>(EditorOptionId.scrollbar);
+		this._useShadows = scrollbar.useShadows;
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
@@ -51,7 +54,8 @@ export class ScrollDecorationViewPart extends ViewPart {
 	}
 
 	private _updateWidth(): boolean {
-		const layoutInfo = this._context.configuration.editor.layoutInfo;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
 		let newWidth = 0;
 		if (layoutInfo.renderMinimap === 0 || (layoutInfo.minimapWidth > 0 && layoutInfo.minimapLeft === 0)) {
 			newWidth = layoutInfo.width;
@@ -69,10 +73,12 @@ export class ScrollDecorationViewPart extends ViewPart {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		let shouldRender = false;
-		if (e.viewInfo) {
-			this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
+		if (e.hasChanged(EditorOptionId.scrollbar)) {
+			const options = this._context.configuration.options;
+			const scrollbar = options.get<typeof EditorOption.scrollbar>(EditorOptionId.scrollbar);
+			this._useShadows = scrollbar.useShadows;
 		}
-		if (e.layoutInfo) {
+		if (e.hasChanged(EditorOptionId.layoutInfo)) {
 			shouldRender = this._updateWidth();
 		}
 		return this._updateShouldShow() || shouldRender;

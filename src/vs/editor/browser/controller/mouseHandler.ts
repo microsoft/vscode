@@ -217,7 +217,7 @@ export class MouseHandler extends ViewEventHandler {
 		const targetIsContent = (t.type === editorBrowser.MouseTargetType.CONTENT_TEXT || t.type === editorBrowser.MouseTargetType.CONTENT_EMPTY);
 		const targetIsGutter = (t.type === editorBrowser.MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS || t.type === editorBrowser.MouseTargetType.GUTTER_LINE_DECORATIONS);
 		const targetIsLineNumbers = (t.type === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS);
-		const selectOnLineNumbers = this._context.configuration.getOption<typeof EditorOption.selectOnLineNumbers>(EditorOptionId.selectOnLineNumbers);
+		const selectOnLineNumbers = this._context.configuration.options.get<typeof EditorOption.selectOnLineNumbers>(EditorOptionId.selectOnLineNumbers);
 		const targetIsViewZone = (t.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE);
 		const targetIsWidget = (t.type === editorBrowser.MouseTargetType.CONTENT_WIDGET);
 

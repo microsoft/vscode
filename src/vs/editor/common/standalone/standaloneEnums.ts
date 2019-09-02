@@ -332,6 +332,15 @@ export enum CursorChangeReason {
 	Redo = 6
 }
 
+export enum AccessibilitySupport {
+	/**
+	 * This should be the browser case where it is not known if a screen reader is attached or no.
+	 */
+	Unknown = 0,
+	Disabled = 1,
+	Enabled = 2
+}
+
 export enum RenderMinimap {
 	None = 0,
 	Small = 1,
@@ -431,9 +440,30 @@ export enum RenderLineNumbersType {
 }
 
 export enum EditorOptionId {
-	renderFinalNewline = 0,
-	selectionClipboard = 1,
-	selectOnLineNumbers = 2
+	accessibilitySupport = 0,
+	ariaLabel = 1,
+	fastScrollSensitivity = 2,
+	folding = 3,
+	glyphMargin = 4,
+	inDiffEditor = 5,
+	lineDecorationsWidth = 6,
+	lineNumbersMinChars = 7,
+	minimap = 8,
+	mouseWheelScrollSensitivity = 9,
+	renderFinalNewline = 10,
+	renderLineNumbers = 11,
+	scrollbar = 12,
+	selectionClipboard = 13,
+	selectOnLineNumbers = 14,
+	wordWrap = 15,
+	wordWrapBreakAfterCharacters = 16,
+	wordWrapBreakBeforeCharacters = 17,
+	wordWrapBreakObtrusiveCharacters = 18,
+	wordWrapColumn = 19,
+	wordWrapMinified = 20,
+	wrappingIndent = 21,
+	layoutInfo = 22,
+	wrappingInfo = 23
 }
 
 /**

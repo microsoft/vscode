@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
+import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString, EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -59,8 +59,10 @@ export class MainThreadTextEditorProperties {
 		let lineNumbers: RenderLineNumbersType;
 		if (codeEditor) {
 			const codeEditorOpts = codeEditor.getConfiguration();
+			const options = codeEditor.getOptions();
+			const renderLineNumbers = options.get<typeof EditorOption.renderLineNumbers>(EditorOptionId.renderLineNumbers);
 			cursorStyle = codeEditorOpts.viewInfo.cursorStyle;
-			lineNumbers = codeEditorOpts.viewInfo.renderLineNumbers;
+			lineNumbers = renderLineNumbers.renderType;
 		} else if (previousProperties) {
 			cursorStyle = previousProperties.options.cursorStyle;
 			lineNumbers = previousProperties.options.lineNumbers;

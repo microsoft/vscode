@@ -14,6 +14,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOverlayLine> {
 
@@ -215,8 +216,9 @@ export class ContentViewOverlays extends ViewOverlays {
 
 	constructor(context: ViewContext) {
 		super(context);
-
-		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		this._contentWidth = layoutInfo.contentWidth;
 
 		this.domNode.setHeight(0);
 	}
@@ -224,8 +226,10 @@ export class ContentViewOverlays extends ViewOverlays {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.layoutInfo) {
-			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		if (e.hasChanged(EditorOptionId.layoutInfo)) {
+			const options = this._context.configuration.options;
+			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			this._contentWidth = layoutInfo.contentWidth;
 		}
 		return super.onConfigurationChanged(e);
 	}
@@ -249,7 +253,9 @@ export class MarginViewOverlays extends ViewOverlays {
 	constructor(context: ViewContext) {
 		super(context);
 
-		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		this._contentLeft = layoutInfo.contentLeft;
 
 		this.domNode.setClassName('margin-view-overlays');
 		this.domNode.setWidth(1);
@@ -263,8 +269,10 @@ export class MarginViewOverlays extends ViewOverlays {
 			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 			shouldRender = true;
 		}
-		if (e.layoutInfo) {
-			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		if (e.hasChanged(EditorOptionId.layoutInfo)) {
+			const options = this._context.configuration.options;
+			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			this._contentLeft = layoutInfo.contentLeft;
 			shouldRender = true;
 		}
 		return super.onConfigurationChanged(e) || shouldRender;

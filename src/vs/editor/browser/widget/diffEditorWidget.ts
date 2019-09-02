@@ -1947,6 +1947,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 	private readonly originalModel: ITextModel;
 	private readonly modifiedEditorConfiguration: editorOptions.InternalEditorOptions;
+	private readonly modifiedEditorOptions: editorOptions.IComputedEditorOptions;
 	private readonly modifiedEditorTabSize: number;
 	private readonly renderIndicators: boolean;
 
@@ -1954,6 +1955,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
 		this.originalModel = originalEditor.getModel()!;
 		this.modifiedEditorConfiguration = modifiedEditor.getConfiguration();
+		this.modifiedEditorOptions = modifiedEditor.getOptions();
 		this.modifiedEditorTabSize = modifiedEditor.getModel()!.getOptions().tabSize;
 		this.renderIndicators = renderIndicators;
 	}
@@ -1993,7 +1995,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let sb = createStringBuilder(10000);
 		let marginHTML: string[] = [];
-		let lineDecorationsWidth = this.modifiedEditorConfiguration.layoutInfo.decorationsWidth;
+		const layoutInfo = this.modifiedEditorOptions.get<typeof editorOptions.EditorOption.layoutInfo>(editorOptions.EditorOptionId.layoutInfo);
+		const lineDecorationsWidth = layoutInfo.decorationsWidth;
+
 		let lineHeight = this.modifiedEditorConfiguration.lineHeight;
 		const typicalHalfwidthCharacterWidth = this.modifiedEditorConfiguration.fontInfo.typicalHalfwidthCharacterWidth;
 		let maxCharsPerLine = 0;

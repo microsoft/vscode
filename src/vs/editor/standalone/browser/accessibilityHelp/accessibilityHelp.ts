@@ -31,6 +31,7 @@ import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeg
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+import { EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -224,6 +225,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 	private _buildContent() {
 		let opts = this._editor.getConfiguration();
+		const options = this._editor.getOptions();
 
 		const selections = this._editor.getSelections();
 		let charactersSelected = 0;
@@ -239,7 +241,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		let text = getSelectionLabel(selections, charactersSelected);
 
-		if (opts.wrappingInfo.inDiffEditor) {
+		if (options.get<typeof EditorOption.inDiffEditor>(EditorOptionId.inDiffEditor)) {
 			if (opts.readOnly) {
 				text += AccessibilityHelpNLS.readonlyDiffEditor;
 			} else {

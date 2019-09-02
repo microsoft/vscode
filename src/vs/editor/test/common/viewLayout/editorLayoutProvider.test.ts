@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorLayoutInfo, EditorLayoutProvider, IEditorLayoutProviderOpts, RenderMinimap } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorLayoutInfoComputer, IEditorLayoutProviderOpts, RenderMinimap } from 'vs/editor/common/config/editorOptions';
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
-		let actual = EditorLayoutProvider.compute(input);
+		let actual = EditorLayoutInfoComputer.compute(input);
 		assert.deepEqual(actual, expected);
 	}
 

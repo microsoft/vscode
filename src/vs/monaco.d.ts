@@ -2408,6 +2408,15 @@ declare namespace monaco.editor {
 		readonly reason: CursorChangeReason;
 	}
 
+	export enum AccessibilitySupport {
+		/**
+		 * This should be the browser case where it is not known if a screen reader is attached or no.
+		 */
+		Unknown = 0,
+		Disabled = 1,
+		Enabled = 2
+	}
+
 	/**
 	 * Configuration options for editor scrollbars
 	 */
@@ -2653,7 +2662,7 @@ declare namespace monaco.editor {
 		 * Otherwise, line numbers will not be rendered.
 		 * Defaults to true.
 		 */
-		lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
+		lineNumbers?: LineNumbersType;
 		/**
 		 * Controls the minimal number of visible leading and trailing lines surrounding the cursor.
 		 * Defaults to 0.
@@ -2826,7 +2835,7 @@ declare namespace monaco.editor {
 		 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 		 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 		 */
-		wrappingIndent?: string;
+		wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 		/**
 		 * Configure word wrapping characters. A break will be introduced before these characters.
 		 * Defaults to '{([+'.
@@ -3105,6 +3114,8 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
+		layoutInfo?: undefined;
+		wrappingInfo?: undefined;
 	}
 
 	/**
@@ -3228,30 +3239,6 @@ declare namespace monaco.editor {
 		UnderlineThin = 6
 	}
 
-	export interface InternalEditorScrollbarOptions {
-		readonly arrowSize: number;
-		readonly vertical: ScrollbarVisibility;
-		readonly horizontal: ScrollbarVisibility;
-		readonly useShadows: boolean;
-		readonly verticalHasArrows: boolean;
-		readonly horizontalHasArrows: boolean;
-		readonly handleMouseWheel: boolean;
-		readonly horizontalScrollbarSize: number;
-		readonly horizontalSliderSize: number;
-		readonly verticalScrollbarSize: number;
-		readonly verticalSliderSize: number;
-		readonly mouseWheelScrollSensitivity: number;
-		readonly fastScrollSensitivity: number;
-	}
-
-	export interface InternalEditorMinimapOptions {
-		readonly enabled: boolean;
-		readonly side: 'right' | 'left';
-		readonly showSlider: 'always' | 'mouseover';
-		readonly renderCharacters: boolean;
-		readonly maxColumn: number;
-	}
-
 	export interface InternalEditorFindOptions {
 		readonly seedSearchStringFromSelection: boolean;
 		readonly autoFindInSelection: boolean;
@@ -3284,33 +3271,10 @@ declare namespace monaco.editor {
 		readonly cycle: boolean;
 	}
 
-	export interface EditorWrappingInfo {
-		readonly inDiffEditor: boolean;
-		readonly isDominatedByLongLines: boolean;
-		readonly isWordWrapMinified: boolean;
-		readonly isViewportWrapping: boolean;
-		readonly wrappingColumn: number;
-		readonly wrappingIndent: WrappingIndent;
-		readonly wordWrapBreakBeforeCharacters: string;
-		readonly wordWrapBreakAfterCharacters: string;
-		readonly wordWrapBreakObtrusiveCharacters: string;
-	}
-
-	export enum RenderLineNumbersType {
-		Off = 0,
-		On = 1,
-		Relative = 2,
-		Interval = 3,
-		Custom = 4
-	}
-
 	export interface InternalEditorViewOptions {
 		readonly extraEditorClassName: string;
 		readonly disableMonospaceOptimizations: boolean;
 		readonly rulers: number[];
-		readonly ariaLabel: string;
-		readonly renderLineNumbers: RenderLineNumbersType;
-		readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
 		readonly cursorSurroundingLines: number;
 		readonly glyphMargin: boolean;
 		readonly revealHorizontalRightPadding: number;
@@ -3333,8 +3297,6 @@ declare namespace monaco.editor {
 		readonly renderIndentGuides: boolean;
 		readonly highlightActiveIndentGuide: boolean;
 		readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-		readonly scrollbar: InternalEditorScrollbarOptions;
-		readonly minimap: InternalEditorMinimapOptions;
 		readonly fixedOverflowWidgets: boolean;
 	}
 
@@ -3364,7 +3326,6 @@ declare namespace monaco.editor {
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
-		readonly folding: boolean;
 		readonly foldingStrategy: 'auto' | 'indentation';
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
@@ -3399,11 +3360,122 @@ declare namespace monaco.editor {
 		readonly dragAndDrop: boolean;
 		readonly emptySelectionClipboard: boolean;
 		readonly copyWithSyntaxHighlighting: boolean;
-		readonly layoutInfo: EditorLayoutInfo;
 		readonly fontInfo: FontInfo;
 		readonly viewInfo: InternalEditorViewOptions;
-		readonly wrappingInfo: EditorWrappingInfo;
 		readonly contribInfo: EditorContribOptions;
+	}
+
+	/**
+	 * An event describing that the configuration of the editor has changed.
+	 */
+	export interface IConfigurationChangedEvent {
+		hasChanged(id: EditorOptionId): boolean;
+		readonly canUseLayerHinting: boolean;
+		readonly pixelRatio: boolean;
+		readonly editorClassName: boolean;
+		readonly lineHeight: boolean;
+		readonly readOnly: boolean;
+		readonly multiCursorModifier: boolean;
+		readonly multiCursorMergeOverlapping: boolean;
+		readonly wordSeparators: boolean;
+		readonly autoClosingBrackets: boolean;
+		readonly autoClosingQuotes: boolean;
+		readonly autoClosingOvertype: boolean;
+		readonly autoSurround: boolean;
+		readonly autoIndent: boolean;
+		readonly useTabStops: boolean;
+		readonly tabFocusMode: boolean;
+		readonly dragAndDrop: boolean;
+		readonly emptySelectionClipboard: boolean;
+		readonly copyWithSyntaxHighlighting: boolean;
+		readonly fontInfo: boolean;
+		readonly viewInfo: boolean;
+		readonly contribInfo: boolean;
+	}
+
+	export interface IEnvironmentalOptions {
+		readonly outerWidth: number;
+		readonly outerHeight: number;
+		readonly fontInfo: FontInfo;
+		readonly extraEditorClassName: string;
+		readonly isDominatedByLongLines: boolean;
+		readonly lineNumbersDigitCount: number;
+		readonly emptySelectionClipboard: boolean;
+		readonly pixelRatio: number;
+		readonly tabFocusMode: boolean;
+		readonly accessibilitySupport: AccessibilitySupport;
+	}
+
+	export interface IRawEditorOptionsBag extends IEditorOptions {
+		[key: string]: any;
+	}
+
+	export interface IComputedEditorOptions {
+		get<T extends IEditorOption<any, any, any>>(id: EditorOptionId): ComputedEditorOptionValue<T>;
+	}
+
+	export type PossibleKeyName<V> = {
+		[K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never;
+	}[keyof IEditorOptions];
+
+	export interface IEditorOption<T1, T2 = T1, T3 = T2> {
+		readonly id: EditorOptionId;
+		readonly name: PossibleKeyName<T1>;
+		readonly defaultValue: T2;
+		read(options: IRawEditorOptionsBag): T1 | undefined;
+		mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined;
+		validate(input: T1 | undefined): T2;
+		compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
+		equals(a: T3, b: T3): boolean;
+	}
+
+	export abstract class BaseEditorOption<T1, T2 = T1, T3 = T2> implements IEditorOption<T1, T2, T3> {
+		readonly id: EditorOptionId;
+		readonly name: PossibleKeyName<T1>;
+		readonly defaultValue: T2;
+		constructor(id: EditorOptionId, name: PossibleKeyName<T1>, defaultValue: T2, deps?: EditorOptionId[]);
+		read(options: IRawEditorOptionsBag): T1 | undefined;
+		mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined;
+		abstract validate(input: T1 | undefined): T2;
+		abstract compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
+		equals(a: T3, b: T3): boolean;
+	}
+
+	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
+
+	export enum RenderLineNumbersType {
+		Off = 0,
+		On = 1,
+		Relative = 2,
+		Interval = 3,
+		Custom = 4
+	}
+
+	export interface InternalEditorRenderLineNumbersOptions {
+		readonly renderType: RenderLineNumbersType;
+		readonly renderFn: ((lineNumber: number) => string) | null;
+	}
+
+	export interface InternalEditorMinimapOptions {
+		readonly enabled: boolean;
+		readonly side: 'right' | 'left';
+		readonly showSlider: 'always' | 'mouseover';
+		readonly renderCharacters: boolean;
+		readonly maxColumn: number;
+	}
+
+	export interface InternalEditorScrollbarOptions {
+		readonly arrowSize: number;
+		readonly vertical: ScrollbarVisibility;
+		readonly horizontal: ScrollbarVisibility;
+		readonly useShadows: boolean;
+		readonly verticalHasArrows: boolean;
+		readonly horizontalHasArrows: boolean;
+		readonly handleMouseWheel: boolean;
+		readonly horizontalScrollbarSize: number;
+		readonly horizontalSliderSize: number;
+		readonly verticalScrollbarSize: number;
+		readonly verticalSliderSize: number;
 	}
 
 	/**
@@ -3518,62 +3590,65 @@ declare namespace monaco.editor {
 		readonly overviewRuler: OverviewRulerPosition;
 	}
 
-	/**
-	 * An event describing that the configuration of the editor has changed.
-	 */
-	export interface IConfigurationChangedEvent {
-		hasChanged(id: EditorOptionId): boolean;
-		readonly canUseLayerHinting: boolean;
-		readonly pixelRatio: boolean;
-		readonly editorClassName: boolean;
-		readonly lineHeight: boolean;
-		readonly readOnly: boolean;
-		readonly accessibilitySupport: boolean;
-		readonly multiCursorModifier: boolean;
-		readonly multiCursorMergeOverlapping: boolean;
-		readonly wordSeparators: boolean;
-		readonly autoClosingBrackets: boolean;
-		readonly autoClosingQuotes: boolean;
-		readonly autoClosingOvertype: boolean;
-		readonly autoSurround: boolean;
-		readonly autoIndent: boolean;
-		readonly useTabStops: boolean;
-		readonly tabFocusMode: boolean;
-		readonly dragAndDrop: boolean;
-		readonly emptySelectionClipboard: boolean;
-		readonly copyWithSyntaxHighlighting: boolean;
-		readonly layoutInfo: boolean;
-		readonly fontInfo: boolean;
-		readonly viewInfo: boolean;
-		readonly wrappingInfo: boolean;
-		readonly contribInfo: boolean;
-	}
-
-	export interface IRawEditorOptionsBag {
-		[key: string]: any;
-	}
-
-	export interface IEditorOption<T1, T2 = T1, T3 = T2> {
-		readonly id: EditorOptionId;
-		readonly name: string;
-		readonly defaultValue: T1;
-		read(options: IRawEditorOptionsBag): T1 | undefined;
-		mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined;
-		validate(input: T1 | undefined): T2;
-		compute(value: T2): T3;
-		equals(a: T3, b: T3): boolean;
+	export interface EditorWrappingInfo {
+		readonly isDominatedByLongLines: boolean;
+		readonly isWordWrapMinified: boolean;
+		readonly isViewportWrapping: boolean;
+		readonly wrappingColumn: number;
 	}
 
 	export enum EditorOptionId {
-		renderFinalNewline = 0,
-		selectionClipboard = 1,
-		selectOnLineNumbers = 2
+		accessibilitySupport = 0,
+		ariaLabel = 1,
+		fastScrollSensitivity = 2,
+		folding = 3,
+		glyphMargin = 4,
+		inDiffEditor = 5,
+		lineDecorationsWidth = 6,
+		lineNumbersMinChars = 7,
+		minimap = 8,
+		mouseWheelScrollSensitivity = 9,
+		renderFinalNewline = 10,
+		renderLineNumbers = 11,
+		scrollbar = 12,
+		selectionClipboard = 13,
+		selectOnLineNumbers = 14,
+		wordWrap = 15,
+		wordWrapBreakAfterCharacters = 16,
+		wordWrapBreakBeforeCharacters = 17,
+		wordWrapBreakObtrusiveCharacters = 18,
+		wordWrapColumn = 19,
+		wordWrapMinified = 20,
+		wrappingIndent = 21,
+		layoutInfo = 22,
+		wrappingInfo = 23
 	}
 
 	export const EditorOption: {
+		accessibilitySupport: IEditorOption<"auto" | "on" | "off", "auto" | "on" | "off", any>;
+		ariaLabel: IEditorOption<string, string, string>;
+		fastScrollSensitivity: IEditorOption<number, number, number>;
+		folding: IEditorOption<boolean, boolean, boolean>;
+		glyphMargin: IEditorOption<boolean, boolean, boolean>;
+		inDiffEditor: IEditorOption<boolean, boolean, boolean>;
+		lineDecorationsWidth: IEditorOption<string | number, string | number, string | number>;
+		lineNumbersMinChars: IEditorOption<number, number, number>;
+		minimap: IEditorOption<IEditorMinimapOptions, InternalEditorMinimapOptions, InternalEditorMinimapOptions>;
+		mouseWheelScrollSensitivity: IEditorOption<number, number, number>;
 		renderFinalNewline: IEditorOption<boolean, boolean, boolean>;
+		renderLineNumbers: IEditorOption<LineNumbersType, InternalEditorRenderLineNumbersOptions, InternalEditorRenderLineNumbersOptions>;
+		scrollbar: IEditorOption<IEditorScrollbarOptions, InternalEditorScrollbarOptions, InternalEditorScrollbarOptions>;
 		selectionClipboard: IEditorOption<boolean, boolean, boolean>;
 		selectOnLineNumbers: IEditorOption<boolean, boolean, boolean>;
+		wordWrap: IEditorOption<"on" | "off" | "wordWrapColumn" | "bounded", "on" | "off" | "wordWrapColumn" | "bounded", "on" | "off" | "wordWrapColumn" | "bounded">;
+		wordWrapBreakAfterCharacters: IEditorOption<string, string, string>;
+		wordWrapBreakBeforeCharacters: IEditorOption<string, string, string>;
+		wordWrapBreakObtrusiveCharacters: IEditorOption<string, string, string>;
+		wordWrapColumn: IEditorOption<number, number, number>;
+		wordWrapMinified: IEditorOption<boolean, boolean, boolean>;
+		wrappingIndent: IEditorOption<"none" | "same" | "indent" | "deepIndent", "none" | "same" | "indent" | "deepIndent", WrappingIndent>;
+		layoutInfo: IEditorOption<undefined, undefined, EditorLayoutInfo>;
+		wrappingInfo: IEditorOption<undefined, undefined, EditorWrappingInfo>;
 	};
 
 	export type ComputedEditorOptionValue<T extends IEditorOption<any, any, any>> = T extends IEditorOption<any, any, infer R> ? R : never;
@@ -4027,6 +4102,7 @@ declare namespace monaco.editor {
 		 * Returns the current editor's configuration
 		 */
 		getConfiguration(): InternalEditorOptions;
+		getOptions(): IComputedEditorOptions;
 		getOption<T extends IEditorOption<any, any, any>>(id: EditorOptionId): ComputedEditorOptionValue<T>;
 		/**
 		 * Get value of the current model attached to this editor.

@@ -18,6 +18,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Viewport } from 'vs/editor/common/viewModel/viewModel';
+import { EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 
 class LastRenderedData {
 
@@ -90,10 +91,12 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this.domNode = this._visibleLines.domNode;
 
 		const conf = this._context.configuration;
+		const options = this._context.configuration.options;
+		const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
 
 		this._lineHeight = conf.editor.lineHeight;
 		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
-		this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
+		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
 		this._scrollOff = conf.editor.viewInfo.cursorSurroundingLines;
 		this._canUseLayerHinting = conf.editor.canUseLayerHinting;
@@ -135,11 +138,12 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._visibleLines.onConfigurationChanged(e);
-		if (e.wrappingInfo) {
+		if (e.hasChanged(EditorOptionId.wrappingInfo)) {
 			this._maxLineWidth = 0;
 		}
 
 		const conf = this._context.configuration;
+		const options = this._context.configuration.options;
 
 		if (e.lineHeight) {
 			this._lineHeight = conf.editor.lineHeight;
@@ -147,8 +151,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		if (e.fontInfo) {
 			this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		}
-		if (e.wrappingInfo) {
-			this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
+		if (e.hasChanged(EditorOptionId.wrappingInfo)) {
+			const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
+			this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		}
 		if (e.viewInfo) {
 			this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
@@ -163,7 +168,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		this._onOptionsMaybeChanged();
 
-		if (e.layoutInfo) {
+		if (e.hasChanged(EditorOptionId.layoutInfo)) {
 			this._maxLineWidth = 0;
 		}
 

@@ -8,6 +8,7 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class DecorationToRender {
 	_decorationToRenderBrand: void;
@@ -84,10 +85,12 @@ export class GlyphMarginOverlay extends DedupOverlay {
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
-		this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
+		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
+		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
@@ -101,15 +104,18 @@ export class GlyphMarginOverlay extends DedupOverlay {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		const options = this._context.configuration.options;
+
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
 		if (e.viewInfo) {
 			this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
 		}
-		if (e.layoutInfo) {
-			this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
-			this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
+		if (e.hasChanged(EditorOptionId.layoutInfo)) {
+			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
+			this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		}
 		return true;
 	}

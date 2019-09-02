@@ -23,7 +23,7 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
@@ -183,11 +183,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				}
 				this._updateButtons();
 			}
-			if (e.layoutInfo) {
+			if (e.hasChanged(EditorOptionId.layoutInfo)) {
 				this._tryUpdateWidgetWidth();
 			}
 
-			if (e.accessibilitySupport) {
+			if (e.hasChanged(EditorOptionId.accessibilitySupport)) {
 				this.updateAccessibilitySupport();
 			}
 
@@ -642,7 +642,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			return;
 		}
 
-		const editorContentWidth = this._codeEditor.getConfiguration().layoutInfo.contentWidth;
+		const layoutInfo = this._codeEditor.getLayoutInfo();
+		const editorContentWidth = layoutInfo.contentWidth;
 
 		if (editorContentWidth <= 0) {
 			// for example, diff view original editor
@@ -652,8 +653,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			dom.removeClass(this._domNode, 'hiddenEditor');
 		}
 
-		const editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
-		const minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
+		const editorWidth = layoutInfo.width;
+		const minimapWidth = layoutInfo.minimapWidth;
 		let collapsedFindWidget = false;
 		let reducedFindWidget = false;
 		let narrowFindWidget = false;
@@ -1187,7 +1188,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (!this._resized || currentWidth === FIND_WIDGET_INITIAL_WIDTH) {
 				// 1. never resized before, double click should maximizes it
 				// 2. users resized it already but its width is the same as default
-				width = this._codeEditor.getConfiguration().layoutInfo.width - 28 - this._codeEditor.getConfiguration().layoutInfo.minimapWidth - 15;
+				const layoutInfo = this._codeEditor.getLayoutInfo();
+				width = layoutInfo.width - 28 - layoutInfo.minimapWidth - 15;
 				this._resized = true;
 			} else {
 				/**

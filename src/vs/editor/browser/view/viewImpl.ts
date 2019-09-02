@@ -48,6 +48,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -281,7 +282,8 @@ export class View extends ViewEventHandler {
 	}
 
 	private _setLayout(): void {
-		const layoutInfo = this._context.configuration.editor.layoutInfo;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
 		this.domNode.setWidth(layoutInfo.width);
 		this.domNode.setHeight(layoutInfo.height);
 
@@ -304,7 +306,7 @@ export class View extends ViewEventHandler {
 		if (e.editorClassName) {
 			this.domNode.setClassName(this.getEditorClassName());
 		}
-		if (e.layoutInfo) {
+		if (e.hasChanged(EditorOptionId.layoutInfo)) {
 			this._setLayout();
 		}
 		return false;

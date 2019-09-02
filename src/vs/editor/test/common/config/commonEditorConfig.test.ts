@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorHoverOptions, EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -67,8 +67,10 @@ suite('Common Editor Config', () => {
 	}
 
 	function assertWrapping(config: TestConfiguration, isViewportWrapping: boolean, wrappingColumn: number): void {
-		assert.equal(config.editor.wrappingInfo.isViewportWrapping, isViewportWrapping);
-		assert.equal(config.editor.wrappingInfo.wrappingColumn, wrappingColumn);
+		const options = config.options;
+		const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
+		assert.equal(wrappingInfo.isViewportWrapping, isViewportWrapping);
+		assert.equal(wrappingInfo.wrappingColumn, wrappingColumn);
 	}
 
 	test('wordWrap default', () => {

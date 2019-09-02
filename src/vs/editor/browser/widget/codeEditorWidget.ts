@@ -259,8 +259,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
-			if (e.layoutInfo) {
-				this._onDidLayoutChange.fire(this._configuration.editor.layoutInfo);
+			if (e.hasChanged(editorOptions.EditorOptionId.layoutInfo)) {
+				const options = this._configuration.options;
+				const layoutInfo = options.get<typeof editorOptions.EditorOption.layoutInfo>(editorOptions.EditorOptionId.layoutInfo);
+				this._onDidLayoutChange.fire(layoutInfo);
 			}
 			if (this._configuration.editor.showUnused) {
 				this._domElement.classList.add(SHOW_UNUSED_ENABLED_CLASS);
@@ -370,8 +372,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._configuration.editor;
 	}
 
+	public getOptions(): editorOptions.IComputedEditorOptions {
+		return this._configuration.options;
+	}
+
 	public getOption<T extends editorOptions.IEditorOption<any, any, any>>(id: editorOptions.EditorOptionId): editorOptions.ComputedEditorOptionValue<T> {
-		return this._configuration.getOption<T>(id);
+		return this._configuration.options.get<T>(id);
 	}
 
 	public getRawConfiguration(): editorOptions.IEditorOptions {
@@ -1124,7 +1130,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public getLayoutInfo(): editorOptions.EditorLayoutInfo {
-		return this._configuration.editor.layoutInfo;
+		const options = this._configuration.options;
+		const layoutInfo = options.get<typeof editorOptions.EditorOption.layoutInfo>(editorOptions.EditorOptionId.layoutInfo);
+		return layoutInfo;
 	}
 
 	public createOverviewRuler(cssClassName: string): editorBrowser.IOverviewRuler | null {
@@ -1272,7 +1280,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		const position = this._modelData.model.validatePosition(rawPosition);
-		const layoutInfo = this._configuration.editor.layoutInfo;
+		const options = this._configuration.options;
+		const layoutInfo = options.get<typeof editorOptions.EditorOption.layoutInfo>(editorOptions.EditorOptionId.layoutInfo);
 
 		const top = CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, position.lineNumber, position.column) - this.getScrollTop();
 		const left = this._modelData.view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this.getScrollLeft();

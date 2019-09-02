@@ -12,6 +12,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
+import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IMyViewZone {
 	whitespaceId: string;
@@ -40,9 +41,12 @@ export class ViewZones extends ViewPart {
 
 	constructor(context: ViewContext) {
 		super(context);
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		this._contentWidth = layoutInfo.contentWidth;
+		this._contentLeft = layoutInfo.contentLeft;
 
 		this.domNode = createFastDomNode(document.createElement('div'));
 		this.domNode.setClassName('view-zones');
@@ -84,15 +88,17 @@ export class ViewZones extends ViewPart {
 	}
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		const options = this._context.configuration.options;
 
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 			return this._recomputeWhitespacesProps();
 		}
 
-		if (e.layoutInfo) {
-			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		if (e.hasChanged(EditorOptionId.layoutInfo)) {
+			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			this._contentWidth = layoutInfo.contentWidth;
+			this._contentLeft = layoutInfo.contentLeft;
 		}
 
 		return true;

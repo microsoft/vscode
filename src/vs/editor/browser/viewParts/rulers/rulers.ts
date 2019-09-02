@@ -11,6 +11,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
 
 export class Rulers extends ViewPart {
 
@@ -37,7 +38,10 @@ export class Rulers extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo || e.layoutInfo || e.fontInfo) {
+		if (e.viewInfo
+			|| e.hasChanged(EditorOptionId.layoutInfo)
+			|| e.fontInfo
+		) {
 			this._rulers = this._context.configuration.editor.viewInfo.rulers;
 			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 			return true;

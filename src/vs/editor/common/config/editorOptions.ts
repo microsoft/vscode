@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as assert from 'vs/base/common/assert';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -272,7 +273,7 @@ export interface IEditorOptions {
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to true.
 	 */
-	lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
+	lineNumbers?: LineNumbersType;
 	/**
 	 * Controls the minimal number of visible leading and trailing lines surrounding the cursor.
 	 * Defaults to 0.
@@ -451,7 +452,7 @@ export interface IEditorOptions {
 	 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 	 */
-	wrappingIndent?: string;
+	wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 	/**
 	 * Configure word wrapping characters. A break will be introduced before these characters.
 	 * Defaults to '{([+'.
@@ -727,6 +728,9 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+
+	layoutInfo?: undefined;
+	wrappingInfo?: undefined;
 }
 
 /**
@@ -909,30 +913,6 @@ function _cursorStyleFromString(cursorStyle: string | undefined, defaultValue: T
 	return TextEditorCursorStyle.Line;
 }
 
-export interface InternalEditorScrollbarOptions {
-	readonly arrowSize: number;
-	readonly vertical: ScrollbarVisibility;
-	readonly horizontal: ScrollbarVisibility;
-	readonly useShadows: boolean;
-	readonly verticalHasArrows: boolean;
-	readonly horizontalHasArrows: boolean;
-	readonly handleMouseWheel: boolean;
-	readonly horizontalScrollbarSize: number;
-	readonly horizontalSliderSize: number;
-	readonly verticalScrollbarSize: number;
-	readonly verticalSliderSize: number;
-	readonly mouseWheelScrollSensitivity: number;
-	readonly fastScrollSensitivity: number;
-}
-
-export interface InternalEditorMinimapOptions {
-	readonly enabled: boolean;
-	readonly side: 'right' | 'left';
-	readonly showSlider: 'always' | 'mouseover';
-	readonly renderCharacters: boolean;
-	readonly maxColumn: number;
-}
-
 export interface InternalEditorFindOptions {
 	readonly seedSearchStringFromSelection: boolean;
 	readonly autoFindInSelection: boolean;
@@ -969,33 +949,10 @@ export interface InternalParameterHintOptions {
 	readonly cycle: boolean;
 }
 
-export interface EditorWrappingInfo {
-	readonly inDiffEditor: boolean;
-	readonly isDominatedByLongLines: boolean;
-	readonly isWordWrapMinified: boolean;
-	readonly isViewportWrapping: boolean;
-	readonly wrappingColumn: number;
-	readonly wrappingIndent: WrappingIndent;
-	readonly wordWrapBreakBeforeCharacters: string;
-	readonly wordWrapBreakAfterCharacters: string;
-	readonly wordWrapBreakObtrusiveCharacters: string;
-}
-
-export const enum RenderLineNumbersType {
-	Off = 0,
-	On = 1,
-	Relative = 2,
-	Interval = 3,
-	Custom = 4
-}
-
 export interface InternalEditorViewOptions {
 	readonly extraEditorClassName: string;
 	readonly disableMonospaceOptimizations: boolean;
 	readonly rulers: number[];
-	readonly ariaLabel: string;
-	readonly renderLineNumbers: RenderLineNumbersType;
-	readonly renderCustomLineNumbers: ((lineNumber: number) => string) | null;
 	readonly cursorSurroundingLines: number;
 	readonly glyphMargin: boolean;
 	readonly revealHorizontalRightPadding: number;
@@ -1018,8 +975,6 @@ export interface InternalEditorViewOptions {
 	readonly renderIndentGuides: boolean;
 	readonly highlightActiveIndentGuide: boolean;
 	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-	readonly scrollbar: InternalEditorScrollbarOptions;
-	readonly minimap: InternalEditorMinimapOptions;
 	readonly fixedOverflowWidgets: boolean;
 }
 
@@ -1045,7 +1000,6 @@ export interface EditorContribOptions {
 	readonly selectionHighlight: boolean;
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
-	readonly folding: boolean;
 	readonly foldingStrategy: 'auto' | 'indentation';
 	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
@@ -1062,21 +1016,12 @@ export interface EditorContribOptions {
  * @internal
  */
 export interface IValidatedEditorOptions {
-	readonly inDiffEditor: boolean;
 	readonly wordSeparators: string;
-	readonly lineNumbersMinChars: number;
 	readonly lineDecorationsWidth: number | string;
 	readonly readOnly: boolean;
 	readonly mouseStyle: 'text' | 'default' | 'copy';
 	readonly disableLayerHinting: boolean;
 	readonly automaticLayout: boolean;
-	readonly wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
-	readonly wordWrapColumn: number;
-	readonly wordWrapMinified: boolean;
-	readonly wrappingIndent: WrappingIndent;
-	readonly wordWrapBreakBeforeCharacters: string;
-	readonly wordWrapBreakAfterCharacters: string;
-	readonly wordWrapBreakObtrusiveCharacters: string;
 	readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
@@ -1088,7 +1033,6 @@ export interface IValidatedEditorOptions {
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly multiCursorMergeOverlapping: boolean;
-	readonly accessibilitySupport: 'auto' | 'off' | 'on';
 	readonly showUnused: boolean;
 
 	readonly viewInfo: InternalEditorViewOptions;
@@ -1128,10 +1072,8 @@ export class InternalEditorOptions {
 	readonly copyWithSyntaxHighlighting: boolean;
 
 	// ---- grouped options
-	readonly layoutInfo: EditorLayoutInfo;
 	readonly fontInfo: FontInfo;
 	readonly viewInfo: InternalEditorViewOptions;
-	readonly wrappingInfo: EditorWrappingInfo;
 	readonly contribInfo: EditorContribOptions;
 
 	/**
@@ -1143,7 +1085,6 @@ export class InternalEditorOptions {
 		editorClassName: string;
 		lineHeight: number;
 		readOnly: boolean;
-		accessibilitySupport: AccessibilitySupport;
 		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		multiCursorMergeOverlapping: boolean;
 		wordSeparators: string;
@@ -1157,10 +1098,8 @@ export class InternalEditorOptions {
 		dragAndDrop: boolean;
 		emptySelectionClipboard: boolean;
 		copyWithSyntaxHighlighting: boolean;
-		layoutInfo: EditorLayoutInfo;
 		fontInfo: FontInfo;
 		viewInfo: InternalEditorViewOptions;
-		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
 		showUnused: boolean;
 	}) {
@@ -1169,7 +1108,6 @@ export class InternalEditorOptions {
 		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight | 0;
 		this.readOnly = source.readOnly;
-		this.accessibilitySupport = source.accessibilitySupport;
 		this.multiCursorModifier = source.multiCursorModifier;
 		this.multiCursorMergeOverlapping = source.multiCursorMergeOverlapping;
 		this.wordSeparators = source.wordSeparators;
@@ -1183,10 +1121,8 @@ export class InternalEditorOptions {
 		this.dragAndDrop = source.dragAndDrop;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.copyWithSyntaxHighlighting = source.copyWithSyntaxHighlighting;
-		this.layoutInfo = source.layoutInfo;
 		this.fontInfo = source.fontInfo;
 		this.viewInfo = source.viewInfo;
-		this.wrappingInfo = source.wrappingInfo;
 		this.contribInfo = source.contribInfo;
 		this.showUnused = source.showUnused;
 	}
@@ -1201,7 +1137,6 @@ export class InternalEditorOptions {
 			&& this.editorClassName === other.editorClassName
 			&& this.lineHeight === other.lineHeight
 			&& this.readOnly === other.readOnly
-			&& this.accessibilitySupport === other.accessibilitySupport
 			&& this.multiCursorModifier === other.multiCursorModifier
 			&& this.multiCursorMergeOverlapping === other.multiCursorMergeOverlapping
 			&& this.wordSeparators === other.wordSeparators
@@ -1216,10 +1151,8 @@ export class InternalEditorOptions {
 			&& this.showUnused === other.showUnused
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& this.copyWithSyntaxHighlighting === other.copyWithSyntaxHighlighting
-			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
 			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
-			&& InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, other.wrappingInfo)
 			&& InternalEditorOptions._equalsContribOptions(this.contribInfo, other.contribInfo)
 		);
 	}
@@ -1240,7 +1173,6 @@ export class InternalEditorOptions {
 			editorClassName: (this.editorClassName !== newOpts.editorClassName),
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
 			readOnly: (this.readOnly !== newOpts.readOnly),
-			accessibilitySupport: (this.accessibilitySupport !== newOpts.accessibilitySupport),
 			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
 			multiCursorMergeOverlapping: (this.multiCursorMergeOverlapping !== newOpts.multiCursorMergeOverlapping),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
@@ -1254,53 +1186,10 @@ export class InternalEditorOptions {
 			dragAndDrop: (this.dragAndDrop !== newOpts.dragAndDrop),
 			emptySelectionClipboard: (this.emptySelectionClipboard !== newOpts.emptySelectionClipboard),
 			copyWithSyntaxHighlighting: (this.copyWithSyntaxHighlighting !== newOpts.copyWithSyntaxHighlighting),
-			layoutInfo: (!InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, newOpts.layoutInfo)),
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
-			wrappingInfo: (!InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, newOpts.wrappingInfo)),
 			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo))
 		};
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _equalsLayoutInfo(a: EditorLayoutInfo, b: EditorLayoutInfo): boolean {
-		return (
-			a.width === b.width
-			&& a.height === b.height
-			&& a.glyphMarginLeft === b.glyphMarginLeft
-			&& a.glyphMarginWidth === b.glyphMarginWidth
-			&& a.glyphMarginHeight === b.glyphMarginHeight
-			&& a.lineNumbersLeft === b.lineNumbersLeft
-			&& a.lineNumbersWidth === b.lineNumbersWidth
-			&& a.lineNumbersHeight === b.lineNumbersHeight
-			&& a.decorationsLeft === b.decorationsLeft
-			&& a.decorationsWidth === b.decorationsWidth
-			&& a.decorationsHeight === b.decorationsHeight
-			&& a.contentLeft === b.contentLeft
-			&& a.contentWidth === b.contentWidth
-			&& a.contentHeight === b.contentHeight
-			&& a.renderMinimap === b.renderMinimap
-			&& a.minimapLeft === b.minimapLeft
-			&& a.minimapWidth === b.minimapWidth
-			&& a.viewportColumn === b.viewportColumn
-			&& a.verticalScrollbarWidth === b.verticalScrollbarWidth
-			&& a.horizontalScrollbarHeight === b.horizontalScrollbarHeight
-			&& this._equalsOverviewRuler(a.overviewRuler, b.overviewRuler)
-		);
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _equalsOverviewRuler(a: OverviewRulerPosition, b: OverviewRulerPosition): boolean {
-		return (
-			a.width === b.width
-			&& a.height === b.height
-			&& a.top === b.top
-			&& a.right === b.right
-		);
 	}
 
 	/**
@@ -1311,9 +1200,6 @@ export class InternalEditorOptions {
 			a.extraEditorClassName === b.extraEditorClassName
 			&& a.disableMonospaceOptimizations === b.disableMonospaceOptimizations
 			&& arrays.equals(a.rulers, b.rulers)
-			&& a.ariaLabel === b.ariaLabel
-			&& a.renderLineNumbers === b.renderLineNumbers
-			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
 			&& a.cursorSurroundingLines === b.cursorSurroundingLines
 			&& a.glyphMargin === b.glyphMargin
 			&& a.revealHorizontalRightPadding === b.revealHorizontalRightPadding
@@ -1336,43 +1222,7 @@ export class InternalEditorOptions {
 			&& a.renderIndentGuides === b.renderIndentGuides
 			&& a.highlightActiveIndentGuide === b.highlightActiveIndentGuide
 			&& a.renderLineHighlight === b.renderLineHighlight
-			&& this._equalsScrollbarOptions(a.scrollbar, b.scrollbar)
-			&& this._equalsMinimapOptions(a.minimap, b.minimap)
 			&& a.fixedOverflowWidgets === b.fixedOverflowWidgets
-		);
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _equalsScrollbarOptions(a: InternalEditorScrollbarOptions, b: InternalEditorScrollbarOptions): boolean {
-		return (
-			a.arrowSize === b.arrowSize
-			&& a.vertical === b.vertical
-			&& a.horizontal === b.horizontal
-			&& a.useShadows === b.useShadows
-			&& a.verticalHasArrows === b.verticalHasArrows
-			&& a.horizontalHasArrows === b.horizontalHasArrows
-			&& a.handleMouseWheel === b.handleMouseWheel
-			&& a.horizontalScrollbarSize === b.horizontalScrollbarSize
-			&& a.horizontalSliderSize === b.horizontalSliderSize
-			&& a.verticalScrollbarSize === b.verticalScrollbarSize
-			&& a.verticalSliderSize === b.verticalSliderSize
-			&& a.mouseWheelScrollSensitivity === b.mouseWheelScrollSensitivity
-			&& a.fastScrollSensitivity === b.fastScrollSensitivity
-		);
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _equalsMinimapOptions(a: InternalEditorMinimapOptions, b: InternalEditorMinimapOptions): boolean {
-		return (
-			a.enabled === b.enabled
-			&& a.side === b.side
-			&& a.showSlider === b.showSlider
-			&& a.renderCharacters === b.renderCharacters
-			&& a.maxColumn === b.maxColumn
 		);
 	}
 
@@ -1442,23 +1292,6 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
-	private static _equalsWrappingInfo(a: EditorWrappingInfo, b: EditorWrappingInfo): boolean {
-		return (
-			a.inDiffEditor === b.inDiffEditor
-			&& a.isDominatedByLongLines === b.isDominatedByLongLines
-			&& a.isWordWrapMinified === b.isWordWrapMinified
-			&& a.isViewportWrapping === b.isViewportWrapping
-			&& a.wrappingColumn === b.wrappingColumn
-			&& a.wrappingIndent === b.wrappingIndent
-			&& a.wordWrapBreakBeforeCharacters === b.wordWrapBreakBeforeCharacters
-			&& a.wordWrapBreakAfterCharacters === b.wordWrapBreakAfterCharacters
-			&& a.wordWrapBreakObtrusiveCharacters === b.wordWrapBreakObtrusiveCharacters
-		);
-	}
-
-	/**
-	 * @internal
-	 */
 	private static _equalsContribOptions(a: EditorContribOptions, b: EditorContribOptions): boolean {
 		return (
 			this._equalsHoverOptions(a.hover, b.hover)
@@ -1482,7 +1315,6 @@ export class InternalEditorOptions {
 			&& a.selectionHighlight === b.selectionHighlight
 			&& a.occurrencesHighlight === b.occurrencesHighlight
 			&& a.codeLens === b.codeLens
-			&& a.folding === b.folding
 			&& a.foldingStrategy === b.foldingStrategy
 			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
@@ -1511,6 +1343,1012 @@ export class InternalEditorOptions {
 		);
 	}
 }
+
+/**
+ * An event describing that the configuration of the editor has changed.
+ */
+export interface IConfigurationChangedEvent {
+	hasChanged(id: EditorOptionId): boolean;
+	readonly canUseLayerHinting: boolean;
+	readonly pixelRatio: boolean;
+	readonly editorClassName: boolean;
+	readonly lineHeight: boolean;
+	readonly readOnly: boolean;
+	readonly multiCursorModifier: boolean;
+	readonly multiCursorMergeOverlapping: boolean;
+	readonly wordSeparators: boolean;
+	readonly autoClosingBrackets: boolean;
+	readonly autoClosingQuotes: boolean;
+	readonly autoClosingOvertype: boolean;
+	readonly autoSurround: boolean;
+	readonly autoIndent: boolean;
+	readonly useTabStops: boolean;
+	readonly tabFocusMode: boolean;
+	readonly dragAndDrop: boolean;
+	readonly emptySelectionClipboard: boolean;
+	readonly copyWithSyntaxHighlighting: boolean;
+	readonly fontInfo: boolean;
+	readonly viewInfo: boolean;
+	readonly contribInfo: boolean;
+}
+
+export interface IEnvironmentalOptions {
+	readonly outerWidth: number;
+	readonly outerHeight: number;
+	readonly fontInfo: FontInfo;
+	readonly extraEditorClassName: string;
+	readonly isDominatedByLongLines: boolean;
+	readonly lineNumbersDigitCount: number;
+	readonly emptySelectionClipboard: boolean;
+	readonly pixelRatio: number;
+	readonly tabFocusMode: boolean;
+	readonly accessibilitySupport: AccessibilitySupport;
+}
+
+function _boolean<T>(value: any, defaultValue: T): boolean | T {
+	if (typeof value === 'undefined') {
+		return defaultValue;
+	}
+	if (value === 'false') {
+		// treat the string 'false' as false
+		return false;
+	}
+	return Boolean(value);
+}
+
+function _booleanMap(value: { [key: string]: boolean } | undefined, defaultValue: { [key: string]: boolean }): { [key: string]: boolean } {
+	if (!value) {
+		return defaultValue;
+	}
+
+	const out = Object.create(null);
+	for (const k of Object.keys(value)) {
+		const v = value[k];
+		if (typeof v === 'boolean') {
+			out[k] = v;
+		}
+	}
+	return out;
+}
+
+function _string(value: any, defaultValue: string): string {
+	if (typeof value !== 'string') {
+		return defaultValue;
+	}
+	return value;
+}
+
+function _stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: T[]): T {
+	if (typeof value !== 'string') {
+		return defaultValue;
+	}
+	if (allowedValues.indexOf(value) === -1) {
+		return defaultValue;
+	}
+	return value;
+}
+
+function _clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
+	let r: number;
+	if (typeof value === 'undefined') {
+		r = defaultValue;
+	} else {
+		r = parseInt(value, 10);
+		if (isNaN(r)) {
+			r = defaultValue;
+		}
+	}
+	r = Math.max(minimum, r);
+	r = Math.min(maximum, r);
+	return r | 0;
+}
+
+function _float(value: any, defaultValue: number): number {
+	let r = parseFloat(value);
+	if (isNaN(r)) {
+		r = defaultValue;
+	}
+	return r;
+}
+
+function _wrappingIndentFromString(wrappingIndent: 'none' | 'same' | 'indent' | 'deepIndent'): WrappingIndent {
+	switch (wrappingIndent) {
+		case 'none': return WrappingIndent.None;
+		case 'same': return WrappingIndent.Same;
+		case 'indent': return WrappingIndent.Indent;
+		case 'deepIndent': return WrappingIndent.DeepIndent;
+	}
+}
+
+function _cursorBlinkingStyleFromString(cursorBlinkingStyle: string | undefined, defaultValue: TextEditorCursorBlinkingStyle): TextEditorCursorBlinkingStyle {
+	if (typeof cursorBlinkingStyle !== 'string') {
+		return defaultValue;
+	}
+	switch (cursorBlinkingStyle) {
+		case 'blink':
+			return TextEditorCursorBlinkingStyle.Blink;
+		case 'smooth':
+			return TextEditorCursorBlinkingStyle.Smooth;
+		case 'phase':
+			return TextEditorCursorBlinkingStyle.Phase;
+		case 'expand':
+			return TextEditorCursorBlinkingStyle.Expand;
+		case 'visible': // maintain compatibility
+		case 'solid':
+			return TextEditorCursorBlinkingStyle.Solid;
+	}
+	return TextEditorCursorBlinkingStyle.Blink;
+}
+
+function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
+	if (typeof visibility !== 'string') {
+		return defaultValue;
+	}
+	switch (visibility) {
+		case 'hidden':
+			return ScrollbarVisibility.Hidden;
+		case 'visible':
+			return ScrollbarVisibility.Visible;
+		default:
+			return ScrollbarVisibility.Auto;
+	}
+}
+
+/**
+ * @internal
+ */
+export class EditorOptionsValidator {
+
+	/**
+	 * Validate raw editor options.
+	 * i.e. since they can be defined by the user, they might be invalid.
+	 */
+	public static validate(opts: IEditorOptions, defaults: IValidatedEditorOptions): IValidatedEditorOptions {
+		const viewInfo = this._sanitizeViewInfo(opts, defaults.viewInfo);
+		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
+
+		let configuredMulticursorModifier: 'altKey' | 'metaKey' | 'ctrlKey' | undefined = undefined;
+		if (typeof opts.multiCursorModifier === 'string') {
+			if (opts.multiCursorModifier === 'ctrlCmd') {
+				configuredMulticursorModifier = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
+			} else {
+				configuredMulticursorModifier = 'altKey';
+			}
+		}
+		const multiCursorModifier = _stringSet<'altKey' | 'metaKey' | 'ctrlKey'>(configuredMulticursorModifier, defaults.multiCursorModifier, ['altKey', 'metaKey', 'ctrlKey']);
+
+		let autoClosingBrackets: EditorAutoClosingStrategy;
+		let autoClosingQuotes: EditorAutoClosingStrategy;
+		let autoSurround: EditorAutoSurroundStrategy;
+		if (typeof opts.autoClosingBrackets === 'boolean' && opts.autoClosingBrackets === false) {
+			// backwards compatibility: disable all on boolean false
+			autoClosingBrackets = 'never';
+			autoClosingQuotes = 'never';
+			autoSurround = 'never';
+		} else {
+			autoClosingBrackets = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingBrackets, defaults.autoClosingBrackets, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
+			autoClosingQuotes = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingQuotes, defaults.autoClosingQuotes, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
+			autoSurround = _stringSet<EditorAutoSurroundStrategy>(opts.autoSurround, defaults.autoSurround, ['languageDefined', 'brackets', 'quotes', 'never']);
+		}
+
+		return {
+			wordSeparators: _string(opts.wordSeparators, defaults.wordSeparators),
+			lineDecorationsWidth: (typeof opts.lineDecorationsWidth === 'undefined' ? defaults.lineDecorationsWidth : opts.lineDecorationsWidth),
+			readOnly: _boolean(opts.readOnly, defaults.readOnly),
+			mouseStyle: _stringSet<'text' | 'default' | 'copy'>(opts.mouseStyle, defaults.mouseStyle, ['text', 'default', 'copy']),
+			disableLayerHinting: _boolean(opts.disableLayerHinting, defaults.disableLayerHinting),
+			automaticLayout: _boolean(opts.automaticLayout, defaults.automaticLayout),
+			autoClosingBrackets,
+			autoClosingQuotes,
+			autoClosingOvertype: _stringSet<EditorAutoClosingOvertypeStrategy>(opts.autoClosingOvertype, defaults.autoClosingOvertype, ['always', 'auto', 'never']),
+			autoSurround,
+			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
+			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
+			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
+			copyWithSyntaxHighlighting: _boolean(opts.copyWithSyntaxHighlighting, defaults.copyWithSyntaxHighlighting),
+			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
+			multiCursorModifier: multiCursorModifier,
+			multiCursorMergeOverlapping: _boolean(opts.multiCursorMergeOverlapping, defaults.multiCursorMergeOverlapping),
+			showUnused: _boolean(opts.showUnused, defaults.showUnused),
+			viewInfo: viewInfo,
+			contribInfo: contribInfo,
+		};
+	}
+
+	private static _sanitizeFindOpts(opts: IEditorFindOptions | undefined, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
+		if (typeof opts !== 'object') {
+			return defaults;
+		}
+
+		return {
+			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection),
+			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection),
+			globalFindClipboard: _boolean(opts.globalFindClipboard, defaults.globalFindClipboard),
+			addExtraSpaceOnTop: _boolean(opts.addExtraSpaceOnTop, defaults.addExtraSpaceOnTop)
+		};
+	}
+
+	private static _sanitizeParameterHintOpts(opts: IEditorParameterHintOptions | undefined, defaults: InternalParameterHintOptions): InternalParameterHintOptions {
+		if (typeof opts !== 'object') {
+			return defaults;
+		}
+
+		return {
+			enabled: _boolean(opts.enabled, defaults.enabled),
+			cycle: _boolean(opts.cycle, defaults.cycle)
+		};
+	}
+
+	private static _sanitizeHoverOpts(_opts: boolean | IEditorHoverOptions | undefined, defaults: InternalEditorHoverOptions): InternalEditorHoverOptions {
+		let opts: IEditorHoverOptions;
+		if (typeof _opts === 'boolean') {
+			opts = {
+				enabled: _opts
+			};
+		} else if (typeof _opts === 'object') {
+			opts = _opts;
+		} else {
+			return defaults;
+		}
+
+		return {
+			enabled: _boolean(opts.enabled, defaults.enabled),
+			delay: _clampedInt(opts.delay, defaults.delay, 0, 10000),
+			sticky: _boolean(opts.sticky, defaults.sticky)
+		};
+	}
+
+	private static _sanitizeSuggestOpts(opts: IEditorOptions, defaults: InternalSuggestOptions): InternalSuggestOptions {
+		const suggestOpts = opts.suggest || {};
+		return {
+			filterGraceful: _boolean(suggestOpts.filterGraceful, defaults.filterGraceful),
+			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
+			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
+			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
+			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
+			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
+			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 15),
+			filteredTypes: isObject(suggestOpts.filteredTypes) ? suggestOpts.filteredTypes : Object.create(null)
+		};
+	}
+
+	private static _sanitizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
+		const gotoOpts = opts.gotoLocation || {};
+		return {
+			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(gotoOpts.multiple, defaults.multiple, ['peek', 'gotoAndPeek', 'goto'])
+		};
+	}
+
+	private static _sanitizeTabCompletionOpts(opts: boolean | 'on' | 'off' | 'onlySnippets' | undefined, defaults: 'on' | 'off' | 'onlySnippets'): 'on' | 'off' | 'onlySnippets' {
+		if (opts === false) {
+			return 'off';
+		} else if (opts === true) {
+			return 'onlySnippets';
+		} else {
+			return _stringSet<'on' | 'off' | 'onlySnippets'>(opts, defaults, ['on', 'off', 'onlySnippets']);
+		}
+	}
+
+	private static _sanitizeViewInfo(opts: IEditorOptions, defaults: InternalEditorViewOptions): InternalEditorViewOptions {
+
+		let rulers: number[] = [];
+		if (Array.isArray(opts.rulers)) {
+			for (let i = 0, len = opts.rulers.length; i < len; i++) {
+				rulers.push(_clampedInt(opts.rulers[i], 0, 0, 10000));
+			}
+			rulers.sort();
+		}
+
+		const fontLigatures = _boolean(opts.fontLigatures, defaults.fontLigatures);
+		const disableMonospaceOptimizations = _boolean(opts.disableMonospaceOptimizations, defaults.disableMonospaceOptimizations) || fontLigatures;
+
+		let renderWhitespace = opts.renderWhitespace;
+		{
+			// Compatibility with old true or false values
+			if (<any>renderWhitespace === true) {
+				renderWhitespace = 'boundary';
+			} else if (<any>renderWhitespace === false) {
+				renderWhitespace = 'none';
+			}
+			renderWhitespace = _stringSet<'none' | 'boundary' | 'selection' | 'all'>(renderWhitespace, defaults.renderWhitespace, ['none', 'boundary', 'selection', 'all']);
+		}
+
+		let renderLineHighlight = opts.renderLineHighlight;
+		{
+			// Compatibility with old true or false values
+			if (<any>renderLineHighlight === true) {
+				renderLineHighlight = 'line';
+			} else if (<any>renderLineHighlight === false) {
+				renderLineHighlight = 'none';
+			}
+			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
+		}
+
+		return {
+			extraEditorClassName: _string(opts.extraEditorClassName, defaults.extraEditorClassName),
+			disableMonospaceOptimizations: disableMonospaceOptimizations,
+			rulers: rulers,
+			cursorSurroundingLines: _clampedInt(opts.cursorSurroundingLines, defaults.cursorWidth, 0, Number.MAX_VALUE),
+			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
+			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
+			roundedSelection: _boolean(opts.roundedSelection, defaults.roundedSelection),
+			overviewRulerLanes: _clampedInt(opts.overviewRulerLanes, defaults.overviewRulerLanes, 0, 3),
+			overviewRulerBorder: _boolean(opts.overviewRulerBorder, defaults.overviewRulerBorder),
+			cursorBlinking: _cursorBlinkingStyleFromString(opts.cursorBlinking, defaults.cursorBlinking),
+			mouseWheelZoom: _boolean(opts.mouseWheelZoom, defaults.mouseWheelZoom),
+			cursorSmoothCaretAnimation: _boolean(opts.cursorSmoothCaretAnimation, defaults.cursorSmoothCaretAnimation),
+			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
+			cursorWidth: _clampedInt(opts.cursorWidth, defaults.cursorWidth, 0, Number.MAX_VALUE),
+			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
+			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
+			scrollBeyondLastColumn: _clampedInt(opts.scrollBeyondLastColumn, defaults.scrollBeyondLastColumn, 0, Constants.MAX_SAFE_SMALL_INTEGER),
+			smoothScrolling: _boolean(opts.smoothScrolling, defaults.smoothScrolling),
+			stopRenderingLineAfter: _clampedInt(opts.stopRenderingLineAfter, defaults.stopRenderingLineAfter, -1, Constants.MAX_SAFE_SMALL_INTEGER),
+			renderWhitespace: renderWhitespace,
+			renderControlCharacters: _boolean(opts.renderControlCharacters, defaults.renderControlCharacters),
+			fontLigatures: fontLigatures,
+			renderIndentGuides: _boolean(opts.renderIndentGuides, defaults.renderIndentGuides),
+			highlightActiveIndentGuide: _boolean(opts.highlightActiveIndentGuide, defaults.highlightActiveIndentGuide),
+			renderLineHighlight: renderLineHighlight,
+			fixedOverflowWidgets: _boolean(opts.fixedOverflowWidgets, defaults.fixedOverflowWidgets),
+		};
+	}
+
+	private static _sanitizeContribInfo(opts: IEditorOptions, defaults: EditorContribOptions): EditorContribOptions {
+		let quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
+		if (typeof opts.quickSuggestions === 'object') {
+			quickSuggestions = { other: true, ...opts.quickSuggestions };
+		} else {
+			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
+		}
+		// Compatibility support for acceptSuggestionOnEnter
+		if (typeof opts.acceptSuggestionOnEnter === 'boolean') {
+			opts.acceptSuggestionOnEnter = opts.acceptSuggestionOnEnter ? 'on' : 'off';
+		}
+		const find = this._sanitizeFindOpts(opts.find, defaults.find);
+		return {
+			hover: this._sanitizeHoverOpts(opts.hover, defaults.hover),
+			links: _boolean(opts.links, defaults.links),
+			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
+			quickSuggestions: quickSuggestions,
+			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
+			parameterHints: this._sanitizeParameterHintOpts(opts.parameterHints, defaults.parameterHints),
+			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
+			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
+			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
+			acceptSuggestionOnEnter: _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']),
+			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
+			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
+			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
+			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
+			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
+			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
+			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
+			gotoLocation: this._sanitizeGotoLocationOpts(opts, defaults.gotoLocation),
+			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
+			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
+			codeLens: _boolean(opts.codeLens, defaults.codeLens),
+			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
+			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
+			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
+			find: find,
+			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
+			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
+			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
+			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
+		};
+	}
+}
+
+/**
+ * @internal
+ */
+export class InternalEditorOptionsFactory {
+
+	public static createInternalEditorOptions(env: IEnvironmentalOptions, opts: IValidatedEditorOptions) {
+
+		let className = 'monaco-editor';
+		if (opts.viewInfo.extraEditorClassName) {
+			className += ' ' + opts.viewInfo.extraEditorClassName;
+		}
+		if (env.extraEditorClassName) {
+			className += ' ' + env.extraEditorClassName;
+		}
+		if (opts.viewInfo.fontLigatures) {
+			className += ' enable-ligatures';
+		}
+		if (opts.mouseStyle === 'default') {
+			className += ' mouse-default';
+		} else if (opts.mouseStyle === 'copy') {
+			className += ' mouse-copy';
+		}
+
+		return new InternalEditorOptions({
+			canUseLayerHinting: opts.disableLayerHinting ? false : true,
+			pixelRatio: env.pixelRatio,
+			editorClassName: className,
+			lineHeight: env.fontInfo.lineHeight,
+			readOnly: opts.readOnly,
+			multiCursorModifier: opts.multiCursorModifier,
+			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
+			wordSeparators: opts.wordSeparators,
+			autoClosingBrackets: opts.autoClosingBrackets,
+			autoClosingQuotes: opts.autoClosingQuotes,
+			autoClosingOvertype: opts.autoClosingOvertype,
+			autoSurround: opts.autoSurround,
+			autoIndent: opts.autoIndent,
+			useTabStops: opts.useTabStops,
+			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
+			dragAndDrop: opts.dragAndDrop,
+			emptySelectionClipboard: opts.emptySelectionClipboard && env.emptySelectionClipboard,
+			copyWithSyntaxHighlighting: opts.copyWithSyntaxHighlighting,
+			fontInfo: env.fontInfo,
+			viewInfo: opts.viewInfo,
+			contribInfo: opts.contribInfo,
+			showUnused: opts.showUnused,
+		});
+	}
+}
+
+/**
+ * @internal
+ */
+export interface IEditorLayoutProviderOpts {
+	readonly outerWidth: number;
+	readonly outerHeight: number;
+
+	readonly showGlyphMargin: boolean;
+	readonly lineHeight: number;
+
+	readonly showLineNumbers: boolean;
+	readonly lineNumbersMinChars: number;
+	readonly lineNumbersDigitCount: number;
+
+	readonly lineDecorationsWidth: number;
+
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly maxDigitWidth: number;
+
+	readonly verticalScrollbarWidth: number;
+	readonly verticalScrollbarHasArrows: boolean;
+	readonly scrollbarArrowSize: number;
+	readonly horizontalScrollbarHeight: number;
+
+	readonly minimap: boolean;
+	readonly minimapSide: string;
+	readonly minimapRenderCharacters: boolean;
+	readonly minimapMaxColumn: number;
+	readonly pixelRatio: number;
+}
+
+const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
+const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
+const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace, \'Droid Sans Fallback\'';
+
+/**
+ * @internal
+ */
+export const EDITOR_FONT_DEFAULTS = {
+	fontFamily: (
+		platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
+	),
+	fontWeight: 'normal',
+	fontSize: (
+		platform.isMacintosh ? 12 : 14
+	),
+	lineHeight: 0,
+	letterSpacing: 0,
+};
+
+/**
+ * @internal
+ */
+export const EDITOR_MODEL_DEFAULTS = {
+	tabSize: 4,
+	indentSize: 4,
+	insertSpaces: true,
+	detectIndentation: true,
+	trimAutoWhitespace: true,
+	largeFileOptimizations: true
+};
+
+/**
+ * @internal
+ */
+export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
+	wordSeparators: USUAL_WORD_SEPARATORS,
+	lineDecorationsWidth: 10,
+	readOnly: false,
+	mouseStyle: 'text',
+	disableLayerHinting: false,
+	automaticLayout: false,
+	autoClosingBrackets: 'languageDefined',
+	autoClosingQuotes: 'languageDefined',
+	autoClosingOvertype: 'auto',
+	autoSurround: 'languageDefined',
+	autoIndent: true,
+	dragAndDrop: true,
+	emptySelectionClipboard: true,
+	copyWithSyntaxHighlighting: true,
+	useTabStops: true,
+	multiCursorModifier: 'altKey',
+	multiCursorMergeOverlapping: true,
+	showUnused: true,
+
+	viewInfo: {
+		extraEditorClassName: '',
+		disableMonospaceOptimizations: false,
+		rulers: [],
+		cursorSurroundingLines: 0,
+		glyphMargin: true,
+		revealHorizontalRightPadding: 30,
+		roundedSelection: true,
+		overviewRulerLanes: 2,
+		overviewRulerBorder: true,
+		cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
+		mouseWheelZoom: false,
+		cursorSmoothCaretAnimation: false,
+		cursorStyle: TextEditorCursorStyle.Line,
+		cursorWidth: 0,
+		hideCursorInOverviewRuler: false,
+		scrollBeyondLastLine: true,
+		scrollBeyondLastColumn: 5,
+		smoothScrolling: false,
+		stopRenderingLineAfter: 10000,
+		renderWhitespace: 'none',
+		renderControlCharacters: false,
+		fontLigatures: false,
+		renderIndentGuides: true,
+		highlightActiveIndentGuide: true,
+		renderLineHighlight: 'line',
+		fixedOverflowWidgets: false,
+	},
+
+	contribInfo: {
+		hover: {
+			enabled: true,
+			delay: 300,
+			sticky: true
+		},
+		links: true,
+		contextmenu: true,
+		quickSuggestions: { other: true, comments: false, strings: false },
+		quickSuggestionsDelay: 10,
+		parameterHints: {
+			enabled: true,
+			cycle: false
+		},
+		formatOnType: false,
+		formatOnPaste: false,
+		suggestOnTriggerCharacters: true,
+		acceptSuggestionOnEnter: 'on',
+		acceptSuggestionOnCommitCharacter: true,
+		wordBasedSuggestions: true,
+		suggestSelection: 'recentlyUsed',
+		suggestFontSize: 0,
+		suggestLineHeight: 0,
+		tabCompletion: 'off',
+		suggest: {
+			filterGraceful: true,
+			snippets: 'inline',
+			snippetsPreventQuickSuggestions: true,
+			localityBonus: false,
+			shareSuggestSelections: false,
+			showIcons: true,
+			maxVisibleSuggestions: 12,
+			filteredTypes: Object.create(null)
+		},
+		gotoLocation: {
+			multiple: 'peek'
+		},
+		selectionHighlight: true,
+		occurrencesHighlight: true,
+		codeLens: true,
+		foldingStrategy: 'auto',
+		showFoldingControls: 'mouseover',
+		matchBrackets: true,
+		find: {
+			seedSearchStringFromSelection: true,
+			autoFindInSelection: false,
+			globalFindClipboard: false,
+			addExtraSpaceOnTop: true
+		},
+		colorDecorators: true,
+		lightbulbEnabled: true,
+		codeActionsOnSave: {},
+		codeActionsOnSaveTimeout: 750
+	},
+};
+
+export interface IRawEditorOptionsBag extends IEditorOptions {
+	[key: string]: any;
+}
+
+/**
+ * @internal
+ */
+export class RawEditorOptions {
+	private readonly _values: any[] = [];
+	public _read<T>(id: EditorOptionId): T | undefined {
+		return this._values[id];
+	}
+	public _write<T>(id: EditorOptionId, value: T | undefined): void {
+		this._values[id] = value;
+	}
+}
+
+/**
+ * @internal
+ */
+export class ValidatedEditorOptions {
+	private readonly _values: any[] = [];
+	public _read<T>(option: EditorOptionId): T {
+		return this._values[option];
+	}
+	public _write<T>(option: EditorOptionId, value: T): void {
+		this._values[option] = value;
+	}
+}
+
+export interface IComputedEditorOptions {
+	get<T extends IEditorOption<any, any, any>>(id: EditorOptionId): ComputedEditorOptionValue<T>;
+}
+
+/**
+ * @internal
+ */
+export class ComputedEditorOptions implements IComputedEditorOptions {
+	private readonly _values: any[] = [];
+	public _read<T>(id: EditorOptionId): T {
+		return this._values[id];
+	}
+	public get<T extends IEditorOption<any, any, any>>(id: EditorOptionId): ComputedEditorOptionValue<T> {
+		return this._values[id];
+	}
+	public _write<T>(id: EditorOptionId, value: T): void {
+		this._values[id] = value;
+	}
+}
+
+/**
+ * @internal
+ */
+export class ChangedEditorOptions {
+	private readonly _values: boolean[] = [];
+	public get(id: EditorOptionId): boolean {
+		return this._values[id];
+	}
+	public _write(id: EditorOptionId, value: boolean): void {
+		this._values[id] = value;
+	}
+}
+
+export type PossibleKeyName<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
+
+export interface IEditorOption<T1, T2 = T1, T3 = T2> {
+	readonly id: EditorOptionId;
+	readonly name: PossibleKeyName<T1>;
+	readonly defaultValue: T2;
+	read(options: IRawEditorOptionsBag): T1 | undefined;
+	mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined;
+	validate(input: T1 | undefined): T2;
+	compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
+	equals(a: T3, b: T3): boolean;
+}
+
+/**
+ * @internal
+ */
+export const editorOptionsRegistry: IEditorOption<any>[] = [];
+
+function registerEditorOption<T1, T2, T3>(option: IEditorOption<T1, T2, T3>): IEditorOption<T1, T2, T3> {
+	editorOptionsRegistry[option.id] = option;
+	return option;
+}
+
+export abstract class BaseEditorOption<T1, T2 = T1, T3 = T2> implements IEditorOption<T1, T2, T3> {
+
+	public readonly id: EditorOptionId;
+	public readonly name: PossibleKeyName<T1>;
+	public readonly defaultValue: T2;
+
+	constructor(id: EditorOptionId, name: PossibleKeyName<T1>, defaultValue: T2, deps: EditorOptionId[] = []) {
+		this.id = id;
+		this.name = name;
+		this.defaultValue = defaultValue;
+		for (const dep of deps) {
+			assert.ok(dep < id);
+		}
+	}
+	public read(options: IRawEditorOptionsBag): T1 | undefined {
+		return options[<any>this.name];
+	}
+	public mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined {
+		switch (typeof b) {
+			case 'bigint': return b;
+			case 'boolean': return b;
+			case 'function': return b;
+			case 'number': return b;
+			case 'object': return (Array.isArray(b) || typeof a !== 'object' ? b : objects.mixin(objects.mixin({}, a), b));
+			case 'string': return b;
+			default:
+				return a;
+		}
+	}
+	public abstract validate(input: T1 | undefined): T2;
+	public abstract compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
+	public equals(a: T3, b: T3): boolean {
+		return (a === b);
+	}
+}
+
+class EditorBooleanOption extends BaseEditorOption<boolean> {
+	public validate(input: boolean | undefined): boolean {
+		return _boolean(input, this.defaultValue);
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
+		return value;
+	}
+}
+
+class EditorIntOption extends BaseEditorOption<number> {
+	public readonly minimum: number;
+	public readonly maximum: number;
+	constructor(id: EditorOptionId, name: PossibleKeyName<number>, defaultValue: number, minimum: number, maximum: number, deps: EditorOptionId[] = []) {
+		super(id, name, defaultValue, deps);
+		this.minimum = minimum;
+		this.maximum = maximum;
+	}
+	public validate(input: number | undefined): number {
+		return _clampedInt(input, this.defaultValue, this.minimum, this.maximum);
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+		return value;
+	}
+}
+
+class EditorFloatOption extends BaseEditorOption<number> {
+	public readonly validationFn: (value: number) => number;
+	constructor(id: EditorOptionId, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number, deps: EditorOptionId[] = []) {
+		super(id, name, defaultValue, deps);
+		this.validationFn = validationFn;
+	}
+	public validate(input: number | undefined): number {
+		return this.validationFn(_float(input, this.defaultValue));
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+		return value;
+	}
+}
+
+class EditorStringOption extends BaseEditorOption<string> {
+	public validate(input: string | undefined): string {
+		return _string(input, this.defaultValue);
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: string): string {
+		return value;
+	}
+}
+
+class EditorEnumOption<T1, T2 = T1> extends BaseEditorOption<T1, T1, T2> {
+	public readonly allowedValues: T1[];
+	public readonly convert: (value: T1) => T2;
+	constructor(id: EditorOptionId, name: PossibleKeyName<T1>, defaultValue: T1, allowedValues: T1[], convert: (value: T1) => T2, deps: EditorOptionId[] = []) {
+		super(id, name, defaultValue, deps);
+		this.allowedValues = allowedValues;
+		this.convert = convert;
+	}
+	public validate(input: T1 | undefined): T1 {
+		return _stringSet<T1>(input, this.defaultValue, this.allowedValues);
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T1): T2 {
+		return this.convert(value);
+	}
+}
+
+class EditorPassthroughOption<T> extends BaseEditorOption<T> {
+	public validate(input: T | undefined): T {
+		if (typeof input === 'undefined') {
+			return this.defaultValue;
+		}
+		return input;
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T): T {
+		return value;
+	}
+}
+
+//#region renderLineNumbers
+
+export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
+
+export const enum RenderLineNumbersType {
+	Off = 0,
+	On = 1,
+	Relative = 2,
+	Interval = 3,
+	Custom = 4
+}
+
+export interface InternalEditorRenderLineNumbersOptions {
+	readonly renderType: RenderLineNumbersType;
+	readonly renderFn: ((lineNumber: number) => string) | null;
+}
+
+class EditorRenderLineNumbersOption extends BaseEditorOption<LineNumbersType, InternalEditorRenderLineNumbersOptions, InternalEditorRenderLineNumbersOptions> {
+	public validate(lineNumbers: LineNumbersType | undefined): InternalEditorRenderLineNumbersOptions {
+		let renderType: RenderLineNumbersType = this.defaultValue.renderType;
+		let renderFn: ((lineNumber: number) => string) | null = this.defaultValue.renderFn;
+
+		if (typeof lineNumbers !== 'undefined') {
+			if (typeof lineNumbers === 'function') {
+				renderType = RenderLineNumbersType.Custom;
+				renderFn = lineNumbers;
+			} else if (lineNumbers === 'interval') {
+				renderType = RenderLineNumbersType.Interval;
+			} else if (lineNumbers === 'relative') {
+				renderType = RenderLineNumbersType.Relative;
+			} else if (lineNumbers === 'on') {
+				renderType = RenderLineNumbersType.On;
+			} else {
+				renderType = RenderLineNumbersType.Off;
+			}
+		}
+
+		return {
+			renderType,
+			renderFn
+		};
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalEditorRenderLineNumbersOptions): InternalEditorRenderLineNumbersOptions {
+		return value;
+	}
+	public equals(a: InternalEditorRenderLineNumbersOptions, b: InternalEditorRenderLineNumbersOptions): boolean {
+		return (
+			a.renderType === b.renderType
+			&& a.renderFn === b.renderFn
+		);
+	}
+}
+
+//#endregion
+
+//#region minimap
+
+export interface InternalEditorMinimapOptions {
+	readonly enabled: boolean;
+	readonly side: 'right' | 'left';
+	readonly showSlider: 'always' | 'mouseover';
+	readonly renderCharacters: boolean;
+	readonly maxColumn: number;
+}
+
+class EditorMinimapOption extends BaseEditorOption<IEditorMinimapOptions, InternalEditorMinimapOptions, InternalEditorMinimapOptions> {
+	public validate(input: IEditorMinimapOptions | undefined): InternalEditorMinimapOptions {
+		if (typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			enabled: _boolean(input.enabled, this.defaultValue.enabled),
+			side: _stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
+			showSlider: _stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
+			renderCharacters: _boolean(input.renderCharacters, this.defaultValue.renderCharacters),
+			maxColumn: _clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
+		};
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalEditorMinimapOptions): InternalEditorMinimapOptions {
+		return value;
+	}
+	public equals(a: InternalEditorMinimapOptions, b: InternalEditorMinimapOptions): boolean {
+		return (
+			a.enabled === b.enabled
+			&& a.side === b.side
+			&& a.showSlider === b.showSlider
+			&& a.renderCharacters === b.renderCharacters
+			&& a.maxColumn === b.maxColumn
+		);
+	}
+}
+
+//#endregion
+
+//#region accessibilitySupport
+
+class EditorAccessibilitySupportOption extends BaseEditorOption<'auto' | 'off' | 'on', 'auto' | 'off' | 'on', AccessibilitySupport> {
+	public validate(input: 'auto' | 'off' | 'on' | undefined): 'auto' | 'off' | 'on' {
+		return _stringSet<'auto' | 'off' | 'on'>(input, this.defaultValue, ['auto', 'off', 'on']);
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: 'auto' | 'off' | 'on'): AccessibilitySupport {
+		if (value === 'auto') {
+			// The editor reads the `accessibilitySupport` from the environment
+			return env.accessibilitySupport;
+		} else if (value === 'on') {
+			return AccessibilitySupport.Enabled;
+		} else {
+			return AccessibilitySupport.Disabled;
+		}
+	}
+}
+
+//#endregion
+
+//#region ariaLabel
+
+class EditorAriaLabel extends BaseEditorOption<string> {
+	public validate(input: string | undefined): string {
+		return _string(input, this.defaultValue);
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: string): string {
+		const accessibilitySupport = options.get<typeof EditorOption.accessibilitySupport>(EditorOptionId.accessibilitySupport);
+		if (accessibilitySupport === AccessibilitySupport.Disabled) {
+			return nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.");
+		}
+		return value;
+	}
+}
+
+//#endregion
+
+//#region scrollbar
+
+export interface InternalEditorScrollbarOptions {
+	readonly arrowSize: number;
+	readonly vertical: ScrollbarVisibility;
+	readonly horizontal: ScrollbarVisibility;
+	readonly useShadows: boolean;
+	readonly verticalHasArrows: boolean;
+	readonly horizontalHasArrows: boolean;
+	readonly handleMouseWheel: boolean;
+	readonly horizontalScrollbarSize: number;
+	readonly horizontalSliderSize: number;
+	readonly verticalScrollbarSize: number;
+	readonly verticalSliderSize: number;
+}
+
+class EditorScrollbarOption extends BaseEditorOption<IEditorScrollbarOptions, InternalEditorScrollbarOptions, InternalEditorScrollbarOptions> {
+	public validate(input: IEditorScrollbarOptions | undefined): InternalEditorScrollbarOptions {
+		if (typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		const horizontalScrollbarSize = _clampedInt(input.horizontalScrollbarSize, this.defaultValue.horizontalScrollbarSize, 0, 1000);
+		const verticalScrollbarSize = _clampedInt(input.verticalScrollbarSize, this.defaultValue.verticalScrollbarSize, 0, 1000);
+		return {
+			arrowSize: _clampedInt(input.arrowSize, this.defaultValue.arrowSize, 0, 1000),
+			vertical: _scrollbarVisibilityFromString(input.vertical, this.defaultValue.vertical),
+			horizontal: _scrollbarVisibilityFromString(input.horizontal, this.defaultValue.horizontal),
+			useShadows: _boolean(input.useShadows, this.defaultValue.useShadows),
+			verticalHasArrows: _boolean(input.verticalHasArrows, this.defaultValue.verticalHasArrows),
+			horizontalHasArrows: _boolean(input.horizontalHasArrows, this.defaultValue.horizontalHasArrows),
+			handleMouseWheel: _boolean(input.handleMouseWheel, this.defaultValue.handleMouseWheel),
+			horizontalScrollbarSize: horizontalScrollbarSize,
+			horizontalSliderSize: _clampedInt(input.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
+			verticalScrollbarSize: verticalScrollbarSize,
+			verticalSliderSize: _clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
+		};
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalEditorScrollbarOptions): InternalEditorScrollbarOptions {
+		return value;
+	}
+	public equals(a: InternalEditorScrollbarOptions, b: InternalEditorScrollbarOptions): boolean {
+		return (
+			a.arrowSize === b.arrowSize
+			&& a.vertical === b.vertical
+			&& a.horizontal === b.horizontal
+			&& a.useShadows === b.useShadows
+			&& a.verticalHasArrows === b.verticalHasArrows
+			&& a.horizontalHasArrows === b.horizontalHasArrows
+			&& a.handleMouseWheel === b.handleMouseWheel
+			&& a.horizontalScrollbarSize === b.horizontalScrollbarSize
+			&& a.horizontalSliderSize === b.horizontalSliderSize
+			&& a.verticalScrollbarSize === b.verticalScrollbarSize
+			&& a.verticalSliderSize === b.verticalSliderSize
+		);
+	}
+}
+
+//#endregion
+
+//#region layoutInfo
 
 /**
  * A description for the overview ruler position.
@@ -1635,826 +2473,92 @@ export interface EditorLayoutInfo {
 }
 
 /**
- * An event describing that the configuration of the editor has changed.
- */
-export interface IConfigurationChangedEvent {
-	hasChanged(id: EditorOptionId): boolean;
-	readonly canUseLayerHinting: boolean;
-	readonly pixelRatio: boolean;
-	readonly editorClassName: boolean;
-	readonly lineHeight: boolean;
-	readonly readOnly: boolean;
-	readonly accessibilitySupport: boolean;
-	readonly multiCursorModifier: boolean;
-	readonly multiCursorMergeOverlapping: boolean;
-	readonly wordSeparators: boolean;
-	readonly autoClosingBrackets: boolean;
-	readonly autoClosingQuotes: boolean;
-	readonly autoClosingOvertype: boolean;
-	readonly autoSurround: boolean;
-	readonly autoIndent: boolean;
-	readonly useTabStops: boolean;
-	readonly tabFocusMode: boolean;
-	readonly dragAndDrop: boolean;
-	readonly emptySelectionClipboard: boolean;
-	readonly copyWithSyntaxHighlighting: boolean;
-	readonly layoutInfo: boolean;
-	readonly fontInfo: boolean;
-	readonly viewInfo: boolean;
-	readonly wrappingInfo: boolean;
-	readonly contribInfo: boolean;
-}
-
-/**
  * @internal
  */
-export interface IEnvironmentalOptions {
-	readonly outerWidth: number;
-	readonly outerHeight: number;
-	readonly fontInfo: FontInfo;
-	readonly extraEditorClassName: string;
-	readonly isDominatedByLongLines: boolean;
-	readonly lineNumbersDigitCount: number;
-	readonly emptySelectionClipboard: boolean;
-	readonly pixelRatio: number;
-	readonly tabFocusMode: boolean;
-	readonly accessibilitySupport: AccessibilitySupport;
-}
-
-function _boolean<T>(value: any, defaultValue: T): boolean | T {
-	if (typeof value === 'undefined') {
-		return defaultValue;
+export class EditorLayoutInfoComputer extends BaseEditorOption<undefined, undefined, EditorLayoutInfo> {
+	public validate(input: undefined): undefined {
+		return undefined;
 	}
-	if (value === 'false') {
-		// treat the string 'false' as false
-		return false;
-	}
-	return Boolean(value);
-}
-
-function _booleanMap(value: { [key: string]: boolean } | undefined, defaultValue: { [key: string]: boolean }): { [key: string]: boolean } {
-	if (!value) {
-		return defaultValue;
-	}
-
-	const out = Object.create(null);
-	for (const k of Object.keys(value)) {
-		const v = value[k];
-		if (typeof v === 'boolean') {
-			out[k] = v;
-		}
-	}
-	return out;
-}
-
-function _string(value: any, defaultValue: string): string {
-	if (typeof value !== 'string') {
-		return defaultValue;
-	}
-	return value;
-}
-
-function _stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: T[]): T {
-	if (typeof value !== 'string') {
-		return defaultValue;
-	}
-	if (allowedValues.indexOf(value) === -1) {
-		return defaultValue;
-	}
-	return value;
-}
-
-function _clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
-	let r: number;
-	if (typeof value === 'undefined') {
-		r = defaultValue;
-	} else {
-		r = parseInt(value, 10);
-		if (isNaN(r)) {
-			r = defaultValue;
-		}
-	}
-	r = Math.max(minimum, r);
-	r = Math.min(maximum, r);
-	return r | 0;
-}
-
-function _float(value: any, defaultValue: number): number {
-	let r = parseFloat(value);
-	if (isNaN(r)) {
-		r = defaultValue;
-	}
-	return r;
-}
-
-function _wrappingIndentFromString(wrappingIndent: string | undefined, defaultValue: WrappingIndent): WrappingIndent {
-	if (typeof wrappingIndent !== 'string') {
-		return defaultValue;
-	}
-	if (wrappingIndent === 'same') {
-		return WrappingIndent.Same;
-	} else if (wrappingIndent === 'indent') {
-		return WrappingIndent.Indent;
-	} else if (wrappingIndent === 'deepIndent') {
-		return WrappingIndent.DeepIndent;
-	} else {
-		return WrappingIndent.None;
-	}
-}
-
-function _cursorBlinkingStyleFromString(cursorBlinkingStyle: string | undefined, defaultValue: TextEditorCursorBlinkingStyle): TextEditorCursorBlinkingStyle {
-	if (typeof cursorBlinkingStyle !== 'string') {
-		return defaultValue;
-	}
-	switch (cursorBlinkingStyle) {
-		case 'blink':
-			return TextEditorCursorBlinkingStyle.Blink;
-		case 'smooth':
-			return TextEditorCursorBlinkingStyle.Smooth;
-		case 'phase':
-			return TextEditorCursorBlinkingStyle.Phase;
-		case 'expand':
-			return TextEditorCursorBlinkingStyle.Expand;
-		case 'visible': // maintain compatibility
-		case 'solid':
-			return TextEditorCursorBlinkingStyle.Solid;
-	}
-	return TextEditorCursorBlinkingStyle.Blink;
-}
-
-function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
-	if (typeof visibility !== 'string') {
-		return defaultValue;
-	}
-	switch (visibility) {
-		case 'hidden':
-			return ScrollbarVisibility.Hidden;
-		case 'visible':
-			return ScrollbarVisibility.Visible;
-		default:
-			return ScrollbarVisibility.Auto;
-	}
-}
-
-/**
- * @internal
- */
-export class EditorOptionsValidator {
-
-	/**
-	 * Validate raw editor options.
-	 * i.e. since they can be defined by the user, they might be invalid.
-	 */
-	public static validate(opts: IEditorOptions, defaults: IValidatedEditorOptions): IValidatedEditorOptions {
-		let wordWrap = opts.wordWrap;
-		{
-			// Compatibility with old true or false values
-			if (<any>wordWrap === true) {
-				wordWrap = 'on';
-			} else if (<any>wordWrap === false) {
-				wordWrap = 'off';
-			}
-
-			wordWrap = _stringSet<'off' | 'on' | 'wordWrapColumn' | 'bounded'>(wordWrap, defaults.wordWrap, ['off', 'on', 'wordWrapColumn', 'bounded']);
-		}
-
-		const viewInfo = this._sanitizeViewInfo(opts, defaults.viewInfo);
-		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
-
-		let configuredMulticursorModifier: 'altKey' | 'metaKey' | 'ctrlKey' | undefined = undefined;
-		if (typeof opts.multiCursorModifier === 'string') {
-			if (opts.multiCursorModifier === 'ctrlCmd') {
-				configuredMulticursorModifier = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
-			} else {
-				configuredMulticursorModifier = 'altKey';
-			}
-		}
-		const multiCursorModifier = _stringSet<'altKey' | 'metaKey' | 'ctrlKey'>(configuredMulticursorModifier, defaults.multiCursorModifier, ['altKey', 'metaKey', 'ctrlKey']);
-
-		let autoClosingBrackets: EditorAutoClosingStrategy;
-		let autoClosingQuotes: EditorAutoClosingStrategy;
-		let autoSurround: EditorAutoSurroundStrategy;
-		if (typeof opts.autoClosingBrackets === 'boolean' && opts.autoClosingBrackets === false) {
-			// backwards compatibility: disable all on boolean false
-			autoClosingBrackets = 'never';
-			autoClosingQuotes = 'never';
-			autoSurround = 'never';
-		} else {
-			autoClosingBrackets = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingBrackets, defaults.autoClosingBrackets, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
-			autoClosingQuotes = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingQuotes, defaults.autoClosingQuotes, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
-			autoSurround = _stringSet<EditorAutoSurroundStrategy>(opts.autoSurround, defaults.autoSurround, ['languageDefined', 'brackets', 'quotes', 'never']);
-		}
-
-		return {
-			inDiffEditor: _boolean(opts.inDiffEditor, defaults.inDiffEditor),
-			wordSeparators: _string(opts.wordSeparators, defaults.wordSeparators),
-			lineNumbersMinChars: _clampedInt(opts.lineNumbersMinChars, defaults.lineNumbersMinChars, 1, 10),
-			lineDecorationsWidth: (typeof opts.lineDecorationsWidth === 'undefined' ? defaults.lineDecorationsWidth : opts.lineDecorationsWidth),
-			readOnly: _boolean(opts.readOnly, defaults.readOnly),
-			mouseStyle: _stringSet<'text' | 'default' | 'copy'>(opts.mouseStyle, defaults.mouseStyle, ['text', 'default', 'copy']),
-			disableLayerHinting: _boolean(opts.disableLayerHinting, defaults.disableLayerHinting),
-			automaticLayout: _boolean(opts.automaticLayout, defaults.automaticLayout),
-			wordWrap: wordWrap,
-			wordWrapColumn: _clampedInt(opts.wordWrapColumn, defaults.wordWrapColumn, 1, Constants.MAX_SAFE_SMALL_INTEGER),
-			wordWrapMinified: _boolean(opts.wordWrapMinified, defaults.wordWrapMinified),
-			wrappingIndent: _wrappingIndentFromString(opts.wrappingIndent, defaults.wrappingIndent),
-			wordWrapBreakBeforeCharacters: _string(opts.wordWrapBreakBeforeCharacters, defaults.wordWrapBreakBeforeCharacters),
-			wordWrapBreakAfterCharacters: _string(opts.wordWrapBreakAfterCharacters, defaults.wordWrapBreakAfterCharacters),
-			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
-			autoClosingBrackets,
-			autoClosingQuotes,
-			autoClosingOvertype: _stringSet<EditorAutoClosingOvertypeStrategy>(opts.autoClosingOvertype, defaults.autoClosingOvertype, ['always', 'auto', 'never']),
-			autoSurround,
-			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
-			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
-			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
-			copyWithSyntaxHighlighting: _boolean(opts.copyWithSyntaxHighlighting, defaults.copyWithSyntaxHighlighting),
-			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
-			multiCursorModifier: multiCursorModifier,
-			multiCursorMergeOverlapping: _boolean(opts.multiCursorMergeOverlapping, defaults.multiCursorMergeOverlapping),
-			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
-			showUnused: _boolean(opts.showUnused, defaults.showUnused),
-			viewInfo: viewInfo,
-			contribInfo: contribInfo,
-		};
-	}
-
-	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions | undefined, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number, fastScrollSensitivity: number): InternalEditorScrollbarOptions {
-		if (typeof opts !== 'object') {
-			return defaults;
-		}
-		const horizontalScrollbarSize = _clampedInt(opts.horizontalScrollbarSize, defaults.horizontalScrollbarSize, 0, 1000);
-		const verticalScrollbarSize = _clampedInt(opts.verticalScrollbarSize, defaults.verticalScrollbarSize, 0, 1000);
-		return {
-			vertical: _scrollbarVisibilityFromString(opts.vertical, defaults.vertical),
-			horizontal: _scrollbarVisibilityFromString(opts.horizontal, defaults.horizontal),
-
-			arrowSize: _clampedInt(opts.arrowSize, defaults.arrowSize, 0, 1000),
-			useShadows: _boolean(opts.useShadows, defaults.useShadows),
-
-			verticalHasArrows: _boolean(opts.verticalHasArrows, defaults.verticalHasArrows),
-			horizontalHasArrows: _boolean(opts.horizontalHasArrows, defaults.horizontalHasArrows),
-
-			horizontalScrollbarSize: horizontalScrollbarSize,
-			horizontalSliderSize: _clampedInt(opts.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
-
-			verticalScrollbarSize: verticalScrollbarSize,
-			verticalSliderSize: _clampedInt(opts.verticalSliderSize, verticalScrollbarSize, 0, 1000),
-
-			handleMouseWheel: _boolean(opts.handleMouseWheel, defaults.handleMouseWheel),
-			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
-			fastScrollSensitivity: fastScrollSensitivity,
-		};
-	}
-
-	private static _sanitizeMinimapOpts(opts: IEditorMinimapOptions | undefined, defaults: InternalEditorMinimapOptions): InternalEditorMinimapOptions {
-		if (typeof opts !== 'object') {
-			return defaults;
-		}
-		return {
-			enabled: _boolean(opts.enabled, defaults.enabled),
-			side: _stringSet<'right' | 'left'>(opts.side, defaults.side, ['right', 'left']),
-			showSlider: _stringSet<'always' | 'mouseover'>(opts.showSlider, defaults.showSlider, ['always', 'mouseover']),
-			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
-			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
-		};
-	}
-
-	private static _sanitizeFindOpts(opts: IEditorFindOptions | undefined, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
-		if (typeof opts !== 'object') {
-			return defaults;
-		}
-
-		return {
-			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection),
-			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection),
-			globalFindClipboard: _boolean(opts.globalFindClipboard, defaults.globalFindClipboard),
-			addExtraSpaceOnTop: _boolean(opts.addExtraSpaceOnTop, defaults.addExtraSpaceOnTop)
-		};
-	}
-
-	private static _sanitizeParameterHintOpts(opts: IEditorParameterHintOptions | undefined, defaults: InternalParameterHintOptions): InternalParameterHintOptions {
-		if (typeof opts !== 'object') {
-			return defaults;
-		}
-
-		return {
-			enabled: _boolean(opts.enabled, defaults.enabled),
-			cycle: _boolean(opts.cycle, defaults.cycle)
-		};
-	}
-
-	private static _sanitizeHoverOpts(_opts: boolean | IEditorHoverOptions | undefined, defaults: InternalEditorHoverOptions): InternalEditorHoverOptions {
-		let opts: IEditorHoverOptions;
-		if (typeof _opts === 'boolean') {
-			opts = {
-				enabled: _opts
-			};
-		} else if (typeof _opts === 'object') {
-			opts = _opts;
-		} else {
-			return defaults;
-		}
-
-		return {
-			enabled: _boolean(opts.enabled, defaults.enabled),
-			delay: _clampedInt(opts.delay, defaults.delay, 0, 10000),
-			sticky: _boolean(opts.sticky, defaults.sticky)
-		};
-	}
-
-	private static _sanitizeSuggestOpts(opts: IEditorOptions, defaults: InternalSuggestOptions): InternalSuggestOptions {
-		const suggestOpts = opts.suggest || {};
-		return {
-			filterGraceful: _boolean(suggestOpts.filterGraceful, defaults.filterGraceful),
-			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
-			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
-			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
-			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
-			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
-			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 15),
-			filteredTypes: isObject(suggestOpts.filteredTypes) ? suggestOpts.filteredTypes : Object.create(null)
-		};
-	}
-
-	private static _sanitizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
-		const gotoOpts = opts.gotoLocation || {};
-		return {
-			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(gotoOpts.multiple, defaults.multiple, ['peek', 'gotoAndPeek', 'goto'])
-		};
-	}
-
-	private static _sanitizeTabCompletionOpts(opts: boolean | 'on' | 'off' | 'onlySnippets' | undefined, defaults: 'on' | 'off' | 'onlySnippets'): 'on' | 'off' | 'onlySnippets' {
-		if (opts === false) {
-			return 'off';
-		} else if (opts === true) {
-			return 'onlySnippets';
-		} else {
-			return _stringSet<'on' | 'off' | 'onlySnippets'>(opts, defaults, ['on', 'off', 'onlySnippets']);
-		}
-	}
-
-	private static _sanitizeViewInfo(opts: IEditorOptions, defaults: InternalEditorViewOptions): InternalEditorViewOptions {
-
-		let rulers: number[] = [];
-		if (Array.isArray(opts.rulers)) {
-			for (let i = 0, len = opts.rulers.length; i < len; i++) {
-				rulers.push(_clampedInt(opts.rulers[i], 0, 0, 10000));
-			}
-			rulers.sort();
-		}
-
-		let renderLineNumbers: RenderLineNumbersType = defaults.renderLineNumbers;
-		let renderCustomLineNumbers: ((lineNumber: number) => string) | null = defaults.renderCustomLineNumbers;
-
-		if (typeof opts.lineNumbers !== 'undefined') {
-			let lineNumbers = opts.lineNumbers;
-
-			// Compatibility with old true or false values
-			if (<any>lineNumbers === true) {
-				lineNumbers = 'on';
-			} else if (<any>lineNumbers === false) {
-				lineNumbers = 'off';
-			}
-
-			if (typeof lineNumbers === 'function') {
-				renderLineNumbers = RenderLineNumbersType.Custom;
-				renderCustomLineNumbers = lineNumbers;
-			} else if (lineNumbers === 'interval') {
-				renderLineNumbers = RenderLineNumbersType.Interval;
-			} else if (lineNumbers === 'relative') {
-				renderLineNumbers = RenderLineNumbersType.Relative;
-			} else if (lineNumbers === 'on') {
-				renderLineNumbers = RenderLineNumbersType.On;
-			} else {
-				renderLineNumbers = RenderLineNumbersType.Off;
-			}
-		}
-
-		const fontLigatures = _boolean(opts.fontLigatures, defaults.fontLigatures);
-		const disableMonospaceOptimizations = _boolean(opts.disableMonospaceOptimizations, defaults.disableMonospaceOptimizations) || fontLigatures;
-
-		let renderWhitespace = opts.renderWhitespace;
-		{
-			// Compatibility with old true or false values
-			if (<any>renderWhitespace === true) {
-				renderWhitespace = 'boundary';
-			} else if (<any>renderWhitespace === false) {
-				renderWhitespace = 'none';
-			}
-			renderWhitespace = _stringSet<'none' | 'boundary' | 'selection' | 'all'>(renderWhitespace, defaults.renderWhitespace, ['none', 'boundary', 'selection', 'all']);
-		}
-
-		let renderLineHighlight = opts.renderLineHighlight;
-		{
-			// Compatibility with old true or false values
-			if (<any>renderLineHighlight === true) {
-				renderLineHighlight = 'line';
-			} else if (<any>renderLineHighlight === false) {
-				renderLineHighlight = 'none';
-			}
-			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
-		}
-
-		let mouseWheelScrollSensitivity = _float(opts.mouseWheelScrollSensitivity, defaults.scrollbar.mouseWheelScrollSensitivity);
-		if (mouseWheelScrollSensitivity === 0) {
-			// Disallow 0, as it would prevent/block scrolling
-			mouseWheelScrollSensitivity = 1;
-		}
-
-		let fastScrollSensitivity = _float(opts.fastScrollSensitivity, defaults.scrollbar.fastScrollSensitivity);
-		if (fastScrollSensitivity <= 0) {
-			fastScrollSensitivity = defaults.scrollbar.fastScrollSensitivity;
-		}
-		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity, fastScrollSensitivity);
-		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
-
-		return {
-			extraEditorClassName: _string(opts.extraEditorClassName, defaults.extraEditorClassName),
-			disableMonospaceOptimizations: disableMonospaceOptimizations,
-			rulers: rulers,
-			ariaLabel: _string(opts.ariaLabel, defaults.ariaLabel),
-			cursorSurroundingLines: _clampedInt(opts.cursorSurroundingLines, defaults.cursorWidth, 0, Number.MAX_VALUE),
-			renderLineNumbers: renderLineNumbers,
-			renderCustomLineNumbers: renderCustomLineNumbers,
-			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
-			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
-			roundedSelection: _boolean(opts.roundedSelection, defaults.roundedSelection),
-			overviewRulerLanes: _clampedInt(opts.overviewRulerLanes, defaults.overviewRulerLanes, 0, 3),
-			overviewRulerBorder: _boolean(opts.overviewRulerBorder, defaults.overviewRulerBorder),
-			cursorBlinking: _cursorBlinkingStyleFromString(opts.cursorBlinking, defaults.cursorBlinking),
-			mouseWheelZoom: _boolean(opts.mouseWheelZoom, defaults.mouseWheelZoom),
-			cursorSmoothCaretAnimation: _boolean(opts.cursorSmoothCaretAnimation, defaults.cursorSmoothCaretAnimation),
-			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
-			cursorWidth: _clampedInt(opts.cursorWidth, defaults.cursorWidth, 0, Number.MAX_VALUE),
-			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
-			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
-			scrollBeyondLastColumn: _clampedInt(opts.scrollBeyondLastColumn, defaults.scrollBeyondLastColumn, 0, Constants.MAX_SAFE_SMALL_INTEGER),
-			smoothScrolling: _boolean(opts.smoothScrolling, defaults.smoothScrolling),
-			stopRenderingLineAfter: _clampedInt(opts.stopRenderingLineAfter, defaults.stopRenderingLineAfter, -1, Constants.MAX_SAFE_SMALL_INTEGER),
-			renderWhitespace: renderWhitespace,
-			renderControlCharacters: _boolean(opts.renderControlCharacters, defaults.renderControlCharacters),
-			fontLigatures: fontLigatures,
-			renderIndentGuides: _boolean(opts.renderIndentGuides, defaults.renderIndentGuides),
-			highlightActiveIndentGuide: _boolean(opts.highlightActiveIndentGuide, defaults.highlightActiveIndentGuide),
-			renderLineHighlight: renderLineHighlight,
-			scrollbar: scrollbar,
-			minimap: minimap,
-			fixedOverflowWidgets: _boolean(opts.fixedOverflowWidgets, defaults.fixedOverflowWidgets),
-		};
-	}
-
-	private static _sanitizeContribInfo(opts: IEditorOptions, defaults: EditorContribOptions): EditorContribOptions {
-		let quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
-		if (typeof opts.quickSuggestions === 'object') {
-			quickSuggestions = { other: true, ...opts.quickSuggestions };
-		} else {
-			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
-		}
-		// Compatibility support for acceptSuggestionOnEnter
-		if (typeof opts.acceptSuggestionOnEnter === 'boolean') {
-			opts.acceptSuggestionOnEnter = opts.acceptSuggestionOnEnter ? 'on' : 'off';
-		}
-		const find = this._sanitizeFindOpts(opts.find, defaults.find);
-		return {
-			hover: this._sanitizeHoverOpts(opts.hover, defaults.hover),
-			links: _boolean(opts.links, defaults.links),
-			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
-			quickSuggestions: quickSuggestions,
-			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
-			parameterHints: this._sanitizeParameterHintOpts(opts.parameterHints, defaults.parameterHints),
-			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
-			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
-			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
-			acceptSuggestionOnEnter: _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']),
-			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
-			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
-			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
-			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
-			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
-			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
-			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
-			gotoLocation: this._sanitizeGotoLocationOpts(opts, defaults.gotoLocation),
-			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
-			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
-			codeLens: _boolean(opts.codeLens, defaults.codeLens),
-			folding: _boolean(opts.folding, defaults.folding),
-			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
-			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
-			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
-			find: find,
-			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
-			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
-			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
-			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
-		};
-	}
-}
-
-/**
- * @internal
- */
-export class InternalEditorOptionsFactory {
-
-	private static _tweakValidatedOptions(opts: IValidatedEditorOptions, accessibilitySupport: AccessibilitySupport): IValidatedEditorOptions {
-		const accessibilityIsOff = (accessibilitySupport === AccessibilitySupport.Disabled);
-		return {
-			inDiffEditor: opts.inDiffEditor,
-			wordSeparators: opts.wordSeparators,
-			lineNumbersMinChars: opts.lineNumbersMinChars,
-			lineDecorationsWidth: opts.lineDecorationsWidth,
-			readOnly: opts.readOnly,
-			mouseStyle: opts.mouseStyle,
-			disableLayerHinting: opts.disableLayerHinting,
-			automaticLayout: opts.automaticLayout,
-			wordWrap: opts.wordWrap,
-			wordWrapColumn: opts.wordWrapColumn,
-			wordWrapMinified: opts.wordWrapMinified,
-			wrappingIndent: opts.wrappingIndent,
-			wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
-			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
-			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
-			autoClosingBrackets: opts.autoClosingBrackets,
-			autoClosingQuotes: opts.autoClosingQuotes,
-			autoClosingOvertype: opts.autoClosingOvertype,
-			autoSurround: opts.autoSurround,
-			autoIndent: opts.autoIndent,
-			dragAndDrop: opts.dragAndDrop,
-			emptySelectionClipboard: opts.emptySelectionClipboard,
-			copyWithSyntaxHighlighting: opts.copyWithSyntaxHighlighting,
-			useTabStops: opts.useTabStops,
-			multiCursorModifier: opts.multiCursorModifier,
-			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
-			accessibilitySupport: opts.accessibilitySupport,
-			showUnused: opts.showUnused,
-
-			viewInfo: {
-				extraEditorClassName: opts.viewInfo.extraEditorClassName,
-				disableMonospaceOptimizations: opts.viewInfo.disableMonospaceOptimizations,
-				rulers: opts.viewInfo.rulers,
-				ariaLabel: (accessibilityIsOff ? nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.") : opts.viewInfo.ariaLabel),
-				renderLineNumbers: opts.viewInfo.renderLineNumbers,
-				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
-				cursorSurroundingLines: opts.viewInfo.cursorSurroundingLines,
-				glyphMargin: opts.viewInfo.glyphMargin,
-				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
-				roundedSelection: opts.viewInfo.roundedSelection,
-				overviewRulerLanes: opts.viewInfo.overviewRulerLanes,
-				overviewRulerBorder: opts.viewInfo.overviewRulerBorder,
-				cursorBlinking: opts.viewInfo.cursorBlinking,
-				mouseWheelZoom: opts.viewInfo.mouseWheelZoom,
-				cursorSmoothCaretAnimation: opts.viewInfo.cursorSmoothCaretAnimation,
-				cursorStyle: opts.viewInfo.cursorStyle,
-				cursorWidth: opts.viewInfo.cursorWidth,
-				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
-				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
-				scrollBeyondLastColumn: opts.viewInfo.scrollBeyondLastColumn,
-				smoothScrolling: opts.viewInfo.smoothScrolling,
-				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
-				renderWhitespace: opts.viewInfo.renderWhitespace,
-				renderControlCharacters: opts.viewInfo.renderControlCharacters,
-				fontLigatures: opts.viewInfo.fontLigatures,
-				renderIndentGuides: opts.viewInfo.renderIndentGuides,
-				highlightActiveIndentGuide: opts.viewInfo.highlightActiveIndentGuide,
-				renderLineHighlight: opts.viewInfo.renderLineHighlight,
-				scrollbar: opts.viewInfo.scrollbar,
-				minimap: {
-					enabled: opts.viewInfo.minimap.enabled,
-					side: opts.viewInfo.minimap.side,
-					renderCharacters: opts.viewInfo.minimap.renderCharacters,
-					showSlider: opts.viewInfo.minimap.showSlider,
-					maxColumn: opts.viewInfo.minimap.maxColumn
-				},
-				fixedOverflowWidgets: opts.viewInfo.fixedOverflowWidgets
-			},
-
-			contribInfo: {
-				hover: opts.contribInfo.hover,
-				links: opts.contribInfo.links,
-				contextmenu: opts.contribInfo.contextmenu,
-				quickSuggestions: opts.contribInfo.quickSuggestions,
-				quickSuggestionsDelay: opts.contribInfo.quickSuggestionsDelay,
-				parameterHints: opts.contribInfo.parameterHints,
-				formatOnType: opts.contribInfo.formatOnType,
-				formatOnPaste: opts.contribInfo.formatOnPaste,
-				suggestOnTriggerCharacters: opts.contribInfo.suggestOnTriggerCharacters,
-				acceptSuggestionOnEnter: opts.contribInfo.acceptSuggestionOnEnter,
-				acceptSuggestionOnCommitCharacter: opts.contribInfo.acceptSuggestionOnCommitCharacter,
-				wordBasedSuggestions: opts.contribInfo.wordBasedSuggestions,
-				suggestSelection: opts.contribInfo.suggestSelection,
-				suggestFontSize: opts.contribInfo.suggestFontSize,
-				suggestLineHeight: opts.contribInfo.suggestLineHeight,
-				tabCompletion: opts.contribInfo.tabCompletion,
-				suggest: opts.contribInfo.suggest,
-				gotoLocation: opts.contribInfo.gotoLocation,
-				selectionHighlight: opts.contribInfo.selectionHighlight,
-				occurrencesHighlight: opts.contribInfo.occurrencesHighlight,
-				codeLens: opts.contribInfo.codeLens,
-				folding: opts.contribInfo.folding,
-				foldingStrategy: opts.contribInfo.foldingStrategy,
-				showFoldingControls: opts.contribInfo.showFoldingControls,
-				matchBrackets: opts.contribInfo.matchBrackets,
-				find: opts.contribInfo.find,
-				colorDecorators: opts.contribInfo.colorDecorators,
-				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
-				codeActionsOnSave: opts.contribInfo.codeActionsOnSave,
-				codeActionsOnSaveTimeout: opts.contribInfo.codeActionsOnSaveTimeout
-			}
-		};
-	}
-
-	public static createInternalEditorOptions(env: IEnvironmentalOptions, _opts: IValidatedEditorOptions) {
-
-		let accessibilitySupport: AccessibilitySupport;
-		if (_opts.accessibilitySupport === 'auto') {
-			// The editor reads the `accessibilitySupport` from the environment
-			accessibilitySupport = env.accessibilitySupport;
-		} else if (_opts.accessibilitySupport === 'on') {
-			accessibilitySupport = AccessibilitySupport.Enabled;
-		} else {
-			accessibilitySupport = AccessibilitySupport.Disabled;
-		}
-
-		// Disable some non critical features to get as best performance as possible
-		// See https://github.com/Microsoft/vscode/issues/26730
-		const opts = this._tweakValidatedOptions(_opts, accessibilitySupport);
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: undefined): EditorLayoutInfo {
+		const glyphMargin = options.get<typeof EditorOption.glyphMargin>(EditorOptionId.glyphMargin);
+		const lineNumbersMinChars = options.get<typeof EditorOption.lineNumbersMinChars>(EditorOptionId.lineNumbersMinChars);
+		const rawLineDecorationsWidth = options.get<typeof EditorOption.lineDecorationsWidth>(EditorOptionId.lineDecorationsWidth);
+		const folding = options.get<typeof EditorOption.folding>(EditorOptionId.folding);
+		const minimap = options.get<typeof EditorOption.minimap>(EditorOptionId.minimap);
+		const scrollbar = options.get<typeof EditorOption.scrollbar>(EditorOptionId.scrollbar);
+		const renderLineNumbers = options.get<typeof EditorOption.renderLineNumbers>(EditorOptionId.renderLineNumbers);
 
 		let lineDecorationsWidth: number;
-		if (typeof opts.lineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(opts.lineDecorationsWidth)) {
-			const multiple = parseFloat(opts.lineDecorationsWidth.substr(0, opts.lineDecorationsWidth.length - 2));
+		if (typeof rawLineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(rawLineDecorationsWidth)) {
+			const multiple = parseFloat(rawLineDecorationsWidth.substr(0, rawLineDecorationsWidth.length - 2));
 			lineDecorationsWidth = multiple * env.fontInfo.typicalHalfwidthCharacterWidth;
 		} else {
-			lineDecorationsWidth = _clampedInt(opts.lineDecorationsWidth, 0, 0, 1000);
+			lineDecorationsWidth = _clampedInt(rawLineDecorationsWidth, 0, 0, 1000);
 		}
-		if (opts.contribInfo.folding) {
+		if (folding) {
 			lineDecorationsWidth += 16;
 		}
 
-		const layoutInfo = EditorLayoutProvider.compute({
+		return EditorLayoutInfoComputer.compute({
 			outerWidth: env.outerWidth,
 			outerHeight: env.outerHeight,
-			showGlyphMargin: opts.viewInfo.glyphMargin,
+			showGlyphMargin: glyphMargin,
 			lineHeight: env.fontInfo.lineHeight,
-			showLineNumbers: (opts.viewInfo.renderLineNumbers !== RenderLineNumbersType.Off),
-			lineNumbersMinChars: opts.lineNumbersMinChars,
+			showLineNumbers: (renderLineNumbers.renderType !== RenderLineNumbersType.Off),
+			lineNumbersMinChars: lineNumbersMinChars,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			lineDecorationsWidth: lineDecorationsWidth,
 			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: env.fontInfo.maxDigitWidth,
-			verticalScrollbarWidth: opts.viewInfo.scrollbar.verticalScrollbarSize,
-			horizontalScrollbarHeight: opts.viewInfo.scrollbar.horizontalScrollbarSize,
-			scrollbarArrowSize: opts.viewInfo.scrollbar.arrowSize,
-			verticalScrollbarHasArrows: opts.viewInfo.scrollbar.verticalHasArrows,
-			minimap: opts.viewInfo.minimap.enabled,
-			minimapSide: opts.viewInfo.minimap.side,
-			minimapRenderCharacters: opts.viewInfo.minimap.renderCharacters,
-			minimapMaxColumn: opts.viewInfo.minimap.maxColumn,
+			verticalScrollbarWidth: scrollbar.verticalScrollbarSize,
+			horizontalScrollbarHeight: scrollbar.horizontalScrollbarSize,
+			scrollbarArrowSize: scrollbar.arrowSize,
+			verticalScrollbarHasArrows: scrollbar.verticalHasArrows,
+			minimap: minimap.enabled,
+			minimapSide: minimap.side,
+			minimapRenderCharacters: minimap.renderCharacters,
+			minimapMaxColumn: minimap.maxColumn,
 			pixelRatio: env.pixelRatio
 		});
-
-		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } | null = null;
-		{
-			const wordWrap = opts.wordWrap;
-			const wordWrapColumn = opts.wordWrapColumn;
-			const wordWrapMinified = opts.wordWrapMinified;
-
-			if (accessibilitySupport === AccessibilitySupport.Enabled) {
-				// See https://github.com/Microsoft/vscode/issues/27766
-				// Never enable wrapping when a screen reader is attached
-				// because arrow down etc. will not move the cursor in the way
-				// a screen reader expects.
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: -1
-				};
-			} else if (wordWrapMinified && env.isDominatedByLongLines) {
-				// Force viewport width wrapping if model is dominated by long lines
-				bareWrappingInfo = {
-					isWordWrapMinified: true,
-					isViewportWrapping: true,
-					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
-				};
-			} else if (wordWrap === 'on') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: true,
-					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
-				};
-			} else if (wordWrap === 'bounded') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: true,
-					wrappingColumn: Math.min(Math.max(1, layoutInfo.viewportColumn), wordWrapColumn)
-				};
-			} else if (wordWrap === 'wordWrapColumn') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: wordWrapColumn
-				};
-			} else {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: -1
-				};
-			}
-		}
-
-		const wrappingInfo: EditorWrappingInfo = {
-			inDiffEditor: opts.inDiffEditor,
-			isDominatedByLongLines: env.isDominatedByLongLines,
-			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
-			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
-			wrappingColumn: bareWrappingInfo.wrappingColumn,
-			wrappingIndent: opts.wrappingIndent,
-			wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
-			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
-			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
-		};
-
-		let className = 'monaco-editor';
-		if (opts.viewInfo.extraEditorClassName) {
-			className += ' ' + opts.viewInfo.extraEditorClassName;
-		}
-		if (env.extraEditorClassName) {
-			className += ' ' + env.extraEditorClassName;
-		}
-		if (opts.viewInfo.fontLigatures) {
-			className += ' enable-ligatures';
-		}
-		if (opts.mouseStyle === 'default') {
-			className += ' mouse-default';
-		} else if (opts.mouseStyle === 'copy') {
-			className += ' mouse-copy';
-		}
-
-		return new InternalEditorOptions({
-			canUseLayerHinting: opts.disableLayerHinting ? false : true,
-			pixelRatio: env.pixelRatio,
-			editorClassName: className,
-			lineHeight: env.fontInfo.lineHeight,
-			readOnly: opts.readOnly,
-			accessibilitySupport: accessibilitySupport,
-			multiCursorModifier: opts.multiCursorModifier,
-			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
-			wordSeparators: opts.wordSeparators,
-			autoClosingBrackets: opts.autoClosingBrackets,
-			autoClosingQuotes: opts.autoClosingQuotes,
-			autoClosingOvertype: opts.autoClosingOvertype,
-			autoSurround: opts.autoSurround,
-			autoIndent: opts.autoIndent,
-			useTabStops: opts.useTabStops,
-			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
-			dragAndDrop: opts.dragAndDrop,
-			emptySelectionClipboard: opts.emptySelectionClipboard && env.emptySelectionClipboard,
-			copyWithSyntaxHighlighting: opts.copyWithSyntaxHighlighting,
-			layoutInfo: layoutInfo,
-			fontInfo: env.fontInfo,
-			viewInfo: opts.viewInfo,
-			wrappingInfo: wrappingInfo,
-			contribInfo: opts.contribInfo,
-			showUnused: opts.showUnused,
-		});
 	}
-}
+	public equals(a: EditorLayoutInfo, b: EditorLayoutInfo): boolean {
+		return (
+			a.width === b.width
+			&& a.height === b.height
+			&& a.glyphMarginLeft === b.glyphMarginLeft
+			&& a.glyphMarginWidth === b.glyphMarginWidth
+			&& a.glyphMarginHeight === b.glyphMarginHeight
+			&& a.lineNumbersLeft === b.lineNumbersLeft
+			&& a.lineNumbersWidth === b.lineNumbersWidth
+			&& a.lineNumbersHeight === b.lineNumbersHeight
+			&& a.decorationsLeft === b.decorationsLeft
+			&& a.decorationsWidth === b.decorationsWidth
+			&& a.decorationsHeight === b.decorationsHeight
+			&& a.contentLeft === b.contentLeft
+			&& a.contentWidth === b.contentWidth
+			&& a.contentHeight === b.contentHeight
+			&& a.renderMinimap === b.renderMinimap
+			&& a.minimapLeft === b.minimapLeft
+			&& a.minimapWidth === b.minimapWidth
+			&& a.viewportColumn === b.viewportColumn
+			&& a.verticalScrollbarWidth === b.verticalScrollbarWidth
+			&& a.horizontalScrollbarHeight === b.horizontalScrollbarHeight
+			&& EditorLayoutInfoComputer._equalsOverviewRuler(a.overviewRuler, b.overviewRuler)
+		);
+	}
 
-/**
- * @internal
- */
-export interface IEditorLayoutProviderOpts {
-	readonly outerWidth: number;
-	readonly outerHeight: number;
+	/**
+	 * @internal
+	 */
+	private static _equalsOverviewRuler(a: OverviewRulerPosition, b: OverviewRulerPosition): boolean {
+		return (
+			a.width === b.width
+			&& a.height === b.height
+			&& a.top === b.top
+			&& a.right === b.right
+		);
+	}
 
-	readonly showGlyphMargin: boolean;
-	readonly lineHeight: number;
-
-	readonly showLineNumbers: boolean;
-	readonly lineNumbersMinChars: number;
-	readonly lineNumbersDigitCount: number;
-
-	readonly lineDecorationsWidth: number;
-
-	readonly typicalHalfwidthCharacterWidth: number;
-	readonly maxDigitWidth: number;
-
-	readonly verticalScrollbarWidth: number;
-	readonly verticalScrollbarHasArrows: boolean;
-	readonly scrollbarArrowSize: number;
-	readonly horizontalScrollbarHeight: number;
-
-	readonly minimap: boolean;
-	readonly minimapSide: string;
-	readonly minimapRenderCharacters: boolean;
-	readonly minimapMaxColumn: number;
-	readonly pixelRatio: number;
-}
-
-/**
- * @internal
- */
-export class EditorLayoutProvider {
 	public static compute(_opts: IEditorLayoutProviderOpts): EditorLayoutInfo {
 		const outerWidth = _opts.outerWidth | 0;
 		const outerHeight = _opts.outerHeight | 0;
@@ -2588,300 +2692,169 @@ export class EditorLayoutProvider {
 	}
 }
 
-const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
-const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
-const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace, \'Droid Sans Fallback\'';
+//#endregion
 
-/**
- * @internal
- */
-export const EDITOR_FONT_DEFAULTS = {
-	fontFamily: (
-		platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
-	),
-	fontWeight: 'normal',
-	fontSize: (
-		platform.isMacintosh ? 12 : 14
-	),
-	lineHeight: 0,
-	letterSpacing: 0,
-};
+//#region wrappingInfo
 
-/**
- * @internal
- */
-export const EDITOR_MODEL_DEFAULTS = {
-	tabSize: 4,
-	indentSize: 4,
-	insertSpaces: true,
-	detectIndentation: true,
-	trimAutoWhitespace: true,
-	largeFileOptimizations: true
-};
-
-/**
- * @internal
- */
-export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
-	inDiffEditor: false,
-	wordSeparators: USUAL_WORD_SEPARATORS,
-	lineNumbersMinChars: 5,
-	lineDecorationsWidth: 10,
-	readOnly: false,
-	mouseStyle: 'text',
-	disableLayerHinting: false,
-	automaticLayout: false,
-	wordWrap: 'off',
-	wordWrapColumn: 80,
-	wordWrapMinified: true,
-	wrappingIndent: WrappingIndent.Same,
-	wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
-	wordWrapBreakAfterCharacters: ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
-	wordWrapBreakObtrusiveCharacters: '.',
-	autoClosingBrackets: 'languageDefined',
-	autoClosingQuotes: 'languageDefined',
-	autoClosingOvertype: 'auto',
-	autoSurround: 'languageDefined',
-	autoIndent: true,
-	dragAndDrop: true,
-	emptySelectionClipboard: true,
-	copyWithSyntaxHighlighting: true,
-	useTabStops: true,
-	multiCursorModifier: 'altKey',
-	multiCursorMergeOverlapping: true,
-	accessibilitySupport: 'auto',
-	showUnused: true,
-
-	viewInfo: {
-		extraEditorClassName: '',
-		disableMonospaceOptimizations: false,
-		rulers: [],
-		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
-		renderLineNumbers: RenderLineNumbersType.On,
-		renderCustomLineNumbers: null,
-		cursorSurroundingLines: 0,
-		glyphMargin: true,
-		revealHorizontalRightPadding: 30,
-		roundedSelection: true,
-		overviewRulerLanes: 2,
-		overviewRulerBorder: true,
-		cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
-		mouseWheelZoom: false,
-		cursorSmoothCaretAnimation: false,
-		cursorStyle: TextEditorCursorStyle.Line,
-		cursorWidth: 0,
-		hideCursorInOverviewRuler: false,
-		scrollBeyondLastLine: true,
-		scrollBeyondLastColumn: 5,
-		smoothScrolling: false,
-		stopRenderingLineAfter: 10000,
-		renderWhitespace: 'none',
-		renderControlCharacters: false,
-		fontLigatures: false,
-		renderIndentGuides: true,
-		highlightActiveIndentGuide: true,
-		renderLineHighlight: 'line',
-		scrollbar: {
-			vertical: ScrollbarVisibility.Auto,
-			horizontal: ScrollbarVisibility.Auto,
-			arrowSize: 11,
-			useShadows: true,
-			verticalHasArrows: false,
-			horizontalHasArrows: false,
-			horizontalScrollbarSize: 10,
-			horizontalSliderSize: 10,
-			verticalScrollbarSize: 14,
-			verticalSliderSize: 14,
-			handleMouseWheel: true,
-			mouseWheelScrollSensitivity: 1,
-			fastScrollSensitivity: 5,
-		},
-		minimap: {
-			enabled: true,
-			side: 'right',
-			showSlider: 'mouseover',
-			renderCharacters: true,
-			maxColumn: 120
-		},
-		fixedOverflowWidgets: false,
-	},
-
-	contribInfo: {
-		hover: {
-			enabled: true,
-			delay: 300,
-			sticky: true
-		},
-		links: true,
-		contextmenu: true,
-		quickSuggestions: { other: true, comments: false, strings: false },
-		quickSuggestionsDelay: 10,
-		parameterHints: {
-			enabled: true,
-			cycle: false
-		},
-		formatOnType: false,
-		formatOnPaste: false,
-		suggestOnTriggerCharacters: true,
-		acceptSuggestionOnEnter: 'on',
-		acceptSuggestionOnCommitCharacter: true,
-		wordBasedSuggestions: true,
-		suggestSelection: 'recentlyUsed',
-		suggestFontSize: 0,
-		suggestLineHeight: 0,
-		tabCompletion: 'off',
-		suggest: {
-			filterGraceful: true,
-			snippets: 'inline',
-			snippetsPreventQuickSuggestions: true,
-			localityBonus: false,
-			shareSuggestSelections: false,
-			showIcons: true,
-			maxVisibleSuggestions: 12,
-			filteredTypes: Object.create(null)
-		},
-		gotoLocation: {
-			multiple: 'peek'
-		},
-		selectionHighlight: true,
-		occurrencesHighlight: true,
-		codeLens: true,
-		folding: true,
-		foldingStrategy: 'auto',
-		showFoldingControls: 'mouseover',
-		matchBrackets: true,
-		find: {
-			seedSearchStringFromSelection: true,
-			autoFindInSelection: false,
-			globalFindClipboard: false,
-			addExtraSpaceOnTop: true
-		},
-		colorDecorators: true,
-		lightbulbEnabled: true,
-		codeActionsOnSave: {},
-		codeActionsOnSaveTimeout: 750
-	},
-};
-
-export interface IRawEditorOptionsBag {
-	[key: string]: any;
+export interface EditorWrappingInfo {
+	readonly isDominatedByLongLines: boolean;
+	readonly isWordWrapMinified: boolean;
+	readonly isViewportWrapping: boolean;
+	readonly wrappingColumn: number;
 }
 
-/**
- * @internal
- */
-export class RawEditorOptions {
-	private readonly _values: any[] = [];
-	public _read<T>(id: EditorOptionId): T | undefined {
-		return this._values[id];
+class EditorWrappingInfoComputer extends BaseEditorOption<undefined, undefined, EditorWrappingInfo> {
+	public mix(a: undefined, b: undefined): undefined {
+		return undefined;
 	}
-	public _write<T>(id: EditorOptionId, value: T | undefined): void {
-		this._values[id] = value;
+	public validate(input: undefined): undefined {
+		return undefined;
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: undefined): EditorWrappingInfo {
+		const wordWrap = options.get<typeof EditorOption.wordWrap>(EditorOptionId.wordWrap);
+		const wordWrapColumn = options.get<typeof EditorOption.wordWrapColumn>(EditorOptionId.wordWrapColumn);
+		const wordWrapMinified = options.get<typeof EditorOption.wordWrapMinified>(EditorOptionId.wordWrapMinified);
+		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+		const accessibilitySupport = options.get<typeof EditorOption.accessibilitySupport>(EditorOptionId.accessibilitySupport);
+
+		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } | null = null;
+		{
+			if (accessibilitySupport === AccessibilitySupport.Enabled) {
+				// See https://github.com/Microsoft/vscode/issues/27766
+				// Never enable wrapping when a screen reader is attached
+				// because arrow down etc. will not move the cursor in the way
+				// a screen reader expects.
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: false,
+					wrappingColumn: -1
+				};
+			} else if (wordWrapMinified && env.isDominatedByLongLines) {
+				// Force viewport width wrapping if model is dominated by long lines
+				bareWrappingInfo = {
+					isWordWrapMinified: true,
+					isViewportWrapping: true,
+					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
+				};
+			} else if (wordWrap === 'on') {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: true,
+					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
+				};
+			} else if (wordWrap === 'bounded') {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: true,
+					wrappingColumn: Math.min(Math.max(1, layoutInfo.viewportColumn), wordWrapColumn)
+				};
+			} else if (wordWrap === 'wordWrapColumn') {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: false,
+					wrappingColumn: wordWrapColumn
+				};
+			} else {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: false,
+					wrappingColumn: -1
+				};
+			}
+		}
+
+		return {
+			isDominatedByLongLines: env.isDominatedByLongLines,
+			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
+			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
+			wrappingColumn: bareWrappingInfo.wrappingColumn,
+		};
+	}
+	public equals(a: EditorWrappingInfo, b: EditorWrappingInfo): boolean {
+		return (
+			a.isDominatedByLongLines === b.isDominatedByLongLines
+			&& a.isWordWrapMinified === b.isWordWrapMinified
+			&& a.isViewportWrapping === b.isViewportWrapping
+			&& a.wrappingColumn === b.wrappingColumn
+		);
 	}
 }
 
-/**
- * @internal
- */
-export class ValidatedEditorOptions {
-	private readonly _values: any[] = [];
-	public _read<T>(option: EditorOptionId): T {
-		return this._values[option];
-	}
-	public _write<T>(option: EditorOptionId, value: T): void {
-		this._values[option] = value;
-	}
-}
-
-/**
- * @internal
- */
-export class ComputedEditorOptions {
-	private readonly _values: any[] = [];
-	public _read<T>(id: EditorOptionId): T {
-		return this._values[id];
-	}
-	public _write<T>(id: EditorOptionId, value: T): void {
-		this._values[id] = value;
-	}
-}
-
-/**
- * @internal
- */
-export class ChangedEditorOptions {
-	private readonly _values: boolean[] = [];
-	public get(id: EditorOptionId): boolean {
-		return this._values[id];
-	}
-	public _write(id: EditorOptionId, value: boolean): void {
-		this._values[id] = value;
-	}
-}
-
-export interface IEditorOption<T1, T2 = T1, T3 = T2> {
-	readonly id: EditorOptionId;
-	readonly name: string;
-	readonly defaultValue: T1;
-	read(options: IRawEditorOptionsBag): T1 | undefined;
-	mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined;
-	validate(input: T1 | undefined): T2;
-	compute(value: T2): T3;
-	equals(a: T3, b: T3): boolean;
-}
-
-class BooleanEditorOption implements IEditorOption<boolean> {
-	public readonly id: EditorOptionId;
-	public readonly name: string;
-	public readonly defaultValue: boolean;
-
-	constructor(id: EditorOptionId, name: string, defaultValue: boolean) {
-		this.id = id;
-		this.name = name;
-		this.defaultValue = defaultValue;
-	}
-
-	public read(options: IRawEditorOptionsBag): boolean | undefined {
-		return options[this.name];
-	}
-
-	public mix(a: boolean | undefined, b: boolean | undefined): boolean | undefined {
-		return (typeof b !== 'undefined' ? b : a);
-	}
-
-	public validate(input: boolean | undefined): boolean {
-		return _boolean(input, this.defaultValue);
-	}
-
-	public compute(value: boolean): boolean {
-		return value;
-	}
-
-	public equals(a: boolean, b: boolean): boolean {
-		return (a === b);
-	}
-}
-
-/**
- * @internal
- */
-export const editorOptionsRegistry: IEditorOption<any>[] = [];
-
-function registerEditorOption<T1, T2, T3>(option: IEditorOption<T1, T2, T3>): IEditorOption<T1, T2, T3> {
-	editorOptionsRegistry[option.id] = option;
-	return option;
-}
+//#endregion
 
 export const enum EditorOptionId {
+	accessibilitySupport,
+	ariaLabel,
+	fastScrollSensitivity,
+	folding,
+	glyphMargin,
+	inDiffEditor,
+	lineDecorationsWidth,
+	lineNumbersMinChars,
+	minimap,
+	mouseWheelScrollSensitivity,
 	renderFinalNewline,
+	renderLineNumbers,
+	scrollbar,
 	selectionClipboard,
 	selectOnLineNumbers,
+	wordWrap,
+	wordWrapBreakAfterCharacters,
+	wordWrapBreakBeforeCharacters,
+	wordWrapBreakObtrusiveCharacters,
+	wordWrapColumn,
+	wordWrapMinified,
+	wrappingIndent,
+
+	layoutInfo,
+	wrappingInfo,
 }
 
 export const EditorOption = {
-	renderFinalNewline: registerEditorOption(new BooleanEditorOption(EditorOptionId.renderFinalNewline, 'renderFinalNewline', true)),
-	selectionClipboard: registerEditorOption(new BooleanEditorOption(EditorOptionId.selectionClipboard, 'selectionClipboard', true)),
-	selectOnLineNumbers: registerEditorOption(new BooleanEditorOption(EditorOptionId.selectOnLineNumbers, 'selectOnLineNumbers', true)),
+	accessibilitySupport: registerEditorOption(new EditorAccessibilitySupportOption(EditorOptionId.accessibilitySupport, 'accessibilitySupport', 'auto')),
+	ariaLabel: registerEditorOption(new EditorAriaLabel(EditorOptionId.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content"), [EditorOptionId.accessibilitySupport])),
+	fastScrollSensitivity: registerEditorOption(new EditorFloatOption(EditorOptionId.fastScrollSensitivity, 'fastScrollSensitivity', 5, x => (x <= 0 ? 5 : x))),
+	folding: registerEditorOption(new EditorBooleanOption(EditorOptionId.folding, 'folding', true)),
+	glyphMargin: registerEditorOption(new EditorBooleanOption(EditorOptionId.glyphMargin, 'glyphMargin', true)),
+	inDiffEditor: registerEditorOption(new EditorBooleanOption(EditorOptionId.inDiffEditor, 'inDiffEditor', false)),
+	lineDecorationsWidth: registerEditorOption(new EditorPassthroughOption<number | string>(EditorOptionId.lineDecorationsWidth, 'lineDecorationsWidth', 10)),
+	lineNumbersMinChars: registerEditorOption(new EditorIntOption(EditorOptionId.lineNumbersMinChars, 'lineNumbersMinChars', 5, 1, 10)),
+	minimap: registerEditorOption(new EditorMinimapOption(EditorOptionId.minimap, 'minimap', {
+		enabled: true,
+		side: 'right',
+		showSlider: 'mouseover',
+		renderCharacters: true,
+		maxColumn: 120,
+	})),
+	mouseWheelScrollSensitivity: registerEditorOption(new EditorFloatOption(EditorOptionId.mouseWheelScrollSensitivity, 'mouseWheelScrollSensitivity', 1, x => (x === 0 ? 1 : x))),
+	renderFinalNewline: registerEditorOption(new EditorBooleanOption(EditorOptionId.renderFinalNewline, 'renderFinalNewline', true)),
+	renderLineNumbers: registerEditorOption(new EditorRenderLineNumbersOption(EditorOptionId.renderLineNumbers, 'lineNumbers', { renderType: RenderLineNumbersType.On, renderFn: null })),
+	scrollbar: registerEditorOption(new EditorScrollbarOption(EditorOptionId.scrollbar, 'scrollbar', {
+		vertical: ScrollbarVisibility.Auto,
+		horizontal: ScrollbarVisibility.Auto,
+		arrowSize: 11,
+		useShadows: true,
+		verticalHasArrows: false,
+		horizontalHasArrows: false,
+		horizontalScrollbarSize: 10,
+		horizontalSliderSize: 10,
+		verticalScrollbarSize: 14,
+		verticalSliderSize: 14,
+		handleMouseWheel: true,
+	})),
+	selectionClipboard: registerEditorOption(new EditorBooleanOption(EditorOptionId.selectionClipboard, 'selectionClipboard', true)),
+	selectOnLineNumbers: registerEditorOption(new EditorBooleanOption(EditorOptionId.selectOnLineNumbers, 'selectOnLineNumbers', true)),
+	wordWrap: registerEditorOption(new EditorEnumOption<'off' | 'on' | 'wordWrapColumn' | 'bounded'>(EditorOptionId.wordWrap, 'wordWrap', 'off', ['off', 'on', 'wordWrapColumn', 'bounded'], x => x)),
+	wordWrapBreakAfterCharacters: registerEditorOption(new EditorStringOption(EditorOptionId.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters', ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣')),
+	wordWrapBreakBeforeCharacters: registerEditorOption(new EditorStringOption(EditorOptionId.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters', '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋')),
+	wordWrapBreakObtrusiveCharacters: registerEditorOption(new EditorStringOption(EditorOptionId.wordWrapBreakObtrusiveCharacters, 'wordWrapBreakObtrusiveCharacters', '.')),
+	wordWrapColumn: registerEditorOption(new EditorIntOption(EditorOptionId.wordWrapColumn, 'wordWrapColumn', 80, 1, Constants.MAX_SAFE_SMALL_INTEGER)),
+	wordWrapMinified: registerEditorOption(new EditorBooleanOption(EditorOptionId.wordWrapMinified, 'wordWrapMinified', true)),
+	wrappingIndent: registerEditorOption(new EditorEnumOption<'none' | 'same' | 'indent' | 'deepIndent', WrappingIndent>(EditorOptionId.wrappingIndent, 'wrappingIndent', 'same', ['none', 'same', 'indent', 'deepIndent'], _wrappingIndentFromString)),
+
+	// Leave these at the end!
+	layoutInfo: registerEditorOption(new EditorLayoutInfoComputer(EditorOptionId.layoutInfo, 'layoutInfo', undefined, [EditorOptionId.glyphMargin, EditorOptionId.lineDecorationsWidth, EditorOptionId.folding, EditorOptionId.minimap, EditorOptionId.scrollbar, EditorOptionId.renderLineNumbers])),
+	wrappingInfo: registerEditorOption(new EditorWrappingInfoComputer(EditorOptionId.wrappingInfo, 'wrappingInfo', undefined, [EditorOptionId.wordWrap, EditorOptionId.wordWrapColumn, EditorOptionId.wordWrapMinified, EditorOptionId.layoutInfo, EditorOptionId.accessibilitySupport])),
 };
 
 export type ComputedEditorOptionValue<T extends IEditorOption<any, any, any>> = T extends IEditorOption<any, any, infer R> ? R : never;

@@ -6,7 +6,7 @@
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { IConfigurationChangedEvent, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, EditorOptionId } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -60,20 +60,26 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		} else {
 			const conf = this.configuration.editor;
+			const options = this.configuration.options;
+			const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
+			const wordWrapBreakAfterCharacters = options.get<typeof EditorOption.wordWrapBreakAfterCharacters>(EditorOptionId.wordWrapBreakAfterCharacters);
+			const wordWrapBreakBeforeCharacters = options.get<typeof EditorOption.wordWrapBreakBeforeCharacters>(EditorOptionId.wordWrapBreakBeforeCharacters);
+			const wordWrapBreakObtrusiveCharacters = options.get<typeof EditorOption.wordWrapBreakObtrusiveCharacters>(EditorOptionId.wordWrapBreakObtrusiveCharacters);
+			const wrappingIndent = options.get<typeof EditorOption.wrappingIndent>(EditorOptionId.wrappingIndent);
 
 			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-				conf.wrappingInfo.wordWrapBreakBeforeCharacters,
-				conf.wrappingInfo.wordWrapBreakAfterCharacters,
-				conf.wrappingInfo.wordWrapBreakObtrusiveCharacters
+				wordWrapBreakBeforeCharacters,
+				wordWrapBreakAfterCharacters,
+				wordWrapBreakObtrusiveCharacters
 			);
 
 			this.lines = new SplitLinesCollection(
 				this.model,
 				hardWrappingLineMapperFactory,
 				this.model.getOptions().tabSize,
-				conf.wrappingInfo.wrappingColumn,
+				wrappingInfo.wrappingColumn,
 				conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth,
-				conf.wrappingInfo.wrappingIndent
+				wrappingIndent
 			);
 		}
 
@@ -147,8 +153,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		let restorePreviousViewportStart = false;
 
 		const conf = this.configuration.editor;
+		const options = this.configuration.options;
+		const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
+		const wrappingIndent = options.get<typeof EditorOption.wrappingIndent>(EditorOptionId.wrappingIndent);
 
-		if (this.lines.setWrappingSettings(conf.wrappingInfo.wrappingIndent, conf.wrappingInfo.wrappingColumn, conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth)) {
+		if (this.lines.setWrappingSettings(wrappingIndent, wrappingInfo.wrappingColumn, conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());

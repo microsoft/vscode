@@ -11,6 +11,7 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -27,11 +28,13 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		super();
 		this._context = context;
 		this._primaryLineNumber = 0;
+		const options = this._context.configuration.options;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 		this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
-		const wrappingColumn = this._context.configuration.editor.wrappingInfo.wrappingColumn;
+		const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
+		const wrappingColumn = wrappingInfo.wrappingColumn;
 		this._maxIndentLeft = wrappingColumn === -1 ? -1 : (wrappingColumn * this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
 
 		this._renderResult = null;
@@ -48,6 +51,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		const options = this._context.configuration.options;
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
@@ -58,8 +62,9 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 			this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
 		}
-		if (e.wrappingInfo || e.fontInfo) {
-			const wrappingColumn = this._context.configuration.editor.wrappingInfo.wrappingColumn;
+		if (e.hasChanged(EditorOptionId.wrappingInfo) || e.fontInfo) {
+			const wrappingInfo = options.get<typeof EditorOption.wrappingInfo>(EditorOptionId.wrappingInfo);
+			const wrappingColumn = wrappingInfo.wrappingColumn;
 			this._maxIndentLeft = wrappingColumn === -1 ? -1 : (wrappingColumn * this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
 		}
 		return true;

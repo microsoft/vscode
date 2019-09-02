@@ -525,7 +525,9 @@ export class DiffReview extends Disposable {
 	private _render(): void {
 
 		const originalOpts = this._diffEditor.getOriginalEditor().getConfiguration();
+		const originalOptions = this._diffEditor.getOriginalEditor().getOptions();
 		const modifiedOpts = this._diffEditor.getModifiedEditor().getConfiguration();
+		const modifiedOptions = this._diffEditor.getModifiedEditor().getOptions();
 
 		const originalModel = this._diffEditor.getOriginalEditor().getModel();
 		const modifiedModel = this._diffEditor.getModifiedEditor().getModel();
@@ -620,7 +622,7 @@ export class DiffReview extends Disposable {
 		let modLine = minModifiedLine;
 		for (let i = 0, len = diffs.length; i < len; i++) {
 			const diffEntry = diffs[i];
-			DiffReview._renderSection(container, diffEntry, modLine, this._width, originalOpts, originalModel, originalModelOpts, modifiedOpts, modifiedModel, modifiedModelOpts);
+			DiffReview._renderSection(container, diffEntry, modLine, this._width, originalOpts, originalOptions, originalModel, originalModelOpts, modifiedOpts, modifiedOptions, modifiedModel, modifiedModelOpts);
 			if (diffEntry.modifiedLineStart !== 0) {
 				modLine = diffEntry.modifiedLineEnd;
 			}
@@ -633,8 +635,8 @@ export class DiffReview extends Disposable {
 
 	private static _renderSection(
 		dest: HTMLElement, diffEntry: DiffEntry, modLine: number, width: number,
-		originalOpts: editorOptions.InternalEditorOptions, originalModel: ITextModel, originalModelOpts: TextModelResolvedOptions,
-		modifiedOpts: editorOptions.InternalEditorOptions, modifiedModel: ITextModel, modifiedModelOpts: TextModelResolvedOptions
+		originalOpts: editorOptions.InternalEditorOptions, originalOptions: editorOptions.IComputedEditorOptions, originalModel: ITextModel, originalModelOpts: TextModelResolvedOptions,
+		modifiedOpts: editorOptions.InternalEditorOptions, modifiedOptions: editorOptions.IComputedEditorOptions, modifiedModel: ITextModel, modifiedModelOpts: TextModelResolvedOptions
 	): void {
 
 		const type = diffEntry.getType();
@@ -665,8 +667,11 @@ export class DiffReview extends Disposable {
 			originalLineEnd - originalLineStart
 		);
 
-		const originalLineNumbersWidth = originalOpts.layoutInfo.glyphMarginWidth + originalOpts.layoutInfo.lineNumbersWidth;
-		const modifiedLineNumbersWidth = 10 + modifiedOpts.layoutInfo.glyphMarginWidth + modifiedOpts.layoutInfo.lineNumbersWidth;
+		const originalLayoutInfo = originalOptions.get<typeof editorOptions.EditorOption.layoutInfo>(editorOptions.EditorOptionId.layoutInfo);
+		const originalLineNumbersWidth = originalLayoutInfo.glyphMarginWidth + originalLayoutInfo.lineNumbersWidth;
+
+		const modifiedLayoutInfo = modifiedOptions.get<typeof editorOptions.EditorOption.layoutInfo>(editorOptions.EditorOptionId.layoutInfo);
+		const modifiedLineNumbersWidth = 10 + modifiedLayoutInfo.glyphMarginWidth + modifiedLayoutInfo.lineNumbersWidth;
 
 		for (let i = 0; i <= cnt; i++) {
 			const originalLine = (originalLineStart === 0 ? 0 : originalLineStart + i);

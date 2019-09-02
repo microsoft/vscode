@@ -352,6 +352,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		remeasureFonts: remeasureFonts,
 
 		// enums
+		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
@@ -372,6 +373,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		EditorOptionId: standaloneEnums.EditorOptionId,
 
 		// classes
+		BaseEditorOption: <any>editorOptions.BaseEditorOption,
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,
 		BareFontInfo: <any>BareFontInfo,
 		FontInfo: <any>FontInfo,

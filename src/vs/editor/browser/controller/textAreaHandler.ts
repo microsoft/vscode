@@ -16,7 +16,7 @@ import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { RenderLineNumbersType, EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
@@ -119,11 +119,13 @@ export class TextAreaHandler extends ViewPart {
 		this._viewHelper = viewHelper;
 
 		const conf = this._context.configuration.editor;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
 
 		this._accessibilitySupport = conf.accessibilitySupport;
-		this._contentLeft = conf.layoutInfo.contentLeft;
-		this._contentWidth = conf.layoutInfo.contentWidth;
-		this._contentHeight = conf.layoutInfo.contentHeight;
+		this._contentLeft = layoutInfo.contentLeft;
+		this._contentWidth = layoutInfo.contentWidth;
+		this._contentHeight = layoutInfo.contentHeight;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
 		this._fontInfo = conf.fontInfo;
@@ -143,7 +145,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
+		this.textArea.setAttribute('aria-label', options.get<typeof EditorOption.ariaLabel>(EditorOptionId.ariaLabel));
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-multiline', 'true');
 		this.textArea.setAttribute('aria-haspopup', 'false');
@@ -371,22 +373,24 @@ export class TextAreaHandler extends ViewPart {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const conf = this._context.configuration.editor;
+		const options = this._context.configuration.options;
 
 		if (e.fontInfo) {
 			this._fontInfo = conf.fontInfo;
 		}
 		if (e.viewInfo) {
-			this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
+			this.textArea.setAttribute('aria-label', options.get<typeof EditorOption.ariaLabel>(EditorOptionId.ariaLabel));
 		}
-		if (e.layoutInfo) {
-			this._contentLeft = conf.layoutInfo.contentLeft;
-			this._contentWidth = conf.layoutInfo.contentWidth;
-			this._contentHeight = conf.layoutInfo.contentHeight;
+		if (e.hasChanged(EditorOptionId.layoutInfo)) {
+			const layoutInfo = options.get<typeof EditorOption.layoutInfo>(EditorOptionId.layoutInfo);
+			this._contentLeft = layoutInfo.contentLeft;
+			this._contentWidth = layoutInfo.contentWidth;
+			this._contentHeight = layoutInfo.contentHeight;
 		}
 		if (e.lineHeight) {
 			this._lineHeight = conf.lineHeight;
 		}
-		if (e.accessibilitySupport) {
+		if (e.hasChanged(EditorOptionId.accessibilitySupport)) {
 			this._accessibilitySupport = conf.accessibilitySupport;
 			this._textAreaInput.writeScreenReaderContent('strategy changed');
 		}
@@ -544,10 +548,13 @@ export class TextAreaHandler extends ViewPart {
 		tac.setWidth(1);
 		tac.setHeight(1);
 
+		const options = this._context.configuration.options;
+
 		if (this._context.configuration.editor.viewInfo.glyphMargin) {
 			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.OUTER_CLASS_NAME);
 		} else {
-			if (this._context.configuration.editor.viewInfo.renderLineNumbers !== RenderLineNumbersType.Off) {
+			const renderLineNumbers = options.get<typeof EditorOption.renderLineNumbers>(EditorOptionId.renderLineNumbers);
+			if (renderLineNumbers.renderType !== RenderLineNumbersType.Off) {
 				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
 			} else {
 				tac.setClassName('monaco-editor-background textAreaCover');
