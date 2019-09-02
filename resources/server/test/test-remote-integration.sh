@@ -28,12 +28,16 @@ REMOTE_VSCODE=$AUTHORITY$EXT_PATH
 # Figure out which Electron to use for running tests
 if [ -z "$INTEGRATION_TEST_ELECTRON_PATH" ]
 then
+	# code.sh makes sure Test Extensions are compiled
 	INTEGRATION_TEST_ELECTRON_PATH="./scripts/code.sh"
 
 	# No extra arguments when running out of sources
 	EXTRA_INTEGRATION_TEST_ARGUMENTS=""
 else
 	echo "Using $INTEGRATION_TEST_ELECTRON_PATH as Electron path"
+
+	# Compile Test Extensions
+	yarn gulp compile-extension:vscode-test-resolver
 
 	# Running from a build, we need to enable the vscode-test-resolver extension
 	EXTRA_INTEGRATION_TEST_ARGUMENTS="--extensions-dir=$EXT_PATH --enable-proposed-api=vscode.vscode-test-resolver"

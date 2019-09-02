@@ -9,7 +9,7 @@ IF "%1" == "" (
 	set EXT_PATH=%CD:\=/%/extensions
 
 	:: Download nodejs executable for remote
-	yarn gulp node
+	call yarn gulp node
 ) else (
 	set AUTHORITY=%1
 	set EXT_PATH=%2
@@ -29,6 +29,9 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	set EXTRA_INTEGRATION_TEST_ARGUMENTS=""
 ) else (
  	echo "Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path"
+
+	:: Compile Test Extensions
+	call yarn gulp compile-extension:vscode-test-resolver
 
 	:: Running from a build, we need to enable the vscode-test-resolver extension
 	set EXTRA_INTEGRATION_TEST_ARGUMENTS="--extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver"
