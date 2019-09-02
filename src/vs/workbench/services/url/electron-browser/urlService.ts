@@ -29,10 +29,6 @@ export class RelayURLService extends URLService implements IURLHandler {
 	}
 
 	async open(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
-		if (options && options.openExternal) {
-			return false;
-		}
-
 		if (resource.scheme !== product.urlProtocol) {
 			return false;
 		}
