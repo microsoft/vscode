@@ -23,6 +23,9 @@ else
 	yarn gulp compile-extension:vscode-colorize-tests
 	yarn gulp compile-extension:markdown-language-features
 	yarn gulp compile-extension:emmet
+	yarn gulp compile-extension:css-language-features-server
+	yarn gulp compile-extension:html-language-features-server
+	yarn gulp compile-extension:json-language-features-server
 
 	echo "Using $INTEGRATION_TEST_ELECTRON_PATH as Electron path"
 fi

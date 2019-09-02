@@ -14,6 +14,11 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call yarn gulp compile-extension:vscode-colorize-tests
 	call yarn gulp compile-extension:markdown-language-features
 	call yarn gulp compile-extension:emmet
+	call yarn gulp compile-extension:css-language-features-server
+	call yarn gulp compile-extension:html-language-features-server
+	call yarn gulp compile-extension:json-language-features-server
+
+	echo "Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path"
 )
 
 :: Integration & performance tests in AMD
