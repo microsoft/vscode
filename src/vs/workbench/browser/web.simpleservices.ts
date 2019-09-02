@@ -41,7 +41,7 @@ export class SimpleUpdateService implements IUpdateService {
 	_serviceBrand: undefined;
 
 	onStateChange = Event.None;
-	state: State;
+	state!: State;
 
 	checkForUpdates(context: any): Promise<void> {
 		return Promise.resolve(undefined);

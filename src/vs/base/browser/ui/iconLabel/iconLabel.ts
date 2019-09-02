@@ -27,11 +27,11 @@ export interface IIconLabelValueOptions {
 }
 
 class FastLabelNode {
-	private disposed: boolean;
-	private _textContent: string;
-	private _className: string;
-	private _title: string;
-	private _empty: boolean;
+	private disposed: boolean | undefined;
+	private _textContent: string | undefined;
+	private _className: string | undefined;
+	private _title: string | undefined;
+	private _empty: boolean | undefined;
 
 	constructor(private _element: HTMLElement) {
 	}
@@ -89,7 +89,7 @@ export class IconLabel extends Disposable {
 	private domNode: FastLabelNode;
 	private labelDescriptionContainer: FastLabelNode;
 	private labelNode: FastLabelNode | HighlightedLabel;
-	private descriptionNode: FastLabelNode | HighlightedLabel;
+	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {

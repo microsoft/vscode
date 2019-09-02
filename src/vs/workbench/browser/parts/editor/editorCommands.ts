@@ -263,7 +263,10 @@ function registerDiffEditorCommands(): void {
 		const candidates = [editorService.activeControl, ...editorService.visibleControls].filter(e => e instanceof TextDiffEditor);
 
 		if (candidates.length > 0) {
-			next ? (<TextDiffEditor>candidates[0]).getDiffNavigator().next() : (<TextDiffEditor>candidates[0]).getDiffNavigator().previous();
+			const navigator = (<TextDiffEditor>candidates[0]).getDiffNavigator();
+			if (navigator) {
+				next ? navigator.next() : navigator.previous();
+			}
 		}
 	}
 

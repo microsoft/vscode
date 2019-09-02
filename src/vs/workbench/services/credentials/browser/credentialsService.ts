@@ -60,7 +60,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
 
-	private _credentials: ICredential[];
+	private _credentials: ICredential[] | undefined;
 	private get credentials(): ICredential[] {
 		if (!this._credentials) {
 			try {

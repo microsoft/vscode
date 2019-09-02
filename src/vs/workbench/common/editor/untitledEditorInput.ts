@@ -23,8 +23,8 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
-	private cachedModel: UntitledEditorModel | null;
-	private modelResolve: Promise<UntitledEditorModel & IResolvedTextEditorModel> | null;
+	private cachedModel: UntitledEditorModel | null = null;
+	private modelResolve: Promise<UntitledEditorModel & IResolvedTextEditorModel> | null = null;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidModelChangeContent: Event<void> = this._onDidModelChangeContent.event;

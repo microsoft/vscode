@@ -57,7 +57,7 @@ export abstract class TitleControl extends Themable {
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
 
-	protected editorActionsToolbar: ToolBar;
+	private editorActionsToolbar: ToolBar;
 
 	private resourceContext: ResourceContextKey;
 	private editorPinnedContext: IContextKey<boolean>;
