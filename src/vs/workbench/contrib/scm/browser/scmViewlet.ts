@@ -243,7 +243,7 @@ export class MainPanel extends ViewletPanel {
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false
 		});
@@ -848,7 +848,7 @@ export class RepositoryPanel extends ViewletPanel {
 			new ResourceRenderer(this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
+		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Repo`, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
 			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
 			horizontalScrolling: false
@@ -1104,7 +1104,7 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 	}
 
 	private readonly _onDidChangeRepositories = new Emitter<void>();
-	private readonly onDidFinishStartup = Event.once(Event.debounce(this._onDidChangeRepositories.event, () => null, 1000));
+	private readonly _onHaveChangedRepositories = Event.debounce(this._onDidChangeRepositories.event, () => null, 1000);
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -1135,8 +1135,9 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 			}
 		}));
 
-		this._register(this.onDidFinishStartup(this.onAfterStartup, this));
+		this._register(Event.once(this._onHaveChangedRepositories)(this.onAfterStartup, this));
 		this._register(this.viewsModel.onDidRemove(this.onDidHideView, this));
+		this._register(contextService.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this));
 	}
 
 	create(parent: HTMLElement): void {
@@ -1219,6 +1220,16 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 				this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
 			}
 		});
+	}
+
+	private onDidChangeWorkspaceFolders(): void {
+		Event.once(this._onHaveChangedRepositories)(this.onHaveChangedWorkspaceFolders, this);
+	}
+
+	private onHaveChangedWorkspaceFolders(): void {
+		if (this.repositoryCount > 1) {
+			this.viewsModel.setVisible(MainPanel.ID, true);
+		}
 	}
 
 	focus(): void {

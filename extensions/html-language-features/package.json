@@ -32,6 +32,15 @@
       "type": "object",
       "title": "HTML",
       "properties": {
+        "html.customData": {
+          "type": "array",
+          "markdownDescription": "%html.customData.desc%",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource"
+        },
         "html.experimental.customData": {
           "type": "array",
           "description": "A list of JSON file paths that define custom tags, properties and other HTML syntax constructs. Only workspace folder setting will be read.",
@@ -39,7 +48,8 @@
           "items": {
             "type": "string"
           },
-          "scope": "resource"
+          "scope": "resource",
+          "deprecationMessage": "This setting is no longe experimental. Use `html.customData` instead."
         },
         "html.format.enable": {
           "type": "boolean",

@@ -64,7 +64,7 @@ type TelemetryActivationEventFragment = {
 
 export abstract class AbstractExtHostExtensionService implements ExtHostExtensionServiceShape {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 7000;
 
@@ -767,7 +767,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 export const IExtHostExtensionService = createDecorator<IExtHostExtensionService>('IExtHostExtensionService');
 
 export interface IExtHostExtensionService extends AbstractExtHostExtensionService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	initialize(): Promise<void>;
 	isActivated(extensionId: ExtensionIdentifier): boolean;
 	activateByIdWithErrors(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;

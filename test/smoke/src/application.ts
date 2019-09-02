@@ -69,7 +69,7 @@ export class Application {
 		await this.code.waitForElement('.explorer-folders-view');
 
 		if (expectWalkthroughPart) {
-			await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+			await this.code.waitForActiveElement(`.editor-instance[data-editor-id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
 		}
 	}
 

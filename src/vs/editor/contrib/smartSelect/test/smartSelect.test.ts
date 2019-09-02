@@ -22,7 +22,7 @@ import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSe
 
 class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,

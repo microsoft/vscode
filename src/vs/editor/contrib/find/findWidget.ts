@@ -111,7 +111,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _notificationService: INotificationService;
 
 	private _domNode!: HTMLElement;
-	private _cachedHeight: number | null;
+	private _cachedHeight: number | null = null;
 	private _findInput!: FindInput;
 	private _replaceInput!: ReplaceInput;
 
@@ -781,7 +781,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			const end = inputElement.selectionEnd;
 			const content = inputElement.value;
 
-			if (start && end) {
+			if (start !== null && end !== null) {
 				const value = content.substr(0, start) + '\n' + content.substr(end);
 				this._findInput.inputBox.value = value;
 				inputElement.setSelectionRange(start + 1, start + 1);

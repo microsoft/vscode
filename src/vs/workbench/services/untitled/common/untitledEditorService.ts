@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
@@ -29,7 +29,7 @@ export interface IModelLoadOrCreateOptions {
 
 export interface IUntitledEditorService {
 
-	_serviceBrand: ServiceIdentifier<IUntitledEditorService>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Events for when untitled editors content changes (e.g. any keystroke).
@@ -112,7 +112,7 @@ export interface IUntitledEditorService {
 
 export class UntitledEditorService extends Disposable implements IUntitledEditorService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private mapResourceToInput = new ResourceMap<UntitledEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();

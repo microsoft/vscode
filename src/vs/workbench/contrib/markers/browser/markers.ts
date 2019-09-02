@@ -22,12 +22,12 @@ export interface IFilter {
 }
 
 export interface IMarkersWorkbenchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	readonly markersModel: MarkersModel;
 }
 
 export class MarkersWorkbenchService extends Disposable implements IMarkersWorkbenchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly markersModel: MarkersModel;
 

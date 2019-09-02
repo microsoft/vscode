@@ -10,11 +10,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AbstractAccessibilityService } from 'vs/platform/accessibility/common/abstractAccessibilityService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class AccessibilityService extends AbstractAccessibilityService implements IAccessibilityService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private _accessibilitySupport = AccessibilitySupport.Unknown;
 

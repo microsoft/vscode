@@ -29,7 +29,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 	static VARIABLE_REGEXP = /\$\{(.*?)\}/g;
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		private _context: IVariableResolveContext,

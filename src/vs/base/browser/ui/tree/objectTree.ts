@@ -22,12 +22,13 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
 
 	constructor(
+		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IObjectTreeOptions<T, TFilterData> = {}
 	) {
-		super(container, delegate, renderers, options);
+		super(user, container, delegate, renderers, options);
 	}
 
 	setChildren(
@@ -50,7 +51,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		this.model.resort(element, recursive);
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
-		return new ObjectTreeModel(view, options);
+	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+		return new ObjectTreeModel(user, view, options);
 	}
 }

@@ -491,7 +491,7 @@ suite('Configuration Resolver Service', () => {
 
 
 class MockConfigurationService implements IConfigurationService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: undefined, folder: undefined }; }
@@ -518,7 +518,7 @@ class MockConfigurationService implements IConfigurationService {
 
 class MockCommandService implements ICommandService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public callCount = 0;
 
 	onWillExecuteCommand = () => Disposable.None;
@@ -538,7 +538,7 @@ class MockCommandService implements ICommandService {
 }
 
 class MockQuickInputService implements IQuickInputService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;

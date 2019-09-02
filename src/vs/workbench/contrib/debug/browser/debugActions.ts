@@ -210,7 +210,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && (model.getBreakpoints().length > 0 || model.getFunctionBreakpoints().length > 0);
+		return super.isEnabled(state) && (model.getBreakpoints().length > 0 || model.getFunctionBreakpoints().length > 0 || model.getDataBreakpoints().length > 0);
 	}
 }
 
@@ -272,7 +272,7 @@ export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		return (this.debugService.getModel().getFunctionBreakpoints().length + this.debugService.getModel().getBreakpoints().length) > 0;
+		return !!(this.debugService.getModel().getFunctionBreakpoints().length || this.debugService.getModel().getBreakpoints().length || this.debugService.getModel().getDataBreakpoints().length);
 	}
 }
 
@@ -292,7 +292,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	protected isEnabled(state: State): boolean {
 		const model = this.debugService.getModel();
 		return super.isEnabled(state) && (state === State.Running || state === State.Stopped) &&
-			(model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length > 0);
+			((model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getDataBreakpoints().length) > 0);
 	}
 }
 

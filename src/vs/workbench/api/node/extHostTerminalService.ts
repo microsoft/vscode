@@ -199,7 +199,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostTerminalServiceShape {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private _proxy: MainThreadTerminalServiceShape;
 	private _activeTerminal: ExtHostTerminal | undefined;

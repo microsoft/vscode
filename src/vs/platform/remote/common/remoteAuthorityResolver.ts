@@ -68,7 +68,7 @@ export class RemoteAuthorityResolverError extends Error {
 
 export interface IRemoteAuthorityResolverService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	resolveAuthority(authority: string): Promise<ResolverResult>;
 

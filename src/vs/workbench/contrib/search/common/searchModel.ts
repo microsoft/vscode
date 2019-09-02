@@ -197,7 +197,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
-	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions, private _maxResults: number, private _parent: BaseFolderMatch, private rawMatch: IFileMatch,
+	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions, private _maxResults: number, private _parent: FolderMatch, private rawMatch: IFileMatch,
 		@IModelService private readonly modelService: IModelService, @IReplaceService private readonly replaceService: IReplaceService
 	) {
 		super();
@@ -322,7 +322,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this.resource.toString();
 	}
 
-	parent(): BaseFolderMatch {
+	parent(): FolderMatch {
 		return this._parent;
 	}
 
@@ -400,12 +400,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 }
 
 export interface IChangeEvent {
-	elements: (FileMatch | FolderMatch | SearchResult)[];
+	elements: FileMatch[];
 	added?: boolean;
 	removed?: boolean;
 }
 
-export class BaseFolderMatch extends Disposable {
+export class FolderMatch extends Disposable {
 
 	private _onChange = this._register(new Emitter<IChangeEvent>());
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
@@ -456,10 +456,6 @@ export class BaseFolderMatch extends Disposable {
 
 	parent(): SearchResult {
 		return this._parent;
-	}
-
-	hasResource(): boolean {
-		return !!this._resource;
 	}
 
 	bindModel(model: ITextModel): void {
@@ -598,7 +594,7 @@ export class BaseFolderMatch extends Disposable {
  * BaseFolderMatch => optional resource ("other files" node)
  * FolderMatch => required resource (normal folder node)
  */
-export class FolderMatch extends BaseFolderMatch {
+export class FolderMatchWithResource extends FolderMatch {
 	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult, _searchModel: SearchModel,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -616,7 +612,7 @@ export class FolderMatch extends BaseFolderMatch {
  * and their sort order is undefined.
  */
 export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
-	if (elementA instanceof BaseFolderMatch && elementB instanceof BaseFolderMatch) {
+	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
 		return elementA.index() - elementB.index();
 	}
 
@@ -636,9 +632,9 @@ export class SearchResult extends Disposable {
 	private _onChange = this._register(new Emitter<IChangeEvent>());
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 
-	private _folderMatches: FolderMatch[] = [];
-	private _otherFilesMatch: BaseFolderMatch;
-	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
+	private _folderMatches: FolderMatchWithResource[] = [];
+	private _otherFilesMatch: FolderMatch;
+	private _folderMatchesMap: TernarySearchTree<FolderMatchWithResource> = TernarySearchTree.forPaths<FolderMatchWithResource>();
 	private _showHighlights: boolean;
 	private _query: ITextQuery;
 
@@ -666,7 +662,7 @@ export class SearchResult extends Disposable {
 		this.clear();
 		this._folderMatches = (query.folderQueries || [])
 			.map(fq => fq.folder)
-			.map((resource, index) => this.createFolderMatch(resource, resource.toString(), index, query));
+			.map((resource, index) => this.createFolderMatchWithResource(resource, resource.toString(), index, query));
 
 		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource.toString(), fm));
 		this._otherFilesMatch = this.createOtherFilesFolderMatch('otherFiles', this._folderMatches.length + 1, query);
@@ -681,15 +677,15 @@ export class SearchResult extends Disposable {
 		}
 	}
 
-	private createFolderMatch(resource: URI, id: string, index: number, query: ITextQuery): FolderMatch {
-		return <FolderMatch>this._createBaseFolderMatch(FolderMatch, resource, id, index, query);
+	private createFolderMatchWithResource(resource: URI, id: string, index: number, query: ITextQuery): FolderMatchWithResource {
+		return <FolderMatchWithResource>this._createBaseFolderMatch(FolderMatchWithResource, resource, id, index, query);
 	}
 
-	private createOtherFilesFolderMatch(id: string, index: number, query: ITextQuery): BaseFolderMatch {
-		return this._createBaseFolderMatch(BaseFolderMatch, null, id, index, query);
+	private createOtherFilesFolderMatch(id: string, index: number, query: ITextQuery): FolderMatch {
+		return this._createBaseFolderMatch(FolderMatch, null, id, index, query);
 	}
 
-	private _createBaseFolderMatch(folderMatchClass: typeof BaseFolderMatch | typeof FolderMatch, resource: URI | null, id: string, index: number, query: ITextQuery): BaseFolderMatch {
+	private _createBaseFolderMatch(folderMatchClass: typeof FolderMatch | typeof FolderMatchWithResource, resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {
 		const folderMatch = this.instantiationService.createInstance(folderMatchClass, resource, id, index, query, this, this._searchModel);
 		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
 		folderMatch.onDispose(() => disposable.dispose());
@@ -734,9 +730,9 @@ export class SearchResult extends Disposable {
 			}
 		});
 
-		matches = matches.filter(m => m instanceof FileMatch);
+		const fileMatches: FileMatch[] = matches.filter(m => m instanceof FileMatch) as FileMatch[];
 
-		const { byFolder, other } = this.groupFilesByFolder(matches);
+		const { byFolder, other } = this.groupFilesByFolder(fileMatches);
 		byFolder.forEach(matches => {
 			if (!matches.length) {
 				return;
@@ -774,7 +770,7 @@ export class SearchResult extends Disposable {
 		});
 	}
 
-	folderMatches(): BaseFolderMatch[] {
+	folderMatches(): FolderMatch[] {
 		return this._otherFilesMatch ?
 			[
 				...this._folderMatches,
@@ -837,7 +833,7 @@ export class SearchResult extends Disposable {
 		return this._rangeHighlightDecorations;
 	}
 
-	private getFolderMatch(resource: URI): BaseFolderMatch {
+	private getFolderMatch(resource: URI): FolderMatch {
 		const folderMatch = this._folderMatchesMap.findSubstr(resource.toString());
 		return folderMatch ? folderMatch : this._otherFilesMatch;
 	}
@@ -877,7 +873,7 @@ export class SearchResult extends Disposable {
 	private disposeMatches(): void {
 		this.folderMatches().forEach(folderMatch => folderMatch.dispose());
 		this._folderMatches = [];
-		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatch>();
+		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatchWithResource>();
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
@@ -1063,11 +1059,11 @@ export class SearchModel extends Disposable {
 
 export type FileMatchOrMatch = FileMatch | Match;
 
-export type RenderableMatch = BaseFolderMatch | FolderMatch | FileMatch | Match;
+export type RenderableMatch = FolderMatch | FolderMatchWithResource | FileMatch | Match;
 
 export class SearchWorkbenchService implements ISearchWorkbenchService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	private _searchModel: SearchModel;
 
 	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
@@ -1084,7 +1080,7 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 export const ISearchWorkbenchService = createDecorator<ISearchWorkbenchService>('searchWorkbenchService');
 
 export interface ISearchWorkbenchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly searchModel: SearchModel;
 }

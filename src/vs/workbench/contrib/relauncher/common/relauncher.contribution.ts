@@ -29,15 +29,15 @@ interface IConfiguration extends IWindowsConfiguration {
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
-	private titleBarStyle: 'native' | 'custom';
-	private nativeTabs: boolean;
-	private nativeFullScreen: boolean;
-	private clickThroughInactive: boolean;
-	private updateMode: string;
-	private enableCrashReporter: boolean;
-	private treeHorizontalScrolling: boolean;
-	private useGridLayout: boolean;
-	private debugConsoleWordWrap: boolean;
+	private titleBarStyle: 'native' | 'custom' | undefined;
+	private nativeTabs: boolean | undefined;
+	private nativeFullScreen: boolean | undefined;
+	private clickThroughInactive: boolean | undefined;
+	private updateMode: string | undefined;
+	private enableCrashReporter: boolean | undefined;
+	private treeHorizontalScrolling: boolean | undefined;
+	private useGridLayout: boolean | undefined;
+	private debugConsoleWordWrap: boolean | undefined;
 
 	constructor(
 		@IWindowsService private readonly windowsService: IWindowsService,

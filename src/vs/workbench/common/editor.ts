@@ -30,7 +30,7 @@ export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toN
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
-export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', -1);
+export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0);
 export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false);
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
@@ -722,7 +722,8 @@ export class EditorOptions implements IEditorOptions {
 
 	/**
 	 * This option is only relevant if an editor is opened into a group that is not active
-	 * already and allows to control if the inactive group should become active or not.
+	 * already and allows to control if the inactive group should become active, restored
+	 * or preserved.
 	 *
 	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
 	 * is specified.

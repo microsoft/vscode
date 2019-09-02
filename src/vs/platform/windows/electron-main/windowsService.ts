@@ -23,11 +23,10 @@ import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isMacintosh, isLinux, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class WindowsService extends Disposable implements IWindowsService, IURLHandler {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly disposables = this._register(new DisposableStore());
 

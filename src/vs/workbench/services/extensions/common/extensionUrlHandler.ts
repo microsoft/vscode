@@ -34,16 +34,16 @@ function isExtensionId(value: string): boolean {
 	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
 }
 
-export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('inactiveExtensionUrlHandler');
+export const IExtensionUrlHandler = createDecorator<IExtensionUrlHandler>('extensionUrlHandler');
 
 export interface IExtensionUrlHandler {
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 	registerExtensionHandler(extensionId: ExtensionIdentifier, handler: IURLHandler): void;
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
 }
 
 /**
- * This class handles URLs which are directed towards inactive extensions.
+ * This class handles URLs which are directed towards extensions.
  * If a URL is directed towards an inactive extension, it buffers it,
  * activates the extension and re-opens the URL once the extension registers
  * a URL handler. If the extension never registers a URL handler, the urls
@@ -53,7 +53,7 @@ export interface IExtensionUrlHandler {
  */
 class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private extensionHandlers = new Map<string, IURLHandler>();
 	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();

@@ -127,7 +127,7 @@ function watch(service: IFileService, resource: URI, callback: (type: FileChange
 
 class SnippetsService implements ISnippetsService {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _pendingWork: Promise<any>[] = [];

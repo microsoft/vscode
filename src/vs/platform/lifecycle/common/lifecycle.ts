@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isThenable } from 'vs/base/common/async';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
@@ -123,7 +123,7 @@ export function LifecyclePhaseToString(phase: LifecyclePhase) {
  */
 export interface ILifecycleService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Value indicates how this window got loaded.
@@ -167,7 +167,7 @@ export interface ILifecycleService {
 
 export const NullLifecycleService: ILifecycleService = {
 
-	_serviceBrand: null as any,
+	_serviceBrand: undefined,
 
 	onBeforeShutdown: Event.None,
 	onWillShutdown: Event.None,

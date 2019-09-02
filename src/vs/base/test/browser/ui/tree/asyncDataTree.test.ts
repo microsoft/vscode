@@ -75,7 +75,7 @@ suite('AsyncDataTree', function () {
 
 		const _: (id: string) => Element = find.bind(null, root.children);
 
-		const tree = new AsyncDataTree<Element, Element>(container, delegate, [renderer], dataSource, { identityProvider });
+		const tree = new AsyncDataTree<Element, Element>('test', container, delegate, [renderer], dataSource, { identityProvider });
 		tree.layout(200);
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 0);
 
@@ -151,7 +151,7 @@ suite('AsyncDataTree', function () {
 
 		const _: (id: string) => Element = find.bind(null, root.children);
 
-		const tree = new AsyncDataTree<Element, Element>(container, delegate, [renderer], dataSource, { identityProvider });
+		const tree = new AsyncDataTree<Element, Element>('test', container, delegate, [renderer], dataSource, { identityProvider });
 		tree.layout(200);
 
 		await tree.setInput(root);
@@ -239,7 +239,7 @@ suite('AsyncDataTree', function () {
 
 		const _: (id: string) => Element = find.bind(null, root.children);
 
-		const tree = new AsyncDataTree<Element, Element>(container, delegate, [renderer], dataSource, { identityProvider });
+		const tree = new AsyncDataTree<Element, Element>('test', container, delegate, [renderer], dataSource, { identityProvider });
 		tree.layout(200);
 
 		await tree.setInput(root);
@@ -306,7 +306,7 @@ suite('AsyncDataTree', function () {
 
 		const _: (id: string) => Element = find.bind(null, root.children);
 
-		const tree = new AsyncDataTree<Element, Element>(container, delegate, [renderer], dataSource, { identityProvider });
+		const tree = new AsyncDataTree<Element, Element>('test', container, delegate, [renderer], dataSource, { identityProvider });
 		tree.layout(200);
 
 		await tree.setInput(root);
@@ -370,7 +370,7 @@ suite('AsyncDataTree', function () {
 
 		const _: (id: string) => Element = find.bind(null, root.children);
 
-		const tree = new AsyncDataTree<Element, Element>(container, delegate, [renderer], dataSource, {
+		const tree = new AsyncDataTree<Element, Element>('test', container, delegate, [renderer], dataSource, {
 			collapseByDefault: el => el.id !== 'a'
 		});
 		tree.layout(200);

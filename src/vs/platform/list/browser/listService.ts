@@ -38,7 +38,7 @@ export const IListService = createDecorator<IListService>('listService');
 
 export interface IListService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Returns the currently focused list widget if any.
@@ -53,7 +53,7 @@ interface IRegisteredList {
 
 export class ListService implements IListService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private lists: IRegisteredList[] = [];
 	private _lastFocusedWidget: ListWidget | undefined = undefined;
@@ -245,6 +245,7 @@ export class WorkbenchList<T> extends List<T> {
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
+		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: IListRenderer<T, any>[],
@@ -258,7 +259,7 @@ export class WorkbenchList<T> extends List<T> {
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 
-		super(container, delegate, renderers,
+		super(user, container, delegate, renderers,
 			{
 				keyboardSupport: false,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
@@ -326,6 +327,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
+		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
@@ -338,7 +340,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 	) {
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : getHorizontalScrollingSetting(configurationService);
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
-		super(container, delegate, renderers,
+		super(user, container, delegate, renderers,
 			{
 				keyboardSupport: false,
 				styleController: new DefaultStyleController(getSharedListStyleSheet()),
@@ -785,6 +787,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	get useAltAsMultipleSelectionModifier(): boolean { return this.internals.useAltAsMultipleSelectionModifier; }
 
 	constructor(
+		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
@@ -797,7 +800,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
-		super(container, delegate, renderers, treeOptions);
+		super(user, container, delegate, renderers, treeOptions);
 		this.disposables.push(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.push(this.internals);
@@ -811,6 +814,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	get useAltAsMultipleSelectionModifier(): boolean { return this.internals.useAltAsMultipleSelectionModifier; }
 
 	constructor(
+		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
@@ -824,7 +828,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
-		super(container, delegate, renderers, dataSource, treeOptions);
+		super(user, container, delegate, renderers, dataSource, treeOptions);
 		this.disposables.push(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.push(this.internals);
@@ -838,6 +842,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 	get useAltAsMultipleSelectionModifier(): boolean { return this.internals.useAltAsMultipleSelectionModifier; }
 
 	constructor(
+		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
@@ -851,7 +856,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
-		super(container, delegate, renderers, dataSource, treeOptions);
+		super(user, container, delegate, renderers, dataSource, treeOptions);
 		this.disposables.push(disposable);
 		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.push(this.internals);

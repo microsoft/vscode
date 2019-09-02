@@ -838,9 +838,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (options && options.activation === EditorActivation.ACTIVATE) {
 			// Respect option to force activate an editor group.
 			activateGroup = true;
+		} else if (options && options.activation === EditorActivation.RESTORE) {
+			// Respect option to force restore an editor group.
+			restoreGroup = true;
 		} else if (options && options.activation === EditorActivation.PRESERVE) {
 			// Respect option to preserve active editor group.
 			activateGroup = false;
+			restoreGroup = false;
 		} else if (openEditorOptions.active) {
 			// Finally, we only activate/restore an editor which is
 			// opening as active editor.

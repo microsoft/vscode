@@ -158,6 +158,7 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.deprecated {
 	opacity: 0.66;
+	text-decoration: unset;
 }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.deprecated > .monaco-icon-label-description-container {
 	text-decoration: line-through;

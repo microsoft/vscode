@@ -17,7 +17,7 @@ import { EventHelper } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class DialogService implements IDialogService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private allowableCommands = ['copy', 'cut'];
 

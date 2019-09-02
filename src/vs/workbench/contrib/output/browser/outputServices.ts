@@ -59,7 +59,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 
 export class OutputService extends Disposable implements IOutputService, ITextModelContentProvider {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 	private activeChannelIdInStorage: string;

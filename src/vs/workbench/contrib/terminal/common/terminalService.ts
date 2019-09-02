@@ -30,7 +30,7 @@ interface IExtHostReadyEntry {
 }
 
 export abstract class TerminalService implements ITerminalService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	protected _isShuttingDown: boolean;
 	protected _terminalFocusContextKey: IContextKey<boolean>;

@@ -13,11 +13,10 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class TextResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand!: ServiceIdentifier<ITextResourcePropertiesService>;
+	_serviceBrand: undefined;
 
 	private remoteEnvironment: IRemoteAgentEnvironment | null = null;
 

@@ -58,15 +58,19 @@ class LineSuffix {
 	}
 
 	dispose(): void {
-		if (this._marker) {
+		if (this._marker && !this._model.isDisposed()) {
 			this._model.deltaDecorations(this._marker, []);
 		}
 	}
 
 	delta(position: IPosition): number {
-		if (this._position.lineNumber !== position.lineNumber) {
+		if (this._model.isDisposed() || this._position.lineNumber !== position.lineNumber) {
+			// bail out early if things seems fishy
 			return 0;
-		} else if (this._marker) {
+		}
+		// read the marker (in case suggest was triggered at line end) or compare
+		// the cursor to the line end.
+		if (this._marker) {
 			const range = this._model.getDecorationRange(this._marker[0]);
 			const end = this._model.getOffsetAt(range!.getStartPosition());
 			return end - this._model.getOffsetAt(position);

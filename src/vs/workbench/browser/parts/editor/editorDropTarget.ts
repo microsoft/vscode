@@ -25,11 +25,11 @@ class DropOverlay extends Themable {
 
 	private static OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
 
-	private container: HTMLElement;
-	private overlay: HTMLElement;
+	private container!: HTMLElement;
+	private overlay!: HTMLElement;
 
-	private currentDropOperation?: IDropOperation;
-	private _disposed: boolean;
+	private currentDropOperation: IDropOperation | undefined;
+	private _disposed: boolean | undefined;
 
 	private cleanupOverlayScheduler: RunOnceScheduler;
 
@@ -50,7 +50,7 @@ class DropOverlay extends Themable {
 	}
 
 	get disposed(): boolean {
-		return this._disposed;
+		return !!this._disposed;
 	}
 
 	private create(): void {

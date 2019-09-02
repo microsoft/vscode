@@ -198,6 +198,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 		};
 
 		super(
+			'ExtensionsTree',
 			container,
 			delegate,
 			renderers,

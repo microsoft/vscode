@@ -9,7 +9,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class MenubarService implements IMenubarService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _menubar: Menubar;
 

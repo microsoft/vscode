@@ -89,8 +89,10 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 	}
 
 	const result: CodeLens[] = [];
+	const disposables = new DisposableStore();
 	return getCodeLensData(model, CancellationToken.None).then(value => {
 
+		disposables.add(value);
 		let resolve: Promise<any>[] = [];
 
 		for (const item of value.lenses) {
@@ -101,9 +103,13 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 			}
 		}
 
-		return Promise.all(resolve).finally(() => setTimeout(() => value.dispose(), 0));
+		return Promise.all(resolve);
 
 	}).then(() => {
 		return result;
+	}).finally(() => {
+		// make sure to return results, then (on next tick)
+		// dispose the results
+		setTimeout(() => disposables.dispose(), 100);
 	});
 });

@@ -70,7 +70,7 @@ export class BreakpointsView extends ViewletPanel {
 		dom.addClass(container, 'debug-breakpoints');
 		const delegate = new BreakpointsDelegate(this.debugService);
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
+		this.list = this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
 			this.instantiationService.createInstance(BreakpointsRenderer),
 			new ExceptionBreakpointsRenderer(this.debugService),
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
@@ -639,7 +639,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 
 	if (!breakpoint.enabled || !debugService.getModel().areBreakpointsActivated()) {
 		return {
-			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-disabled' : breakpoint.logMessage ? 'debug-breakpoint-log-disabled' : 'debug-breakpoint-disabled',
+			className: breakpoint instanceof DataBreakpoint ? 'debug-data-breakpoint-disabled' : breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-disabled' : breakpoint.logMessage ? 'debug-breakpoint-log-disabled' : 'debug-breakpoint-disabled',
 			message: breakpoint.logMessage ? nls.localize('disabledLogpoint', "Disabled logpoint") : nls.localize('disabledBreakpoint', "Disabled breakpoint"),
 		};
 	}

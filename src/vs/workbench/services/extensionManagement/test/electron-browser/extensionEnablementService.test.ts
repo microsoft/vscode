@@ -560,7 +560,7 @@ function aMultiExtensionManagementServerService(instantiationService: TestInstan
 		extensionManagementService: instantiationService.get(IExtensionManagementService)
 	};
 	return {
-		_serviceBrand: {},
+		_serviceBrand: undefined,
 		localExtensionManagementServer,
 		remoteExtensionManagementServer,
 		getExtensionManagementServer: (location: URI) => {

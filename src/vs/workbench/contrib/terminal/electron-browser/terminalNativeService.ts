@@ -17,7 +17,7 @@ import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/node/
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class TerminalNativeService implements ITerminalNativeService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public get linuxDistro(): LinuxDistro { return linuxDistro; }
 

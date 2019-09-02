@@ -5,7 +5,6 @@
 
 import { IWindowConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 import { IExtensionHostDebugParams, IDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -69,7 +68,7 @@ interface IBrowserWorkbenchEnvironemntConstructionOptions extends IWorkbenchCons
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
 
-	_serviceBrand!: ServiceIdentifier<IWorkbenchEnvironmentService>;
+	_serviceBrand: undefined;
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 
