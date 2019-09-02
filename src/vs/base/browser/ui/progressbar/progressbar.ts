@@ -36,8 +36,8 @@ const defaultOpts = {
 export class ProgressBar extends Disposable {
 	private options: IProgressBarOptions;
 	private workedVal: number;
-	private element: HTMLElement;
-	private bit: HTMLElement;
+	private element!: HTMLElement;
+	private bit!: HTMLElement;
 	private totalWork: number | undefined;
 	private progressBarBackground: Color | undefined;
 	private showDelayedScheduler: RunOnceScheduler;

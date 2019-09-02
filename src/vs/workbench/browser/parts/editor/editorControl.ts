@@ -35,11 +35,11 @@ export class EditorControl extends Disposable {
 	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return this._onDidSizeConstraintsChange.event; }
 
-	private _activeControl: BaseEditor | null;
+	private _activeControl: BaseEditor | null = null;
 	private controls: BaseEditor[] = [];
 
 	private readonly activeControlDisposables = this._register(new DisposableStore());
-	private dimension: Dimension;
+	private dimension: Dimension | undefined;
 	private editorOperation: LongRunningOperation;
 
 	constructor(

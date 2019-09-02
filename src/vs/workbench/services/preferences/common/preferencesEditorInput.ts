@@ -60,7 +60,7 @@ export class KeybindingsEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.keybindings';
 	readonly keybindingsModel: KeybindingsEditorModel;
 
-	searchOptions: IKeybindingsEditorSearchOptions | null;
+	searchOptions: IKeybindingsEditorSearchOptions | null = null;
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
