@@ -43,7 +43,7 @@ export const experimental: string[] = []; // 'settings.modifiedItemForeground', 
 suite('Color Registry', function () {
 
 	test('all colors documented', async function () {
-		const reqContext = await new RequestService(new TestConfigurationService(), new NullLogService()).request({ url: 'https://raw.githubusercontent.com/Microsoft/vscode-docs/vnext/docs/getstarted/theme-color-reference.md' }, CancellationToken.None);
+		const reqContext = await new RequestService(new TestConfigurationService(), new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
 		const content = (await asText(reqContext))!;
 
 		const expression = /\-\s*\`([\w\.]+)\`: (.*)/g;
@@ -89,7 +89,7 @@ suite('Color Registry', function () {
 		}
 
 		let undocumentedKeys = Object.keys(missing).map(k => `${k}: ${missing[k]}`);
-		assert.deepEqual(undocumentedKeys, [], 'Undocumented colors ids');
+		assert.deepEqual(undocumentedKeys, [], 'Undocumented colors ids in ' + content);
 
 		let superfluousKeys = Object.keys(colorsInDoc);
 		assert.deepEqual(superfluousKeys, [], 'Colors ids in doc that do not exist');
@@ -106,7 +106,7 @@ function getDescription(color: ColorContribution) {
 }
 
 async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
-	let extPath = getPathFromAmdModule(require, '../../../../../../extensions');
+	let extPath = getPathFromAmdModule(require, '../../../../../extensions');
 	let extFolders = await pfs.readDirsInDir(extPath);
 	let result: { [id: string]: string } = Object.create(null);
 	for (let folder of extFolders) {
