@@ -53,7 +53,7 @@ export class OpenDocumentLinkCommand implements Command {
 			}
 		}
 		return vscode.workspace.openTextDocument(resource)
-			.then(vscode.window.showTextDocument)
+			.then(document => vscode.window.showTextDocument(document, vscode.ViewColumn.Beside))
 			.then(editor => this.tryRevealLine(editor, args.fragment));
 	}
 
