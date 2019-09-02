@@ -84,8 +84,8 @@ export abstract class Composite extends Component implements IComposite {
 		this.visible = false;
 	}
 
-	getTitle(): string | null {
-		return null;
+	getTitle(): string | undefined {
+		return undefined;
 	}
 
 	protected get telemetryService(): ITelemetryService {

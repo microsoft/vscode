@@ -152,7 +152,7 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
 	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent> = this._onDidChangeItemsExternal.event;
 
-	private onDidChangeItemsOnMainListener: IDisposable;
+	private onDidChangeItemsOnMainListener: IDisposable | undefined;
 
 	constructor(private channel: IChannel) {
 		super();

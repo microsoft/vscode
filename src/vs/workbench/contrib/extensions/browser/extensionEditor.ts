@@ -300,7 +300,7 @@ export class ExtensionEditor extends BaseEditor {
 		return disposables;
 	}
 
-	async setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: ExtensionsInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (this.template) {
 			await this.updateTemplate(input, this.template);
 		}

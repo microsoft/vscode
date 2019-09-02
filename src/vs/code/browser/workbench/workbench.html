@@ -10,7 +10,17 @@
 		<!-- Content Security Policy -->
 		<meta
 			http-equiv="Content-Security-Policy"
-			content="default-src 'none'; img-src 'self' https: data: blob:; media-src 'none'; frame-src 'self' {{WEBVIEW_ENDPOINT}} https://*.vscode-webview-test.com; script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https:; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; font-src 'self' blob:; manifest-src 'self';"
+			content="default-src 'none';
+				img-src 'self' https: data: blob:;
+				media-src 'none';
+				script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https:;
+				child-src 'self';
+				frame-src 'self' {{WEBVIEW_ENDPOINT}} https://*.vscode-webview-test.com;
+				worker-src 'self';
+				style-src 'self' 'unsafe-inline';
+				connect-src 'self' ws: wss: https:;
+				font-src 'self' blob:;
+				manifest-src 'self';"
 		>
 
 		<!-- Workbench Configuration -->

@@ -441,7 +441,7 @@ export class Configuration {
 		return this._defaultConfiguration;
 	}
 
-	private _userConfiguration: ConfigurationModel | null;
+	private _userConfiguration: ConfigurationModel | null = null;
 	get userConfiguration(): ConfigurationModel {
 		if (!this._userConfiguration) {
 			this._userConfiguration = this._remoteUserConfiguration.isEmpty() ? this._localUserConfiguration : this._localUserConfiguration.merge(this._remoteUserConfiguration);
