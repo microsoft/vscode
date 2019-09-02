@@ -53,12 +53,12 @@ export interface IEditor {
 	/**
 	 * The assigned input of this editor.
 	 */
-	input: IEditorInput | null;
+	input: IEditorInput | undefined;
 
 	/**
 	 * The assigned options of this editor.
 	 */
-	options: IEditorOptions | null;
+	options: IEditorOptions | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.

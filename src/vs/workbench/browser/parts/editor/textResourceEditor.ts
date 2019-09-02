@@ -54,7 +54,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
@@ -100,7 +100,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		}
 	}
 
-	setOptions(options: EditorOptions): void {
+	setOptions(options: EditorOptions | undefined): void {
 		const textOptions = <TextEditorOptions>options;
 		if (textOptions && types.isFunction(textOptions.apply)) {
 			textOptions.apply(this.getControl(), ScrollType.Smooth);
@@ -164,7 +164,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super.saveState();
 	}
 
-	private saveTextResourceEditorViewState(input: EditorInput | null): void {
+	private saveTextResourceEditorViewState(input: EditorInput | undefined): void {
 		if (!(input instanceof UntitledEditorInput) && !(input instanceof ResourceEditorInput)) {
 			return; // only enabled for untitled and resource inputs
 		}
