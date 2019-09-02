@@ -31,7 +31,7 @@ import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeg
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -240,14 +240,14 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		let text = getSelectionLabel(selections, charactersSelected);
 
-		if (options.get(EditorOptionId.inDiffEditor)) {
-			if (options.get(EditorOptionId.readOnly)) {
+		if (options.get(EditorOption.inDiffEditor)) {
+			if (options.get(EditorOption.readOnly)) {
 				text += AccessibilityHelpNLS.readonlyDiffEditor;
 			} else {
 				text += AccessibilityHelpNLS.editableDiffEditor;
 			}
 		} else {
-			if (options.get(EditorOptionId.readOnly)) {
+			if (options.get(EditorOption.readOnly)) {
 				text += AccessibilityHelpNLS.readonlyEditor;
 			} else {
 				text += AccessibilityHelpNLS.editableEditor;
@@ -259,7 +259,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				? AccessibilityHelpNLS.changeConfigToOnMac
 				: AccessibilityHelpNLS.changeConfigToOnWinLinux
 		);
-		switch (options.get(EditorOptionId.accessibilitySupport)) {
+		switch (options.get(EditorOption.accessibilitySupport)) {
 			case AccessibilitySupport.Unknown:
 				text += '\n\n - ' + turnOnMessage;
 				break;
@@ -273,7 +273,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		}
 
 
-		if (options.get(EditorOptionId.tabFocusMode)) {
+		if (options.get(EditorOption.tabFocusMode)) {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb);
 		} else {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb);

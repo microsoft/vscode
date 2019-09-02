@@ -20,7 +20,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import { IDiffEditorOptions, IEditorOptions, EDITOR_DEFAULTS, EditorLayoutInfo, InternalEditorOptions, IComputedEditorOptions, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions, EDITOR_DEFAULTS, EditorLayoutInfo, InternalEditorOptions, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -1995,7 +1995,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let sb = createStringBuilder(10000);
 		let marginHTML: string[] = [];
-		const layoutInfo = this.modifiedEditorOptions.get(EditorOptionId.layoutInfo);
+		const layoutInfo = this.modifiedEditorOptions.get(EditorOption.layoutInfo);
 		const lineDecorationsWidth = layoutInfo.decorationsWidth;
 
 		let lineHeight = this.modifiedEditorConfiguration.lineHeight;

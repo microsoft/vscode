@@ -439,7 +439,7 @@ export enum RenderLineNumbersType {
 	Custom = 4
 }
 
-export enum EditorOptionId {
+export enum EditorOption {
 	accessibilitySupport = 0,
 	ariaLabel = 1,
 	fastScrollSensitivity = 2,

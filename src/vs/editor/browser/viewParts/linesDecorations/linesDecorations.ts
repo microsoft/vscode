@@ -8,7 +8,7 @@ import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/gl
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export class LinesDecorationsOverlay extends DedupOverlay {
@@ -23,7 +23,7 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		super();
 		this._context = context;
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._decorationsLeft = layoutInfo.decorationsLeft;
 		this._decorationsWidth = layoutInfo.decorationsWidth;
 		this._renderResult = null;
@@ -40,8 +40,8 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
-		if (e.hasChanged(EditorOptionId.layoutInfo)) {
-			const layoutInfo = options.get(EditorOptionId.layoutInfo);
+		if (e.hasChanged(EditorOption.layoutInfo)) {
+			const layoutInfo = options.get(EditorOption.layoutInfo);
 			this._decorationsLeft = layoutInfo.decorationsLeft;
 			this._decorationsWidth = layoutInfo.decorationsWidth;
 		}

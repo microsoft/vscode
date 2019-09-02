@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class IPadShowKeyboard extends Disposable implements IEditorContribution {
 
@@ -30,7 +30,7 @@ export class IPadShowKeyboard extends Disposable implements IEditorContribution 
 	}
 
 	private update(): void {
-		const shouldHaveWidget = (!this.editor.getOption(EditorOptionId.readOnly));
+		const shouldHaveWidget = (!this.editor.getOption(EditorOption.readOnly));
 
 		if (!this.widget && shouldHaveWidget) {
 

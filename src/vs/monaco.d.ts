@@ -3365,7 +3365,7 @@ declare namespace monaco.editor {
 	 * An event describing that the configuration of the editor has changed.
 	 */
 	export interface IConfigurationChangedEvent {
-		hasChanged(id: EditorOptionId): boolean;
+		hasChanged(id: EditorOption): boolean;
 		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: boolean;
 		readonly editorClassName: boolean;
@@ -3405,14 +3405,14 @@ declare namespace monaco.editor {
 	}
 
 	export interface IComputedEditorOptions {
-		get<T extends EditorOptionId>(id: T): FindComputedEditorOptionValueById<T>;
+		get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 	}
 
 	export type PossibleKeyName<V> = {
 		[K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never;
 	}[keyof IEditorOptions];
 
-	export interface IEditorOption<K extends EditorOptionId, T1, T2 = T1, T3 = T2> {
+	export interface IEditorOption<K extends EditorOption, T1, T2 = T1, T3 = T2> {
 		readonly id: K;
 		readonly name: PossibleKeyName<T1>;
 		readonly defaultValue: T2;
@@ -3423,11 +3423,11 @@ declare namespace monaco.editor {
 		equals(a: T3, b: T3): boolean;
 	}
 
-	export abstract class BaseEditorOption<K extends EditorOptionId, T1, T2 = T1, T3 = T2> implements IEditorOption<K, T1, T2, T3> {
+	export abstract class BaseEditorOption<K extends EditorOption, T1, T2 = T1, T3 = T2> implements IEditorOption<K, T1, T2, T3> {
 		readonly id: K;
 		readonly name: PossibleKeyName<T1>;
 		readonly defaultValue: T2;
-		constructor(id: K, name: PossibleKeyName<T1>, defaultValue: T2, deps?: EditorOptionId[]);
+		constructor(id: K, name: PossibleKeyName<T1>, defaultValue: T2, deps?: EditorOption[]);
 		read(options: IRawEditorOptionsBag): T1 | undefined;
 		mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined;
 		abstract validate(input: T1 | undefined): T2;
@@ -3591,7 +3591,7 @@ declare namespace monaco.editor {
 		readonly wrappingColumn: number;
 	}
 
-	export enum EditorOptionId {
+	export enum EditorOption {
 		accessibilitySupport = 0,
 		ariaLabel = 1,
 		fastScrollSensitivity = 2,
@@ -3620,44 +3620,44 @@ declare namespace monaco.editor {
 		wrappingInfo = 25
 	}
 
-	export const EditorOption: {
-		accessibilitySupport: IEditorOption<EditorOptionId.accessibilitySupport, "auto" | "on" | "off", "auto" | "on" | "off", any>;
-		ariaLabel: IEditorOption<EditorOptionId.ariaLabel, string, string, string>;
-		fastScrollSensitivity: IEditorOption<EditorOptionId.fastScrollSensitivity, number, number, number>;
-		folding: IEditorOption<EditorOptionId.folding, boolean, boolean, boolean>;
-		glyphMargin: IEditorOption<EditorOptionId.glyphMargin, boolean, boolean, boolean>;
-		inDiffEditor: IEditorOption<EditorOptionId.inDiffEditor, boolean, boolean, boolean>;
-		lineDecorationsWidth: IEditorOption<EditorOptionId.lineDecorationsWidth, string | number, string | number, string | number>;
-		lineNumbersMinChars: IEditorOption<EditorOptionId.lineNumbersMinChars, number, number, number>;
-		minimap: IEditorOption<EditorOptionId.minimap, IEditorMinimapOptions, InternalEditorMinimapOptions, InternalEditorMinimapOptions>;
-		mouseWheelScrollSensitivity: IEditorOption<EditorOptionId.mouseWheelScrollSensitivity, number, number, number>;
-		readOnly: IEditorOption<EditorOptionId.readOnly, boolean, boolean, boolean>;
-		renderFinalNewline: IEditorOption<EditorOptionId.renderFinalNewline, boolean, boolean, boolean>;
-		renderLineNumbers: IEditorOption<EditorOptionId.renderLineNumbers, LineNumbersType, InternalEditorRenderLineNumbersOptions, InternalEditorRenderLineNumbersOptions>;
-		scrollbar: IEditorOption<EditorOptionId.scrollbar, IEditorScrollbarOptions, InternalEditorScrollbarOptions, InternalEditorScrollbarOptions>;
-		selectionClipboard: IEditorOption<EditorOptionId.selectionClipboard, boolean, boolean, boolean>;
-		selectOnLineNumbers: IEditorOption<EditorOptionId.selectOnLineNumbers, boolean, boolean, boolean>;
-		tabFocusMode: IEditorOption<EditorOptionId.tabFocusMode, undefined, undefined, boolean>;
-		wordWrap: IEditorOption<EditorOptionId.wordWrap, "on" | "off" | "wordWrapColumn" | "bounded", "on" | "off" | "wordWrapColumn" | "bounded", "on" | "off" | "wordWrapColumn" | "bounded">;
-		wordWrapBreakAfterCharacters: IEditorOption<EditorOptionId.wordWrapBreakAfterCharacters, string, string, string>;
-		wordWrapBreakBeforeCharacters: IEditorOption<EditorOptionId.wordWrapBreakBeforeCharacters, string, string, string>;
-		wordWrapBreakObtrusiveCharacters: IEditorOption<EditorOptionId.wordWrapBreakObtrusiveCharacters, string, string, string>;
-		wordWrapColumn: IEditorOption<EditorOptionId.wordWrapColumn, number, number, number>;
-		wordWrapMinified: IEditorOption<EditorOptionId.wordWrapMinified, boolean, boolean, boolean>;
-		wrappingIndent: IEditorOption<EditorOptionId.wrappingIndent, "none" | "same" | "indent" | "deepIndent", "none" | "same" | "indent" | "deepIndent", WrappingIndent>;
-		layoutInfo: IEditorOption<EditorOptionId.layoutInfo, undefined, undefined, EditorLayoutInfo>;
-		wrappingInfo: IEditorOption<EditorOptionId.wrappingInfo, undefined, undefined, EditorWrappingInfo>;
+	export const EditorOptions: {
+		accessibilitySupport: IEditorOption<EditorOption.accessibilitySupport, "auto" | "on" | "off", "auto" | "on" | "off", any>;
+		ariaLabel: IEditorOption<EditorOption.ariaLabel, string, string, string>;
+		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number, number, number>;
+		folding: IEditorOption<EditorOption.folding, boolean, boolean, boolean>;
+		glyphMargin: IEditorOption<EditorOption.glyphMargin, boolean, boolean, boolean>;
+		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean, boolean, boolean>;
+		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, string | number, string | number, string | number>;
+		lineNumbersMinChars: IEditorOption<EditorOption.lineNumbersMinChars, number, number, number>;
+		minimap: IEditorOption<EditorOption.minimap, IEditorMinimapOptions, InternalEditorMinimapOptions, InternalEditorMinimapOptions>;
+		mouseWheelScrollSensitivity: IEditorOption<EditorOption.mouseWheelScrollSensitivity, number, number, number>;
+		readOnly: IEditorOption<EditorOption.readOnly, boolean, boolean, boolean>;
+		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, boolean, boolean, boolean>;
+		renderLineNumbers: IEditorOption<EditorOption.renderLineNumbers, LineNumbersType, InternalEditorRenderLineNumbersOptions, InternalEditorRenderLineNumbersOptions>;
+		scrollbar: IEditorOption<EditorOption.scrollbar, IEditorScrollbarOptions, InternalEditorScrollbarOptions, InternalEditorScrollbarOptions>;
+		selectionClipboard: IEditorOption<EditorOption.selectionClipboard, boolean, boolean, boolean>;
+		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean, boolean, boolean>;
+		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, undefined, undefined, boolean>;
+		wordWrap: IEditorOption<EditorOption.wordWrap, "on" | "off" | "wordWrapColumn" | "bounded", "on" | "off" | "wordWrapColumn" | "bounded", "on" | "off" | "wordWrapColumn" | "bounded">;
+		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string, string, string>;
+		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string, string, string>;
+		wordWrapBreakObtrusiveCharacters: IEditorOption<EditorOption.wordWrapBreakObtrusiveCharacters, string, string, string>;
+		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number, number, number>;
+		wordWrapMinified: IEditorOption<EditorOption.wordWrapMinified, boolean, boolean, boolean>;
+		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, "none" | "same" | "indent" | "deepIndent", "none" | "same" | "indent" | "deepIndent", WrappingIndent>;
+		layoutInfo: IEditorOption<EditorOption.layoutInfo, undefined, undefined, EditorLayoutInfo>;
+		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, undefined, undefined, EditorWrappingInfo>;
 	};
 
-	export type EditorOptionType = typeof EditorOption;
+	export type EditorOptionsType = typeof EditorOptions;
 
-	export type FindEditorOptionKeyById<T extends EditorOptionId> = {
-		[K in keyof EditorOptionType]: EditorOptionType[K]['id'] extends T ? K : never;
-	}[keyof EditorOptionType];
+	export type FindEditorOptionsKeyById<T extends EditorOption> = {
+		[K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never;
+	}[keyof EditorOptionsType];
 
 	export type ComputedEditorOptionValue<T extends IEditorOption<any, any, any, any>> = T extends IEditorOption<any, any, any, infer R> ? R : never;
 
-	export type FindComputedEditorOptionValueById<T extends EditorOptionId> = ComputedEditorOptionValue<EditorOptionType[FindEditorOptionKeyById<T>]>;
+	export type FindComputedEditorOptionValueById<T extends EditorOption> = ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>;
 
 	/**
 	 * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -4109,7 +4109,7 @@ declare namespace monaco.editor {
 		 */
 		getConfiguration(): InternalEditorOptions;
 		getOptions(): IComputedEditorOptions;
-		getOption<T extends EditorOptionId>(id: T): FindComputedEditorOptionValueById<T>;
+		getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 		/**
 		 * Get value of the current model attached to this editor.
 		 * @see `ITextModel.getValue`

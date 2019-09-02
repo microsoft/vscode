@@ -23,7 +23,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/viewImpl';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
-import { IConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOptionId, InternalEditorOptions, IComputedEditorOptions, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, InternalEditorOptions, IComputedEditorOptions, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { CursorColumns, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -259,9 +259,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
-			if (e.hasChanged(EditorOptionId.layoutInfo)) {
+			if (e.hasChanged(EditorOption.layoutInfo)) {
 				const options = this._configuration.options;
-				const layoutInfo = options.get(EditorOptionId.layoutInfo);
+				const layoutInfo = options.get(EditorOption.layoutInfo);
 				this._onDidLayoutChange.fire(layoutInfo);
 			}
 			if (this._configuration.editor.showUnused) {
@@ -376,7 +376,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._configuration.options;
 	}
 
-	public getOption<T extends EditorOptionId>(id: T): FindComputedEditorOptionValueById<T> {
+	public getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
 		return this._configuration.options.get(id);
 	}
 
@@ -982,7 +982,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return false;
 		}
-		if (this._configuration.options.get(EditorOptionId.readOnly)) {
+		if (this._configuration.options.get(EditorOption.readOnly)) {
 			// read only editor => sorry!
 			return false;
 		}
@@ -994,7 +994,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return false;
 		}
-		if (this._configuration.options.get(EditorOptionId.readOnly)) {
+		if (this._configuration.options.get(EditorOption.readOnly)) {
 			// read only editor => sorry!
 			return false;
 		}
@@ -1038,7 +1038,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.model.getLineDecorations(lineNumber, this._id, this._configuration.options.get(EditorOptionId.readOnly));
+		return this._modelData.model.getLineDecorations(lineNumber, this._id, this._configuration.options.get(EditorOption.readOnly));
 	}
 
 	public deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
@@ -1131,7 +1131,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public getLayoutInfo(): EditorLayoutInfo {
 		const options = this._configuration.options;
-		const layoutInfo = options.get(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 		return layoutInfo;
 	}
 
@@ -1281,7 +1281,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const position = this._modelData.model.validatePosition(rawPosition);
 		const options = this._configuration.options;
-		const layoutInfo = options.get(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		const top = CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, position.lineNumber, position.column) - this.getScrollTop();
 		const left = this._modelData.view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this.getScrollLeft();
@@ -1616,8 +1616,8 @@ class EditorContextKeysManager extends Disposable {
 	private _updateFromConfig(): void {
 		const options = this._editor.getOptions();
 
-		this._editorTabMovesFocus.set(options.get(EditorOptionId.tabFocusMode));
-		this._editorReadonly.set(options.get(EditorOptionId.readOnly));
+		this._editorTabMovesFocus.set(options.get(EditorOption.tabFocusMode));
+		this._editorReadonly.set(options.get(EditorOption.readOnly));
 	}
 
 	private _updateFromSelection(): void {

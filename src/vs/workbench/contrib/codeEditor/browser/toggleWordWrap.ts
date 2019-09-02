@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOptionId, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -68,7 +68,7 @@ function readWordWrapState(model: ITextModel, configurationService: ITextResourc
 	const _transientState = readTransientState(model, codeEditorService);
 	return {
 		configuredWordWrap: _configuredWordWrap,
-		configuredWordWrapMinified: (typeof _configuredWordWrapMinified === 'boolean' ? _configuredWordWrapMinified : EditorOption.wordWrapMinified.defaultValue),
+		configuredWordWrapMinified: (typeof _configuredWordWrapMinified === 'boolean' ? _configuredWordWrapMinified : EditorOptions.wordWrapMinified.defaultValue),
 		transientState: _transientState
 	};
 }
@@ -85,7 +85,7 @@ function toggleWordWrap(editor: ICodeEditor, state: IWordWrapState): IWordWrapSt
 
 	let transientState: IWordWrapTransientState;
 
-	const actualWrappingInfo = editor.getOption(EditorOptionId.wrappingInfo);
+	const actualWrappingInfo = editor.getOption(EditorOption.wrappingInfo);
 	if (actualWrappingInfo.isWordWrapMinified) {
 		// => wrapping due to minified file
 		transientState = {
@@ -138,7 +138,7 @@ class ToggleWordWrapAction extends EditorAction {
 		if (!editor.hasModel()) {
 			return;
 		}
-		if (editor.getOption(EditorOptionId.inDiffEditor)) {
+		if (editor.getOption(EditorOption.inDiffEditor)) {
 			// Cannot change wrapping settings inside the diff editor
 			const notificationService = accessor.get(INotificationService);
 			notificationService.info(nls.localize('wordWrap.notInDiffEditor', "Cannot toggle word wrap in a diff editor."));
@@ -176,21 +176,21 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		super();
 
 		const options = this.editor.getOptions();
-		const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const isWordWrapMinified = this.contextKeyService.createKey(isWordWrapMinifiedKey, wrappingInfo.isWordWrapMinified);
 		const isDominatedByLongLines = this.contextKeyService.createKey(isDominatedByLongLinesKey, wrappingInfo.isDominatedByLongLines);
-		const inDiffEditor = this.contextKeyService.createKey(inDiffEditorKey, options.get(EditorOptionId.inDiffEditor));
+		const inDiffEditor = this.contextKeyService.createKey(inDiffEditorKey, options.get(EditorOption.inDiffEditor));
 		let currentlyApplyingEditorConfig = false;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
-			if (!e.hasChanged(EditorOptionId.wrappingInfo) || !e.hasChanged(EditorOptionId.inDiffEditor)) {
+			if (!e.hasChanged(EditorOption.wrappingInfo) || !e.hasChanged(EditorOption.inDiffEditor)) {
 				return;
 			}
 			const options = this.editor.getOptions();
-			const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
+			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			isWordWrapMinified.set(wrappingInfo.isWordWrapMinified);
 			isDominatedByLongLines.set(wrappingInfo.isDominatedByLongLines);
-			inDiffEditor.set(options.get(EditorOptionId.inDiffEditor));
+			inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 			if (!currentlyApplyingEditorConfig) {
 				// I am not the cause of the word wrap getting changed
 				ensureWordWrapSettings();
@@ -216,7 +216,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 				return;
 			}
 
-			if (this.editor.getOption(EditorOptionId.inDiffEditor)) {
+			if (this.editor.getOption(EditorOption.inDiffEditor)) {
 				return;
 			}
 

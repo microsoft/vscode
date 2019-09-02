@@ -11,7 +11,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export class ScrollDecorationViewPart extends ViewPart {
@@ -30,7 +30,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._updateWidth();
 		this._shouldShow = false;
 		const options = this._context.configuration.options;
-		const scrollbar = options.get(EditorOptionId.scrollbar);
+		const scrollbar = options.get(EditorOption.scrollbar);
 		this._useShadows = scrollbar.useShadows;
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._domNode.setAttribute('role', 'presentation');
@@ -56,7 +56,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 
 	private _updateWidth(): boolean {
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 		let newWidth = 0;
 		if (layoutInfo.renderMinimap === 0 || (layoutInfo.minimapWidth > 0 && layoutInfo.minimapLeft === 0)) {
 			newWidth = layoutInfo.width;
@@ -74,12 +74,12 @@ export class ScrollDecorationViewPart extends ViewPart {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		let shouldRender = false;
-		if (e.hasChanged(EditorOptionId.scrollbar)) {
+		if (e.hasChanged(EditorOption.scrollbar)) {
 			const options = this._context.configuration.options;
-			const scrollbar = options.get(EditorOptionId.scrollbar);
+			const scrollbar = options.get(EditorOption.scrollbar);
 			this._useShadows = scrollbar.useShadows;
 		}
-		if (e.hasChanged(EditorOptionId.layoutInfo)) {
+		if (e.hasChanged(EditorOption.layoutInfo)) {
 			shouldRender = this._updateWidth();
 		}
 		return this._updateShouldShow() || shouldRender;

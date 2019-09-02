@@ -19,7 +19,7 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { ILineMapping, ISimpleModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
@@ -91,11 +91,11 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 
 	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: SplitLinesCollection) => void): void {
 		const config = new TestConfiguration({});
-		const wrappingInfo = config.options.get(EditorOptionId.wrappingInfo);
-		const wordWrapBreakAfterCharacters = config.options.get(EditorOptionId.wordWrapBreakAfterCharacters);
-		const wordWrapBreakBeforeCharacters = config.options.get(EditorOptionId.wordWrapBreakBeforeCharacters);
-		const wordWrapBreakObtrusiveCharacters = config.options.get(EditorOptionId.wordWrapBreakObtrusiveCharacters);
-		const wrappingIndent = config.options.get(EditorOptionId.wrappingIndent);
+		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
+		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
+		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
+		const wordWrapBreakObtrusiveCharacters = config.options.get(EditorOption.wordWrapBreakObtrusiveCharacters);
+		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
 
 		const hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
 			wordWrapBreakBeforeCharacters,
@@ -744,11 +744,11 @@ suite('SplitLinesCollection', () => {
 			wordWrapColumn: wordWrapColumn,
 			wrappingIndent: 'indent'
 		});
-		const wrappingInfo = configuration.options.get(EditorOptionId.wrappingInfo);
-		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOptionId.wordWrapBreakAfterCharacters);
-		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOptionId.wordWrapBreakBeforeCharacters);
-		const wordWrapBreakObtrusiveCharacters = configuration.options.get(EditorOptionId.wordWrapBreakObtrusiveCharacters);
-		const wrappingIndent = configuration.options.get(EditorOptionId.wrappingIndent);
+		const wrappingInfo = configuration.options.get(EditorOption.wrappingInfo);
+		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOption.wordWrapBreakAfterCharacters);
+		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
+		const wordWrapBreakObtrusiveCharacters = configuration.options.get(EditorOption.wordWrapBreakObtrusiveCharacters);
+		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
 
 		const factory = new CharacterHardWrappingLineMapperFactory(
 			wordWrapBreakBeforeCharacters,

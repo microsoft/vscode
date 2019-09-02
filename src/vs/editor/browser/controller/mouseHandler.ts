@@ -21,7 +21,7 @@ import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 /**
@@ -218,7 +218,7 @@ export class MouseHandler extends ViewEventHandler {
 		const targetIsContent = (t.type === editorBrowser.MouseTargetType.CONTENT_TEXT || t.type === editorBrowser.MouseTargetType.CONTENT_EMPTY);
 		const targetIsGutter = (t.type === editorBrowser.MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS || t.type === editorBrowser.MouseTargetType.GUTTER_LINE_DECORATIONS);
 		const targetIsLineNumbers = (t.type === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS);
-		const selectOnLineNumbers = this._context.configuration.options.get(EditorOptionId.selectOnLineNumbers);
+		const selectOnLineNumbers = this._context.configuration.options.get(EditorOption.selectOnLineNumbers);
 		const targetIsViewZone = (t.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE);
 		const targetIsWidget = (t.type === editorBrowser.MouseTargetType.CONTENT_WIDGET);
 
@@ -354,7 +354,7 @@ class MouseDownOperation extends Disposable {
 		e.detail = this._mouseState.count;
 
 		const options = this._context.configuration.options;
-		const readOnly = options.get(EditorOptionId.readOnly);
+		const readOnly = options.get(EditorOption.readOnly);
 
 		if (!readOnly
 			&& this._context.configuration.editor.dragAndDrop

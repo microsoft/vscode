@@ -18,7 +18,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Viewport } from 'vs/editor/common/viewModel/viewModel';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class LastRenderedData {
 
@@ -92,7 +92,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		const conf = this._context.configuration;
 		const options = this._context.configuration.options;
-		const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
 		this._lineHeight = conf.editor.lineHeight;
 		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
@@ -138,7 +138,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._visibleLines.onConfigurationChanged(e);
-		if (e.hasChanged(EditorOptionId.wrappingInfo)) {
+		if (e.hasChanged(EditorOption.wrappingInfo)) {
 			this._maxLineWidth = 0;
 		}
 
@@ -151,8 +151,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		if (e.fontInfo) {
 			this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		}
-		if (e.hasChanged(EditorOptionId.wrappingInfo)) {
-			const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
+		if (e.hasChanged(EditorOption.wrappingInfo)) {
+			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		}
 		if (e.viewInfo) {
@@ -168,7 +168,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		this._onOptionsMaybeChanged();
 
-		if (e.hasChanged(EditorOptionId.layoutInfo)) {
+		if (e.hasChanged(EditorOption.layoutInfo)) {
 			this._maxLineWidth = 0;
 		}
 

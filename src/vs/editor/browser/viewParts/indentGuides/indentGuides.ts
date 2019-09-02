@@ -11,7 +11,7 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
@@ -34,7 +34,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 		this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
-		const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const wrappingColumn = wrappingInfo.wrappingColumn;
 		this._maxIndentLeft = wrappingColumn === -1 ? -1 : (wrappingColumn * this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
 
@@ -63,8 +63,8 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 			this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
 		}
-		if (e.hasChanged(EditorOptionId.wrappingInfo) || e.fontInfo) {
-			const wrappingInfo = options.get(EditorOptionId.wrappingInfo);
+		if (e.hasChanged(EditorOption.wrappingInfo) || e.fontInfo) {
+			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const wrappingColumn = wrappingInfo.wrappingColumn;
 			this._maxIndentLeft = wrappingColumn === -1 ? -1 : (wrappingColumn * this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
 		}

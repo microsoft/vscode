@@ -667,10 +667,10 @@ export class DiffReview extends Disposable {
 			originalLineEnd - originalLineStart
 		);
 
-		const originalLayoutInfo = originalOptions.get(editorOptions.EditorOptionId.layoutInfo);
+		const originalLayoutInfo = originalOptions.get(editorOptions.EditorOption.layoutInfo);
 		const originalLineNumbersWidth = originalLayoutInfo.glyphMarginWidth + originalLayoutInfo.lineNumbersWidth;
 
-		const modifiedLayoutInfo = modifiedOptions.get(editorOptions.EditorOptionId.layoutInfo);
+		const modifiedLayoutInfo = modifiedOptions.get(editorOptions.EditorOption.layoutInfo);
 		const modifiedLineNumbersWidth = 10 + modifiedLayoutInfo.glyphMarginWidth + modifiedLayoutInfo.lineNumbersWidth;
 
 		for (let i = 0; i <= cnt; i++) {

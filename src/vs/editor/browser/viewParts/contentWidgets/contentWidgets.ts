@@ -14,7 +14,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 class Coordinate {
@@ -210,7 +210,7 @@ class Widget {
 		this.suppressMouseDown = this._actual.suppressMouseDown || false;
 
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._fixedOverflowWidgets = this._context.configuration.editor.viewInfo.fixedOverflowWidgets;
 		this._contentWidth = layoutInfo.contentWidth;
@@ -238,9 +238,9 @@ class Widget {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.hasChanged(EditorOptionId.layoutInfo)) {
+		if (e.hasChanged(EditorOption.layoutInfo)) {
 			const options = this._context.configuration.options;
-			const layoutInfo = options.get(EditorOptionId.layoutInfo);
+			const layoutInfo = options.get(EditorOption.layoutInfo);
 			this._contentLeft = layoutInfo.contentLeft;
 			this._contentWidth = layoutInfo.contentWidth;
 			this._maxWidth = this._getMaxWidth();

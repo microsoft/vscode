@@ -8,7 +8,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { editorCursorBackground, editorCursorForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -44,7 +44,7 @@ export class ViewCursors extends ViewPart {
 		super(context);
 
 		const options = this._context.configuration.options;
-		this._readOnly = options.get(EditorOptionId.readOnly);
+		this._readOnly = options.get(EditorOption.readOnly);
 		this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		this._cursorSmoothCaretAnimation = this._context.configuration.editor.viewInfo.cursorSmoothCaretAnimation;
@@ -87,8 +87,8 @@ export class ViewCursors extends ViewPart {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 
-		if (e.hasChanged(EditorOptionId.readOnly)) {
-			this._readOnly = options.get(EditorOptionId.readOnly);
+		if (e.hasChanged(EditorOption.readOnly)) {
+			this._readOnly = options.get(EditorOption.readOnly);
 		}
 		if (e.viewInfo) {
 			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;

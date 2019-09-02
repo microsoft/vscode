@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -112,7 +112,7 @@ export class CursorConfiguration {
 
 	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
 		return (
-			e.hasChanged(EditorOptionId.layoutInfo)
+			e.hasChanged(EditorOption.layoutInfo)
 			|| e.wordSeparators
 			|| e.emptySelectionClipboard
 			|| e.multiCursorMergeOverlapping
@@ -122,7 +122,7 @@ export class CursorConfiguration {
 			|| e.autoSurround
 			|| e.useTabStops
 			|| e.lineHeight
-			|| e.hasChanged(EditorOptionId.readOnly)
+			|| e.hasChanged(EditorOption.readOnly)
 		);
 	}
 
@@ -135,9 +135,9 @@ export class CursorConfiguration {
 
 		const c = configuration.editor;
 		const options = configuration.options;
-		const layoutInfo = options.get(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this.readOnly = options.get(EditorOptionId.readOnly);
+		this.readOnly = options.get(EditorOption.readOnly);
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;

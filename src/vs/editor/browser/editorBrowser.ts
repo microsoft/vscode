@@ -6,7 +6,7 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { OverviewRulerPosition, IConfigurationChangedEvent, EditorLayoutInfo, InternalEditorOptions, IComputedEditorOptions, EditorOptionId, FindComputedEditorOptionValueById, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { OverviewRulerPosition, IConfigurationChangedEvent, EditorLayoutInfo, InternalEditorOptions, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -538,7 +538,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	getOptions(): IComputedEditorOptions;
 
-	getOption<T extends EditorOptionId>(id: T): FindComputedEditorOptionValueById<T>;
+	getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 	/**
 	 * Returns the 'raw' editor's configuration (without any validation or defaults).
 	 * @internal

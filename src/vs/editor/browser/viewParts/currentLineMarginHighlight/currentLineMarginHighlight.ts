@@ -10,7 +10,7 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
@@ -25,7 +25,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		super();
 		this._context = context;
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOptionId.layoutInfo);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
@@ -50,9 +50,9 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		if (e.viewInfo) {
 			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 		}
-		if (e.hasChanged(EditorOptionId.layoutInfo)) {
+		if (e.hasChanged(EditorOption.layoutInfo)) {
 			const options = this._context.configuration.options;
-			const layoutInfo = options.get(EditorOptionId.layoutInfo);
+			const layoutInfo = options.get(EditorOption.layoutInfo);
 			this._contentLeft = layoutInfo.contentLeft;
 		}
 		return true;

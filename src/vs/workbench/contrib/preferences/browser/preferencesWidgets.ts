@@ -33,7 +33,7 @@ import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/p
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -88,7 +88,7 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 		const configuration = this.editor.getConfiguration();
 		const options = this.editor.getOptions();
 		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
-		if (!options.get(EditorOptionId.folding)) {
+		if (!options.get(EditorOption.folding)) {
 			this.titleContainer.style.paddingLeft = '6px';
 		}
 	}

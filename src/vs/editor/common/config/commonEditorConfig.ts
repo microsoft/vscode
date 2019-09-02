@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { IEditorOptions, RawEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, ComputedEditorOptions, ChangedEditorOptions, IValidatedEditorOptions, InternalEditorOptions, IConfigurationChangedEvent, EditorOptionsValidator, EDITOR_DEFAULTS, InternalEditorOptionsFactory, EDITOR_FONT_DEFAULTS, EditorOption, EDITOR_MODEL_DEFAULTS, blinkingStyleToString, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, RawEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, ComputedEditorOptions, ChangedEditorOptions, IValidatedEditorOptions, InternalEditorOptions, IConfigurationChangedEvent, EditorOptionsValidator, EDITOR_DEFAULTS, InternalEditorOptionsFactory, EDITOR_FONT_DEFAULTS, EditorOptions, EDITOR_MODEL_DEFAULTS, blinkingStyleToString, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -363,7 +363,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.renderFinalNewline': {
 			'type': 'boolean',
-			'default': EditorOption.renderFinalNewline.defaultValue,
+			'default': EditorOptions.renderFinalNewline.defaultValue,
 			'description': nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.")
 		},
 		'editor.rulers': {
@@ -431,29 +431,29 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.minimap.enabled': {
 			'type': 'boolean',
-			'default': EditorOption.minimap.defaultValue.enabled,
+			'default': EditorOptions.minimap.defaultValue.enabled,
 			'description': nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
 		},
 		'editor.minimap.side': {
 			'type': 'string',
 			'enum': ['left', 'right'],
-			'default': EditorOption.minimap.defaultValue.side,
+			'default': EditorOptions.minimap.defaultValue.side,
 			'description': nls.localize('minimap.side', "Controls the side where to render the minimap.")
 		},
 		'editor.minimap.showSlider': {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
-			'default': EditorOption.minimap.defaultValue.showSlider,
+			'default': EditorOptions.minimap.defaultValue.showSlider,
 			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
-			'default': EditorOption.minimap.defaultValue.renderCharacters,
+			'default': EditorOptions.minimap.defaultValue.renderCharacters,
 			'description': nls.localize('minimap.renderCharacters', "Render the actual characters on a line as opposed to color blocks.")
 		},
 		'editor.minimap.maxColumn': {
 			'type': 'number',
-			'default': EditorOption.minimap.defaultValue.maxColumn,
+			'default': EditorOptions.minimap.defaultValue.maxColumn,
 			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
 		},
 		'editor.hover.enabled': {
@@ -512,7 +512,7 @@ const editorConfiguration: IConfigurationNode = {
 					]
 				}, "Lines will wrap at the minimum of viewport and `#editor.wordWrapColumn#`."),
 			],
-			'default': EditorOption.wordWrap.defaultValue,
+			'default': EditorOptions.wordWrap.defaultValue,
 			'description': nls.localize({
 				key: 'wordWrap',
 				comment: [
@@ -523,7 +523,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wordWrapColumn': {
 			'type': 'integer',
-			'default': EditorOption.wordWrapColumn.defaultValue,
+			'default': EditorOptions.wordWrapColumn.defaultValue,
 			'minimum': 1,
 			'markdownDescription': nls.localize({
 				key: 'wordWrapColumn',
@@ -547,12 +547,12 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.mouseWheelScrollSensitivity': {
 			'type': 'number',
-			'default': EditorOption.mouseWheelScrollSensitivity.defaultValue,
+			'default': EditorOptions.mouseWheelScrollSensitivity.defaultValue,
 			'markdownDescription': nls.localize('mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
 		},
 		'editor.fastScrollSensitivity': {
 			'type': 'number',
-			'default': EditorOption.fastScrollSensitivity.defaultValue,
+			'default': EditorOptions.fastScrollSensitivity.defaultValue,
 			'markdownDescription': nls.localize('fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`.")
 		},
 		'editor.multiCursorModifier': {
@@ -1049,7 +1049,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.folding': {
 			'type': 'boolean',
-			'default': EditorOption.folding.defaultValue,
+			'default': EditorOptions.folding.defaultValue,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled.")
 		},
 		'editor.foldingStrategy': {
@@ -1102,7 +1102,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader."),
 				nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
 			],
-			'default': EditorOption.accessibilitySupport.defaultValue,
+			'default': EditorOptions.accessibilitySupport.defaultValue,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 		},
 		'editor.showUnused': {
@@ -1155,7 +1155,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.selectionClipboard': {
 			'type': 'boolean',
-			'default': EditorOption.selectionClipboard.defaultValue,
+			'default': EditorOptions.selectionClipboard.defaultValue,
 			'description': nls.localize('selectionClipboard', "Controls whether the Linux primary clipboard should be supported."),
 			'included': platform.isLinux
 		},

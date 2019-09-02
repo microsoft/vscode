@@ -370,7 +370,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		RenderMinimap: standaloneEnums.RenderMinimap,
 		ScrollType: standaloneEnums.ScrollType,
 		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
-		EditorOptionId: standaloneEnums.EditorOptionId,
+		EditorOption: standaloneEnums.EditorOption,
 
 		// classes
 		BaseEditorOption: <any>editorOptions.BaseEditorOption,
@@ -382,7 +382,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// vars
 		EditorType: editorCommon.EditorType,
-		EditorOption: <any>editorOptions.EditorOption,
+		EditorOptions: <any>editorOptions.EditorOptions,
 
 	};
 }

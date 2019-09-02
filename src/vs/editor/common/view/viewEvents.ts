@@ -6,7 +6,7 @@
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
-import { IConfigurationChangedEvent, EditorOptionId } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -56,7 +56,7 @@ export class ViewConfigurationChangedEvent {
 		this.viewInfo = source.viewInfo;
 	}
 
-	public hasChanged(id: EditorOptionId): boolean {
+	public hasChanged(id: EditorOption): boolean {
 		return this._source.hasChanged(id);
 	}
 }
