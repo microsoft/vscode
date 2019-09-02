@@ -709,10 +709,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.fullscreen = this.isFullScreen();
 
 		// Set Accessibility Config
-		let autoDetectHighContrast = true;
-		if (windowConfig && !windowConfig.autoDetectHighContrast) {
-			autoDetectHighContrast = false;
-		}
+		const autoDetectHighContrast = !windowConfig || indowConfig.autoDetectHighContrast;
 		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
@@ -1025,16 +1022,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			}
 
-			let title: string;
-			if (typeof item.title === 'string') {
-				title = item.title;
-			} else {
-				title = item.title.value;
-			}
+			const title = (typeof item.title === 'string') ? item.title : title = item.title.value;
 
 			return {
 				id: item.id,
-				label: !icon ? title : undefined,
+				label: icon ? undefined : icon,
 				icon
 			};
 		});
