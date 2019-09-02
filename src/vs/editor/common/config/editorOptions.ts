@@ -2014,16 +2014,16 @@ export class ChangedEditorOptions {
 		this._values[id] = value;
 	}
 }
+type PossibleKeyName0<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
+type PossibleKeyName<V> = NonNullable<PossibleKeyName0<V>>;
 
-export type PossibleKeyName<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
-
-export interface IEditorOption<K extends EditorOption, T1, T2 = T1, T3 = T2> {
-	readonly id: K;
-	readonly name: PossibleKeyName<T1>;
+export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2 = NonNullable<IEditorOptions[K2]>, T3 = T2> {
+	readonly id: K1;
+	readonly name: K2;
 	readonly defaultValue: T2;
-	read(options: IRawEditorOptionsBag): T1 | undefined;
-	mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined;
-	validate(input: T1 | undefined): T2;
+	read(options: IRawEditorOptionsBag): IEditorOptions[K2] | undefined;
+	mix(a: IEditorOptions[K2] | undefined, b: IEditorOptions[K2] | undefined): IEditorOptions[K2] | undefined;
+	validate(input: IEditorOptions[K2] | undefined): T2;
 	compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
 	equals(a: T3, b: T3): boolean;
 }
@@ -2033,18 +2033,18 @@ export interface IEditorOption<K extends EditorOption, T1, T2 = T1, T3 = T2> {
  */
 export const editorOptionsRegistry: IEditorOption<EditorOption, any>[] = [];
 
-function registerEditorOption<K extends EditorOption, T1, T2, T3>(option: IEditorOption<K, T1, T2, T3>): IEditorOption<K, T1, T2, T3> {
+function registerEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2, T3>(option: IEditorOption<K1, K2, T2, T3>): IEditorOption<K1, K2, T2, T3> {
 	editorOptionsRegistry[option.id] = option;
 	return option;
 }
 
-export abstract class BaseEditorOption<K extends EditorOption, T1, T2 = T1, T3 = T2> implements IEditorOption<K, T1, T2, T3> {
+export abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2 = IEditorOptions[K2], T3 = T2> implements IEditorOption<K1, K2, T2, T3> {
 
-	public readonly id: K;
-	public readonly name: PossibleKeyName<T1>;
+	public readonly id: K1;
+	public readonly name: K2;
 	public readonly defaultValue: T2;
 
-	constructor(id: K, name: PossibleKeyName<T1>, defaultValue: T2, deps: EditorOption[] = []) {
+	constructor(id: K1, name: K2, defaultValue: T2, deps: EditorOption[] = []) {
 		this.id = id;
 		this.name = name;
 		this.defaultValue = defaultValue;
@@ -2052,10 +2052,10 @@ export abstract class BaseEditorOption<K extends EditorOption, T1, T2 = T1, T3 =
 			assert.ok(dep < id);
 		}
 	}
-	public read(options: IRawEditorOptionsBag): T1 | undefined {
+	public read(options: IRawEditorOptionsBag): IEditorOptions[K2] | undefined {
 		return options[<any>this.name];
 	}
-	public mix(a: T1 | undefined, b: T1 | undefined): T1 | undefined {
+	public mix(a: IEditorOptions[K2] | undefined, b: IEditorOptions[K2] | undefined): IEditorOptions[K2] | undefined {
 		switch (typeof b) {
 			case 'bigint': return b;
 			case 'boolean': return b;
@@ -2067,14 +2067,14 @@ export abstract class BaseEditorOption<K extends EditorOption, T1, T2 = T1, T3 =
 				return a;
 		}
 	}
-	public abstract validate(input: T1 | undefined): T2;
+	public abstract validate(input: IEditorOptions[K2] | undefined): T2;
 	public abstract compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
 	public equals(a: T3, b: T3): boolean {
 		return (a === b);
 	}
 }
 
-class EditorBooleanOption<K extends EditorOption> extends BaseEditorOption<K, boolean> {
+class EditorBooleanOption<K1 extends EditorOption, K2 extends PossibleKeyName<boolean>> extends BaseEditorOption<K1, K2, boolean> {
 	public validate(input: boolean | undefined): boolean {
 		return _boolean(input, this.defaultValue);
 	}
@@ -2083,10 +2083,10 @@ class EditorBooleanOption<K extends EditorOption> extends BaseEditorOption<K, bo
 	}
 }
 
-class EditorIntOption<K extends EditorOption> extends BaseEditorOption<K, number> {
+class EditorIntOption<K1 extends EditorOption, K2 extends PossibleKeyName<number>> extends BaseEditorOption<K1, K2, number> {
 	public readonly minimum: number;
 	public readonly maximum: number;
-	constructor(id: K, name: PossibleKeyName<number>, defaultValue: number, minimum: number, maximum: number, deps: EditorOption[] = []) {
+	constructor(id: K1, name: K2, defaultValue: number, minimum: number, maximum: number, deps: EditorOption[] = []) {
 		super(id, name, defaultValue, deps);
 		this.minimum = minimum;
 		this.maximum = maximum;
@@ -2099,9 +2099,9 @@ class EditorIntOption<K extends EditorOption> extends BaseEditorOption<K, number
 	}
 }
 
-class EditorFloatOption<K extends EditorOption> extends BaseEditorOption<K, number> {
+class EditorFloatOption<K1 extends EditorOption, K2 extends PossibleKeyName<number>> extends BaseEditorOption<K1, K2, number> {
 	public readonly validationFn: (value: number) => number;
-	constructor(id: K, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number, deps: EditorOption[] = []) {
+	constructor(id: K1, name: K2, defaultValue: number, validationFn: (value: number) => number, deps: EditorOption[] = []) {
 		super(id, name, defaultValue, deps);
 		this.validationFn = validationFn;
 	}
@@ -2113,7 +2113,7 @@ class EditorFloatOption<K extends EditorOption> extends BaseEditorOption<K, numb
 	}
 }
 
-class EditorStringOption<K extends EditorOption> extends BaseEditorOption<K, string> {
+class EditorStringOption<K1 extends EditorOption, K2 extends PossibleKeyName<string>> extends BaseEditorOption<K1, K2, string> {
 	public validate(input: string | undefined): string {
 		return _string(input, this.defaultValue);
 	}
@@ -2122,30 +2122,30 @@ class EditorStringOption<K extends EditorOption> extends BaseEditorOption<K, str
 	}
 }
 
-class EditorEnumOption<K extends EditorOption, T1, T2 = T1> extends BaseEditorOption<K, T1, T1, T2> {
+class EditorEnumOption<K1 extends EditorOption, K2 extends PossibleKeyName<T1>, T1 extends string, T2 = T1> extends BaseEditorOption<K1, K2, T1, T2> {
 	public readonly allowedValues: T1[];
 	public readonly convert: (value: T1) => T2;
-	constructor(id: K, name: PossibleKeyName<T1>, defaultValue: T1, allowedValues: T1[], convert: (value: T1) => T2, deps: EditorOption[] = []) {
+	constructor(id: K1, name: K2, defaultValue: T1, allowedValues: T1[], convert: (value: T1) => T2, deps: EditorOption[] = []) {
 		super(id, name, defaultValue, deps);
 		this.allowedValues = allowedValues;
 		this.convert = convert;
 	}
-	public validate(input: T1 | undefined): T1 {
-		return _stringSet<T1>(input, this.defaultValue, this.allowedValues);
+	public validate(input: IEditorOptions[K2] | undefined): T1 {
+		return _stringSet<T1>(<any>input, this.defaultValue, this.allowedValues);
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T1): T2 {
 		return this.convert(value);
 	}
 }
 
-class EditorPassthroughOption<K extends EditorOption, T> extends BaseEditorOption<K, T> {
-	public validate(input: T | undefined): T {
+class EditorPassthroughOption<K1 extends EditorOption, K2 extends keyof IEditorOptions> extends BaseEditorOption<K1, K2> {
+	public validate(input: IEditorOptions[K2] | undefined): IEditorOptions[K2] {
 		if (typeof input === 'undefined') {
 			return this.defaultValue;
 		}
 		return input;
 	}
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T): T {
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: IEditorOptions[K2]): IEditorOptions[K2] {
 		return value;
 	}
 }
@@ -2167,7 +2167,7 @@ export interface InternalEditorRenderLineNumbersOptions {
 	readonly renderFn: ((lineNumber: number) => string) | null;
 }
 
-class EditorRenderLineNumbersOption<K extends EditorOption> extends BaseEditorOption<K, LineNumbersType, InternalEditorRenderLineNumbersOptions, InternalEditorRenderLineNumbersOptions> {
+class EditorRenderLineNumbersOption<K1 extends EditorOption, K2 extends PossibleKeyName<LineNumbersType>> extends BaseEditorOption<K1, K2, InternalEditorRenderLineNumbersOptions, InternalEditorRenderLineNumbersOptions> {
 	public validate(lineNumbers: LineNumbersType | undefined): InternalEditorRenderLineNumbersOptions {
 		let renderType: RenderLineNumbersType = this.defaultValue.renderType;
 		let renderFn: ((lineNumber: number) => string) | null = this.defaultValue.renderFn;
@@ -2215,7 +2215,7 @@ export interface InternalEditorMinimapOptions {
 	readonly maxColumn: number;
 }
 
-class EditorMinimapOption<K extends EditorOption> extends BaseEditorOption<K, IEditorMinimapOptions, InternalEditorMinimapOptions, InternalEditorMinimapOptions> {
+class EditorMinimapOption<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorMinimapOptions>> extends BaseEditorOption<K1, K2, InternalEditorMinimapOptions, InternalEditorMinimapOptions> {
 	public validate(input: IEditorMinimapOptions | undefined): InternalEditorMinimapOptions {
 		if (typeof input !== 'object') {
 			return this.defaultValue;
@@ -2246,7 +2246,7 @@ class EditorMinimapOption<K extends EditorOption> extends BaseEditorOption<K, IE
 
 //#region accessibilitySupport
 
-class EditorAccessibilitySupportOption<K extends EditorOption> extends BaseEditorOption<K, 'auto' | 'off' | 'on', 'auto' | 'off' | 'on', AccessibilitySupport> {
+class EditorAccessibilitySupportOption<K1 extends EditorOption, K2 extends PossibleKeyName<'auto' | 'off' | 'on'>> extends BaseEditorOption<K1, K2, 'auto' | 'off' | 'on', AccessibilitySupport> {
 	public validate(input: 'auto' | 'off' | 'on' | undefined): 'auto' | 'off' | 'on' {
 		return _stringSet<'auto' | 'off' | 'on'>(input, this.defaultValue, ['auto', 'off', 'on']);
 	}
@@ -2266,7 +2266,7 @@ class EditorAccessibilitySupportOption<K extends EditorOption> extends BaseEdito
 
 //#region ariaLabel
 
-class EditorAriaLabel<K extends EditorOption> extends BaseEditorOption<K, string> {
+class EditorAriaLabel<K1 extends EditorOption, K2 extends PossibleKeyName<string>> extends BaseEditorOption<K1, K2, string> {
 	public validate(input: string | undefined): string {
 		return _string(input, this.defaultValue);
 	}
@@ -2283,7 +2283,7 @@ class EditorAriaLabel<K extends EditorOption> extends BaseEditorOption<K, string
 
 //#region tabFocusMode
 
-class EditorTabFocusMode<K extends EditorOption> extends BaseEditorOption<K, undefined, undefined, boolean> {
+class EditorTabFocusMode<K1 extends EditorOption, K2 extends PossibleKeyName<undefined>> extends BaseEditorOption<K1, K2, undefined, boolean> {
 	public validate(input: undefined): undefined {
 		return undefined;
 	}
@@ -2311,7 +2311,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalSliderSize: number;
 }
 
-class EditorScrollbarOption<K extends EditorOption> extends BaseEditorOption<K, IEditorScrollbarOptions, InternalEditorScrollbarOptions, InternalEditorScrollbarOptions> {
+class EditorScrollbarOption<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorScrollbarOptions>> extends BaseEditorOption<K1, K2, InternalEditorScrollbarOptions, InternalEditorScrollbarOptions> {
 	public validate(input: IEditorScrollbarOptions | undefined): InternalEditorScrollbarOptions {
 		if (typeof input !== 'object') {
 			return this.defaultValue;
@@ -2481,7 +2481,7 @@ export interface EditorLayoutInfo {
 /**
  * @internal
  */
-export class EditorLayoutInfoComputer<K extends EditorOption> extends BaseEditorOption<K, undefined, undefined, EditorLayoutInfo> {
+export class EditorLayoutInfoComputer<K1 extends EditorOption, K2 extends PossibleKeyName<undefined>> extends BaseEditorOption<K1, K2, undefined, EditorLayoutInfo> {
 	public validate(input: undefined): undefined {
 		return undefined;
 	}
@@ -2706,7 +2706,7 @@ export interface EditorWrappingInfo {
 	readonly wrappingColumn: number;
 }
 
-class EditorWrappingInfoComputer<K extends EditorOption> extends BaseEditorOption<K, undefined, undefined, EditorWrappingInfo> {
+class EditorWrappingInfoComputer<K1 extends EditorOption, K2 extends PossibleKeyName<undefined>> extends BaseEditorOption<K1, K2, undefined, EditorWrappingInfo> {
 	public mix(a: undefined, b: undefined): undefined {
 		return undefined;
 	}
@@ -2822,7 +2822,7 @@ export const EditorOptions = {
 	folding: registerEditorOption(new EditorBooleanOption(EditorOption.folding, 'folding', true)),
 	glyphMargin: registerEditorOption(new EditorBooleanOption(EditorOption.glyphMargin, 'glyphMargin', true)),
 	inDiffEditor: registerEditorOption(new EditorBooleanOption(EditorOption.inDiffEditor, 'inDiffEditor', false)),
-	lineDecorationsWidth: registerEditorOption(new EditorPassthroughOption<EditorOption.lineDecorationsWidth, number | string>(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10)),
+	lineDecorationsWidth: registerEditorOption(new EditorPassthroughOption(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10)),
 	lineNumbersMinChars: registerEditorOption(new EditorIntOption(EditorOption.lineNumbersMinChars, 'lineNumbersMinChars', 5, 1, 10)),
 	minimap: registerEditorOption(new EditorMinimapOption(EditorOption.minimap, 'minimap', {
 		enabled: true,
@@ -2851,13 +2851,13 @@ export const EditorOptions = {
 	selectionClipboard: registerEditorOption(new EditorBooleanOption(EditorOption.selectionClipboard, 'selectionClipboard', true)),
 	selectOnLineNumbers: registerEditorOption(new EditorBooleanOption(EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true)),
 	tabFocusMode: registerEditorOption(new EditorTabFocusMode(EditorOption.tabFocusMode, 'tabFocusMode', undefined, [EditorOption.readOnly])),
-	wordWrap: registerEditorOption(new EditorEnumOption<EditorOption.wordWrap, 'off' | 'on' | 'wordWrapColumn' | 'bounded'>(EditorOption.wordWrap, 'wordWrap', 'off', ['off', 'on', 'wordWrapColumn', 'bounded'], x => x)),
+	wordWrap: registerEditorOption(new EditorEnumOption(EditorOption.wordWrap, 'wordWrap', 'off', ['off', 'on', 'wordWrapColumn', 'bounded'], x => x)),
 	wordWrapBreakAfterCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters', ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣')),
 	wordWrapBreakBeforeCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters', '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋')),
 	wordWrapBreakObtrusiveCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakObtrusiveCharacters, 'wordWrapBreakObtrusiveCharacters', '.')),
-	wordWrapColumn: registerEditorOption(new EditorIntOption(EditorOption.wordWrapColumn, 'wordWrapColumn', 80, 1, Constants.MAX_SAFE_SMALL_INTEGER)),
+	wordWrapColumn: registerEditorOption(new EditorIntOption(EditorOption.wordWrapColumn, 'tabFocusMode', 80, 1, Constants.MAX_SAFE_SMALL_INTEGER)),
 	wordWrapMinified: registerEditorOption(new EditorBooleanOption(EditorOption.wordWrapMinified, 'wordWrapMinified', true)),
-	wrappingIndent: registerEditorOption(new EditorEnumOption<EditorOption.wrappingIndent, 'none' | 'same' | 'indent' | 'deepIndent', WrappingIndent>(EditorOption.wrappingIndent, 'wrappingIndent', 'same', ['none', 'same', 'indent', 'deepIndent'], _wrappingIndentFromString)),
+	wrappingIndent: registerEditorOption(new EditorEnumOption(EditorOption.wrappingIndent, 'wrappingIndent', 'same', ['none', 'same', 'indent', 'deepIndent'], _wrappingIndentFromString)),
 
 	// Leave these at the end!
 	layoutInfo: registerEditorOption(new EditorLayoutInfoComputer(EditorOption.layoutInfo, 'layoutInfo', undefined, [EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding, EditorOption.minimap, EditorOption.scrollbar, EditorOption.renderLineNumbers])),
@@ -2867,4 +2867,4 @@ export const EditorOptions = {
 export type EditorOptionsType = typeof EditorOptions;
 export type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];
 export type ComputedEditorOptionValue<T extends IEditorOption<any, any, any, any>> = T extends IEditorOption<any, any, any, infer R> ? R : never;
-export type FindComputedEditorOptionValueById<T extends EditorOption> = ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>;
+export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
