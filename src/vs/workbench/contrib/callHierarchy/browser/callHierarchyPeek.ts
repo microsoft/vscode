@@ -29,7 +29,6 @@ import { isNonEmptyArray, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
 import { TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
@@ -109,7 +108,6 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		@IPeekViewService private readonly _peekViewService: IPeekViewService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@ILabelService private readonly _labelService: ILabelService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -356,7 +354,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		}
 		this.setTitle(
 			items[0].source.name,
-			items[0].source.detail || this._labelService.getUriLabel(items[0].source.uri, { relative: true }),
+			this._direction === CallHierarchyDirection.CallsFrom ? localize('callsFrom', "calls from") : localize('callsTo', "calls to"),
 		);
 
 		if (!this._changeDirectionAction) {
