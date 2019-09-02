@@ -5,13 +5,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorRegistry, Extensions, ColorContribution } from 'vs/platform/theme/common/colorRegistry';
-import { editorMarkerNavigationError } from 'vs/editor/contrib/gotoError/gotoErrorWidget';
-import { overviewRulerModifiedForeground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
-import { STATUS_BAR_DEBUGGING_BACKGROUND } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
-import { debugExceptionWidgetBackground } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
-import { debugToolBarBackground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
-import { buttonBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePage';
-import { embeddedEditorBackground } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart';
+
 import { asText } from 'vs/platform/request/common/request';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
@@ -20,6 +14,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import 'vs/workbench/workbench.desktop.main';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 
@@ -34,15 +29,11 @@ interface DescriptionDiff {
 	specDescription: string;
 }
 
-// add artificial dependencies to some files that are not loaded yet
-export const forceColorLoad = [editorMarkerNavigationError, overviewRulerModifiedForeground, STATUS_BAR_DEBUGGING_BACKGROUND,
-	debugExceptionWidgetBackground, debugToolBarBackground, buttonBackground, embeddedEditorBackground];
-
 export const experimental: string[] = []; // 'settings.modifiedItemForeground', 'editorUnnecessary.foreground' ];
 
 suite('Color Registry', function () {
 
-	test('all colors documented', async function () {
+	test('all colors documented in theme-color.md', async function () {
 		const reqContext = await new RequestService(new TestConfigurationService(), new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
 		const content = (await asText(reqContext))!;
 
@@ -50,9 +41,13 @@ suite('Color Registry', function () {
 
 		let m: RegExpExecArray | null;
 		let colorsInDoc: { [id: string]: ColorInfo } = Object.create(null);
+		let nColorsInDoc = 0;
 		while (m = expression.exec(content)) {
 			colorsInDoc[m[1]] = { description: m[2], offset: m.index, length: m.length };
+			nColorsInDoc++;
 		}
+		assert.ok(nColorsInDoc > 0, 'theme-color.md contains to color descriptions');
+
 		let missing = Object.create(null);
 		let descriptionDiffs: { [id: string]: DescriptionDiff } = Object.create(null);
 
@@ -88,8 +83,8 @@ suite('Color Registry', function () {
 			}
 		}
 
-		let undocumentedKeys = Object.keys(missing).map(k => `${k}: ${missing[k]}`);
-		assert.deepEqual(undocumentedKeys, [], 'Undocumented colors ids in ' + content);
+		let undocumentedKeys = Object.keys(missing).map(k => `\`${k}\`: ${missing[k]}`);
+		assert.deepEqual(undocumentedKeys, [], 'Undocumented colors ids');
 
 		let superfluousKeys = Object.keys(colorsInDoc);
 		assert.deepEqual(superfluousKeys, [], 'Colors ids in doc that do not exist');
