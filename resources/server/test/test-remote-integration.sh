@@ -44,8 +44,12 @@ else
 fi
 
 # Tests in the extension host
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX --folder-uri=$REMOTE_VSCODE/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR $EXTRA_INTEGRATION_TEST_ARGUMENTS
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX --file-uri=$REMOTE_VSCODE/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/workspace-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR $EXTRA_INTEGRATION_TEST_ARGUMENTS
+# "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX --folder-uri=$REMOTE_VSCODE/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR $EXTRA_INTEGRATION_TEST_ARGUMENTS
+# "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX --file-uri=$REMOTE_VSCODE/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/workspace-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR $EXTRA_INTEGRATION_TEST_ARGUMENTS
+
+# TODO https://github.com/microsoft/vscode/issues/79459
+./scripts/code.sh $LINUX_NO_SANDBOX --folder-uri=$REMOTE_VSCODE/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/singlefolder-tests --disable-inspect --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
+./scripts/code.sh $LINUX_NO_SANDBOX --file-uri=$REMOTE_VSCODE/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=$REMOTE_VSCODE/vscode-api-tests --extensionTestsPath=$REMOTE_VSCODE/vscode-api-tests/out/workspace-tests --disable-inspect --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
 
 # Clean up
 if [[ "$3" == "" ]]; then
