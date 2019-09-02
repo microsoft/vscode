@@ -58,7 +58,7 @@ export class Marker {
 	get resource(): URI { return this.marker.resource; }
 	get range(): IRange { return this.marker; }
 
-	private _lines: string[];
+	private _lines: string[] | undefined;
 	get lines(): string[] {
 		if (!this._lines) {
 			this._lines = this.marker.message.split(/\r\n|\r|\n/g);

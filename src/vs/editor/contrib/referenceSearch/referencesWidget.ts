@@ -311,8 +311,9 @@ export class ReferenceWidget extends PeekViewWidget {
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
 			identityProvider: new IdentityProvider()
 		};
-		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
+		this._tree = this._instantiationService.createInstance<string, HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
+			'ReferencesWidget',
 			this._treeContainer,
 			new Delegate(),
 			[

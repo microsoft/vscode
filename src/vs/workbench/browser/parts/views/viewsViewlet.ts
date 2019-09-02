@@ -39,7 +39,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	private readonly viewletState: MementoObject;
 	private didLayout = false;
-	private dimension: DOM.Dimension;
+	private dimension: DOM.Dimension | undefined;
 	private areExtensionsReady: boolean = false;
 
 	private readonly visibleViewsCountFromCache: number | undefined;

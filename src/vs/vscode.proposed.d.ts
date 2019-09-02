@@ -16,17 +16,6 @@
 
 declare module 'vscode' {
 
-	//#region Joh - ExecutionContext
-	// THIS is a deprecated proposal
-	export enum ExtensionExecutionContext {
-		Local = 1,
-		Remote = 2
-	}
-	export interface ExtensionContext {
-		executionContext: ExtensionExecutionContext;
-	}
-	//#endregion
-
 	//#region Joh - call hierarchy
 
 	export enum CallHierarchyDirection {

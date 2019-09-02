@@ -41,6 +41,7 @@ export const HasSearchResults = new RawContextKey<boolean>('hasSearchResult', fa
 export const FirstMatchFocusKey = new RawContextKey<boolean>('firstMatchFocus', false);
 export const FileMatchOrMatchFocusKey = new RawContextKey<boolean>('fileMatchOrMatchFocus', false); // This is actually, Match or File or Folder
 export const FileMatchOrFolderMatchFocusKey = new RawContextKey<boolean>('fileMatchOrFolderMatchFocus', false);
+export const FileMatchOrFolderMatchWithResourceFocusKey = new RawContextKey<boolean>('fileMatchOrFolderMatchWithResourceFocus', false); // Excludes "Other files"
 export const FileFocusKey = new RawContextKey<boolean>('fileMatchFocus', false);
 export const FolderFocusKey = new RawContextKey<boolean>('folderMatchFocus', false);
 export const MatchFocusKey = new RawContextKey<boolean>('matchFocus', false);

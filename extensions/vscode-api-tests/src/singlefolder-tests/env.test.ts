@@ -26,7 +26,7 @@ suite('env-namespace', () => {
 		assert.throws(() => (env as any).shell = '234');
 	});
 
-	test('env.remoteName', function () {
+	test.skip('env.remoteName', function () {
 		const remoteName = env.remoteName;
 		const apiTestExtension = extensions.getExtension('vscode.vscode-api-tests');
 		const testResolverExtension = extensions.getExtension('vscode.vscode-test-resolver');
@@ -43,5 +43,4 @@ suite('env-namespace', () => {
 			assert.fail();
 		}
 	});
-
 });

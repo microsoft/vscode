@@ -33,7 +33,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
 
-	private textModelReference: Promise<IReference<ITextEditorModel>> | null;
+	private textModelReference: Promise<IReference<ITextEditorModel>> | null = null;
 	private name: string;
 
 	/**

@@ -310,6 +310,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		};
 
 		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
+			'MarkersPanel',
 			this.treeContainer,
 			virtualDelegate,
 			renderers,

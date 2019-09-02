@@ -26,7 +26,7 @@ import { FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } fro
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 export class PreferencesContribution implements IWorkbenchContribution {
-	private editorOpeningListener: IDisposable;
+	private editorOpeningListener: IDisposable | undefined;
 	private settingsListener: IDisposable;
 
 	constructor(
