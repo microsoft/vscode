@@ -322,9 +322,14 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		this.logService.trace('windowsService#getWindows');
 
 		const windows = this.windowsMainService.getWindows();
-		const result = windows.map(w => ({ id: w.id, workspace: w.openedWorkspace, folderUri: w.openedFolderUri, title: w.win.getTitle(), filename: w.getRepresentedFilename() }));
 
-		return result;
+		return windows.map(window => ({
+			id: window.id,
+			workspace: window.openedWorkspace,
+			folderUri: window.openedFolderUri,
+			title: window.win.getTitle(),
+			filename: window.getRepresentedFilename()
+		}));
 	}
 
 	async getWindowCount(): Promise<number> {
