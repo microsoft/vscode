@@ -6,7 +6,7 @@
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { URI } from 'vs/base/common/uri';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { URLServiceChannelClient, URLHandlerChannel } from 'vs/platform/url/node/urlIpc';
+import { URLServiceChannelClient, URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/node/urlService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import product from 'vs/platform/product/node/product';
