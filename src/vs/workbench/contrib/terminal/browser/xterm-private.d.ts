@@ -14,7 +14,7 @@ export interface XTermCore {
 
 	_coreService: {
 		triggerDataEvent(data: string, wasUserInput?: boolean): void;
-	}
+	};
 
 	_renderService: {
 		_renderer: {
