@@ -5,7 +5,7 @@
 
 import { IURLService } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ServiceIdentifier, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractURLService } from 'vs/platform/url/common/urlService';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -45,7 +45,7 @@ export interface IURLCallbackProvider {
 
 export class BrowserURLService extends AbstractURLService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private provider: IURLCallbackProvider;
 
@@ -124,7 +124,7 @@ class SelfhostURLCallbackProvider extends Disposable implements IURLCallbackProv
 		// Start to poll on the callback being fired
 		this.periodicFetchCallback(requestId, Date.now());
 
-		return this.doCreateUri('callback', queryValues);
+		return this.doCreateUri('/callback', queryValues);
 	}
 
 	private async periodicFetchCallback(requestId: string, startTime: number): Promise<void> {
@@ -134,7 +134,7 @@ class SelfhostURLCallbackProvider extends Disposable implements IURLCallbackProv
 		queryValues.set(SelfhostURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
 
 		const result = await this.requestService.request({
-			url: this.doCreateUri('fetch-callback', queryValues).toString(true)
+			url: this.doCreateUri('/fetch-callback', queryValues).toString(true)
 		}, CancellationToken.None);
 
 		// Check for callback results

@@ -65,17 +65,17 @@ const mockExtensionGallery: IGalleryExtension[] = [
 		rating: 4,
 		ratingCount: 100
 	}, {
-			dependencies: ['pub.1'],
-		}, {
-			manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
-			readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
-			changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
-			download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
-			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
-			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
-			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-			coreTranslations: []
-		}),
+		dependencies: ['pub.1'],
+	}, {
+		manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
+		readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
+		changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
+		download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
+		icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
+		license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
+		repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+		coreTranslations: []
+	}),
 	aGalleryExtension('MockExtension2', {
 		displayName: 'Mock Extension 2',
 		version: '1.5',
@@ -87,17 +87,17 @@ const mockExtensionGallery: IGalleryExtension[] = [
 		rating: 4,
 		ratingCount: 100
 	}, {
-			dependencies: ['pub.1', 'pub.2'],
-		}, {
-			manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
-			readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
-			changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
-			download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
-			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
-			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
-			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-			coreTranslations: []
-		})
+		dependencies: ['pub.1', 'pub.2'],
+	}, {
+		manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
+		readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
+		changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
+		download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
+		icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
+		license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
+		repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+		coreTranslations: []
+	})
 ];
 
 const mockExtensionLocal = [

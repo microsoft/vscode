@@ -140,9 +140,9 @@ export class MarkdownPreview extends Disposable {
 			MarkdownPreview.viewType,
 			MarkdownPreview.getPreviewTitle(resource, locked),
 			previewColumn, {
-				enableFindWidget: true,
-				...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
-			});
+			enableFindWidget: true,
+			...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
+		});
 
 		return new MarkdownPreview(
 			webview,
@@ -271,7 +271,6 @@ export class MarkdownPreview extends Disposable {
 	}
 
 	public dispose() {
-		super.dispose();
 		if (this._disposed) {
 			return;
 		}
@@ -282,6 +281,7 @@ export class MarkdownPreview extends Disposable {
 
 		this._onDidChangeViewStateEmitter.dispose();
 		this.editor.dispose();
+		super.dispose();
 	}
 
 	public update(resource: vscode.Uri) {

@@ -203,6 +203,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		};
 		this._tree = <any>this._instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
+			'CallHierarchyPeek',
 			treeContainer,
 			new callHTree.VirtualDelegate(),
 			[this._instantiationService.createInstance(callHTree.CallRenderer)],

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
@@ -99,7 +99,7 @@ export const BACKUPS = 'Backups';
 
 export interface IEnvironmentService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	args: ParsedArgs;
 
@@ -140,23 +140,14 @@ export interface IEnvironmentService {
 	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch: IDebugParams;
-
-	logExtensionHostCommunication: boolean;
 
 	isBuilt: boolean;
 	wait: boolean;
 	status: boolean;
 
-	// logging
 	log?: string;
 	logsPath: string;
 	verbose: boolean;
-
-	skipGettingStarted: boolean | undefined;
-	skipReleaseNotes: boolean | undefined;
-
-	skipAddToRecentlyOpened: boolean;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
@@ -170,9 +161,5 @@ export interface IEnvironmentService {
 	driverHandle?: string;
 	driverVerbose: boolean;
 
-	webviewEndpoint?: string;
-	readonly webviewResourceRoot: string;
-	readonly webviewCspSource: string;
-
-	readonly galleryMachineIdResource?: URI;
+	galleryMachineIdResource?: URI;
 }

@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand: undefined;
 
 	constructor(
 		@ILogService readonly logService: ILogService
@@ -23,7 +21,9 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		addDisposableListener(window, EventType.BEFORE_UNLOAD, () => this.onBeforeUnload());
+		// Note: we cannot change this to window.addEventListener('beforeUnload')
+		// because it seems that mechanism does not allow for preventing the unload
+		window.onbeforeunload = () => this.onBeforeUnload();
 	}
 
 	private onBeforeUnload(): string | null {

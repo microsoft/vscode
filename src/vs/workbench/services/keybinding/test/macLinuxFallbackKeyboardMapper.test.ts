@@ -78,9 +78,9 @@ suite('keyboardMapper - MAC fallback', () => {
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
 		assertResolveUserBinding(
 			mapper, [
-				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-				new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
-			],
+			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
+			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+		],
 			[{
 				label: '⌘, ⌘/',
 				ariaLabel: 'Command+, Command+/',
@@ -183,9 +183,9 @@ suite('keyboardMapper - LINUX fallback', () => {
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
 			mapper, [
-				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
-			],
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+		],
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
@@ -201,8 +201,8 @@ suite('keyboardMapper - LINUX fallback', () => {
 	test('resolveUserBinding Ctrl+[Comma]', () => {
 		assertResolveUserBinding(
 			mapper, [
-				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			],
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+		],
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',

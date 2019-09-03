@@ -20,7 +20,7 @@ export interface IValidator {
 
 export interface IOpenerService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Register a participant that can handle the open() call.

@@ -55,13 +55,17 @@ export class Dialog extends Disposable {
 	private buttonGroup: ButtonGroup | undefined;
 	private styles: IDialogStyles | undefined;
 	private focusToReturn: HTMLElement | undefined;
+	private checkboxHasFocus: boolean = false;
+	private buttons: string[];
 
-	constructor(private container: HTMLElement, private message: string, private buttons: string[], private options: IDialogOptions) {
+	constructor(private container: HTMLElement, private message: string, buttons: string[], private options: IDialogOptions) {
 		super();
 		this.modal = this.container.appendChild($(`.dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
 		this.element = this.modal.appendChild($('.dialog-box'));
 		hide(this.element);
 
+		// If no button is provided, default to OK
+		this.buttons = buttons.length ? buttons : [nls.localize('ok', "OK")];
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
@@ -109,13 +113,6 @@ export class Dialog extends Disposable {
 				return;
 			}
 
-			if (this.modal) {
-				this._register(domEvent(this.modal, 'mousedown')(e => {
-					// Used to stop focusing of modal with mouse
-					EventHelper.stop(e, true);
-				}));
-			}
-
 			clearNode(this.buttonsContainer);
 
 			let focusedButton = 0;
@@ -146,14 +143,27 @@ export class Dialog extends Disposable {
 
 				let eventHandled = false;
 				if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
-					focusedButton = focusedButton + buttonGroup.buttons.length - 1;
-					focusedButton = focusedButton % buttonGroup.buttons.length;
-					buttonGroup.buttons[focusedButton].focus();
+					if (!this.checkboxHasFocus && focusedButton === 0) {
+						this.checkbox!.domNode.focus();
+						this.checkboxHasFocus = true;
+					} else {
+						focusedButton = (this.checkboxHasFocus ? 0 : focusedButton) + buttonGroup.buttons.length - 1;
+						focusedButton = focusedButton % buttonGroup.buttons.length;
+						buttonGroup.buttons[focusedButton].focus();
+						this.checkboxHasFocus = false;
+					}
+
 					eventHandled = true;
 				} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
-					focusedButton++;
-					focusedButton = focusedButton % buttonGroup.buttons.length;
-					buttonGroup.buttons[focusedButton].focus();
+					if (!this.checkboxHasFocus && focusedButton === buttonGroup.buttons.length - 1) {
+						this.checkbox!.domNode.focus();
+						this.checkboxHasFocus = true;
+					} else {
+						focusedButton = this.checkboxHasFocus ? 0 : focusedButton + 1;
+						focusedButton = focusedButton % buttonGroup.buttons.length;
+						buttonGroup.buttons[focusedButton].focus();
+						this.checkboxHasFocus = false;
+					}
 					eventHandled = true;
 				}
 

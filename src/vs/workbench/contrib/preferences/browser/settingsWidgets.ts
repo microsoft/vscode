@@ -457,6 +457,7 @@ export class ListSettingWidget extends Disposable {
 				onSubmit(false);
 				e.preventDefault();
 			}
+			rowElement.focus();
 		};
 
 		const valueInput = new InputBox(rowElement, this.contextViewService, {

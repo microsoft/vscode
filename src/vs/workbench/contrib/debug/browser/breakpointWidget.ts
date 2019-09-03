@@ -39,13 +39,13 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakopintWidgetService');
 export interface IPrivateBreakpointWidgetService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	close(success: boolean): void;
 }
 const DECORATION_KEY = 'breakpointwidgetdecoration';
 
 export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWidgetService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private selectContainer!: HTMLElement;
 	private input!: IActiveCodeEditor;

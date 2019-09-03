@@ -12,7 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { Marker, ResourceMarkers, RelatedInformation, MarkersModel } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { Marker, ResourceMarkers, RelatedInformation, MarkersModel, MarkerChangesEvent } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkersFilterActionViewItem, MarkersFilterAction, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -49,18 +49,19 @@ import { MementoObject } from 'vs/workbench/common/memento';
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
 
-	return Iterator.map(resourcesIt, m => {
-		const markersIt = Iterator.fromArray(m.markers);
+	return Iterator.map(resourcesIt, m => ({ element: m, children: createResourceMarkersIterator(m) }));
+}
 
-		const children = Iterator.map(markersIt, m => {
-			const relatedInformationIt = Iterator.from(m.relatedInformation);
-			const children = Iterator.map(relatedInformationIt, r => ({ element: r }));
+function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterator<ITreeElement<TreeElement>> {
+	const markersIt = Iterator.fromArray(resourceMarkers.markers);
 
-			return { element: m, children };
-		});
+	return Iterator.map(markersIt, m => {
+		const relatedInformationIt = Iterator.from(m.relatedInformation);
+		const children = Iterator.map(relatedInformationIt, r => ({ element: r }));
 
 		return { element: m, children };
 	});
+
 }
 
 export class MarkersPanel extends Panel implements IMarkerFilterController {
@@ -229,13 +230,26 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return false;
 	}
 
-	private refreshPanel(marker?: Marker): void {
+	private refreshPanel(markerOrChange?: Marker | MarkerChangesEvent): void {
 		if (this.isVisible()) {
 			this.cachedFilterStats = undefined;
 
-			if (marker) {
-				this.tree.rerender(marker);
+			if (markerOrChange) {
+				if (markerOrChange instanceof Marker) {
+					this.tree.rerender(markerOrChange);
+				} else {
+					if (markerOrChange.added.length || markerOrChange.removed.length) {
+						// Reset complete tree
+						this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
+					} else {
+						// Update resource
+						for (const updated of markerOrChange.updated) {
+							this.tree.setChildren(updated, createResourceMarkersIterator(updated));
+						}
+					}
+				}
 			} else {
+				// Reset complete tree
 				this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
 			}
 
@@ -310,6 +324,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		};
 
 		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
+			'MarkersPanel',
 			this.treeContainer,
 			virtualDelegate,
 			renderers,
@@ -395,29 +410,13 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private createListeners(): void {
-		const onModelOrActiveEditorChanged = Event.debounce<URI | true, { resources: URI[], activeEditorChanged: boolean }>(Event.any<any>(this.markersWorkbenchService.markersModel.onDidChange, Event.map(this.editorService.onDidActiveEditorChange, () => true)), (result, e) => {
-			if (!result) {
-				result = {
-					resources: [],
-					activeEditorChanged: false
-				};
-			}
-			if (e === true) {
-				result.activeEditorChanged = true;
+		this._register(Event.any<MarkerChangesEvent | void>(this.markersWorkbenchService.markersModel.onDidChange, this.editorService.onDidActiveEditorChange)(changes => {
+			if (changes) {
+				this.onDidChangeModel(changes);
 			} else {
-				result.resources.push(e);
-			}
-			return result;
-		}, 0);
-
-		this._register(onModelOrActiveEditorChanged(({ resources, activeEditorChanged }) => {
-			if (resources) {
-				this.onDidChangeModel(resources);
-			}
-			if (activeEditorChanged) {
 				this.onActiveEditorChanged();
 			}
-		}, this));
+		}));
 		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
 		this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
 			if (event.filterText || event.useFilesExclude) {
@@ -427,8 +426,10 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.actions.forEach(a => this._register(a));
 	}
 
-	private onDidChangeModel(resources: URI[]) {
-		for (const resource of resources) {
+	private onDidChangeModel(change: MarkerChangesEvent) {
+		const resourceMarkers = [...change.added, ...change.removed, ...change.updated];
+		const resources: URI[] = [];
+		for (const { resource } of resourceMarkers) {
 			this.markersViewModel.remove(resource);
 			const resourceMarkers = this.markersWorkbenchService.markersModel.getResourceMarkers(resource);
 			if (resourceMarkers) {
@@ -436,9 +437,10 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 					this.markersViewModel.add(marker);
 				}
 			}
+			resources.push(resource);
 		}
 		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(resources);
-		this.refreshPanel();
+		this.refreshPanel(change);
 		this.updateRangeHighlights();
 		if (this.currentResourceGotAddedToMarkersData) {
 			this.autoReveal();

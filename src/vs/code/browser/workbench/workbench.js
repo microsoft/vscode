@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
 (function () {
 
-	require.config({
+	/** @type any */
+	const amdLoader = require;
+
+	amdLoader.config({
 		baseUrl: `${window.location.origin}/static/out`,
 		paths: {
 			'vscode-textmate': `${window.location.origin}/static/node_modules/vscode-textmate/release/main`,
@@ -20,9 +24,8 @@
 		}
 	});
 
-	require(['vs/workbench/workbench.web.api'], function (api) {
+	amdLoader(['vs/workbench/workbench.web.api'], function (api) {
 		const options = JSON.parse(document.getElementById('vscode-workbench-web-configuration').getAttribute('data-settings'));
-
 		api.create(document.body, options);
 	});
 })();

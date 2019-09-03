@@ -4,29 +4,42 @@
 	<head>
 		<meta charset="utf-8" />
 
-		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
-
 		<!-- Disable pinch zooming -->
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 
-		<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; img-src 'self' https: data: blob:; media-src 'none'; frame-src 'self' {{WEBVIEW_ENDPOINT}} https://*.vscode-webview-test.com; script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https:; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; font-src 'self' blob:;">
+		<!-- Content Security Policy -->
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'none';
+				img-src 'self' https: data: blob:;
+				media-src 'none';
+				script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https:;
+				child-src 'self';
+				frame-src 'self' {{WEBVIEW_ENDPOINT}} https://*.vscode-webview-test.com;
+				worker-src 'self';
+				style-src 'self' 'unsafe-inline';
+				connect-src 'self' ws: wss: https:;
+				font-src 'self' blob:;
+				manifest-src 'self';"
+		>
 
+		<!-- Workbench Configuration -->
 		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONGIGURATION}}">
 
-		<!-- Workaround to pass remote user data uri-->
+		<!-- Workarounds/Hacks (remote user data uri) -->
 		<meta id="vscode-remote-user-data-uri" data-settings="{{REMOTE_USER_DATA_URI}}">
 
-		<!-- Workaround to pass product configuration-->
-		<meta id="vscode-remote-product-configuration" data-settings="{{PRODUCT_CONFIGURATION}}">
+		<!-- Workbench Icon/Manifest/CSS -->
+		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+		<link rel="manifest" href="/manifest.json">
+		<link data-name="vs/workbench/workbench.web.api" rel="stylesheet" href="./static/out/vs/workbench/workbench.web.api.css">
 	</head>
 
 	<body aria-label="">
 	</body>
 
-	<!-- Require our AMD loader -->
+	<!-- Startup (do not modify order of script tags!) -->
 	<script src="./static/out/vs/loader.js"></script>
-
-	<!-- Startup via workbench.js -->
+	<script src="./static/out/vs/workbench/workbench.web.api.nls.js"></script>
 	<script src="./static/out/vs/code/browser/workbench/workbench.js"></script>
 </html>

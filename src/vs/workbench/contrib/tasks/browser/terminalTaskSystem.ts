@@ -44,6 +44,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -339,9 +340,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
-			// tslint:disable-next-line: no-for-in-array
-			for (let index in task.configurationProperties.dependsOn) {
-				const dependency = task.configurationProperties.dependsOn[index];
+			for (const dependency of task.configurationProperties.dependsOn) {
 				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
 				if (dependencyTask) {
 					let key = dependencyTask.getMapKey();
@@ -570,7 +569,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
 			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
+			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
+				if (skipLine) {
+					skipLine = false;
+					return;
+				}
 				watchingProblemMatcher.processLine(line);
 				if (!delayer) {
 					delayer = new Async.Delayer(3000);
@@ -648,7 +652,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
 			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
+			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
+				if (skipLine) {
+					skipLine = false;
+					return;
+				}
 				startStopProblemMatcher.processLine(line);
 			});
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
@@ -1376,8 +1385,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			return command;
 		}
 		if (cwd === undefined) {
-			// tslint:disable-next-line: no-nodejs-globals
-			cwd = process.cwd();
+			cwd = processCwd();
 		}
 		const dir = path.dirname(command);
 		if (dir !== '.') {
@@ -1385,10 +1393,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		// tslint:disable-next-line: no-nodejs-globals
-		if (paths === undefined && Types.isString(process.env.PATH)) {
-			// tslint:disable-next-line: no-nodejs-globals
-			paths = process.env.PATH.split(path.delimiter);
+		if (paths === undefined && Types.isString(processEnv.PATH)) {
+			paths = processEnv.PATH.split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
 		if (paths === undefined || paths.length === 0) {

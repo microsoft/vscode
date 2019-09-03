@@ -10,7 +10,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 export const IAccessibilityService = createDecorator<IAccessibilityService>('accessibilityService');
 
 export interface IAccessibilityService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChangeAccessibilitySupport: Event<void>;
 

@@ -302,14 +302,12 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	private _createDecoration(isError: boolean, uiLabel: string | null, usLabel: string | null, model: ITextModel, keyNode: Node): IModelDeltaDecoration {
 		let msg: MarkdownString;
 		let className: string;
-		let beforeContentClassName: string;
 		let overviewRulerColor: ThemeColor;
 
 		if (isError) {
 			// this is the error case
 			msg = new MarkdownString().appendText(NLS_KB_LAYOUT_ERROR_MESSAGE);
 			className = 'keybindingError';
-			beforeContentClassName = 'inlineKeybindingError';
 			overviewRulerColor = themeColorFromId(overviewRulerError);
 		} else {
 			// this is the info case
@@ -335,7 +333,6 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				);
 			}
 			className = 'keybindingInfo';
-			beforeContentClassName = 'inlineKeybindingInfo';
 			overviewRulerColor = themeColorFromId(overviewRulerInfo);
 		}
 
@@ -352,7 +349,6 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			options: {
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: className,
-				beforeContentClassName: beforeContentClassName,
 				hoverMessage: msg,
 				overviewRuler: {
 					color: overviewRulerColor,

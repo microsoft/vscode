@@ -618,12 +618,24 @@ export abstract class BaseCloseAllAction extends Action {
 
 	async run(): Promise<any> {
 
-		// Just close all if there are no or one dirty editor
-		if (this.textFileService.getDirty().length < 2) {
+		// Just close all if there are no dirty editors
+		if (!this.textFileService.isDirty()) {
 			return this.doCloseAll();
 		}
 
-		// Otherwise ask for combined confirmation
+		// Otherwise ask for combined confirmation and make sure
+		// to bring each dirty editor to the front so that the user
+		// can review if the files should be changed or not.
+		await Promise.all(this.groupsToClose.map(async groupToClose => {
+			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+				if (editor.isDirty()) {
+					return groupToClose.openEditor(editor);
+				}
+			}
+
+			return undefined;
+		}));
+
 		const confirm = await this.textFileService.confirmSave();
 		if (confirm === ConfirmResult.CANCEL) {
 			return;

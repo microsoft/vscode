@@ -207,7 +207,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | null, token: CancellationToken): Promise<void> {
+	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => timeout(0)) // Force setInput to be async
@@ -250,7 +250,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	setOptions(options: SettingsEditorOptions | null): void {
+	setOptions(options: SettingsEditorOptions | undefined): void {
 		super.setOptions(options);
 
 		if (options) {
@@ -383,10 +383,10 @@ export class SettingsEditor2 extends BaseEditor {
 				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => strings.endsWith(tag, ':') ? tag : tag + ' ');
 			}
 		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
-				placeholderText: searchBoxLabel,
-				focusContextKey: this.searchFocusContextKey,
-				// TODO: Aria-live
-			})
+			placeholderText: searchBoxLabel,
+			focusContextKey: this.searchFocusContextKey,
+			// TODO: Aria-live
+		})
 		);
 
 		this._register(this.searchWidget.onFocus(() => {

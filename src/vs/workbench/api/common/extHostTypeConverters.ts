@@ -28,7 +28,7 @@ import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export interface PositionLike {
@@ -556,22 +556,40 @@ export namespace SymbolKind {
 	}
 }
 
+export namespace SymbolTag {
+
+	export function from(kind: types.SymbolTag): modes.SymbolTag {
+		switch (kind) {
+			case types.SymbolTag.Deprecated: return modes.SymbolTag.Deprecated;
+		}
+	}
+
+	export function to(kind: modes.SymbolTag): types.SymbolTag {
+		switch (kind) {
+			case modes.SymbolTag.Deprecated: return types.SymbolTag.Deprecated;
+		}
+	}
+}
+
 export namespace WorkspaceSymbol {
 	export function from(info: vscode.SymbolInformation): search.IWorkspaceSymbol {
 		return <search.IWorkspaceSymbol>{
 			name: info.name,
 			kind: SymbolKind.from(info.kind),
+			tags: info.tags && info.tags.map(SymbolTag.from),
 			containerName: info.containerName,
 			location: location.from(info.location)
 		};
 	}
 	export function to(info: search.IWorkspaceSymbol): types.SymbolInformation {
-		return new types.SymbolInformation(
+		const result = new types.SymbolInformation(
 			info.name,
 			SymbolKind.to(info.kind),
 			info.containerName,
 			location.to(info.location)
 		);
+		result.tags = info.tags && info.tags.map(SymbolTag.to);
+		return result;
 	}
 }
 
@@ -582,7 +600,8 @@ export namespace DocumentSymbol {
 			detail: info.detail,
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
-			kind: SymbolKind.from(info.kind)
+			kind: SymbolKind.from(info.kind),
+			tags: info.tags ? info.tags.map(SymbolTag.from) : []
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
@@ -597,6 +616,9 @@ export namespace DocumentSymbol {
 			Range.to(info.range),
 			Range.to(info.selectionRange),
 		);
+		if (isNonEmptyArray(info.tags)) {
+			result.tags = info.tags.map(SymbolTag.to);
+		}
 		if (info.children) {
 			result.children = info.children.map(to) as any;
 		}
@@ -681,17 +703,17 @@ export namespace CompletionContext {
 	}
 }
 
-export namespace CompletionItemKindModifier {
+export namespace CompletionItemTag {
 
-	export function from(kind: types.CompletionItemKindModifier): modes.CompletionItemKindModifier {
+	export function from(kind: types.CompletionItemTag): modes.CompletionItemTag {
 		switch (kind) {
-			case types.CompletionItemKindModifier.Deprecated: return modes.CompletionItemKindModifier.Deprecated;
+			case types.CompletionItemTag.Deprecated: return modes.CompletionItemTag.Deprecated;
 		}
 	}
 
-	export function to(kind: modes.CompletionItemKindModifier): types.CompletionItemKindModifier {
+	export function to(kind: modes.CompletionItemTag): types.CompletionItemTag {
 		switch (kind) {
-			case modes.CompletionItemKindModifier.Deprecated: return types.CompletionItemKindModifier.Deprecated;
+			case modes.CompletionItemTag.Deprecated: return types.CompletionItemTag.Deprecated;
 		}
 	}
 }
@@ -767,6 +789,7 @@ export namespace CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
+		result.tags = suggestion.tags && suggestion.tags.map(CompletionItemTag.to);
 		result.detail = suggestion.detail;
 		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;

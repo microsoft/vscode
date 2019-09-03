@@ -30,7 +30,7 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	protected readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidRegisterExtensions = this._onDidRegisterExtensions.event;

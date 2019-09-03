@@ -369,6 +369,10 @@
 	margin-top: -1px;
 	z-index: 1;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-item-contents.invalid-input .setting-item-validation-message {
+	position: static;
+	margin-top: 1rem;
+}
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-validation-message {
 	width: 500px;

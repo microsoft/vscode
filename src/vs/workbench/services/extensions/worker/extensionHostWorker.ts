@@ -12,18 +12,36 @@ import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/exten
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import 'vs/workbench/services/extensions/worker/extHost.services';
 
-// worker-self
+//#region --- Define, capture, and override some globals
+//todo@joh do not allow extensions to call postMessage and other globals...
+
+// declare WorkerSelf#postMessage
+declare function postMessage(data: any, transferables?: Transferable[]): void;
+
 declare namespace self {
-	function close(): void;
+	let close: any;
+	let postMessage: any;
+	let addEventLister: any;
+	let indexedDB: { open: any, [k: string]: any };
+	let caches: { open: any, [k: string]: any };
 }
 
-// do not allow extensions to call terminate
 const nativeClose = self.close.bind(self);
-self.close = () => console.trace('An extension called terminate and this was prevented');
-let onTerminate = nativeClose;
+self.close = () => console.trace(`'close' has been blocked`);
+
+const nativePostMessage = postMessage.bind(self);
+self.postMessage = () => console.trace(`'postMessage' has been blocked`);
+
+const nativeAddEventLister = addEventListener.bind(self);
+self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
+
+self.indexedDB.open = () => console.trace(`'indexedDB.open' has been blocked`);
+self.caches.open = () => console.trace(`'indexedDB.caches' has been blocked`);
+
+//#endregion ---
 
 const hostUtil = new class implements IHostUtils {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	exit(_code?: number | undefined): void {
 		nativeClose();
 	}
@@ -35,7 +53,6 @@ const hostUtil = new class implements IHostUtils {
 	}
 };
 
-//todo@joh do not allow extensions to call postMessage and other globals...
 
 class ExtensionWorker {
 
@@ -47,7 +64,8 @@ class ExtensionWorker {
 		let emitter = new Emitter<VSBuffer>();
 		let terminating = false;
 
-		onmessage = event => {
+
+		nativeAddEventLister('message', event => {
 			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
@@ -64,14 +82,14 @@ class ExtensionWorker {
 
 			// emit non-terminate messages to the outside
 			emitter.fire(msg);
-		};
+		});
 
 		this.protocol = {
 			onMessage: emitter.event,
 			send: vsbuf => {
 				if (!terminating) {
 					const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-					postMessage(data, [data]);
+					nativePostMessage(data, [data]);
 				}
 			}
 		};
@@ -93,6 +111,8 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 		protocol.send(createMessageOfType(MessageType.Ready));
 	});
 }
+
+let onTerminate = nativeClose;
 
 (function create(): void {
 	const res = new ExtensionWorker();

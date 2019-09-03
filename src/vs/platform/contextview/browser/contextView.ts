@@ -13,7 +13,7 @@ export const IContextViewService = createDecorator<IContextViewService>('context
 
 export interface IContextViewService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	showContextView(delegate: IContextViewDelegate): void;
 	hideContextView(data?: any): void;
@@ -37,7 +37,7 @@ export const IContextMenuService = createDecorator<IContextMenuService>('context
 
 export interface IContextMenuService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	showContextMenu(delegate: IContextMenuDelegate): void;
 	onDidContextMenu: Event<void>; // TODO@isidor these event should be removed once we get async context menus

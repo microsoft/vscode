@@ -15,6 +15,7 @@ import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemotePort: number): Promise<RemoteTunnel> {
 	const tunnel = new NodeRemoteTunnel(options, tunnelRemotePort);
@@ -85,12 +86,13 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 }
 
 export class TunnelService implements ITunnelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	public constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ISignService private readonly signService: ISignService
+		@ISignService private readonly signService: ISignService,
+		@ILogService private readonly logService: ILogService
 	) {
 	}
 
@@ -109,7 +111,8 @@ export class TunnelService implements ITunnelService {
 					return { host: authority.host, port: authority.port };
 				}
 			},
-			signService: this.signService
+			signService: this.signService,
+			logService: this.logService
 		};
 		return createRemoteTunnel(options, remotePort);
 	}

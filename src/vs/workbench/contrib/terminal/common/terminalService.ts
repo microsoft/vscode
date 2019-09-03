@@ -30,7 +30,7 @@ interface IExtHostReadyEntry {
 }
 
 export abstract class TerminalService implements ITerminalService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	protected _isShuttingDown: boolean;
 	protected _terminalFocusContextKey: IContextKey<boolean>;
@@ -568,7 +568,7 @@ export abstract class TerminalService implements ITerminalService {
 			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 			};
-			const quickPickItems = shells.map(s => {
+			const quickPickItems = shells.map((s): IQuickPickItem => {
 				return { label: s.label, description: s.path };
 			});
 			return this._quickInputService.pick(quickPickItems, options).then(async value => {

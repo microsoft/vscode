@@ -71,7 +71,7 @@ const IPrivateReplService = createDecorator<IPrivateReplService>('privateReplSer
 const DECORATION_KEY = 'replinputdecoration';
 
 interface IPrivateReplService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	acceptReplInput(): void;
 	getVisibleContent(): string;
 	selectSession(session?: IDebugSession): void;
@@ -85,7 +85,7 @@ function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 
 const sessionsToIgnore = new Set<IDebugSession>();
 export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
 	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
@@ -406,6 +406,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
+			'DebugRepl',
 			treeContainer,
 			this.replDelegate,
 			[
@@ -444,7 +445,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
-		this.replInputContainer.title = nls.localize('debugConsole', "Debug Console");
 
 		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
 		this.historyNavigationEnablement = historyNavigationEnablement;
@@ -455,6 +455,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		const options = getSimpleEditorOptions();
 		options.readOnly = true;
+		options.ariaLabel = nls.localize('debugConsole', "Debug Console");
+
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
 		this._register(this.replInput.onDidScrollChange(e => {
@@ -768,7 +770,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 				return (nameRows + 1) * rowHeight;
 			}
 
-			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+			let valueRows = value ? (countNumberOfLines(value) + Math.floor(value.length / 150)) : 0;
 			return rowHeight * (nameRows + valueRows);
 		}
 

@@ -367,7 +367,7 @@ export let completionKindFromString: {
 	};
 })();
 
-export const enum CompletionItemKindModifier {
+export const enum CompletionItemTag {
 	Deprecated = 1
 }
 
@@ -404,7 +404,7 @@ export interface CompletionItem {
 	 * A modifier to the `kind` which affect how the item
 	 * is rendered, e.g. Deprecated is rendered with a strikeout
 	 */
-	kindModifier?: Set<CompletionItemKindModifier>;
+	tags?: ReadonlyArray<CompletionItemTag>;
 	/**
 	 * A human-readable string with additional information
 	 * about this item, like type or symbol information.
@@ -867,6 +867,9 @@ export const enum SymbolKind {
 	TypeParameter = 25
 }
 
+export const enum SymbolTag {
+	Deprecated = 1,
+}
 
 /**
  * @internal
@@ -910,6 +913,7 @@ export interface DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
+	tags: ReadonlyArray<SymbolTag>;
 	containerName?: string;
 	range: IRange;
 	selectionRange: IRange;

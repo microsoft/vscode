@@ -224,8 +224,9 @@ interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 	button: Button;
 }
 
-interface ISettingListItemTemplate extends ISettingItemTemplate<void> {
+interface ISettingListItemTemplate extends ISettingItemTemplate<string[] | undefined> {
 	listWidget: ListSettingWidget;
+	validationErrorMessageElement: HTMLElement;
 }
 
 interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
@@ -679,6 +680,9 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 	renderTemplate(container: HTMLElement): ISettingListItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'list');
+		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+		descriptionElement.after(validationErrorMessageElement);
 
 		const listWidget = this._instantiationService.createInstance(ListSettingWidget, common.controlElement);
 		listWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
@@ -686,19 +690,40 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 		const template: ISettingListItemTemplate = {
 			...common,
-			listWidget
+			listWidget,
+			validationErrorMessageElement
 		};
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.push(listWidget.onDidChangeList(e => this.onDidChangeList(template, e)));
+		common.toDispose.push(
+			listWidget.onDidChangeList(e => {
+				const newList = this.computeNewList(template, e);
+				this.onDidChangeList(template, newList);
+				if (newList !== null && template.onChange) {
+					template.onChange(newList);
+				}
+			})
+		);
 
 		return template;
 	}
 
-	private onDidChangeList(template: ISettingListItemTemplate, e: IListChangeEvent): void {
+	private onDidChangeList(template: ISettingListItemTemplate, newList: string[] | undefined | null): void {
+		if (!template.context || newList === null) {
+			return;
+		}
+
+		this._onDidChangeSetting.fire({
+			key: template.context.setting.key,
+			value: newList,
+			type: template.context.valueType
+		});
+	}
+
+	private computeNewList(template: ISettingListItemTemplate, e: IListChangeEvent): string[] | undefined | null {
 		if (template.context) {
-			let newValue: any[] = [];
+			let newValue: string[] = [];
 			if (isArray(template.context.scopeValue)) {
 				newValue = [...template.context.scopeValue];
 			} else if (isArray(template.context.value)) {
@@ -732,29 +757,30 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 				template.context.defaultValue.length === newValue.length &&
 				template.context.defaultValue.join() === newValue.join()
 			) {
-				return this._onDidChangeSetting.fire({
-					key: template.context.setting.key,
-					value: undefined, // reset setting
-					type: template.context.valueType
-				});
+				return undefined;
 			}
 
-			this._onDidChangeSetting.fire({
-				key: template.context.setting.key,
-				value: newValue,
-				type: template.context.valueType
-			});
+			return newValue;
 		}
+
+		return undefined;
 	}
 
 	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingListItemTemplate): void {
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
 		const value = getListDisplayValue(dataElement);
 		template.listWidget.setValue(value);
 		template.context = dataElement;
+
+		template.onChange = (v) => {
+			onChange(v);
+			renderArrayValidations(dataElement, template, v, false);
+		};
+
+		renderArrayValidations(dataElement, template, value.map(v => v.value), true);
 	}
 }
 
@@ -1237,6 +1263,29 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 	DOM.removeClass(template.containerElement, 'invalid-input');
 }
 
+function renderArrayValidations(
+	dataElement: SettingsTreeSettingElement,
+	template: ISettingListItemTemplate,
+	value: string[] | undefined,
+	calledOnStartup: boolean
+) {
+	DOM.addClass(template.containerElement, 'invalid-input');
+	if (dataElement.setting.validator) {
+		const errMsg = dataElement.setting.validator(value);
+		if (errMsg && errMsg !== '') {
+			DOM.addClass(template.containerElement, 'invalid-input');
+			template.validationErrorMessageElement.innerText = errMsg;
+			const validationError = localize('validationError', "Validation Error.");
+			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
+			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
+			return;
+		} else {
+			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
+			DOM.removeClass(template.containerElement, 'invalid-input');
+		}
+	}
+}
+
 function cleanRenderedMarkdown(element: Node): void {
 	for (let i = 0; i < element.childNodes.length; i++) {
 		const child = element.childNodes.item(i);
@@ -1420,7 +1469,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 	) {
 		const treeClass = 'settings-editor-tree';
 
-		super(container,
+		super('SettingsTree', container,
 			new SettingsTreeDelegate(),
 			renderers,
 			{
@@ -1507,8 +1556,8 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
-		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(view, options);
+	protected createModel(user: string, view: ISpliceable<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, view, options);
 	}
 }
 

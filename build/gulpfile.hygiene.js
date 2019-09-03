@@ -311,10 +311,13 @@ function hygiene(some) {
 		.pipe(filter(copyrightFilter))
 		.pipe(copyrights);
 
-	const typescript = result
+	let typescript = result
 		.pipe(filter(tslintHygieneFilter))
-		.pipe(formatting)
-		.pipe(tsl);
+		.pipe(formatting);
+
+	if (!process.argv.some(arg => arg === '--skip-tslint')) {
+		typescript = typescript.pipe(tsl);
+	}
 
 	const javascript = result
 		.pipe(filter(eslintFilter))

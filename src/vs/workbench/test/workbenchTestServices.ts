@@ -33,7 +33,7 @@ import { ITextFileStreamContent, ITextFileService, IResourceEncoding, IReadTextF
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -94,7 +94,7 @@ export function createFileInput(instantiationService: IInstantiationService, res
 export const TestEnvironmentService = new WorkbenchEnvironmentService(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
 
 export class TestContextService implements IWorkspaceContextService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private workspace: Workspace;
 	private options: any;
@@ -106,6 +106,7 @@ export class TestContextService implements IWorkspaceContextService {
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.options = options || Object.create(null);
+		this._onDidChangeWorkspaceName = new Emitter<void>();
 		this._onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
 		this._onDidChangeWorkbenchState = new Emitter<WorkbenchState>();
 	}
@@ -325,7 +326,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 }
 
 export class TestDecorationsService implements IDecorationsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.None;
 	registerDecorationsProvider(_provider: IDecorationsProvider): IDisposable { return Disposable.None; }
 	getDecoration(_uri: URI, _includeChildren: boolean, _overwrite?: IDecorationData): IDecoration | undefined { return undefined; }
@@ -335,7 +336,7 @@ export class TestExtensionService extends NullExtensionService { }
 
 export class TestMenuService implements IMenuService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	createMenu(_id: MenuId, _scopedKeybindingService: IContextKeyService): IMenu {
 		return {
@@ -348,7 +349,7 @@ export class TestMenuService implements IMenuService {
 
 export class TestHistoryService implements IHistoryService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	constructor(private root?: URI) {
 	}
@@ -392,7 +393,7 @@ export class TestHistoryService implements IHistoryService {
 
 export class TestDialogService implements IDialogService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public confirm(_confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return Promise.resolve({ confirmed: false });
@@ -405,7 +406,7 @@ export class TestDialogService implements IDialogService {
 
 export class TestFileDialogService implements IFileDialogService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public defaultFilePath(_schemeFilter?: string): URI | undefined {
 		return undefined;
@@ -441,7 +442,7 @@ export class TestFileDialogService implements IFileDialogService {
 
 export class TestLayoutService implements IWorkbenchLayoutService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	dimension: IDimension = { width: 800, height: 600 };
 
@@ -541,6 +542,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	public addClass(_clazz: string): void { }
 	public removeClass(_clazz: string): void { }
 
+	public getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
+
 	public getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
 	public getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
 
@@ -558,7 +561,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 let activeViewlet: Viewlet = {} as any;
 
 export class TestViewletService implements IViewletService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
 	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
@@ -609,7 +612,7 @@ export class TestViewletService implements IViewletService {
 }
 
 export class TestPanelService implements IPanelService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
@@ -658,7 +661,7 @@ export class TestStorageService extends InMemoryStorageService { }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	constructor(public groups: TestEditorGroup[] = []) { }
 
@@ -707,6 +710,10 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	}
 
 	activateGroup(_group: number | IEditorGroup): IEditorGroup {
+		throw new Error('not implemented');
+	}
+
+	restoreGroup(_group: number | IEditorGroup): IEditorGroup {
 		throw new Error('not implemented');
 	}
 
@@ -854,7 +861,7 @@ export class TestEditorGroup implements IEditorGroupView {
 
 export class TestEditorService implements EditorServiceImpl {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	onDidActiveEditorChange: Event<void> = Event.None;
 	onDidVisibleEditorsChange: Event<void> = Event.None;
@@ -904,7 +911,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 export class TestFileService implements IFileService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _onFileChanges: Emitter<FileChangesEvent>;
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
@@ -1075,7 +1082,7 @@ export class TestFileService implements IFileService {
 }
 
 export class TestBackupFileService implements IBackupFileService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public hasBackups(): Promise<boolean> {
 		return Promise.resolve(false);
@@ -1140,7 +1147,7 @@ export class TestBackupFileService implements IBackupFileService {
 }
 
 export class TestCodeEditorService implements ICodeEditorService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onCodeEditorAdd: Event<ICodeEditor> = Event.None;
 	onCodeEditorRemove: Event<ICodeEditor> = Event.None;
@@ -1166,7 +1173,7 @@ export class TestCodeEditorService implements ICodeEditorService {
 
 export class TestWindowService implements IWindowService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	onDidChangeFocus: Event<boolean> = new Emitter<boolean>().event;
 	onDidChangeMaximize: Event<boolean>;
@@ -1297,7 +1304,7 @@ export class TestWindowService implements IWindowService {
 
 export class TestLifecycleService implements ILifecycleService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public phase: LifecyclePhase;
 	public startupKind: StartupKind;
@@ -1336,7 +1343,7 @@ export class TestLifecycleService implements ILifecycleService {
 
 export class TestWindowsService implements IWindowsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	public windowCount = 1;
 
@@ -1557,7 +1564,7 @@ export class TestWindowsService implements IWindowsService {
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private configurationService = new TestConfigurationService()) {
 	}
@@ -1575,7 +1582,7 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1596,7 +1603,7 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 
 export class TestSharedProcessService implements ISharedProcessService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	getChannel(channelName: string): any {
 		return undefined;

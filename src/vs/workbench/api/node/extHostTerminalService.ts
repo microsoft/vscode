@@ -199,7 +199,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 export class ExtHostTerminalService implements IExtHostTerminalService, ExtHostTerminalServiceShape {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private _proxy: MainThreadTerminalServiceShape;
 	private _activeTerminal: ExtHostTerminal | undefined;
@@ -738,7 +738,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
-			this._pty.onDidClose(e => this._onProcessExit.fire(0));
+			this._pty.onDidClose(e => this._onProcessExit.fire(e || 0));
 		}
 		if (this._pty.onDidOverrideDimensions) {
 			this._pty.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));

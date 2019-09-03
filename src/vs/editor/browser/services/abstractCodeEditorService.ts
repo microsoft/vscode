@@ -13,7 +13,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onCodeEditorAdd: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
 	public readonly onCodeEditorAdd: Event<ICodeEditor> = this._onCodeEditorAdd.event;

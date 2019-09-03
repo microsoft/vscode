@@ -67,10 +67,11 @@ class DocumentSymbolAdapter {
 		const res: modes.DocumentSymbol[] = [];
 		const parentStack: modes.DocumentSymbol[] = [];
 		for (const info of infos) {
-			const element = <modes.DocumentSymbol>{
+			const element: modes.DocumentSymbol = {
 				name: info.name || '!!MISSING: name!!',
 				kind: typeConvert.SymbolKind.from(info.kind),
-				detail: undefined!, // Strict null override — avoid changing behavior
+				tags: info.tags ? info.tags.map(typeConvert.SymbolTag.from) : [],
+				detail: '',
 				containerName: info.containerName,
 				range: typeConvert.Range.from(info.location.range),
 				selectionRange: typeConvert.Range.from(info.location.range),
@@ -727,6 +728,7 @@ class SuggestAdapter {
 			//
 			a: item.label,
 			b: typeConvert.CompletionItemKind.from(item.kind),
+			n: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			c: item.detail,
 			d: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
 			e: item.sortText,
@@ -737,12 +739,6 @@ class SuggestAdapter {
 			l: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			m: this._commands.toInternal(item.command, disposables),
 		};
-
-		// kind2
-		if (typeof item.kind2 === 'object') {
-			result.b = typeConvert.CompletionItemKind.from(item.kind2.base);
-			result.n = item.kind2.modifier.map(typeConvert.CompletionItemKindModifier.from);
-		}
 
 		// 'insertText'-logic
 		if (item.textEdit) {

@@ -9,7 +9,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -30,7 +30,7 @@ export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toN
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
-export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', -1);
+export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0);
 export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false);
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
@@ -53,12 +53,12 @@ export interface IEditor {
 	/**
 	 * The assigned input of this editor.
 	 */
-	input: IEditorInput | null;
+	input: IEditorInput | undefined;
 
 	/**
 	 * The assigned options of this editor.
 	 */
-	options: IEditorOptions | null;
+	options: IEditorOptions | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.
@@ -292,7 +292,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display name of this input.
 	 */
-	getName(): string | null;
+	getName(): string | undefined;
 
 	/**
 	 * Returns the display description of this input.
@@ -302,7 +302,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display title of this input.
 	 */
-	getTitle(verbosity?: Verbosity): string | null;
+	getTitle(verbosity?: Verbosity): string | undefined;
 
 	/**
 	 * Resolves the input.
@@ -358,8 +358,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
 	 * above the editor area when the input is shown.
 	 */
-	getName(): string | null {
-		return null;
+	getName(): string | undefined {
+		return undefined;
 	}
 
 	/**
@@ -374,7 +374,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the title of this input that can be shown to the user. Examples include showing the title of
 	 * the input above the editor area as hover over the input label.
 	 */
-	getTitle(verbosity?: Verbosity): string | null {
+	getTitle(verbosity?: Verbosity): string | undefined {
 		return this.getName();
 	}
 
@@ -707,24 +707,28 @@ export class EditorOptions implements IEditorOptions {
 	 */
 	static create(settings: IEditorOptions): EditorOptions {
 		const options = new EditorOptions();
-
-		options.preserveFocus = settings.preserveFocus;
-		options.forceReload = settings.forceReload;
-		options.revealIfVisible = settings.revealIfVisible;
-		options.revealIfOpened = settings.revealIfOpened;
-		options.pinned = settings.pinned;
-		options.index = settings.index;
-		options.inactive = settings.inactive;
-		options.ignoreError = settings.ignoreError;
+		options.overwrite(settings);
 
 		return options;
 	}
 
 	/**
-	 * Tells the editor to not receive keyboard focus when the editor is being opened. By default,
-	 * the editor will receive keyboard focus on open.
+	 * Tells the editor to not receive keyboard focus when the editor is being opened.
+	 *
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	preserveFocus: boolean | undefined;
+
+	/**
+	 * This option is only relevant if an editor is opened into a group that is not active
+	 * already and allows to control if the inactive group should become active, restored
+	 * or preserved.
+	 *
+	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
+	 * is specified.
+	 */
+	activation: EditorActivation | undefined;
 
 	/**
 	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
@@ -756,7 +760,10 @@ export class EditorOptions implements IEditorOptions {
 
 	/**
 	 * An active editor that is opened will show its contents directly. Set to true to open an editor
-	 * in the background.
+	 * in the background without loading its contents.
+	 *
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	inactive: boolean | undefined;
 
@@ -765,6 +772,49 @@ export class EditorOptions implements IEditorOptions {
 	 * message as needed. By default, an error will be presented as notification if opening was not possible.
 	 */
 	ignoreError: boolean | undefined;
+
+	/**
+	 * Overwrites option values from the provided bag.
+	 */
+	overwrite(options: IEditorOptions): EditorOptions {
+		if (typeof options.forceReload === 'boolean') {
+			this.forceReload = options.forceReload;
+		}
+
+		if (typeof options.revealIfVisible === 'boolean') {
+			this.revealIfVisible = options.revealIfVisible;
+		}
+
+		if (typeof options.revealIfOpened === 'boolean') {
+			this.revealIfOpened = options.revealIfOpened;
+		}
+
+		if (typeof options.preserveFocus === 'boolean') {
+			this.preserveFocus = options.preserveFocus;
+		}
+
+		if (typeof options.activation === 'number') {
+			this.activation = options.activation;
+		}
+
+		if (typeof options.pinned === 'boolean') {
+			this.pinned = options.pinned;
+		}
+
+		if (typeof options.inactive === 'boolean') {
+			this.inactive = options.inactive;
+		}
+
+		if (typeof options.ignoreError === 'boolean') {
+			this.ignoreError = options.ignoreError;
+		}
+
+		if (typeof options.index === 'number') {
+			this.index = options.index;
+		}
+
+		return this;
+	}
 }
 
 /**
@@ -792,53 +842,31 @@ export class TextEditorOptions extends EditorOptions {
 	 */
 	static create(options: ITextEditorOptions = Object.create(null)): TextEditorOptions {
 		const textEditorOptions = new TextEditorOptions();
+		textEditorOptions.overwrite(options);
+
+		return textEditorOptions;
+	}
+
+	/**
+	 * Overwrites option values from the provided bag.
+	 */
+	overwrite(options: ITextEditorOptions): TextEditorOptions {
+		super.overwrite(options);
 
 		if (options.selection) {
 			const selection = options.selection;
-			textEditorOptions.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
+			this.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
 		}
 
 		if (options.viewState) {
-			textEditorOptions.editorViewState = options.viewState as IEditorViewState;
+			this.editorViewState = options.viewState as IEditorViewState;
 		}
 
-		if (options.forceReload) {
-			textEditorOptions.forceReload = true;
+		if (typeof options.revealInCenterIfOutsideViewport === 'boolean') {
+			this.revealInCenterIfOutsideViewport = options.revealInCenterIfOutsideViewport;
 		}
 
-		if (options.revealIfVisible) {
-			textEditorOptions.revealIfVisible = true;
-		}
-
-		if (options.revealIfOpened) {
-			textEditorOptions.revealIfOpened = true;
-		}
-
-		if (options.preserveFocus) {
-			textEditorOptions.preserveFocus = true;
-		}
-
-		if (options.revealInCenterIfOutsideViewport) {
-			textEditorOptions.revealInCenterIfOutsideViewport = true;
-		}
-
-		if (options.pinned) {
-			textEditorOptions.pinned = true;
-		}
-
-		if (options.inactive) {
-			textEditorOptions.inactive = true;
-		}
-
-		if (options.ignoreError) {
-			textEditorOptions.ignoreError = true;
-		}
-
-		if (typeof options.index === 'number') {
-			textEditorOptions.index = options.index;
-		}
-
-		return textEditorOptions;
+		return this;
 	}
 
 	/**

@@ -22,7 +22,7 @@ import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSe
 
 class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -96,21 +96,21 @@ suite('SmartSelect', () => {
 			'\t}',
 			'}'
 		], 3, 20, [
-				new Range(1, 1, 5, 2), // all
-				new Range(1, 21, 5, 2), // {} outside
-				new Range(1, 22, 5, 1), // {} inside
-				new Range(2, 1, 4, 3), // block
-				new Range(2, 1, 4, 3),
-				new Range(2, 2, 4, 3),
-				new Range(2, 11, 4, 3),
-				new Range(2, 12, 4, 2),
-				new Range(3, 1, 3, 27), // line w/ triva
-				new Range(3, 3, 3, 27), // line w/o triva
-				new Range(3, 10, 3, 27), // () outside
-				new Range(3, 11, 3, 26), // () inside
-				new Range(3, 17, 3, 26), // () outside
-				new Range(3, 18, 3, 25), // () inside
-			]);
+			new Range(1, 1, 5, 2), // all
+			new Range(1, 21, 5, 2), // {} outside
+			new Range(1, 22, 5, 1), // {} inside
+			new Range(2, 1, 4, 3), // block
+			new Range(2, 1, 4, 3),
+			new Range(2, 2, 4, 3),
+			new Range(2, 11, 4, 3),
+			new Range(2, 12, 4, 2),
+			new Range(3, 1, 3, 27), // line w/ triva
+			new Range(3, 3, 3, 27), // line w/o triva
+			new Range(3, 10, 3, 27), // () outside
+			new Range(3, 11, 3, 26), // () inside
+			new Range(3, 17, 3, 26), // () outside
+			new Range(3, 18, 3, 25), // () inside
+		]);
 	});
 
 	test('getRangesToPosition #56886. Skip empty lines correctly.', () => {
@@ -122,15 +122,15 @@ suite('SmartSelect', () => {
 			'\t}',
 			'}'
 		], 3, 1, [
-				new Range(1, 1, 5, 2),
-				new Range(1, 21, 5, 2),
-				new Range(1, 22, 5, 1),
-				new Range(2, 1, 4, 3),
-				new Range(2, 1, 4, 3),
-				new Range(2, 2, 4, 3),
-				new Range(2, 11, 4, 3),
-				new Range(2, 12, 4, 2),
-			]);
+			new Range(1, 1, 5, 2),
+			new Range(1, 21, 5, 2),
+			new Range(1, 22, 5, 1),
+			new Range(2, 1, 4, 3),
+			new Range(2, 1, 4, 3),
+			new Range(2, 2, 4, 3),
+			new Range(2, 11, 4, 3),
+			new Range(2, 12, 4, 2),
+		]);
 	});
 
 	test('getRangesToPosition #56886. Do not skip lines with only whitespaces.', () => {
@@ -142,17 +142,17 @@ suite('SmartSelect', () => {
 			'\t}',
 			'}'
 		], 3, 1, [
-				new Range(1, 1, 5, 2), // all
-				new Range(1, 21, 5, 2), // {} outside
-				new Range(1, 22, 5, 1), // {} inside
-				new Range(2, 1, 4, 3),
-				new Range(2, 1, 4, 3),
-				new Range(2, 2, 4, 3),
-				new Range(2, 11, 4, 3),
-				new Range(2, 12, 4, 2),
-				new Range(3, 1, 3, 2), // block
-				new Range(3, 1, 3, 2) // empty line
-			]);
+			new Range(1, 1, 5, 2), // all
+			new Range(1, 21, 5, 2), // {} outside
+			new Range(1, 22, 5, 1), // {} inside
+			new Range(2, 1, 4, 3),
+			new Range(2, 1, 4, 3),
+			new Range(2, 2, 4, 3),
+			new Range(2, 11, 4, 3),
+			new Range(2, 12, 4, 2),
+			new Range(3, 1, 3, 2), // block
+			new Range(3, 1, 3, 2) // empty line
+		]);
 	});
 
 	test('getRangesToPosition #40658. Cursor at first position inside brackets should select line inside.', () => {
@@ -162,11 +162,11 @@ suite('SmartSelect', () => {
 			' { } ',
 			'( ) '
 		], 2, 3, [
-				new Range(1, 1, 3, 5),
-				new Range(2, 1, 2, 6), // line w/ triava
-				new Range(2, 2, 2, 5), // {} inside, line w/o triva
-				new Range(2, 3, 2, 4) // {} inside
-			]);
+			new Range(1, 1, 3, 5),
+			new Range(2, 1, 2, 6), // line w/ triava
+			new Range(2, 2, 2, 5), // {} inside, line w/o triva
+			new Range(2, 3, 2, 4) // {} inside
+		]);
 	});
 
 	test('getRangesToPosition #40658. Cursor in empty brackets should reveal brackets first.', () => {
@@ -176,11 +176,11 @@ suite('SmartSelect', () => {
 			' { } ',
 			'  ( ) '
 		], 1, 3, [
-				new Range(1, 1, 3, 7), // all
-				new Range(1, 1, 1, 5), // line w/ trival
-				new Range(1, 2, 1, 4), // [] outside, line w/o trival
-				new Range(1, 3, 1, 3), // [] inside
-			]);
+			new Range(1, 1, 3, 7), // all
+			new Range(1, 1, 1, 5), // line w/ trival
+			new Range(1, 2, 1, 4), // [] outside, line w/o trival
+			new Range(1, 3, 1, 3), // [] inside
+		]);
 	});
 
 	test('getRangesToPosition #40658. Tokens before bracket will be revealed first.', () => {
@@ -190,11 +190,11 @@ suite('SmartSelect', () => {
 			' { } ',
 			'selectthis( ) '
 		], 3, 11, [
-				new Range(1, 1, 3, 15), // all
-				new Range(3, 1, 3, 15), // line w/ trivia
-				new Range(3, 1, 3, 14), // line w/o trivia
-				new Range(3, 1, 3, 11) // word
-			]);
+			new Range(1, 1, 3, 15), // all
+			new Range(3, 1, 3, 15), // line w/ trivia
+			new Range(3, 1, 3, 14), // line w/o trivia
+			new Range(3, 1, 3, 11) // word
+		]);
 	});
 
 	// -- bracket selections

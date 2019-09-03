@@ -581,7 +581,7 @@ export enum CompletionItemKind {
 	Snippet = 25
 }
 
-export enum CompletionItemKindModifier {
+export enum CompletionItemTag {
 	Deprecated = 1
 }
 
@@ -660,4 +660,8 @@ export enum SymbolKind {
 	Event = 23,
 	Operator = 24,
 	TypeParameter = 25
+}
+
+export enum SymbolTag {
+	Deprecated = 1
 }

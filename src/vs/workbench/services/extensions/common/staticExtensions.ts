@@ -4,23 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionDescription, IExtensionManifest, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { UriComponents, URI } from 'vs/base/common/uri';
+import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { URI } from 'vs/base/common/uri';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const IStaticExtensionsService = createDecorator<IStaticExtensionsService>('IStaticExtensionsService');
 
 export interface IStaticExtensionsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	getExtensions(): Promise<IExtensionDescription[]>;
 }
 
 export class StaticExtensionsService implements IStaticExtensionsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _descriptions: IExtensionDescription[] = [];
 
-	constructor(staticExtensions: { packageJSON: IExtensionManifest, extensionLocation: UriComponents }[]) {
+	constructor(@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService) {
+		const staticExtensions = environmentService.options && Array.isArray(environmentService.options.staticExtensions) ? environmentService.options.staticExtensions : [];
+
 		this._descriptions = staticExtensions.map(data => <IExtensionDescription>{
 			identifier: new ExtensionIdentifier(`${data.packageJSON.publisher}.${data.packageJSON.name}`),
 			extensionLocation: URI.revive(data.extensionLocation),
@@ -32,3 +36,5 @@ export class StaticExtensionsService implements IStaticExtensionsService {
 		return this._descriptions;
 	}
 }
+
+registerSingleton(IStaticExtensionsService, StaticExtensionsService, true);

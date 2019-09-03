@@ -28,7 +28,7 @@ export class URLServiceChannel implements IServerChannel {
 
 export class URLServiceChannelClient implements IURLService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private channel: IChannel) { }
 

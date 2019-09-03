@@ -57,7 +57,7 @@ const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "O
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
 
-const FIND_WIDGET_INITIAL_WIDTH = 411;
+const FIND_WIDGET_INITIAL_WIDTH = 419;
 const PART_WIDTH = 275;
 const FIND_INPUT_AREA_WIDTH = PART_WIDTH - 54;
 
@@ -111,7 +111,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _notificationService: INotificationService;
 
 	private _domNode!: HTMLElement;
-	private _cachedHeight: number | null;
+	private _cachedHeight: number | null = null;
 	private _findInput!: FindInput;
 	private _replaceInput!: ReplaceInput;
 
@@ -781,7 +781,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			const end = inputElement.selectionEnd;
 			const content = inputElement.value;
 
-			if (start && end) {
+			if (start !== null && end !== null) {
 				const value = content.substr(0, start) + '\n' + content.substr(end);
 				this._findInput.inputBox.value = value;
 				inputElement.setSelectionRange(start + 1, start + 1);
@@ -1171,6 +1171,39 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			this._findInput.inputBox.layout();
 			this._tryUpdateHeight();
+		}));
+
+		this._register(this._resizeSash.onDidReset(() => {
+			// users double click on the sash
+			const currentWidth = dom.getTotalWidth(this._domNode);
+
+			if (currentWidth < FIND_WIDGET_INITIAL_WIDTH) {
+				// The editor is narrow and the width of the find widget is controlled fully by CSS.
+				return;
+			}
+
+			let width = FIND_WIDGET_INITIAL_WIDTH;
+
+			if (!this._resized || currentWidth === FIND_WIDGET_INITIAL_WIDTH) {
+				// 1. never resized before, double click should maximizes it
+				// 2. users resized it already but its width is the same as default
+				width = this._codeEditor.getConfiguration().layoutInfo.width - 28 - this._codeEditor.getConfiguration().layoutInfo.minimapWidth - 15;
+				this._resized = true;
+			} else {
+				/**
+				 * no op, the find widget should be shrinked to its default size.
+				 */
+			}
+
+			const inputBoxWidth = width - FIND_ALL_CONTROLS_WIDTH;
+
+			this._domNode.style.width = `${width}px`;
+			this._findInput.inputBox.width = inputBoxWidth;
+			if (this._isReplaceVisible) {
+				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+			}
+
+			this._findInput.inputBox.layout();
 		}));
 	}
 

@@ -6,7 +6,7 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -21,7 +21,7 @@ export class GettingStarted implements IWorkbenchContribution {
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {

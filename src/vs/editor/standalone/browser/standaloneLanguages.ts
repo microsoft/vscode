@@ -562,9 +562,10 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		// enums
 		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,
 		CompletionItemKind: standaloneEnums.CompletionItemKind,
-		CompletionItemKindModifier: standaloneEnums.CompletionItemKindModifier,
+		CompletionItemTag: standaloneEnums.CompletionItemTag,
 		CompletionItemInsertTextRule: standaloneEnums.CompletionItemInsertTextRule,
 		SymbolKind: standaloneEnums.SymbolKind,
+		SymbolTag: standaloneEnums.SymbolTag,
 		IndentAction: standaloneEnums.IndentAction,
 		CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,

@@ -7,7 +7,6 @@ import { URI } from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
 import { memoize } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { basename } from 'vs/base/common/path';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
@@ -24,8 +23,8 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
-	private cachedModel: UntitledEditorModel | null;
-	private modelResolve: Promise<UntitledEditorModel & IResolvedTextEditorModel> | null;
+	private cachedModel: UntitledEditorModel | null = null;
+	private modelResolve: Promise<UntitledEditorModel & IResolvedTextEditorModel> | null = null;
 
 	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidModelChangeContent: Event<void> = this._onDidModelChangeContent.event;
@@ -64,7 +63,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get shortDescription(): string {
-		return basename(this.labelService.getUriLabel(dirname(this.resource)));
+		return this.labelService.getUriBasenameLabel(dirname(this.resource));
 	}
 
 	@memoize
@@ -108,7 +107,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.labelService.getUriLabel(this.resource);
 	}
 
-	getTitle(verbosity: Verbosity): string | null {
+	getTitle(verbosity: Verbosity): string | undefined {
 		if (!this.hasAssociatedFilePath) {
 			return this.getName();
 		}
@@ -122,7 +121,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 				return this.longTitle;
 		}
 
-		return null;
+		return undefined;
 	}
 
 	isDirty(): boolean {
