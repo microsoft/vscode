@@ -1072,37 +1072,6 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		return Event.map(modificationEvent, () => this.visibleRepositories);
 	}
 
-	setVisibleRepositories(repositories: ISCMRepository[]): void {
-		const visibleViewDescriptors = this.viewsModel.visibleViewDescriptors;
-
-		const toSetVisible = this.viewsModel.viewDescriptors
-			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
-
-		const toSetInvisible = visibleViewDescriptors
-			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
-
-		let size: number | undefined;
-		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
-
-		for (const viewDescriptor of toSetInvisible) {
-			if (oneToOne) {
-				const panel = this.panels.filter(panel => panel.id === viewDescriptor.id)[0];
-
-				if (panel) {
-					size = this.getPanelSize(panel);
-				}
-			}
-
-			viewDescriptor.repository.setSelected(false);
-			this.viewsModel.setVisible(viewDescriptor.id, false);
-		}
-
-		for (const viewDescriptor of toSetVisible) {
-			viewDescriptor.repository.setSelected(true);
-			this.viewsModel.setVisible(viewDescriptor.id, true, size);
-		}
-	}
-
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1261,6 +1230,37 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 	getActionsContext(): any {
 		if (this.visibleRepositories.length === 1) {
 			return this.repositories[0].provider;
+		}
+	}
+
+	setVisibleRepositories(repositories: ISCMRepository[]): void {
+		const visibleViewDescriptors = this.viewsModel.visibleViewDescriptors;
+
+		const toSetVisible = this.viewsModel.viewDescriptors
+			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
+
+		const toSetInvisible = visibleViewDescriptors
+			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
+
+		let size: number | undefined;
+		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
+
+		for (const viewDescriptor of toSetInvisible) {
+			if (oneToOne) {
+				const panel = this.panels.filter(panel => panel.id === viewDescriptor.id)[0];
+
+				if (panel) {
+					size = this.getPanelSize(panel);
+				}
+			}
+
+			viewDescriptor.repository.setSelected(false);
+			this.viewsModel.setVisible(viewDescriptor.id, false);
+		}
+
+		for (const viewDescriptor of toSetVisible) {
+			viewDescriptor.repository.setSelected(true);
+			this.viewsModel.setVisible(viewDescriptor.id, true, size);
 		}
 	}
 }
