@@ -109,6 +109,7 @@ steps:
     APP_ROOT=$(agent.builddirectory)/VSCode-linux-x64
     APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
     INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
+    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
     DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-x64"
   displayName: Run integration tests

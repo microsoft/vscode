@@ -85,14 +85,18 @@ export function activate(context: vscode.ExtensionContext) {
 			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 
-			if (!commit || env['TEST_RESOLVER_USE_SERVER_FROM_SOURCES']) { // dev mode
+			if (!commit) { // dev mode
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
 			} else {
-				const serverBin = path.join(remoteDataDir, 'bin');
-				progress.report({ message: 'Installing VSCode Server' });
-				const serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin);
+				let serverLocation = env['VSCODE_REMOTE_SERVER_PATH']; // support environment
+				if (!serverLocation) {
+					const serverBin = path.join(remoteDataDir, 'bin');
+					progress.report({ message: 'Installing VSCode Server' });
+					serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin);
+				}
+
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
 
 				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
