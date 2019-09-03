@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Terminal, TerminalCore } from 'xterm';
+import { Terminal } from 'xterm';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { isWindows } from 'vs/base/common/platform';
+import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
-interface TestTerminalCore extends TerminalCore {
+interface TestTerminalCore extends XTermCore {
 	writeBuffer: string[];
 	_innerWrite(): void;
 }
