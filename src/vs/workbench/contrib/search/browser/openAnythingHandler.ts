@@ -41,9 +41,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private searchDelayer: ThrottledDelayer<QuickOpenModel | null>;
-	private isClosed: boolean;
+	private isClosed: boolean | undefined;
 	private scorerCache: ScorerCache;
-	private includeSymbols: boolean;
+	private includeSymbols: boolean | undefined;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,

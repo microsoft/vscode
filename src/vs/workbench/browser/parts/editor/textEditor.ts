@@ -39,7 +39,7 @@ export interface IEditorConfiguration {
 export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	private editorControl: IEditor;
 	private _editorContainer: HTMLElement;
-	private hasPendingConfigurationChange: boolean;
+	private hasPendingConfigurationChange: boolean | undefined;
 	private lastAppliedEditorOptions?: IEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
 
