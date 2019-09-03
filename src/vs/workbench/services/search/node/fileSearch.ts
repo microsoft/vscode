@@ -318,7 +318,9 @@ export class FileWalker {
 			if (err || last) {
 				onData = () => { };
 
-				this.cmdSW!.stop();
+				if (this.cmdSW) {
+					this.cmdSW.stop();
+				}
 			}
 			cb(err, stdout, last);
 		};

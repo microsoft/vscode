@@ -7,6 +7,7 @@ import * as path from 'vs/base/common/path';
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import * as resources from 'vs/base/common/resources';
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { toCanonicalName } from 'vs/base/node/encoding';
@@ -198,6 +199,7 @@ export class TextSearchResultsCollector {
 	private _batchedCollector: BatchedCollector<IFileMatch>;
 
 	private _currentFolderIdx: number = -1;
+	private _currentUri: URI;
 	private _currentFileMatch: IFileMatch | null = null;
 
 	constructor(private _onResult: (result: IFileMatch[]) => void) {
@@ -208,7 +210,7 @@ export class TextSearchResultsCollector {
 		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
 		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
 		// providers that send results in random order. We could do this step afterwards instead.
-		if (this._currentFileMatch && this._currentFolderIdx !== folderIdx) {
+		if (this._currentFileMatch && (this._currentFolderIdx !== folderIdx || !resources.isEqual(this._currentUri, data.uri))) {
 			this.pushToCollector();
 			this._currentFileMatch = null;
 		}
