@@ -260,9 +260,9 @@ export class WebviewEditorService implements IWebviewEditorService {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
 		}, {
-				...options,
-				localResourceRoots: options.localResourceRoots || this.getDefaultLocalResourceRoots(extension),
-			});
+			...options,
+			localResourceRoots: options.localResourceRoots || this.getDefaultLocalResourceRoots(extension),
+		});
 	}
 
 	private getDefaultLocalResourceRoots(extension: undefined | {

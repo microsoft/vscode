@@ -42,9 +42,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('Foo', 3),
 			createSuggestItem('foo', 2),
 		], 1, {
-				leadingLineContent: 'foo',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: 'foo',
+			characterCountDelta: 0
+		}, WordDistance.None);
 	});
 
 	test('filtering - cached', function () {
@@ -73,9 +73,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('foo', 3, undefined, true),
 			createSuggestItem('foo', 2),
 		], 1, {
-				leadingLineContent: 'foo',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: 'foo',
+			characterCountDelta: 0
+		}, WordDistance.None);
 		assert.equal(incompleteModel.incomplete.size, 1);
 	});
 
@@ -135,9 +135,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('    </tag', 4),
 			createSuggestItem('    XYZ', 4),
 		], 1, {
-				leadingLineContent: '   <',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: '   <',
+			characterCountDelta: 0
+		}, WordDistance.None);
 
 		assert.equal(model.items.length, 4);
 
@@ -155,18 +155,18 @@ suite('CompletionModel', function () {
 			createSuggestItem('tnippet2', 1, modes.CompletionItemKind.Snippet),
 			createSuggestItem('semver', 1, modes.CompletionItemKind.Property),
 		], 1, {
-				leadingLineContent: 's',
-				characterCountDelta: 0
-			}, WordDistance.None, {
-				snippets: 'top',
-				snippetsPreventQuickSuggestions: true,
-				filterGraceful: true,
-				localityBonus: false,
-				shareSuggestSelections: false,
-				showIcons: true,
-				maxVisibleSuggestions: 12,
-				filteredTypes: Object.create(null)
-			});
+			leadingLineContent: 's',
+			characterCountDelta: 0
+		}, WordDistance.None, {
+			snippets: 'top',
+			snippetsPreventQuickSuggestions: true,
+			filterGraceful: true,
+			localityBonus: false,
+			shareSuggestSelections: false,
+			showIcons: true,
+			maxVisibleSuggestions: 12,
+			filteredTypes: Object.create(null)
+		});
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -183,18 +183,18 @@ suite('CompletionModel', function () {
 			createSuggestItem('tnippet2', 1, modes.CompletionItemKind.Snippet),
 			createSuggestItem('Semver', 1, modes.CompletionItemKind.Property),
 		], 1, {
-				leadingLineContent: 's',
-				characterCountDelta: 0
-			}, WordDistance.None, {
-				snippets: 'bottom',
-				snippetsPreventQuickSuggestions: true,
-				filterGraceful: true,
-				localityBonus: false,
-				shareSuggestSelections: false,
-				showIcons: true,
-				maxVisibleSuggestions: 12,
-				filteredTypes: Object.create(null)
-			});
+			leadingLineContent: 's',
+			characterCountDelta: 0
+		}, WordDistance.None, {
+			snippets: 'bottom',
+			snippetsPreventQuickSuggestions: true,
+			filterGraceful: true,
+			localityBonus: false,
+			shareSuggestSelections: false,
+			showIcons: true,
+			maxVisibleSuggestions: 12,
+			filteredTypes: Object.create(null)
+		});
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -210,18 +210,18 @@ suite('CompletionModel', function () {
 			createSuggestItem('tnippet2', 1, modes.CompletionItemKind.Snippet),
 			createSuggestItem('Semver', 1),
 		], 1, {
-				leadingLineContent: 's',
-				characterCountDelta: 0
-			}, WordDistance.None, {
-				snippets: 'inline',
-				snippetsPreventQuickSuggestions: true,
-				filterGraceful: true,
-				localityBonus: false,
-				shareSuggestSelections: false,
-				showIcons: true,
-				maxVisibleSuggestions: 12,
-				filteredTypes: Object.create(null)
-			});
+			leadingLineContent: 's',
+			characterCountDelta: 0
+		}, WordDistance.None, {
+			snippets: 'inline',
+			snippetsPreventQuickSuggestions: true,
+			filterGraceful: true,
+			localityBonus: false,
+			shareSuggestSelections: false,
+			showIcons: true,
+			maxVisibleSuggestions: 12,
+			filteredTypes: Object.create(null)
+		});
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -275,9 +275,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('car', 0),
 			createSuggestItem('foo', 0),
 		], 1, {
-				leadingLineContent: '',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: '',
+			characterCountDelta: 0
+		}, WordDistance.None);
 
 		assert.equal(model.items.length, 5);
 
@@ -302,9 +302,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('car', 0),
 			createSuggestItem('foo', 0),
 		], 1, {
-				leadingLineContent: '',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: '',
+			characterCountDelta: 0
+		}, WordDistance.None);
 
 		// query gets longer, narrow down the narrow-down'ed-set from before
 		model.lineContext = { leadingLineContent: 'rlut', characterCountDelta: 4 };
@@ -324,9 +324,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('testForeignMeasure', 0),
 			createSuggestItem('fooRoom', 0),
 		], 1, {
-				leadingLineContent: '',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: '',
+			characterCountDelta: 0
+		}, WordDistance.None);
 
 		model.lineContext = { leadingLineContent: 'form', characterCountDelta: 4 };
 		assert.equal(model.items.length, 5);

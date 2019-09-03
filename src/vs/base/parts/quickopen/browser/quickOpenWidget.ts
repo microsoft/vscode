@@ -258,15 +258,15 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			filter: new Filter(this),
 			accessibilityProvider: new AccessibilityProvider(this)
 		}, {
-				twistiePixels: 11,
-				indentPixels: 0,
-				alwaysFocused: true,
-				verticalScrollMode: ScrollbarVisibility.Visible,
-				horizontalScrollMode: ScrollbarVisibility.Hidden,
-				ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
-				keyboardSupport: this.options.keyboardSupport,
-				preventRootFocus: false
-			}));
+			twistiePixels: 11,
+			indentPixels: 0,
+			alwaysFocused: true,
+			verticalScrollMode: ScrollbarVisibility.Visible,
+			horizontalScrollMode: ScrollbarVisibility.Hidden,
+			ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
+			keyboardSupport: this.options.keyboardSupport,
+			preventRootFocus: false
+		}));
 
 		this.treeElement = this.tree.getHTMLElement();
 

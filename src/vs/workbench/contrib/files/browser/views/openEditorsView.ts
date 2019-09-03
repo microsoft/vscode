@@ -217,9 +217,9 @@ export class OpenEditorsView extends ViewletPanel {
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
-				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
-				dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
-			});
+			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
+			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
+		});
 		this._register(this.list);
 		this._register(this.listLabels);
 
