@@ -336,7 +336,7 @@ class DecorationProviderWrapper {
 
 export class FileDecorationsService implements IDecorationsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
 	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();

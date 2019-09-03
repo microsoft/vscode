@@ -281,6 +281,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
+		assertVariableResolve3(resolver, 'CURRENT_SECONDS_UNIX');
 	});
 
 	test('creating snippet - format-condition doesn\'t work #53617', function () {
@@ -298,7 +299,7 @@ suite('Snippet Variables Resolver', function () {
 		let workspace: IWorkspace;
 		let resolver: VariableResolver;
 		const workspaceService = new class implements IWorkspaceContextService {
-			_serviceBrand: any;
+			_serviceBrand: undefined;
 			_throw = () => { throw new Error(); };
 			onDidChangeWorkbenchState = this._throw;
 			onDidChangeWorkspaceName = this._throw;

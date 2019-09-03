@@ -132,6 +132,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private tocFocusedElement: SettingsTreeGroupElement | null;
 	private settingsTreeScrollTop = 0;
+	private dimension: DOM.Dimension;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -206,7 +207,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | null, token: CancellationToken): Promise<void> {
+	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => timeout(0)) // Force setInput to be async
@@ -249,7 +250,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	setOptions(options: SettingsEditorOptions | null): void {
+	setOptions(options: SettingsEditorOptions | undefined): void {
 		super.setOptions(options);
 
 		if (options) {
@@ -279,10 +280,16 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	layout(dimension: DOM.Dimension): void {
+		this.dimension = dimension;
+
+		if (!this.isVisible()) {
+			return;
+		}
+
 		this.layoutTrees(dimension);
 
-		const innerWidth = dimension.width - 24 * 2; // 24px padding on left and right
-		const monacoWidth = (innerWidth > 1000 ? 1000 : innerWidth) - 10;
+		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
+		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - 12; // minus padding inside inputbox, countElement width, extra padding before countElement
 		this.searchWidget.layout({ height: 20, width: monacoWidth });
 
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
@@ -376,10 +383,10 @@ export class SettingsEditor2 extends BaseEditor {
 				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => strings.endsWith(tag, ':') ? tag : tag + ' ');
 			}
 		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
-				placeholderText: searchBoxLabel,
-				focusContextKey: this.searchFocusContextKey,
-				// TODO: Aria-live
-			})
+			placeholderText: searchBoxLabel,
+			focusContextKey: this.searchFocusContextKey,
+			// TODO: Aria-live
+		})
 		);
 
 		this._register(this.searchWidget.onFocus(() => {
@@ -451,12 +458,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	switchToSettingsFile(): Promise<IEditor | null> {
+	switchToSettingsFile(): Promise<IEditor | undefined> {
 		const query = parseQuery(this.searchWidget.getValue());
 		return this.openSettingsFile(query.query);
 	}
 
-	private openSettingsFile(query?: string): Promise<IEditor | null> {
+	private openSettingsFile(query?: string): Promise<IEditor | undefined> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
 		const options: ISettingsEditorOptions = { query };
@@ -839,7 +846,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 					this._register(model.onDidChangeGroups(() => this.onConfigUpdate()));
 					this.defaultSettingsEditorModel = model;
-					return this.onConfigUpdate();
+					return this.onConfigUpdate(undefined, true);
 				});
 		}
 		return Promise.resolve(null);
@@ -969,7 +976,9 @@ export class SettingsEditor2 extends BaseEditor {
 			if (key) {
 				const focusedKey = focusedSetting.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
 				if (focusedKey === key &&
-					!DOM.hasClass(focusedSetting, 'setting-item-list')) { // update `list`s live, as they have a separate "submit edit" step built in before this
+					// update `list`s live, as they have a separate "submit edit" step built in before this
+					(focusedSetting.parentElement && !DOM.hasClass(focusedSetting.parentElement, 'setting-item-list'))
+				) {
 
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
@@ -1231,7 +1240,11 @@ export class SettingsEditor2 extends BaseEditor {
 			: 'none';
 
 		if (!this.searchResultModel) {
-			this.countElement.style.display = 'none';
+			if (this.countElement.style.display !== 'none') {
+				this.countElement.style.display = 'none';
+				this.layout(this.dimension);
+			}
+
 			DOM.removeClass(this.rootElement, 'no-results');
 			return;
 		}
@@ -1244,7 +1257,10 @@ export class SettingsEditor2 extends BaseEditor {
 				default: this.countElement.innerText = localize('moreThanOneResult', "{0} Settings Found", count);
 			}
 
-			this.countElement.style.display = 'block';
+			if (this.countElement.style.display !== 'block') {
+				this.countElement.style.display = 'block';
+				this.layout(this.dimension);
+			}
 			DOM.toggleClass(this.rootElement, 'no-results', count === 0);
 		}
 	}

@@ -93,3 +93,16 @@
 .monaco-editor .view-zones .view-lines .view-line span {
 	display: inline-block;
 }
+
+.monaco-editor .margin-view-zones .inline-deleted-margin-view-zone .lightbulb-glyph {
+	background: url('lightbulb-light.svg') center center no-repeat;
+}
+
+.monaco-editor.vs-dark .margin-view-zones .inline-deleted-margin-view-zone .lightbulb-glyph,
+.monaco-editor.hc-dark .margin-view-zones .inline-deleted-margin-view-zone .lightbulb-glyph {
+	background: url('lightbulb-dark.svg') center center no-repeat;
+}
+
+.monaco-editor .margin-view-zones .lightbulb-glyph:hover {
+	cursor: pointer;
+}

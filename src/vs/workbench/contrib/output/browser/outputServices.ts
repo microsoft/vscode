@@ -14,14 +14,11 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { IOutputChannelDescriptor, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, LOG_SCHEME, CONTEXT_ACTIVE_LOG_OUTPUT, LOG_MIME, OUTPUT_MIME } from 'vs/workbench/contrib/output/common/output';
 import { OutputPanel } from 'vs/workbench/contrib/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OutputLinkProvider } from 'vs/workbench/contrib/output/common/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPanel } from 'vs/workbench/common/panel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -62,7 +59,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 
 export class OutputService extends Disposable implements IOutputService, ITextModelContentProvider {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 	private activeChannelIdInStorage: string;
@@ -71,16 +68,13 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private readonly _onActiveOutputChannel = this._register(new Emitter<string>());
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
 
-	private _outputPanel: OutputPanel;
+	private _outputPanel: OutputPanel | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPanelService private readonly panelService: IPanelService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWindowService windowService: IWindowService,
 		@ILogService private readonly logService: ILogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -224,7 +218,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!channel.outputChannelDescriptor.file && channel.outputChannelDescriptor.log);
 			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus }), CancellationToken.None)
 				.then(() => {
-					if (!preserveFocus) {
+					if (!preserveFocus && this._outputPanel) {
 						this._outputPanel.focus();
 					}
 				});

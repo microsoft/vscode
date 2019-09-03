@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import { URI } from 'vscode-uri';
 import * as URL from 'url';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
-import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
+import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
 interface ISchemaAssociations {
@@ -103,6 +103,7 @@ function getSchemaRequestService(handledSchemas: { [schema: string]: boolean }) 
 let languageService = getLanguageService({
 	workspaceContext,
 	contributions: [],
+	clientCapabilities: ClientCapabilities.LATEST
 });
 
 // Create a text document manager.
@@ -154,7 +155,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
 		colorProvider: {},
-		foldingRangeProvider: true
+		foldingRangeProvider: true,
+		selectionRangeProvider: true
 	};
 
 	return { capabilities };
@@ -310,7 +312,7 @@ function validateTextDocument(textDocument: TextDocument, callback?: (diagnostic
 	const jsonDocument = getJSONDocument(textDocument);
 	const version = textDocument.version;
 
-	const documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
+	const documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'warning' } : { comments: 'error', trailingCommas: 'error' };
 	languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
 		setTimeout(() => {
 			const currDocument = documents.get(textDocument.uri);

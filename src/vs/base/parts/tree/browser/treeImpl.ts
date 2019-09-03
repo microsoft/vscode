@@ -110,15 +110,15 @@ export class Tree implements _.ITree {
 	}
 
 	get onDidFocus(): Event<void> {
-		return this.view && this.view.onDOMFocus;
+		return this.view.onDOMFocus;
 	}
 
 	get onDidBlur(): Event<void> {
-		return this.view && this.view.onDOMBlur;
+		return this.view.onDOMBlur;
 	}
 
 	get onDidScroll(): Event<void> {
-		return this.view && this.view.onDidScroll;
+		return this.view.onDidScroll;
 	}
 
 	public getHTMLElement(): HTMLElement {
@@ -263,16 +263,8 @@ export class Tree implements _.ITree {
 
 	public dispose(): void {
 		this._onDispose.fire();
-
-		if (this.model !== null) {
-			this.model.dispose();
-			this.model = null!; // StrictNullOverride Nulling out ok in dispose
-		}
-		if (this.view !== null) {
-			this.view.dispose();
-			this.view = null!; // StrictNullOverride Nulling out ok in dispose
-		}
-
+		this.model.dispose();
+		this.view.dispose();
 		this._onDidChangeFocus.dispose();
 		this._onDidChangeSelection.dispose();
 		this._onHighlightChange.dispose();

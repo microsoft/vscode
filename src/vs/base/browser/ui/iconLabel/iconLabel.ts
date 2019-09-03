@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
 	supportDescriptionHighlights?: boolean;
-	donotSupportOcticons?: boolean;
+	supportOcticons?: boolean;
 }
 
 export interface IIconLabelValueOptions {
@@ -27,11 +27,11 @@ export interface IIconLabelValueOptions {
 }
 
 class FastLabelNode {
-	private disposed: boolean;
-	private _textContent: string;
-	private _className: string;
-	private _title: string;
-	private _empty: boolean;
+	private disposed: boolean | undefined;
+	private _textContent: string | undefined;
+	private _className: string | undefined;
+	private _title: string | undefined;
+	private _empty: boolean | undefined;
 
 	constructor(private _element: HTMLElement) {
 	}
@@ -89,7 +89,7 @@ export class IconLabel extends Disposable {
 	private domNode: FastLabelNode;
 	private labelDescriptionContainer: FastLabelNode;
 	private labelNode: FastLabelNode | HighlightedLabel;
-	private descriptionNode: FastLabelNode | HighlightedLabel;
+	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
@@ -100,13 +100,13 @@ export class IconLabel extends Disposable {
 		this.labelDescriptionContainer = this._register(new FastLabelNode(dom.append(this.domNode.element, dom.$('.monaco-icon-label-description-container'))));
 
 		if (options && options.supportHighlights) {
-			this.labelNode = new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name')), !options.donotSupportOcticons);
+			this.labelNode = new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name')), !!options.supportOcticons);
 		} else {
 			this.labelNode = this._register(new FastLabelNode(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name'))));
 		}
 
 		if (options && options.supportDescriptionHighlights) {
-			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description')), !options.donotSupportOcticons);
+			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description')), !!options.supportOcticons);
 		} else {
 			this.descriptionNodeFactory = () => this._register(new FastLabelNode(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description'))));
 		}

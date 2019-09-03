@@ -38,6 +38,7 @@ export interface ParsedArgs {
 	'builtin-extensions-dir'?: string;
 	extensionDevelopmentPath?: string | string[]; // one or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
+	'extension-development-confirm-save'?: boolean;
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
@@ -97,7 +98,8 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 export const BACKUPS = 'Backups';
 
 export interface IEnvironmentService {
-	_serviceBrand: any;
+
+	_serviceBrand: undefined;
 
 	args: ParsedArgs;
 
@@ -138,23 +140,14 @@ export interface IEnvironmentService {
 	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch: IDebugParams;
-
-	logExtensionHostCommunication: boolean;
 
 	isBuilt: boolean;
 	wait: boolean;
 	status: boolean;
 
-	// logging
 	log?: string;
 	logsPath: string;
 	verbose: boolean;
-
-	skipGettingStarted: boolean | undefined;
-	skipReleaseNotes: boolean | undefined;
-
-	skipAddToRecentlyOpened: boolean;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
@@ -168,9 +161,5 @@ export interface IEnvironmentService {
 	driverHandle?: string;
 	driverVerbose: boolean;
 
-	webviewEndpoint?: string;
-	readonly webviewResourceRoot: string;
-	readonly webviewCspSource: string;
-
-	readonly galleryMachineIdResource?: URI;
+	galleryMachineIdResource?: URI;
 }

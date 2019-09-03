@@ -61,7 +61,7 @@ class MarkerDecorations extends Disposable {
 
 export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
@@ -220,6 +220,9 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		if (marker.tags) {
 			if (marker.tags.indexOf(MarkerTag.Unnecessary) !== -1) {
 				inlineClassName = ClassName.EditorUnnecessaryInlineDecoration;
+			}
+			if (marker.tags.indexOf(MarkerTag.Deprecated) !== -1) {
+				inlineClassName = ClassName.EditorDeprecatedInlineDecoration;
 			}
 		}
 

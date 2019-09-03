@@ -322,7 +322,7 @@ suite('BackupMainService', () => {
 			assert.deepEqual(json.folderURIWorkspaces, [URI.file(folderPath).toString()]);
 			assert.deepEqual(json.rootURIWorkspaces, [{ id: workspace.id, configURIPath: URI.file(workspacePath).toString() }]);
 
-			assertEqualUris(service.getWorkspaceBackups().map(w => w.workspace.configPath), [workspace.configPath]);
+			assertEqualUris(service.getWorkspaceBackups().map(window => window.workspace.configPath), [workspace.configPath]);
 		});
 	});
 

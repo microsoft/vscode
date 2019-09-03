@@ -4,34 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/panel';
+import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IAction, Action } from 'vs/base/common/actions';
+import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Panel } from 'vs/workbench/browser/panel';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { ReviewController } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
-import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { CommentsList, COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 
-export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
-export const COMMENTS_PANEL_TITLE = 'Comments';
 
 export class CommentsPanel extends Panel {
 	private treeLabels: ResourceLabels;
-	private tree: WorkbenchTree;
+	private tree: CommentsList;
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
 	private messageBox: HTMLElement;
@@ -42,7 +39,6 @@ export class CommentsPanel extends Panel {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommentService private readonly commentService: ICommentService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
@@ -113,7 +109,7 @@ export class CommentsPanel extends Panel {
 
 	public getActions(): IAction[] {
 		if (!this.collapseAllAction) {
-			this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, this.commentsModel.hasCommentThreads());
+			this.collapseAllAction = new Action('vs.tree.collapse', nls.localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, () => this.tree ? new CollapseAllAction<any, any>(this.tree, true).run() : Promise.resolve());
 			this._register(this.collapseAllAction);
 		}
 
@@ -141,22 +137,11 @@ export class CommentsPanel extends Panel {
 
 	private createTree(): void {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
+		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer));
 
-		this.tree = this._register(this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
-			dataSource: new CommentsDataSource(),
-			renderer: new CommentsModelRenderer(this.treeLabels, this.openerService),
-			accessibilityProvider: new DefaultAccessibilityProvider,
-			controller: new DefaultController(),
-			dnd: new DefaultDragAndDrop(),
-			filter: new CommentsDataFilter()
-		}, {
-				twistiePixels: 20,
-				ariaLabel: COMMENTS_PANEL_TITLE
-			}));
-
-		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(Event.debounce(commentsNavigator.openResource, (last, event) => event, 100, true)(options => {
-			this.openFile(options.element, options.editorOptions.pinned, options.editorOptions.preserveFocus, options.sideBySide);
+		const commentsNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true }));
+		this._register(commentsNavigator.onDidOpenResource(e => {
+			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
 		}));
 	}
 
@@ -213,7 +198,7 @@ export class CommentsPanel extends Panel {
 			this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
 
 			dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
-			this.tree.refresh().then(() => {
+			this.tree.updateChildren().then(() => {
 				this.renderMessage();
 			}, (e) => {
 				console.log(e);

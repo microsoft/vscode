@@ -17,7 +17,7 @@ import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
@@ -48,7 +48,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	//#region IView
 
@@ -58,6 +58,16 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	readonly snap = true;
+
+	get preferredHeight(): number | undefined {
+		const sidebarDimension = this.layoutService.getDimension(Parts.SIDEBAR_PART);
+		return sidebarDimension.height * 0.4;
+	}
+
+	get preferredWidth(): number | undefined {
+		const statusbarPart = this.layoutService.getDimension(Parts.STATUSBAR_PART);
+		return statusbarPart.width * 0.4;
+	}
 
 	//#endregion
 
@@ -73,8 +83,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private compositeBar: CompositeBar;
 	private compositeActions: Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
 
-	private blockOpeningPanel: boolean;
-	private dimension: Dimension;
+	private blockOpeningPanel = false;
+	private _contentDimension: Dimension | undefined;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -293,21 +303,21 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
-			this.dimension = new Dimension(width - 1, height!); // Take into account the 1px border when layouting
+			this._contentDimension = new Dimension(width - 1, height!); // Take into account the 1px border when layouting
 		} else {
-			this.dimension = new Dimension(width, height!);
+			this._contentDimension = new Dimension(width, height!);
 		}
 
 		// Layout contents
-		super.layout(this.dimension.width, this.dimension.height);
+		super.layout(this._contentDimension.width, this._contentDimension.height);
 
 		// Layout composite bar
 		this.layoutCompositeBar();
 	}
 
 	private layoutCompositeBar(): void {
-		if (this.dimension) {
-			let availableWidth = this.dimension.width - 40; // take padding into account
+		if (this._contentDimension) {
+			let availableWidth = this._contentDimension.width - 40; // take padding into account
 			if (this.toolBar) {
 				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing
 			}
@@ -357,7 +367,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
 		if (e.key === PanelPart.PINNED_PANELS && e.scope === StorageScope.GLOBAL
 			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
-			this._cachedPanelsValue = null;
+			this._cachedPanelsValue = undefined;
 			const newCompositeItems: ICompositeBarItem[] = [];
 			const compositeItems = this.compositeBar.getCompositeBarItems();
 			const cachedPanels = this.getCachedPanels();
@@ -412,7 +422,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return cachedPanels;
 	}
 
-	private _cachedPanelsValue: string | null;
+	private _cachedPanelsValue: string | undefined;
 	private get cachedPanelsValue(): string {
 		if (!this._cachedPanelsValue) {
 			this._cachedPanelsValue = this.getStoredCachedPanelsValue();

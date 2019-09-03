@@ -165,15 +165,15 @@ class MessageWidget {
 
 export class MarkerNavigationWidget extends PeekViewWidget {
 
-	private _parentContainer: HTMLElement;
-	private _container: HTMLElement;
-	private _icon: HTMLElement;
-	private _message: MessageWidget;
+	private _parentContainer!: HTMLElement;
+	private _container!: HTMLElement;
+	private _icon!: HTMLElement;
+	private _message!: MessageWidget;
 	private readonly _callOnDispose = new DisposableStore();
 	private _severity: MarkerSeverity;
 	private _backgroundColor?: Color;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
-	private _heightInPixel: number;
+	private _heightInPixel!: number;
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
 
@@ -228,7 +228,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
-		this._actionbarWidget.push(this.actions, { label: false, icon: true });
+		this._actionbarWidget!.push(this.actions, { label: false, icon: true });
 	}
 
 	protected _fillTitleIcon(container: HTMLElement): void {

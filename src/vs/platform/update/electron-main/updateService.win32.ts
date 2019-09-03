@@ -49,7 +49,7 @@ function getUpdateType(): UpdateType {
 
 export class Win32UpdateService extends AbstractUpdateService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private availableUpdate: IAvailableUpdate | undefined;
 

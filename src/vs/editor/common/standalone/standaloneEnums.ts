@@ -7,7 +7,8 @@
 
 
 export enum MarkerTag {
-	Unnecessary = 1
+	Unnecessary = 1,
+	Deprecated = 2
 }
 
 export enum MarkerSeverity {
@@ -580,6 +581,10 @@ export enum CompletionItemKind {
 	Snippet = 25
 }
 
+export enum CompletionItemTag {
+	Deprecated = 1
+}
+
 export enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
@@ -655,4 +660,8 @@ export enum SymbolKind {
 	Event = 23,
 	Operator = 24,
 	TypeParameter = 25
+}
+
+export enum SymbolTag {
+	Deprecated = 1
 }

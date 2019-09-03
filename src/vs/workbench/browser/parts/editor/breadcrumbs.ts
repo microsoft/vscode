@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 
@@ -19,7 +19,7 @@ export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditor
 
 export interface IBreadcrumbsService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
 
@@ -29,7 +29,7 @@ export interface IBreadcrumbsService {
 
 export class BreadcrumbsService implements IBreadcrumbsService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
 
@@ -55,8 +55,8 @@ registerSingleton(IBreadcrumbsService, BreadcrumbsService, true);
 
 export abstract class BreadcrumbsConfig<T> {
 
-	name: string;
-	onDidChange: Event<void>;
+	abstract get name(): string;
+	abstract get onDidChange(): Event<void>;
 
 	abstract getValue(overrides?: IConfigurationOverrides): T;
 	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Promise<void>;
@@ -71,6 +71,7 @@ export abstract class BreadcrumbsConfig<T> {
 	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
 	static SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
+	static Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
 
 	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
@@ -160,6 +161,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolSortOrder.name', "Show symbol outline in alphabetical order."),
 				localize('symbolSortOrder.type', "Show symbol outline in symbol type order."),
 			]
+		},
+		'breadcrumbs.icons': {
+			description: localize('icons', "Render breadcrumb items with icons."),
+			type: 'boolean',
+			default: true
 		}
 	}
 });

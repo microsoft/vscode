@@ -15,7 +15,6 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { INotification, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 function createContext(ctx: any) {
 	return {
@@ -132,7 +131,7 @@ suite('AbstractKeybindingService', () => {
 			};
 
 			let notificationService: INotificationService = {
-				_serviceBrand: {} as ServiceIdentifier<INotificationService>,
+				_serviceBrand: undefined,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
 					return new NoOpNotification();

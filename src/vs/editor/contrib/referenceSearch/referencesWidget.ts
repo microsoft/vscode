@@ -158,8 +158,8 @@ class DecorationsManager implements IDisposable {
 }
 
 export class LayoutData {
-	ratio: number;
-	heightInLines: number;
+	ratio: number = 0.7;
+	heightInLines: number = 18;
 
 	static fromJSON(raw: string): LayoutData {
 		let ratio: number | undefined;
@@ -191,22 +191,21 @@ export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('r
  */
 export class ReferenceWidget extends PeekViewWidget {
 
-	private _model: ReferencesModel | undefined;
-	private _decorationsManager: DecorationsManager;
+	private _model?: ReferencesModel;
+	private _decorationsManager?: DecorationsManager;
 
 	private readonly _disposeOnNewModel = new DisposableStore();
 	private readonly _callOnDispose = new DisposableStore();
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
-	private _tree: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
-	private _treeContainer: HTMLElement;
-	// private _sash: VSash;
-	private _splitView: SplitView;
-	private _preview: ICodeEditor;
-	private _previewModelReference: IReference<ITextEditorModel>;
-	private _previewNotAvailableMessage: TextModel;
-	private _previewContainer: HTMLElement;
-	private _messageContainer: HTMLElement;
+	private _tree!: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
+	private _treeContainer!: HTMLElement;
+	private _splitView!: SplitView;
+	private _preview!: ICodeEditor;
+	private _previewModelReference!: IReference<ITextEditorModel>;
+	private _previewNotAvailableMessage!: TextModel;
+	private _previewContainer!: HTMLElement;
+	private _messageContainer!: HTMLElement;
 	private _dim: dom.Dimension = { height: 0, width: 0 };
 
 	constructor(
@@ -312,8 +311,9 @@ export class ReferenceWidget extends PeekViewWidget {
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
 			identityProvider: new IdentityProvider()
 		};
-		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
+		this._tree = this._instantiationService.createInstance<string, HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
+			'ReferencesWidget',
 			this._treeContainer,
 			new Delegate(),
 			[
@@ -470,7 +470,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		}));
 
 		// make sure things are rendered
-		dom.addClass(this.container, 'results-loaded');
+		dom.addClass(this.container!, 'results-loaded');
 		dom.show(this._treeContainer);
 		dom.show(this._previewContainer);
 		this._splitView.layout(this._dim.width);

@@ -16,9 +16,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentsPanel, COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsPanel';
+import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape } from '../common/extHost.protocol';
+import { COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -35,13 +36,13 @@ export class MainThreadCommentThread implements modes.CommentThread {
 	private _onDidChangeInput = new Emitter<modes.CommentInput | undefined>();
 	get onDidChangeInput(): Event<modes.CommentInput | undefined> { return this._onDidChangeInput.event; }
 
-	private _label: string;
+	private _label: string | undefined;
 
-	get label(): string {
+	get label(): string | undefined {
 		return this._label;
 	}
 
-	set label(label: string) {
+	set label(label: string | undefined) {
 		this._label = label;
 		this._onDidChangeLabel.fire(this._label);
 	}
@@ -56,8 +57,8 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		this._contextValue = context;
 	}
 
-	private _onDidChangeLabel = new Emitter<string>();
-	readonly onDidChangeLabel: Event<string> = this._onDidChangeLabel.event;
+	private _onDidChangeLabel = new Emitter<string | undefined>();
+	readonly onDidChangeLabel: Event<string | undefined> = this._onDidChangeLabel.event;
 
 	private _comments: modes.Comment[] | undefined;
 
@@ -348,7 +349,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _activeCommentThread?: MainThreadCommentThread;
 	private readonly _activeCommentThreadDisposables = this._register(new DisposableStore());
 
-	private _openPanelListener: IDisposable | null;
+	private _openPanelListener: IDisposable | null = null;
 
 
 	constructor(

@@ -9,7 +9,7 @@ import { addDisposableListener } from 'vs/base/browser/dom';
 import { INavigationMode } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
-	private _terminal: Terminal;
+	private _terminal: Terminal | undefined;
 
 	constructor(
 		private _navigationModeContextKey: IContextKey<boolean>
@@ -22,11 +22,18 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 	dispose() { }
 
 	exitNavigationMode(): void {
+		if (!this._terminal) {
+			return;
+		}
 		this._terminal.scrollToBottom();
 		this._terminal.focus();
 	}
 
 	focusPreviousLine(): void {
+		if (!this._terminal) {
+			return;
+		}
+
 		// Focus previous row if a row is already focused
 		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
 			const element = <HTMLElement | null>document.activeElement.previousElementSibling;
@@ -66,6 +73,10 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 	}
 
 	focusNextLine(): void {
+		if (!this._terminal) {
+			return;
+		}
+
 		// Focus previous row if a row is already focused
 		if (document.activeElement && document.activeElement.parentElement && document.activeElement.parentElement.classList.contains('xterm-accessibility-tree')) {
 			const element = <HTMLElement | null>document.activeElement.nextElementSibling;

@@ -156,7 +156,7 @@ export class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtens
 
 class OpenExtensionAction extends Action {
 
-	private _extensionData: IExtensionData;
+	private _extensionData: IExtensionData | undefined;
 
 	constructor(@IExtensionsWorkbenchService private readonly extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super('extensions.action.openExtension', '');
@@ -166,12 +166,11 @@ class OpenExtensionAction extends Action {
 		this._extensionData = extension;
 	}
 
-	public get extensionData(): IExtensionData {
-		return this._extensionData;
-	}
-
 	run(sideByside: boolean): Promise<any> {
-		return this.extensionsWorkdbenchService.open(this.extensionData.extension, sideByside);
+		if (this._extensionData) {
+			return this.extensionsWorkdbenchService.open(this._extensionData.extension, sideByside);
+		}
+		return Promise.resolve();
 	}
 }
 
@@ -199,6 +198,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 		};
 
 		super(
+			'ExtensionsTree',
 			container,
 			delegate,
 			renderers,

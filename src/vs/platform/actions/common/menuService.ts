@@ -11,7 +11,7 @@ import { ContextKeyExpr, IContextKeyService, IContextKeyChangeEvent } from 'vs/p
 
 export class MenuService implements IMenuService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService
@@ -31,8 +31,8 @@ class Menu extends Disposable implements IMenu {
 
 	private readonly _onDidChange = this._register(new Emitter<IMenu | undefined>());
 
-	private _menuGroups: MenuItemGroup[];
-	private _contextKeys: Set<string>;
+	private _menuGroups!: MenuItemGroup[];
+	private _contextKeys!: Set<string>;
 
 	constructor(
 		private readonly _id: MenuId,

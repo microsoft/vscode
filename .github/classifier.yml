@@ -150,7 +150,7 @@
             assignLabel: false
         },
         file-explorer: {
-            assignees: [ ],
+            assignees: [ isidorn ],
             assignLabel: false
         },
         file-glob: [],

@@ -71,6 +71,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _typicalHalfwidthCharacterWidth: number;
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
+	private _scrollOff: number;
 	private _canUseLayerHinting: boolean;
 	private _viewLineOptions: ViewLineOptions;
 
@@ -94,6 +95,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
+		this._scrollOff = conf.editor.viewInfo.cursorSurroundingLines;
 		this._canUseLayerHinting = conf.editor.canUseLayerHinting;
 		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
 
@@ -150,6 +152,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 		if (e.viewInfo) {
 			this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
+			this._scrollOff = conf.editor.viewInfo.cursorSurroundingLines;
 		}
 		if (e.canUseLayerHinting) {
 			this._canUseLayerHinting = conf.editor.canUseLayerHinting;
@@ -596,6 +599,11 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		// Have a box that includes one extra line height (for the horizontal scrollbar)
 		boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.startLineNumber);
 		boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
+
+		const context = Math.min((viewportHeight / this._lineHeight) / 2, this._scrollOff);
+		boxStartY -= context * this._lineHeight;
+		boxEndY += Math.max(0, (context - 1)) * this._lineHeight;
+
 		if (verticalType === viewEvents.VerticalRevealType.Simple || verticalType === viewEvents.VerticalRevealType.Bottom) {
 			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom
 			boxEndY += this._lineHeight;

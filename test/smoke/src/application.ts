@@ -69,7 +69,7 @@ export class Application {
 		await this.code.waitForElement('.explorer-folders-view');
 
 		if (expectWalkthroughPart) {
-			await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+			await this.code.waitForActiveElement(`.editor-instance[data-editor-id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
 		}
 	}
 
@@ -124,7 +124,9 @@ export class Application {
 			verbose: this.options.verbose,
 			log: this.options.log,
 			extraArgs,
-			remote: this.options.remote
+			remote: this.options.remote,
+			web: this.options.web,
+			headless: this.options.headless
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
@@ -140,7 +142,7 @@ export class Application {
 		await this.code.waitForElement('.monaco-workbench');
 
 		if (this.remote) {
-			await this.code.waitForElement('.monaco-workbench .statusbar-item[title="Editing on TestResolver"]');
+			await this.code.waitForElement('.monaco-workbench .statusbar-item[id="status.host"]');
 		}
 
 		// wait a bit, since focus might be stolen off widgets

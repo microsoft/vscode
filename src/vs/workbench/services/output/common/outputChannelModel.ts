@@ -31,7 +31,7 @@ export interface IOutputChannelModel extends IDisposable {
 export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
 
 export interface IOutputChannelModelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel;
 
@@ -58,7 +58,7 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	protected modelUpdater: RunOnceScheduler;
-	protected model: ITextModel | null;
+	protected model: ITextModel | null = null;
 
 	protected startOffset: number = 0;
 	protected endOffset: number = 0;
@@ -288,7 +288,7 @@ export class BufferredOutputChannel extends Disposable implements IOutputChannel
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private modelUpdater: RunOnceScheduler;
-	private model: ITextModel | null;
+	private model: ITextModel | null = null;
 	private readonly bufferredContent: BufferedContent;
 	private lastReadId: number | undefined = undefined;
 

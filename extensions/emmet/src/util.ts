@@ -608,3 +608,18 @@ export function isStyleAttribute(currentNode: Node | null, position: vscode.Posi
 }
 
 
+export function trimQuotes(s: string) {
+	if (s.length <= 1) {
+		return s.replace(/['"]/, '');
+	}
+
+	if (s[0] === `'` || s[0] === `"`) {
+		s = s.slice(1);
+	}
+
+	if (s[s.length - 1] === `'` || s[s.length - 1] === `"`) {
+		s = s.slice(0, -1);
+	}
+
+	return s;
+}

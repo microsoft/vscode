@@ -103,7 +103,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
-	const dataPaths: string[] = params.initializationOptions.dataPaths;
+	const dataPaths: string[] = params.initializationOptions.dataPaths || [];
 	const customDataProviders = getDataProviders(dataPaths);
 
 	function getClientCapability<T>(name: string, def: T) {
@@ -121,9 +121,9 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 
-	languageServices.css = getCSSLanguageService({ customDataProviders, fileSystemProvider });
-	languageServices.scss = getSCSSLanguageService({ customDataProviders, fileSystemProvider });
-	languageServices.less = getLESSLanguageService({ customDataProviders, fileSystemProvider });
+	languageServices.css = getCSSLanguageService({ customDataProviders, fileSystemProvider, clientCapabilities: params.capabilities });
+	languageServices.scss = getSCSSLanguageService({ customDataProviders, fileSystemProvider, clientCapabilities: params.capabilities });
+	languageServices.less = getLESSLanguageService({ customDataProviders, fileSystemProvider, clientCapabilities: params.capabilities });
 
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
@@ -140,7 +140,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		codeActionProvider: true,
 		renameProvider: true,
 		colorProvider: {},
-		foldingRangeProvider: true
+		foldingRangeProvider: true,
+		selectionRangeProvider: true
 	};
 	return { capabilities };
 });

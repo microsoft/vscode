@@ -29,9 +29,9 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export class OutputPanel extends AbstractTextResourceEditor {
-	private actions: IAction[];
+	private actions: IAction[] | undefined;
 	private scopedInstantiationService: IInstantiationService;
-	private _focus: boolean;
+	private _focus = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -114,8 +114,8 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		this._focus = !options.preserveFocus;
+	public setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+		this._focus = !(options && options.preserveFocus);
 		if (input.matches(this.input)) {
 			return Promise.resolve(undefined);
 		}
@@ -155,7 +155,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			}
 
 			const model = codeEditor.getModel();
-			if (model) {
+			if (model && this.actions) {
 				const newPositionLine = e.position.lineNumber;
 				const lastLine = model.getLineCount();
 				const newLockState = lastLine !== newPositionLine;

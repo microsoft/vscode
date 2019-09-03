@@ -16,12 +16,12 @@ import { IExtensionContributions, ExtensionType, IExtension } from 'vs/platform/
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ProductService } from 'vs/platform/product/node/productService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { assign } from 'vs/base/common/objects';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { productService } from 'vs/workbench/test/workbenchTestServices';
 
 function storageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -46,7 +46,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService,
 				{ onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event, onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService),
 			instantiationService.get(IConfigurationService), instantiationService.get(IExtensionManagementServerService),
-			new ProductService()
+			productService
 		);
 	}
 
@@ -560,7 +560,7 @@ function aMultiExtensionManagementServerService(instantiationService: TestInstan
 		extensionManagementService: instantiationService.get(IExtensionManagementService)
 	};
 	return {
-		_serviceBrand: {},
+		_serviceBrand: undefined,
 		localExtensionManagementServer,
 		remoteExtensionManagementServer,
 		getExtensionManagementServer: (location: URI) => {

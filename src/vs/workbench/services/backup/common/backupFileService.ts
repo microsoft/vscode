@@ -19,7 +19,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: URI): Promise<IBackupFilesModel>;
@@ -106,20 +105,15 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 export class BackupFileService implements IBackupFileService {
 
-	_serviceBrand: ServiceIdentifier<IBackupFileService>;
+	_serviceBrand: undefined;
 
 	private impl: IBackupFileService;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IFileService fileService: IFileService
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IFileService protected fileService: IFileService
 	) {
-		const backupWorkspaceResource = environmentService.configuration.backupWorkspaceResource;
-		if (backupWorkspaceResource) {
-			this.impl = new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, fileService);
-		} else {
-			this.impl = new InMemoryBackupFileService(this.hashPath);
-		}
+		this.impl = this.initialize();
 	}
 
 	protected hashPath(resource: URI): string {
@@ -128,9 +122,25 @@ export class BackupFileService implements IBackupFileService {
 		return hash(str).toString(16);
 	}
 
-	initialize(backupWorkspaceResource: URI): void {
+	private initialize(): IBackupFileService {
+		const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
+		if (backupWorkspaceResource) {
+			return new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, this.fileService);
+		}
+
+		return new InMemoryBackupFileService(this.hashPath);
+	}
+
+	reinitialize(): void {
+
+		// Re-init implementation (unless we are running in-memory)
 		if (this.impl instanceof BackupFileServiceImpl) {
-			this.impl.initialize(backupWorkspaceResource);
+			const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
+			if (backupWorkspaceResource) {
+				this.impl.initialize(backupWorkspaceResource);
+			} else {
+				this.impl = new InMemoryBackupFileService(this.hashPath);
+			}
 		}
 	}
 
@@ -177,15 +187,15 @@ class BackupFileServiceImpl implements IBackupFileService {
 	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
 	private static readonly PREAMBLE_MAX_LENGTH = 10000;
 
-	_serviceBrand: ServiceIdentifier<IBackupFileService>;
+	_serviceBrand: undefined;
 
-	private backupWorkspacePath: URI;
+	private backupWorkspacePath!: URI;
 
 	private isShuttingDown: boolean;
 	private ioOperationQueues: ResourceQueue; // queue IO operations to ensure write order
 
-	private ready: Promise<IBackupFilesModel>;
-	private model: IBackupFilesModel;
+	private ready!: Promise<IBackupFilesModel>;
+	private model!: IBackupFilesModel;
 
 	constructor(
 		backupWorkspaceResource: URI,
@@ -201,10 +211,10 @@ class BackupFileServiceImpl implements IBackupFileService {
 	initialize(backupWorkspaceResource: URI): void {
 		this.backupWorkspacePath = backupWorkspaceResource;
 
-		this.ready = this.init();
+		this.ready = this.doInitialize();
 	}
 
-	private init(): Promise<IBackupFilesModel> {
+	private doInitialize(): Promise<IBackupFilesModel> {
 		this.model = new BackupFilesModel(this.fileService);
 
 		return this.model.resolve(this.backupWorkspacePath);
@@ -323,7 +333,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 			return contents.substr(0, newLineIndex);
 		}
 
-		throw new Error(`Could not find ${JSON.stringify(matchingString)} in first ${maximumBytesToRead} bytes of ${file}`);
+		throw new Error(`Backup: Could not find ${JSON.stringify(matchingString)} in first ${maximumBytesToRead} bytes of ${file}`);
 	}
 
 	async resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
@@ -357,9 +367,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		const content = await this.fileService.readFileStream(backup);
 		const factory = await createTextBufferFactoryFromStream(content.value, metaPreambleFilter);
 
-		// Trigger read for meta data extraction from the filter above
-		factory.getFirstLineText(1);
-
+		// Extract meta data (if any)
 		let meta: T | undefined;
 		const metaStartIndex = metaRaw.indexOf(BackupFileServiceImpl.PREAMBLE_META_SEPARATOR);
 		if (metaStartIndex !== -1) {
@@ -368,6 +376,15 @@ class BackupFileServiceImpl implements IBackupFileService {
 			} catch (error) {
 				// ignore JSON parse errors
 			}
+		}
+
+		// We have seen reports (e.g. https://github.com/microsoft/vscode/issues/78500) where
+		// if VSCode goes down while writing the backup file, the file can turn empty because
+		// it always first gets truncated and then written to. In this case, we will not find
+		// the meta-end marker ('\n') and as such the backup can only be invalid. We bail out
+		// here if that is the case.
+		if (!metaEndFound) {
+			throw new Error(`Backup: Could not find meta end marker in ${backup}. The file is probably corrupt.`);
 		}
 
 		return { value: factory, meta };
@@ -380,7 +397,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 export class InMemoryBackupFileService implements IBackupFileService {
 
-	_serviceBrand: ServiceIdentifier<IBackupFileService>;
+	_serviceBrand: undefined;
 
 	private backups: Map<string, ITextSnapshot> = new Map();
 

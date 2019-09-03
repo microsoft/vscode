@@ -30,7 +30,7 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	protected readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidRegisterExtensions = this._onDidRegisterExtensions.event;
@@ -170,12 +170,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._startExtensionHostProcess(false, Array.from(this._allRequestedActivateEvents.keys()));
 	}
 
-	public startExtensionHost(): void {
+	protected startExtensionHost(): void {
 		this._startExtensionHostProcess(false, Array.from(this._allRequestedActivateEvents.keys()));
-	}
-
-	public stopExtensionHost(): void {
-		this._stopExtensionHostProcess();
 	}
 
 	public activateByEvent(activationEvent: string): Promise<void> {
@@ -261,6 +257,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	public getInspectPort(): number {
 		return 0;
+	}
+
+	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
+		await this._extensionHostProcessManagers
+			.map(manager => manager.setRemoteEnvironment(env));
 	}
 
 	//#endregion

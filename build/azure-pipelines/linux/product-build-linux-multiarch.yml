@@ -2,11 +2,12 @@ steps:
 - script: |
     mkdir -p .build
     echo -n $BUILD_SOURCEVERSION > .build/commit
+    echo -n $VSCODE_QUALITY > .build/quality
   displayName: Prepare cache flag
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .build/commit'
+    keyfile: 'build/.cachesalt, .build/commit, .build/quality'
     targetfolder: '.build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
@@ -24,7 +25,7 @@ steps:
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
 
 - task: AzureKeyVault@1
   displayName: 'Azure Key Vault: Get Secrets'

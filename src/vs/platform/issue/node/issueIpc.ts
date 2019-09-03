@@ -5,7 +5,7 @@
 
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IIssueService } from 'vs/platform/issue/node/issue';
 
 export class IssueChannel implements IServerChannel {
 

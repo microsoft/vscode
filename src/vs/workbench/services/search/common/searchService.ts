@@ -23,7 +23,8 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class SearchService extends Disposable implements ISearchService {
-	_serviceBrand: any;
+
+	_serviceBrand: undefined;
 
 	protected diskSearch: ISearchResultProvider;
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();

@@ -16,7 +16,7 @@ import {
 import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionTipsService';
+import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -31,7 +31,7 @@ import { TestContextService, TestWindowService, TestSharedProcessService } from 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { URLService } from 'vs/platform/url/common/urlService';
+import { URLService } from 'vs/platform/url/node/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -1518,7 +1518,7 @@ suite('ExtensionsActions Test', () => {
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
-		assert.equal('Install on remote', testObject.label);
+		assert.equal('Install in remote', testObject.label);
 		assert.equal('extension-action prominent install', testObject.class);
 	});
 
@@ -1544,7 +1544,7 @@ suite('ExtensionsActions Test', () => {
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
-		assert.equal('Install on remote', testObject.label);
+		assert.equal('Install in remote', testObject.label);
 		assert.equal('extension-action prominent install', testObject.class);
 
 		onInstallExtension.fire({ identifier: localWorkspaceExtension.identifier, gallery });
@@ -1577,7 +1577,7 @@ suite('ExtensionsActions Test', () => {
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
-		assert.equal('Install on remote', testObject.label);
+		assert.equal('Install in remote', testObject.label);
 		assert.equal('extension-action prominent install', testObject.class);
 
 		onInstallExtension.fire({ identifier: localWorkspaceExtension.identifier, gallery });
@@ -1608,7 +1608,7 @@ suite('ExtensionsActions Test', () => {
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
-		assert.equal('Install on remote', testObject.label);
+		assert.equal('Install in remote', testObject.label);
 		assert.equal('extension-action prominent install', testObject.class);
 	});
 
@@ -1704,7 +1704,7 @@ suite('ExtensionsActions Test', () => {
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
-		assert.equal('Install on remote', testObject.label);
+		assert.equal('Install in remote', testObject.label);
 
 		uninstallEvent.fire(localWorkspaceExtension.identifier);
 		assert.ok(!testObject.enabled);
@@ -1825,7 +1825,7 @@ suite('ExtensionsActions Test', () => {
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
-		assert.equal('Install on remote', testObject.label);
+		assert.equal('Install in remote', testObject.label);
 		assert.equal('extension-action prominent install', testObject.class);
 	});
 
@@ -1848,7 +1848,7 @@ suite('ExtensionsActions Test', () => {
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
-		assert.equal('Install on remote', testObject.label);
+		assert.equal('Install in remote', testObject.label);
 
 		uninstallEvent.fire(languagePackExtension.identifier);
 		assert.ok(!testObject.enabled);
@@ -2245,7 +2245,7 @@ suite('ExtensionsActions Test', () => {
 			extensionManagementService: remoteExtensionManagementService || createExtensionManagementService()
 		};
 		return {
-			_serviceBrand: {},
+			_serviceBrand: undefined,
 			localExtensionManagementServer: null,
 			remoteExtensionManagementServer,
 			getExtensionManagementServer: (location: URI) => {
@@ -2269,7 +2269,7 @@ suite('ExtensionsActions Test', () => {
 			extensionManagementService: remoteExtensionManagementService || createExtensionManagementService()
 		};
 		return {
-			_serviceBrand: {},
+			_serviceBrand: undefined,
 			localExtensionManagementServer,
 			remoteExtensionManagementServer,
 			getExtensionManagementServer: (location: URI) => {

@@ -225,7 +225,7 @@ class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 }
 
 export abstract class AbstractContextKeyService implements IContextKeyService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	protected _isDisposed: boolean;
 	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });

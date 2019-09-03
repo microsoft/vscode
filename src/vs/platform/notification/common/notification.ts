@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import BaseSeverity from 'vs/base/common/severity';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAction } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -29,6 +29,45 @@ export interface INotificationProperties {
 	 * catch some attention.
 	 */
 	silent?: boolean;
+
+	/**
+	 * Adds an action to never show the notification again. The choice will be persisted
+	 * such as future requests will not cause the notification to show again.
+	 */
+	neverShowAgain?: INeverShowAgainOptions;
+}
+
+export enum NeverShowAgainScope {
+
+	/**
+	 * Will never show this notification on the current workspace again.
+	 */
+	WORKSPACE,
+
+	/**
+	 * Will never show this notification on any workspace again.
+	 */
+	GLOBAL
+}
+
+export interface INeverShowAgainOptions {
+
+	/**
+	 * The id is used to persist the selection of not showing the notification again.
+	 */
+	id: string;
+
+	/**
+	 * By default the action will show up as primary action. Setting this to true will
+	 * make it a secondary action instead.
+	 */
+	isSecondary?: boolean;
+
+	/**
+	 * Wether to persist the choice in the current workspace or for all workspaces. By
+	 * default it will be persisted for all workspaces.
+	 */
+	scope?: NeverShowAgainScope;
 }
 
 export interface INotification extends INotificationProperties {
@@ -195,7 +234,7 @@ export interface IStatusMessageOptions {
  */
 export interface INotificationService {
 
-	_serviceBrand: ServiceIdentifier<INotificationService>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`

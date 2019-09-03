@@ -15,7 +15,7 @@ export interface IComposite {
 	/**
 	 * Returns the name of this composite to show in the title area.
 	 */
-	getTitle(): string | null;
+	getTitle(): string | undefined;
 
 	/**
 	 * Returns the primary actions of the composite.

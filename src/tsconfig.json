@@ -5,12 +5,18 @@
 		"preserveConstEnums": true,
 		"sourceMap": false,
 		"outDir": "../out",
-		"target": "es6",
+		"target": "es2017",
 		"lib": [
 			"dom",
 			"es5",
-			"es2015.iterable",
-			"webworker"
+			"es2015.iterable"
+		],
+		"types": [
+			"keytar",
+			"mocha",
+			"semver",
+			"sinon",
+			"winreg"
 		]
 	},
 	"include": [

@@ -236,7 +236,6 @@ class ResolveSaveConflictAction extends Action {
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
@@ -250,21 +249,15 @@ class ResolveSaveConflictAction extends Action {
 
 			await TextFileContentProvider.open(resource, CONFLICT_RESOLUTION_SCHEME, editorLabel, this.editorService, { pinned: true });
 
-			if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
-				return; // return if this message is ignored
-			}
-
 			// Show additional help how to resolve the save conflict
-			const primaryActions: IAction[] = [
-				this.instantiationService.createInstance(ResolveConflictLearnMoreAction)
-			];
-			const secondaryActions: IAction[] = [
-				this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction)
-			];
-
-			const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-			const handle = this.notificationService.notify({ severity: Severity.Info, message: conflictEditorHelp, actions });
-			Event.once(handle.onDidClose)(() => { dispose(primaryActions); dispose(secondaryActions); });
+			const actions: INotificationActions = { primary: [this.instantiationService.createInstance(ResolveConflictLearnMoreAction)] };
+			const handle = this.notificationService.notify({
+				severity: Severity.Info,
+				message: conflictEditorHelp,
+				actions,
+				neverShowAgain: { id: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, isSecondary: true }
+			});
+			Event.once(handle.onDidClose)(() => dispose(actions.primary!));
 			pendingResolveSaveConflictMessages.push(handle);
 		}
 

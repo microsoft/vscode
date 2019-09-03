@@ -17,7 +17,8 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 
 class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
-		super(notificationService, storageService, commandService);
+		// super(notificationService, storageService, commandService);
+		super();
 
 		const keymapInfos: IKeymapInfo[] = KeyboardLayoutContribution.INSTANCE.layoutInfos;
 		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
@@ -41,10 +42,10 @@ suite('keyboard layout loader', () => {
 
 	test('load default US keyboard layout', () => {
 		assert.notEqual(instance.activeKeyboardLayout, null);
-		assert.equal(instance.activeKeyboardLayout!.isUSStandard, true);
 	});
 
 	test('isKeyMappingActive', () => {
+		instance.setUSKeyboardLayout();
 		assert.equal(instance.isKeyMappingActive({
 			KeyA: {
 				value: 'a',

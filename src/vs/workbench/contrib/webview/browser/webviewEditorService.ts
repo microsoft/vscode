@@ -10,11 +10,13 @@ import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { RevivedWebviewEditorInput, WebviewEditorInput } from './webviewEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -24,7 +26,7 @@ export interface ICreateWebViewShowOptions {
 }
 
 export interface IWebviewEditorService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createWebview(
 		id: string,
@@ -90,7 +92,7 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 		&& a.retainContextWhenHidden === b.retainContextWhenHidden
 		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
 		&& (a.localResourceRoots === b.localResourceRoots || (Array.isArray(a.localResourceRoots) && Array.isArray(b.localResourceRoots) && equals(a.localResourceRoots, b.localResourceRoots, (a, b) => a.toString() === b.toString())))
-		&& (a.portMappings === b.portMappings || (Array.isArray(a.portMappings) && Array.isArray(b.portMappings) && equals(a.portMappings, b.portMappings, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)));
+		&& (a.portMapping === b.portMapping || (Array.isArray(a.portMapping) && Array.isArray(b.portMapping) && equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)));
 }
 
 function canRevive(reviver: WebviewReviver, webview: WebviewEditorInput): boolean {
@@ -118,7 +120,7 @@ class RevivalPool {
 }
 
 export class WebviewEditorService implements IWebviewEditorService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _revivers = new Set<WebviewReviver>();
 	private readonly _revivalPool = new RevivalPool();
@@ -145,7 +147,13 @@ export class WebviewEditorService implements IWebviewEditorService {
 		const webview = this.createWebiew(id, extension, options);
 
 		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, extension, new UnownedDisposable(webview));
-		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
+		this._editorService.openEditor(webviewInput, {
+			pinned: true,
+			preserveFocus: showOptions.preserveFocus,
+			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
+			activation: showOptions.preserveFocus ? EditorActivation.RESTORE : undefined
+		}, showOptions.group);
 		return webviewInput;
 	}
 
@@ -155,7 +163,12 @@ export class WebviewEditorService implements IWebviewEditorService {
 		preserveFocus: boolean
 	): void {
 		if (webview.group === group.id) {
-			this._editorService.openEditor(webview, { preserveFocus }, webview.group);
+			this._editorService.openEditor(webview, {
+				preserveFocus,
+				// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+				// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
+				activation: preserveFocus ? EditorActivation.RESTORE : undefined
+			}, webview.group);
 		} else {
 			const groupView = this._editorGroupService.getGroup(webview.group!);
 			if (groupView) {
@@ -243,14 +256,13 @@ export class WebviewEditorService implements IWebviewEditorService {
 
 	private createWebiew(id: string, extension: { location: URI; id: ExtensionIdentifier; } | undefined, options: WebviewInputOptions) {
 		return this._webviewService.createWebviewEditorOverlay(id, {
-			allowSvgs: true,
 			extension: extension,
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
 		}, {
-				...options,
-				localResourceRoots: options.localResourceRoots || this.getDefaultLocalResourceRoots(extension),
-			});
+			...options,
+			localResourceRoots: options.localResourceRoots || this.getDefaultLocalResourceRoots(extension),
+		});
 	}
 
 	private getDefaultLocalResourceRoots(extension: undefined | {
@@ -264,3 +276,5 @@ export class WebviewEditorService implements IWebviewEditorService {
 		return rootPaths;
 	}
 }
+
+registerSingleton(IWebviewEditorService, WebviewEditorService, true);
