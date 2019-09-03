@@ -41,10 +41,23 @@ export async function serveError(req: http.IncomingMessage, res: http.ServerResp
  */
 export async function serveFile(logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, filePath: string, responseHeaders: Record<string, string> = Object.create(null)): Promise<void> {
 	try {
+		const stat = await util.promisify(fs.stat)(filePath);
+
+		// Check if file modified since
+		const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
+		if (req.headers['if-none-match'] === etag) {
+			res.writeHead(304);
+			return res.end();
+		}
+
+		// Headers
 		responseHeaders['Content-Type'] = textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain';
+		responseHeaders['Etag'] = etag;
+
 		res.writeHead(200, responseHeaders);
-		const data = await util.promisify(fs.readFile)(filePath);
-		return res.end(data);
+
+		// Data
+		fs.createReadStream(filePath).pipe(res);
 	} catch (error) {
 		logService.error(error);
 		console.error(error.toString());
