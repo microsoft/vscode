@@ -9,13 +9,8 @@ import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addon
 import { isWindows } from 'vs/base/common/platform';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
-interface TestTerminalCore extends XTermCore {
-	writeBuffer: string[];
-	_innerWrite(): void;
-}
-
 interface TestTerminal extends Terminal {
-	_core: TestTerminalCore;
+	_core: XTermCore;
 }
 
 function syncWrite(term: TestTerminal, data: string): void {
