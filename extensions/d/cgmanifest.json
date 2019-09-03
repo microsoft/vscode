@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "Pure-D/code-d",
+					"repositoryUrl": "https://github.com/Pure-D/code-d",
+					"commitHash": "2988e081dcac3e5308b36926edc57cc953e11a21"
+				}
+			},
+			"license": "MIT",
+			"version": "0.20.2"
+		}
+	],
+	"version": 1
+}

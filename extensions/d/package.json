@@ -1,0 +1,29 @@
+{
+	"name": "d",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.20.2",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js Pure-D/code-d grammars/d.cson ./syntaxes/d.tmLanguage.json"
+	},
+	"contributes": {
+		"languages": [{
+			"id": "d",
+			"extensions": [ ".d", ".di" ],
+			"aliases": [ "D", "Dlang" ],
+			"configuration": "./language-configuration.json"
+		}],
+		"grammars": [{
+			"language": "d",
+			"scopeName": "source.d",
+			"path": "./syntaxes/d.tmLanguage.json"
+		}],
+		"snippets": [{
+			"language": "d",
+			"path": "./snippets/d.snippets.json"
+		}]
+	}
+}

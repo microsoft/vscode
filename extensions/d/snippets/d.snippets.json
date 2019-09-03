@@ -1,0 +1,293 @@
+{
+	"Region Start": {
+		"prefix": "#region",
+		"body": [
+			"//#region"
+		],
+		"description": "Folding Region Start"
+	},
+	"Region End": {
+		"prefix": "#endregion",
+		"body": [
+			"//#endregion"
+		],
+		"description": "Folding Region End"
+	},
+	"switch+default": {
+		"prefix": "sd",
+		"body": [
+			"switch($1) {$2",
+			"default:",
+			"\tbreak;",
+			"}"
+		],
+		"description": "switch() default: break"
+	},
+	"switch+default with": {
+		"prefix": "sdw",
+		"body": [
+			"switch($1) with($2) {$3",
+			"default:",
+			"\tbreak;",
+			"}"
+		],
+		"description": "switch() with(T) default: break"
+	},
+	"case+value": {
+		"prefix": "case",
+		"body": [
+			"case ${1:0}:",
+			"\t${2:break;}"
+		],
+		"description": "case 0: break;"
+	},
+	"final switch": {
+		"prefix": "fs",
+		"body": [
+			"final switch($1) {$2}"
+		],
+		"description": "final switch()"
+	},
+	"final switch with": {
+		"prefix": "fsw",
+		"body": [
+			"final switch($1) with($2) {$3}"
+		],
+		"description": "final switch() with(T)"
+	},
+	"foreach": {
+		"prefix": "fore",
+		"body": [
+			"foreach(${1:value}; ${2:array}) {$3}"
+		],
+		"description": "foreach(value; array)"
+	},
+	"foreach ref": {
+		"prefix": "forr",
+		"body": [
+			"foreach(ref ${1:value}; ${2:array}) {$3}"
+		],
+		"description": "foreach(ref value; array)"
+	},
+	"foreach ref with": {
+		"prefix": "forw",
+		"body": [
+			"foreach(ref ${1:value}; ${2:array}) with(${1:value}) {$3}"
+		],
+		"description": "foreach(ref value; array) with(value)"
+	},
+	"main": {
+		"prefix": "main",
+		"body": [
+			"${2:void} main(${3:string[] args}) {$1}"
+		],
+		"description": "void main(string[] args)"
+	},
+	"template": {
+		"prefix": "tmpl",
+		"body": [
+			"template ${1:MyTemplate}($2) {$3}"
+		],
+		"description": "template MyTemplate()"
+	},
+	"mixin template": {
+		"prefix": "mixt",
+		"body": [
+			"mixin template ${1:MyMixin}($2) {$3}"
+		],
+		"description": "mixin template MyMixin()"
+	},
+	"interface": {
+		"prefix": "interface",
+		"body": [
+			"interface ${1:MyInterface}$3 {$2}"
+		],
+		"description": "interface MyInterface"
+	},
+	"class": {
+		"prefix": "class",
+		"body": [
+			"class ${1:MyClass}$3 {$2}"
+		],
+		"description": "class MyClass"
+	},
+	"getter + setter": {
+		"prefix": "gets",
+		"body": [
+			"void ${1:value}(${3:auto} value) @property { ${2:_${1:value}} = value; }",
+			"${3:auto} ${1:value}() @property { return ${2:_value}; }"
+		],
+		"description": "getter & setter property"
+	},
+	"getter": {
+		"prefix": "get",
+		"body": [
+			"${3:auto} ${1:value}() @property { return ${2:_${1:value}}; }"
+		],
+		"description": "getter property"
+	},
+	"setter": {
+		"prefix": "set",
+		"body": [
+			"void ${1:value}(${3:auto} value) @property { ${2:_${1:value}} = value; }"
+		],
+		"description": "setter property"
+	},
+	"automatic getter + setter": {
+		"prefix": "refp",
+		"body": [
+			"ref ${3:auto} ${1:value}() @property { return ${2:_${1:value}}; }"
+		],
+		"description": "ref property"
+	},
+	"opUnary": {
+		"prefix": "opuna",
+		"body": [
+			"${1:void} opUnary(string op)() {$2}"
+		],
+		"description": "Unary operator overload (~a)"
+	},
+	"opIndexUnary": {
+		"prefix": "opiuna",
+		"body": [
+			"${1:void} opIndexUnary(string op)($2) {$3}"
+		],
+		"description": "Index unary operator overload (~a[b1, b2, ... bn])"
+	},
+	"opCast": {
+		"prefix": "opc",
+		"body": [
+			"T opCast(T)() {$1}"
+		],
+		"description": "Casting operator overload (cast(T) a)"
+	},
+	"opBinary": {
+		"prefix": "opbin",
+		"body": [
+			"T opBinary(string op, T)(T rhs) {$1}"
+		],
+		"description": "Binary operator overload (a + b)"
+	},
+	"opBinaryRight": {
+		"prefix": "opbinr",
+		"body": [
+			"T opBinaryRight(string op, T)(T rhs) {$1}"
+		],
+		"description": "Righthandside binary operator overload (b + a)"
+	},
+	"opEquals": {
+		"prefix": "opeq",
+		"body": [
+			"bool opEquals(Object b) {$1}"
+		],
+		"description": "Equals operator overload (a == b)"
+	},
+	"opCmp": {
+		"prefix": "opcm",
+		"body": [
+			"int opCmp(Object b) {$1}"
+		],
+		"description": "Compare operator overload (a < b)"
+	},
+	"opCall": {
+		"prefix": "opcal",
+		"body": [
+			"${1:void} opCall($2) {$3}"
+		],
+		"description": "Calling operator overload (a(b, c))"
+	},
+	"opAssign": {
+		"prefix": "opass",
+		"body": [
+			"void opAssign($1) {$2}"
+		],
+		"description": "Assignment operator overload (a = b)"
+	},
+	"opOpAssign": {
+		"prefix": "opopass",
+		"body": [
+			"void opOpAssign(string op)($1) {$2}"
+		],
+		"description": "Operator assignment operator overload (a += b)"
+	},
+	"opIndex": {
+		"prefix": "opin",
+		"body": [
+			"${1:void} opIndex($2) {$3}"
+		],
+		"description": "Index getter overload (a[b])"
+	},
+	"opIndexAssign": {
+		"prefix": "opinass",
+		"body": [
+			"${1:void} opIndexAssign($2) {$3}"
+		],
+		"description": "Index setter overload (a[b] = c)"
+	},
+	"opIndexOpAssign": {
+		"prefix": "opinopass",
+		"body": [
+			"${1:void} opIndexOpAssign(string op)($2) {$3}"
+		],
+		"description": "Index operator assignment operator overload (a[b] += c)"
+	},
+	"opDollar": {
+		"prefix": "opdo",
+		"body": [
+			"${1:int} opDollar${2:(size_t pos)}() {$3}"
+		],
+		"description": "Dollar operator overload (length) (a[$ - 1])"
+	},
+	"opDispatch": {
+		"prefix": "opd",
+		"body": [
+			"${1:void} opDispatch(string s)($2) {$3}"
+		],
+		"description": "Dispatch operator overload (dynamic names) (a.foo)"
+	},
+	"inheritedException": {
+		"prefix": "ex",
+		"body": [
+			"class ${1:MyException} : ${2:Exception} {",
+			"this(${3:string msg, string file = __FILE__, size_t line = __LINE__}) pure nothrow @nogc @safe {",
+			"super(${4:msg, file, line});",
+			"}",
+			"}"
+		],
+		"description": "Class extending Exception. Use this for recoverable errors that may be catched in the application."
+	},
+	"inheritedError": {
+		"prefix": "er",
+		"body": [
+			"class ${1:MyError} : ${2:Error} {",
+			"this(${3:string msg}) pure nothrow @nogc @safe {",
+			"super(${4:msg});",
+			"}",
+			"}"
+		],
+		"description": "Class extending Error. Use this for unrecoverable errors that applications should not catch."
+	},
+	"inputRange": {
+		"prefix": "inrange",
+		"body": [
+			"${3:struct} ${1:Range} {",
+			"void popFront() {}",
+			"bool empty() @property { ${5:return true;} }",
+			"${2:auto} front() @property { ${4:return 0;} }",
+			"}"
+		],
+		"description": "A class/struct containing input range methods."
+	},
+	"forwardRange": {
+		"prefix": "fwrange",
+		"body": [
+			"${3:struct} ${1:Range} {",
+			"void popFront() {}",
+			"${1:Range} save() { ${6:return null;} }",
+			"bool empty() @property { ${5:return true;} }",
+			"${2:auto} front() @property { ${4:return 0;} }",
+			"}"
+		],
+		"description": "A class/struct containing forward range methods."
+	}
+}
