@@ -78,9 +78,9 @@ export class SearchView extends ViewletPanel {
 	private static readonly WIDE_VIEW_SIZE = 1000;
 	private static readonly ACTIONS_RIGHT_CLASS_NAME = 'actions-right';
 
-	private isDisposed: boolean;
+	private isDisposed = false;
 
-	private container: HTMLElement;
+	private container!: HTMLElement;
 	private queryBuilder: QueryBuilder;
 	private viewModel: SearchModel;
 	private memento: Memento;
@@ -99,31 +99,31 @@ export class SearchView extends ViewletPanel {
 	private matchFocused: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
 
-	private state: SearchUIState;
+	private state: SearchUIState = SearchUIState.Idle;
 
 	private actions: Array<CollapseDeepestExpandedLevelAction | ClearSearchResultsAction> = [];
 	private cancelAction: CancelSearchAction;
 	private refreshAction: RefreshAction;
-	private contextMenu: IMenu;
+	private contextMenu: IMenu | null = null;
 
-	private tree: WorkbenchObjectTree<RenderableMatch>;
-	private treeLabels: ResourceLabels;
+	private tree!: WorkbenchObjectTree<RenderableMatch>;
+	private treeLabels!: ResourceLabels;
 	private viewletState: MementoObject;
-	private messagesElement: HTMLElement;
+	private messagesElement!: HTMLElement;
 	private messageDisposables: IDisposable[] = [];
-	private searchWidgetsContainerElement: HTMLElement;
-	private searchWidget: SearchWidget;
-	private size: dom.Dimension;
-	private queryDetails: HTMLElement;
-	private toggleQueryDetailsButton: HTMLElement;
-	private inputPatternExcludes: ExcludePatternInputWidget;
-	private inputPatternIncludes: PatternInputWidget;
-	private resultsElement: HTMLElement;
+	private searchWidgetsContainerElement!: HTMLElement;
+	private searchWidget!: SearchWidget;
+	private size!: dom.Dimension;
+	private queryDetails!: HTMLElement;
+	private toggleQueryDetailsButton!: HTMLElement;
+	private inputPatternExcludes!: ExcludePatternInputWidget;
+	private inputPatternIncludes!: PatternInputWidget;
+	private resultsElement!: HTMLElement;
 
 	private currentSelectedFileMatch: FileMatch | undefined;
 
 	private delayedRefresh: Delayer<void>;
-	private changedWhileHidden: boolean;
+	private changedWhileHidden: boolean = false;
 
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
@@ -441,7 +441,7 @@ export class SearchView extends ViewletPanel {
 
 	private refreshAndUpdateCount(event?: IChangeEvent): void {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-		this.updateSearchResultCount(this.viewModel.searchResult.query.userDisabledExcludesAndIgnoreFiles);
+		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles);
 		return this.refreshTree(event);
 	}
 
