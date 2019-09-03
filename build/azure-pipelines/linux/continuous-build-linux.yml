@@ -17,7 +17,7 @@ steps:
     vstsFeed: '$(ArtifactFeed)'
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
 - script: |
     yarn --frozen-lockfile
   displayName: Install Dependencies
