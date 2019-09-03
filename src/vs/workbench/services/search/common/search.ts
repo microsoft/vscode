@@ -132,6 +132,7 @@ export interface IPatternInfo {
 	isWordMatch?: boolean;
 	wordSeparators?: string;
 	isMultiline?: boolean;
+	isUnicode?: boolean;
 	isCaseSensitive?: boolean;
 }
 
