@@ -53,8 +53,10 @@ class AutoSyncUserDataContribution extends Disposable implements IWorkbenchContr
 	private async autoSync(): Promise<void> {
 		if (this.configurationService.getValue<boolean>('userData.autoSync')) {
 			const userIdentity = this.userIdentityService.getUserIndetities()[0];
-			await this.extensionService.activateByEvent(`onUserData:${userIdentity.identity}`);
-			this.userDataSyncService.synchronise();
+			if (userIdentity) {
+				await this.extensionService.activateByEvent(`onUserData:${userIdentity.identity}`);
+				this.userDataSyncService.synchronise();
+			}
 		}
 	}
 
