@@ -23,34 +23,27 @@ set REMOTE_VSCODE=%AUTHORITY%%EXT_PATH%
 
 :: Figure out which Electron to use for running tests
 if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
-	:: code.bat makes sure Test Extensions are compiled
-	set INTEGRATION_TEST_ELECTRON_PATH=.\scripts\code.bat
 
-	:: No extra arguments when running out of sources
-	set EXTRA_INTEGRATION_TEST_ARGUMENTS=""
+	:: Tests in the extension host running from sources
+	call .\scripts\code.bat --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=%VSCODEUSERDATADIR%
+	if %errorlevel% neq 0 exit /b %errorlevel%
+
+	call .\scripts\code.bat --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=%VSCODEUSERDATADIR%
+	if %errorlevel% neq 0 exit /b %errorlevel%
 ) else (
  	echo "Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path"
+	echo "Using %VSCODE_REMOTE_SERVER_PATH% as server path"
 
 	:: Compile Test Extensions
 	call yarn gulp compile-extension:vscode-test-resolver
 
-	:: Running from a build, we need to enable the vscode-test-resolver extension
-	set EXTRA_INTEGRATION_TEST_ARGUMENTS="--extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver"
+	:: Tests in the extension host running from built version (both client and server)
+	call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=%VSCODEUSERDATADIR% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver
+	if %errorlevel% neq 0 exit /b %errorlevel%
+
+	call "%INTEGRATION_TEST_ELECTRON_PATH%" --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=%VSCODEUSERDATADIR% --extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver
+	if %errorlevel% neq 0 exit /b %errorlevel%
 )
-
-:: Figure out which remote server to use for running tests
-if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
-	echo "Using remote server out of sources"
-) else (
- 	echo "Using %VSCODE_REMOTE_SERVER_PATH% as server path"
-)
-
-:: Tests in the extension host
-call "%INTEGRATION_TEST_ELECTRON_PATH%" --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=%VSCODEUSERDATADIR% %EXTRA_INTEGRATION_TEST_ARGUMENTS%
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-call "%INTEGRATION_TEST_ELECTRON_PATH%" --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests --disable-telemetry --disable-crash-reporter --disable-updates --skip-getting-started --disable-inspect --user-data-dir=%VSCODEUSERDATADIR% %EXTRA_INTEGRATION_TEST_ARGUMENTS%
-if %errorlevel% neq 0 exit /b %errorlevel%
 
 IF "%3" == "" (
 	rmdir /s /q %VSCODEUSERDATADIR%
