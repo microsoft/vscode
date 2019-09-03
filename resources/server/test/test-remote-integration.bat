@@ -21,6 +21,7 @@ IF "%VSCODEUSERDATADIR%" == "" (
 
 set REMOTE_VSCODE=%AUTHORITY%%EXT_PATH%
 
+:: Figure out which Electron to use for running tests
 if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	:: code.bat makes sure Test Extensions are compiled
 	set INTEGRATION_TEST_ELECTRON_PATH=.\scripts\code.bat
@@ -35,9 +36,13 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 
 	:: Running from a build, we need to enable the vscode-test-resolver extension
 	set EXTRA_INTEGRATION_TEST_ARGUMENTS="--extensions-dir=%EXT_PATH% --enable-proposed-api=vscode.vscode-test-resolver"
+)
 
-	:: Signal to extension that server should be taken from sources and not downloaded
-	set TEST_RESOLVER_USE_SERVER_FROM_SOURCES=1
+:: Figure out which remote server to use for running tests
+if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
+	echo "Using remote server out of sources"
+) else (
+ 	echo "Using %VSCODE_REMOTE_SERVER_PATH% as server path"
 )
 
 :: Tests in the extension host
