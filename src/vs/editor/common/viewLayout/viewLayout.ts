@@ -53,7 +53,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	private _configureSmoothScrollDuration(): void {
-		this.scrollable.setSmoothScrollDuration(this._configuration.editor.viewInfo.smoothScrolling ? SMOOTH_SCROLLING_TIME : 0);
+		this.scrollable.setSmoothScrollDuration(this._configuration.options.get(EditorOption.smoothScrolling) ? SMOOTH_SCROLLING_TIME : 0);
 	}
 
 	// ---- begin view event handlers
@@ -70,7 +70,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 				height: layoutInfo.contentHeight
 			});
 		}
-		if (e.viewInfo) {
+		if (e.hasChanged(EditorOption.smoothScrolling)) {
 			this._configureSmoothScrollDuration();
 		}
 		this._updateHeight();
@@ -105,7 +105,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const scrollDimensions = this.scrollable.getScrollDimensions();
 
 		let result = this._linesLayout.getLinesTotalHeight();
-		if (this._configuration.editor.viewInfo.scrollBeyondLastLine) {
+		if (this._configuration.options.get(EditorOption.scrollBeyondLastLine)) {
 			result += scrollDimensions.height - this._configuration.editor.lineHeight;
 		} else {
 			result += this._getHorizontalScrollbarHeight(scrollDimensions);
@@ -149,7 +149,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		let isViewportWrapping = wrappingInfo.isViewportWrapping;
 		if (!isViewportWrapping) {
-			const extraHorizontalSpace = this._configuration.editor.viewInfo.scrollBeyondLastColumn * this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+			const extraHorizontalSpace = options.get(EditorOption.scrollBeyondLastColumn) * this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 			const whitespaceMinWidth = this._linesLayout.getWhitespaceMinWidth();
 			return Math.max(maxLineWidth + extraHorizontalSpace, viewportWidth, whitespaceMinWidth);
 		}

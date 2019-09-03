@@ -28,7 +28,7 @@ export class Margin extends ViewPart {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._canUseLayerHinting = this._context.configuration.editor.canUseLayerHinting;
+		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
@@ -57,17 +57,12 @@ export class Margin extends ViewPart {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		if (e.canUseLayerHinting) {
-			this._canUseLayerHinting = this._context.configuration.editor.canUseLayerHinting;
-		}
-
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			this._contentLeft = layoutInfo.contentLeft;
-			this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-			this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
-		}
+		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
+		this._contentLeft = layoutInfo.contentLeft;
+		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
+		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 
 		return true;
 	}

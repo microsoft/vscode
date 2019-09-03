@@ -90,16 +90,14 @@ export class ViewZones extends ViewPart {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._contentWidth = layoutInfo.contentWidth;
+		this._contentLeft = layoutInfo.contentLeft;
 
 		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-			return this._recomputeWhitespacesProps();
-		}
-
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			this._contentWidth = layoutInfo.contentWidth;
-			this._contentLeft = layoutInfo.contentLeft;
+			this._recomputeWhitespacesProps();
 		}
 
 		return true;

@@ -72,7 +72,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _typicalHalfwidthCharacterWidth: number;
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
-	private _scrollOff: number;
+	private _cursorSurroundingLines: number;
 	private _canUseLayerHinting: boolean;
 	private _viewLineOptions: ViewLineOptions;
 
@@ -97,9 +97,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._lineHeight = conf.editor.lineHeight;
 		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
-		this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
-		this._scrollOff = conf.editor.viewInfo.cursorSurroundingLines;
-		this._canUseLayerHinting = conf.editor.canUseLayerHinting;
+		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
+		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
+		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
 		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
@@ -144,27 +144,15 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		const conf = this._context.configuration;
 		const options = this._context.configuration.options;
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
-		if (e.lineHeight) {
-			this._lineHeight = conf.editor.lineHeight;
-		}
-		if (e.fontInfo) {
-			this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
-		}
-		if (e.hasChanged(EditorOption.wrappingInfo)) {
-			const wrappingInfo = options.get(EditorOption.wrappingInfo);
-			this._isViewportWrapping = wrappingInfo.isViewportWrapping;
-		}
-		if (e.viewInfo) {
-			this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
-			this._scrollOff = conf.editor.viewInfo.cursorSurroundingLines;
-		}
-		if (e.canUseLayerHinting) {
-			this._canUseLayerHinting = conf.editor.canUseLayerHinting;
-		}
-		if (e.fontInfo) {
-			Configuration.applyFontInfo(this.domNode, conf.editor.fontInfo);
-		}
+		this._lineHeight = conf.editor.lineHeight;
+		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
+		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
+		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
+		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
+		Configuration.applyFontInfo(this.domNode, conf.editor.fontInfo);
 
 		this._onOptionsMaybeChanged();
 
@@ -605,7 +593,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.startLineNumber);
 		boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
 
-		const context = Math.min((viewportHeight / this._lineHeight) / 2, this._scrollOff);
+		const context = Math.min((viewportHeight / this._lineHeight) / 2, this._cursorSurroundingLines);
 		boxStartY -= context * this._lineHeight;
 		boxEndY += Math.max(0, (context - 1)) * this._lineHeight;
 

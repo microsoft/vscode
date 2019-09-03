@@ -17,7 +17,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { InternalEditorOptions, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
@@ -635,8 +635,8 @@ export class DiffReview extends Disposable {
 
 	private static _renderSection(
 		dest: HTMLElement, diffEntry: DiffEntry, modLine: number, width: number,
-		originalOpts: editorOptions.InternalEditorOptions, originalOptions: editorOptions.IComputedEditorOptions, originalModel: ITextModel, originalModelOpts: TextModelResolvedOptions,
-		modifiedOpts: editorOptions.InternalEditorOptions, modifiedOptions: editorOptions.IComputedEditorOptions, modifiedModel: ITextModel, modifiedModelOpts: TextModelResolvedOptions
+		originalOpts: InternalEditorOptions, originalOptions: IComputedEditorOptions, originalModel: ITextModel, originalModelOpts: TextModelResolvedOptions,
+		modifiedOpts: InternalEditorOptions, modifiedOptions: IComputedEditorOptions, modifiedModel: ITextModel, modifiedModelOpts: TextModelResolvedOptions
 	): void {
 
 		const type = diffEntry.getType();
@@ -667,10 +667,10 @@ export class DiffReview extends Disposable {
 			originalLineEnd - originalLineStart
 		);
 
-		const originalLayoutInfo = originalOptions.get(editorOptions.EditorOption.layoutInfo);
+		const originalLayoutInfo = originalOptions.get(EditorOption.layoutInfo);
 		const originalLineNumbersWidth = originalLayoutInfo.glyphMarginWidth + originalLayoutInfo.lineNumbersWidth;
 
-		const modifiedLayoutInfo = modifiedOptions.get(editorOptions.EditorOption.layoutInfo);
+		const modifiedLayoutInfo = modifiedOptions.get(EditorOption.layoutInfo);
 		const modifiedLineNumbersWidth = 10 + modifiedLayoutInfo.glyphMarginWidth + modifiedLayoutInfo.lineNumbersWidth;
 
 		for (let i = 0; i <= cnt; i++) {
@@ -721,12 +721,12 @@ export class DiffReview extends Disposable {
 			let lineContent: string;
 			if (modifiedLine !== 0) {
 				cell.insertAdjacentHTML('beforeend',
-					this._renderLine(modifiedModel, modifiedOpts, modifiedModelOpts.tabSize, modifiedLine)
+					this._renderLine(modifiedModel, modifiedOpts, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine)
 				);
 				lineContent = modifiedModel.getLineContent(modifiedLine);
 			} else {
 				cell.insertAdjacentHTML('beforeend',
-					this._renderLine(originalModel, originalOpts, originalModelOpts.tabSize, originalLine)
+					this._renderLine(originalModel, originalOpts, originalOptions, originalModelOpts.tabSize, originalLine)
 				);
 				lineContent = originalModel.getLineContent(originalLine);
 			}
@@ -753,7 +753,7 @@ export class DiffReview extends Disposable {
 		}
 	}
 
-	private static _renderLine(model: ITextModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number): string {
+	private static _renderLine(model: ITextModel, config: InternalEditorOptions, options: IComputedEditorOptions, tabSize: number, lineNumber: number): string {
 		const lineContent = model.getLineContent(lineNumber);
 
 		const defaultMetadata = (
@@ -771,7 +771,7 @@ export class DiffReview extends Disposable {
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
-			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
+			(config.fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations)),
 			config.fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
@@ -782,10 +782,10 @@ export class DiffReview extends Disposable {
 			[],
 			tabSize,
 			config.fontInfo.spaceWidth,
-			config.viewInfo.stopRenderingLineAfter,
-			config.viewInfo.renderWhitespace,
-			config.viewInfo.renderControlCharacters,
-			config.viewInfo.fontLigatures,
+			options.get(EditorOption.stopRenderingLineAfter),
+			options.get(EditorOption.renderWhitespace),
+			options.get(EditorOption.renderControlCharacters),
+			options.get(EditorOption.fontLigatures),
 			null
 		));
 

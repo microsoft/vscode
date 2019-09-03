@@ -27,7 +27,8 @@ export class Rulers extends ViewPart {
 		this.domNode.setAttribute('aria-hidden', 'true');
 		this.domNode.setClassName('view-rulers');
 		this._renderedRulers = [];
-		this._rulers = this._context.configuration.editor.viewInfo.rulers;
+		const options = this._context.configuration.options;
+		this._rulers = options.get(EditorOption.rulers);
 		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 	}
 
@@ -38,15 +39,10 @@ export class Rulers extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo
-			|| e.hasChanged(EditorOption.layoutInfo)
-			|| e.fontInfo
-		) {
-			this._rulers = this._context.configuration.editor.viewInfo.rulers;
-			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
-			return true;
-		}
-		return false;
+		const options = this._context.configuration.options;
+		this._rulers = options.get(EditorOption.rulers);
+		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollHeightChanged;

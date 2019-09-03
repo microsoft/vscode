@@ -44,9 +44,9 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		const options = this._context.configuration.options;
 		const config = this._context.configuration.editor;
 		this._lineHeight = config.lineHeight;
-		const renderLineNumbers = options.get(EditorOption.renderLineNumbers);
-		this._renderLineNumbers = renderLineNumbers.renderType;
-		this._renderCustomLineNumbers = renderLineNumbers.renderFn;
+		const lineNumbers = options.get(EditorOption.lineNumbers);
+		this._renderLineNumbers = lineNumbers.renderType;
+		this._renderCustomLineNumbers = lineNumbers.renderFn;
 		this._renderFinalNewline = options.get(EditorOption.renderFinalNewline);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._lineNumbersLeft = layoutInfo.lineNumbersLeft;

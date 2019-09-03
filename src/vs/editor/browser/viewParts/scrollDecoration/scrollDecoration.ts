@@ -54,35 +54,26 @@ export class ScrollDecorationViewPart extends ViewPart {
 		return this._domNode;
 	}
 
-	private _updateWidth(): boolean {
+	private _updateWidth(): void {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		let newWidth = 0;
+
 		if (layoutInfo.renderMinimap === 0 || (layoutInfo.minimapWidth > 0 && layoutInfo.minimapLeft === 0)) {
-			newWidth = layoutInfo.width;
+			this._width = layoutInfo.width;
 		} else {
-			newWidth = layoutInfo.width - layoutInfo.minimapWidth - layoutInfo.verticalScrollbarWidth;
+			this._width = layoutInfo.width - layoutInfo.minimapWidth - layoutInfo.verticalScrollbarWidth;
 		}
-		if (this._width !== newWidth) {
-			this._width = newWidth;
-			return true;
-		}
-		return false;
 	}
 
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		let shouldRender = false;
-		if (e.hasChanged(EditorOption.scrollbar)) {
-			const options = this._context.configuration.options;
-			const scrollbar = options.get(EditorOption.scrollbar);
-			this._useShadows = scrollbar.useShadows;
-		}
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			shouldRender = this._updateWidth();
-		}
-		return this._updateShouldShow() || shouldRender;
+		const options = this._context.configuration.options;
+		const scrollbar = options.get(EditorOption.scrollbar);
+		this._useShadows = scrollbar.useShadows;
+		this._updateWidth();
+		this._updateShouldShow();
+		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._scrollTop = e.scrollTop;

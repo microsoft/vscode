@@ -35,25 +35,15 @@ export class ViewConfigurationChangedEvent {
 	public readonly type = ViewEventType.ViewConfigurationChanged;
 
 	public readonly _source: IConfigurationChangedEvent;
-	public readonly canUseLayerHinting: boolean;
 	public readonly pixelRatio: boolean;
-	public readonly editorClassName: boolean;
 	public readonly lineHeight: boolean;
-	public readonly emptySelectionClipboard: boolean;
-	public readonly copyWithSyntaxHighlighting: boolean;
 	public readonly fontInfo: boolean;
-	public readonly viewInfo: boolean;
 
 	constructor(source: IConfigurationChangedEvent) {
 		this._source = source;
-		this.canUseLayerHinting = source.canUseLayerHinting;
 		this.pixelRatio = source.pixelRatio;
-		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight;
-		this.emptySelectionClipboard = source.emptySelectionClipboard;
-		this.copyWithSyntaxHighlighting = source.copyWithSyntaxHighlighting;
 		this.fontInfo = source.fontInfo;
-		this.viewInfo = source.viewInfo;
 	}
 
 	public hasChanged(id: EditorOption): boolean {

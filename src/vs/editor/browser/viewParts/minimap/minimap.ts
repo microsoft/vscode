@@ -110,11 +110,10 @@ class MinimapOptions {
 		const options = configuration.options;
 		const pixelRatio = configuration.editor.pixelRatio;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const viewInfo = configuration.editor.viewInfo;
 		const fontInfo = configuration.editor.fontInfo;
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
-		this.scrollBeyondLastLine = viewInfo.scrollBeyondLastLine;
+		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		const minimapOpts = options.get(EditorOption.minimap);
 		this.showSlider = minimapOpts.showSlider;
 		this.pixelRatio = pixelRatio;

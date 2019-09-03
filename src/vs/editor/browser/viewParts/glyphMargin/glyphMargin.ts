@@ -86,10 +86,12 @@ export class GlyphMarginOverlay extends DedupOverlay {
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
+
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
+
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
+		this._glyphMargin = options.get(EditorOption.glyphMargin);
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		this._renderResult = null;
@@ -106,18 +108,12 @@ export class GlyphMarginOverlay extends DedupOverlay {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.viewInfo) {
-			this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
-		}
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-			this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
-		}
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._glyphMargin = options.get(EditorOption.glyphMargin);
+		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
+		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {

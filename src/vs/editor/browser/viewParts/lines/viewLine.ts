@@ -16,6 +16,7 @@ import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, 
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { HIGH_CONTRAST, ThemeType } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -80,17 +81,18 @@ export class ViewLineOptions {
 
 	constructor(config: IConfiguration, themeType: ThemeType) {
 		this.themeType = themeType;
-		this.renderWhitespace = config.editor.viewInfo.renderWhitespace;
-		this.renderControlCharacters = config.editor.viewInfo.renderControlCharacters;
+		const options = config.options;
+		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
+		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		this.spaceWidth = config.editor.fontInfo.spaceWidth;
 		this.useMonospaceOptimizations = (
 			config.editor.fontInfo.isMonospace
-			&& !config.editor.viewInfo.disableMonospaceOptimizations
+			&& !options.get(EditorOption.disableMonospaceOptimizations)
 		);
 		this.canUseHalfwidthRightwardsArrow = config.editor.fontInfo.canUseHalfwidthRightwardsArrow;
 		this.lineHeight = config.editor.lineHeight;
-		this.stopRenderingLineAfter = config.editor.viewInfo.stopRenderingLineAfter;
-		this.fontLigatures = config.editor.viewInfo.fontLigatures;
+		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
+		this.fontLigatures = options.get(EditorOption.fontLigatures);
 	}
 
 	public equals(other: ViewLineOptions): boolean {

@@ -113,14 +113,14 @@ export class CursorConfiguration {
 	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
 		return (
 			e.hasChanged(EditorOption.layoutInfo)
-			|| e.wordSeparators
-			|| e.emptySelectionClipboard
-			|| e.multiCursorMergeOverlapping
-			|| e.autoClosingBrackets
-			|| e.autoClosingQuotes
-			|| e.autoClosingOvertype
-			|| e.autoSurround
-			|| e.useTabStops
+			|| e.hasChanged(EditorOption.wordSeparators)
+			|| e.hasChanged(EditorOption.emptySelectionClipboard)
+			|| e.hasChanged(EditorOption.multiCursorMergeOverlapping)
+			|| e.hasChanged(EditorOption.autoClosingBrackets)
+			|| e.hasChanged(EditorOption.autoClosingQuotes)
+			|| e.hasChanged(EditorOption.autoClosingOvertype)
+			|| e.hasChanged(EditorOption.autoSurround)
+			|| e.hasChanged(EditorOption.useTabStops)
 			|| e.lineHeight
 			|| e.hasChanged(EditorOption.readOnly)
 		);
@@ -143,16 +143,16 @@ export class CursorConfiguration {
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / c.fontInfo.lineHeight) - 2);
 		this.lineHeight = c.lineHeight;
-		this.useTabStops = c.useTabStops;
-		this.wordSeparators = c.wordSeparators;
-		this.emptySelectionClipboard = c.emptySelectionClipboard;
-		this.copyWithSyntaxHighlighting = c.copyWithSyntaxHighlighting;
-		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
-		this.autoClosingBrackets = c.autoClosingBrackets;
-		this.autoClosingQuotes = c.autoClosingQuotes;
-		this.autoClosingOvertype = c.autoClosingOvertype;
-		this.autoSurround = c.autoSurround;
-		this.autoIndent = c.autoIndent;
+		this.useTabStops = options.get(EditorOption.useTabStops);
+		this.wordSeparators = options.get(EditorOption.wordSeparators);
+		this.emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+		this.copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+		this.multiCursorMergeOverlapping = options.get(EditorOption.multiCursorMergeOverlapping);
+		this.autoClosingBrackets = options.get(EditorOption.autoClosingBrackets);
+		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
+		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
+		this.autoSurround = options.get(EditorOption.autoSurround);
+		this.autoIndent = options.get(EditorOption.autoIndent);
 
 		this.autoClosingPairsOpen2 = new Map<string, StandardAutoClosingPairConditional[]>();
 		this.autoClosingPairsClose2 = new Map<string, StandardAutoClosingPairConditional[]>();

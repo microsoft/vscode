@@ -227,12 +227,10 @@ export class ContentViewOverlays extends ViewOverlays {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const options = this._context.configuration.options;
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			this._contentWidth = layoutInfo.contentWidth;
-		}
-		return super.onConfigurationChanged(e);
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._contentWidth = layoutInfo.contentWidth;
+		return super.onConfigurationChanged(e) || true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
@@ -265,18 +263,11 @@ export class MarginViewOverlays extends ViewOverlays {
 	}
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		let shouldRender = false;
-		if (e.fontInfo) {
-			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
-			shouldRender = true;
-		}
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const options = this._context.configuration.options;
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			this._contentLeft = layoutInfo.contentLeft;
-			shouldRender = true;
-		}
-		return super.onConfigurationChanged(e) || shouldRender;
+		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._contentLeft = layoutInfo.contentLeft;
+		return super.onConfigurationChanged(e) || true;
 	}
 
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {

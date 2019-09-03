@@ -91,12 +91,13 @@ export class TextAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
 	private readonly _viewHelper: ITextAreaHandlerHelper;
+	private _scrollLeft: number;
+	private _scrollTop: number;
+
 	private _accessibilitySupport: AccessibilitySupport;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
-	private _scrollLeft: number;
-	private _scrollTop: number;
 	private _fontInfo: BareFontInfo;
 	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
@@ -117,6 +118,8 @@ export class TextAreaHandler extends ViewPart {
 
 		this._viewController = viewController;
 		this._viewHelper = viewHelper;
+		this._scrollLeft = 0;
+		this._scrollTop = 0;
 
 		const conf = this._context.configuration.editor;
 		const options = this._context.configuration.options;
@@ -126,12 +129,10 @@ export class TextAreaHandler extends ViewPart {
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.contentHeight;
-		this._scrollLeft = 0;
-		this._scrollTop = 0;
 		this._fontInfo = conf.fontInfo;
 		this._lineHeight = conf.lineHeight;
-		this._emptySelectionClipboard = conf.emptySelectionClipboard;
-		this._copyWithSyntaxHighlighting = conf.copyWithSyntaxHighlighting;
+		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -342,7 +343,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private _getWordBeforePosition(position: Position): string {
 		const lineContent = this._context.model.getLineContent(position.lineNumber);
-		const wordSeparators = getMapForWordSeparators(this._context.configuration.editor.wordSeparators);
+		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators));
 
 		let column = position.column;
 		let distance = 0;
@@ -374,31 +375,20 @@ export class TextAreaHandler extends ViewPart {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const conf = this._context.configuration.editor;
 		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		if (e.fontInfo) {
-			this._fontInfo = conf.fontInfo;
-		}
-		if (e.viewInfo) {
-			this.textArea.setAttribute('aria-label', options.get(EditorOption.ariaLabel));
-		}
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			this._contentLeft = layoutInfo.contentLeft;
-			this._contentWidth = layoutInfo.contentWidth;
-			this._contentHeight = layoutInfo.contentHeight;
-		}
-		if (e.lineHeight) {
-			this._lineHeight = conf.lineHeight;
-		}
+		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		this._contentLeft = layoutInfo.contentLeft;
+		this._contentWidth = layoutInfo.contentWidth;
+		this._contentHeight = layoutInfo.contentHeight;
+		this._fontInfo = conf.fontInfo;
+		this._lineHeight = conf.lineHeight;
+		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+		this.textArea.setAttribute('aria-label', options.get(EditorOption.ariaLabel));
+
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 			this._textAreaInput.writeScreenReaderContent('strategy changed');
-		}
-		if (e.emptySelectionClipboard) {
-			this._emptySelectionClipboard = conf.emptySelectionClipboard;
-		}
-		if (e.copyWithSyntaxHighlighting) {
-			this._copyWithSyntaxHighlighting = conf.copyWithSyntaxHighlighting;
 		}
 
 		return true;
@@ -550,11 +540,10 @@ export class TextAreaHandler extends ViewPart {
 
 		const options = this._context.configuration.options;
 
-		if (this._context.configuration.editor.viewInfo.glyphMargin) {
+		if (options.get(EditorOption.glyphMargin)) {
 			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.OUTER_CLASS_NAME);
 		} else {
-			const renderLineNumbers = options.get(EditorOption.renderLineNumbers);
-			if (renderLineNumbers.renderType !== RenderLineNumbersType.Off) {
+			if (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off) {
 				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
 			} else {
 				tac.setClassName('monaco-editor-background textAreaCover');

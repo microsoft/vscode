@@ -259,12 +259,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
+			const options = this._configuration.options;
 			if (e.hasChanged(EditorOption.layoutInfo)) {
-				const options = this._configuration.options;
 				const layoutInfo = options.get(EditorOption.layoutInfo);
 				this._onDidLayoutChange.fire(layoutInfo);
 			}
-			if (this._configuration.editor.showUnused) {
+			if (options.get(EditorOption.showUnused)) {
 				this._domElement.classList.add(SHOW_UNUSED_ENABLED_CLASS);
 			} else {
 				this._domElement.classList.remove(SHOW_UNUSED_ENABLED_CLASS);

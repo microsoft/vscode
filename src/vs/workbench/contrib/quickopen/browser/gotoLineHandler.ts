@@ -51,8 +51,8 @@ export class GotoLineAction extends QuickOpenAction {
 
 		if (isCodeEditor(activeTextEditorWidget)) {
 			const options = activeTextEditorWidget.getOptions();
-			const renderLineNumbers = options.get(EditorOption.renderLineNumbers);
-			if (renderLineNumbers.renderType === RenderLineNumbersType.Relative) {
+			const lineNumbers = options.get(EditorOption.lineNumbers);
+			if (lineNumbers.renderType === RenderLineNumbersType.Relative) {
 				activeTextEditorWidget.updateOptions({
 					lineNumbers: 'on'
 				});

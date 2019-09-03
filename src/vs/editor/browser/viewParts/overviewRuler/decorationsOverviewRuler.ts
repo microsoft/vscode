@@ -46,13 +46,13 @@ class Settings {
 		const options = config.options;
 		this.lineHeight = config.editor.lineHeight;
 		this.pixelRatio = config.editor.pixelRatio;
-		this.overviewRulerLanes = config.editor.viewInfo.overviewRulerLanes;
+		this.overviewRulerLanes = options.get(EditorOption.overviewRulerLanes);
 
-		this.renderBorder = config.editor.viewInfo.overviewRulerBorder;
+		this.renderBorder = options.get(EditorOption.overviewRulerBorder);
 		const borderColor = theme.getColor(editorOverviewRulerBorder);
 		this.borderColor = borderColor ? borderColor.toString() : null;
 
-		this.hideCursor = config.editor.viewInfo.hideCursorInOverviewRuler;
+		this.hideCursor = options.get(EditorOption.hideCursorInOverviewRuler);
 		const cursorColor = theme.getColor(editorCursorForeground);
 		this.cursorColor = cursorColor ? cursorColor.transparent(0.7).toString() : null;
 

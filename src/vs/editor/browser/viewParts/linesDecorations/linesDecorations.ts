@@ -40,11 +40,9 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			this._decorationsLeft = layoutInfo.decorationsLeft;
-			this._decorationsWidth = layoutInfo.decorationsWidth;
-		}
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._decorationsLeft = layoutInfo.decorationsLeft;
+		this._decorationsWidth = layoutInfo.decorationsWidth;
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {

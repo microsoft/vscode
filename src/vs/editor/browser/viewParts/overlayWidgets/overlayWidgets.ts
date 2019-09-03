@@ -65,17 +65,14 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
-			this._minimapWidth = layoutInfo.minimapWidth;
-			this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
-			this._editorHeight = layoutInfo.height;
-			this._editorWidth = layoutInfo.width;
-			return true;
-		}
-		return false;
+		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
+		this._minimapWidth = layoutInfo.minimapWidth;
+		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
+		this._editorHeight = layoutInfo.height;
+		this._editorWidth = layoutInfo.width;
+		return true;
 	}
 
 	// ---- end view event handlers

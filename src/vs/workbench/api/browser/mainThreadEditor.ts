@@ -58,11 +58,10 @@ export class MainThreadTextEditorProperties {
 		let cursorStyle: TextEditorCursorStyle;
 		let lineNumbers: RenderLineNumbersType;
 		if (codeEditor) {
-			const codeEditorOpts = codeEditor.getConfiguration();
 			const options = codeEditor.getOptions();
-			const renderLineNumbers = options.get(EditorOption.renderLineNumbers);
-			cursorStyle = codeEditorOpts.viewInfo.cursorStyle;
-			lineNumbers = renderLineNumbers.renderType;
+			const lineNumbersOpts = options.get(EditorOption.lineNumbers);
+			cursorStyle = options.get(EditorOption.cursorStyle);
+			lineNumbers = lineNumbersOpts.renderType;
 		} else if (previousProperties) {
 			cursorStyle = previousProperties.options.cursorStyle;
 			lineNumbers = previousProperties.options.lineNumbers;

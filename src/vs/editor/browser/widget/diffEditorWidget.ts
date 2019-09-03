@@ -20,7 +20,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import { IDiffEditorOptions, IEditorOptions, EDITOR_DEFAULTS, EditorLayoutInfo, InternalEditorOptions, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, InternalEditorOptions, IComputedEditorOptions, EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -996,7 +996,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _adjustOptionsForRightHandSide(options: IDiffEditorOptions): IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
-		result.revealHorizontalRightPadding = EDITOR_DEFAULTS.viewInfo.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
+		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
 		return result;
@@ -2003,7 +2003,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let maxCharsPerLine = 0;
 		const originalContent: string[] = [];
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-			maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorTabSize, lineNumber, decorations, sb));
+			maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorOptions, this.modifiedEditorTabSize, lineNumber, decorations, sb));
 			originalContent.push(this.originalModel.getLineContent(lineNumber));
 
 			if (this.renderIndicators) {
@@ -2013,7 +2013,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				]);
 			}
 		}
-		maxCharsPerLine += this.modifiedEditorConfiguration.viewInfo.scrollBeyondLastColumn;
+		maxCharsPerLine += this.modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
 
 		let domNode = document.createElement('div');
 		domNode.className = 'view-lines line-delete';
@@ -2042,7 +2042,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	private _renderOriginalLine(count: number, originalModel: ITextModel, config: InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): number {
+	private _renderOriginalLine(count: number, originalModel: ITextModel, config: InternalEditorOptions, options: IComputedEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): number {
 		const lineTokens = originalModel.getLineTokens(lineNumber);
 		const lineContent = lineTokens.getLineContent();
 
@@ -2060,7 +2060,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, originalModel.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, originalModel.mightContainRTL());
 		const output = renderViewLine(new RenderLineInput(
-			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
+			(config.fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations)),
 			config.fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
@@ -2071,10 +2071,10 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,
-			config.viewInfo.stopRenderingLineAfter,
-			config.viewInfo.renderWhitespace,
-			config.viewInfo.renderControlCharacters,
-			config.viewInfo.fontLigatures,
+			options.get(EditorOption.stopRenderingLineAfter),
+			options.get(EditorOption.renderWhitespace),
+			options.get(EditorOption.renderControlCharacters),
+			options.get(EditorOption.fontLigatures),
 			null // Send no selections, original line cannot be selected
 		), sb);
 

@@ -113,7 +113,7 @@ export class MouseHandler extends ViewEventHandler {
 		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
 			this.viewController.emitMouseWheel(browserEvent);
 
-			if (!this._context.configuration.editor.viewInfo.mouseWheelZoom) {
+			if (!this._context.configuration.options.get(EditorOption.mouseWheelZoom)) {
 				return;
 			}
 			const e = new StandardWheelEvent(browserEvent);
@@ -354,10 +354,9 @@ class MouseDownOperation extends Disposable {
 		e.detail = this._mouseState.count;
 
 		const options = this._context.configuration.options;
-		const readOnly = options.get(EditorOption.readOnly);
 
-		if (!readOnly
-			&& this._context.configuration.editor.dragAndDrop
+		if (!options.get(EditorOption.readOnly)
+			&& options.get(EditorOption.dragAndDrop)
 			&& !this._mouseState.altKey // we don't support multiple mouse
 			&& e.detail < 2 // only single click on a selection can work
 			&& !this._isActive // the mouse is not down yet

@@ -220,7 +220,7 @@ export class View extends ViewEventHandler {
 		this.domNode.appendChild(this.overflowGuardContainer);
 		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
 
-		this._setLayout();
+		this._applyLayout();
 
 		// Pointer handler
 		this.pointerHandler = this._register(new PointerHandler(this._context, viewController, this.createPointerHandlerHelper()));
@@ -282,9 +282,10 @@ export class View extends ViewEventHandler {
 		};
 	}
 
-	private _setLayout(): void {
+	private _applyLayout(): void {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
+
 		this.domNode.setWidth(layoutInfo.width);
 		this.domNode.setHeight(layoutInfo.height);
 
@@ -293,23 +294,18 @@ export class View extends ViewEventHandler {
 
 		this.linesContent.setWidth(1000000);
 		this.linesContent.setHeight(1000000);
-
 	}
 
 	private getEditorClassName() {
 		const focused = this._textAreaHandler.isFocused() ? ' focused' : '';
-		return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
+		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.editorClassName) {
-			this.domNode.setClassName(this.getEditorClassName());
-		}
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			this._setLayout();
-		}
+		this.domNode.setClassName(this.getEditorClassName());
+		this._applyLayout();
 		return false;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {

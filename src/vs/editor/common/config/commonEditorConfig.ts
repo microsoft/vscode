@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { IEditorOptions, RawEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, ComputedEditorOptions, ChangedEditorOptions, IValidatedEditorOptions, InternalEditorOptions, IConfigurationChangedEvent, EditorOptionsValidator, EDITOR_DEFAULTS, InternalEditorOptionsFactory, EDITOR_FONT_DEFAULTS, EditorOptions, EDITOR_MODEL_DEFAULTS, blinkingStyleToString, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, RawEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, ComputedEditorOptions, ChangedEditorOptions, IValidatedEditorOptions, InternalEditorOptions, IConfigurationChangedEvent, EditorOptionsValidator, EDITOR_DEFAULTS, InternalEditorOptionsFactory, EDITOR_FONT_DEFAULTS, EditorOptions, EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -129,6 +129,32 @@ function migrateOptions(options: IEditorOptions): void {
 	} else if (<any>lineNumbers === false) {
 		options.lineNumbers = 'off';
 	}
+
+	let autoClosingBrackets = options.autoClosingBrackets;
+	if (<any>autoClosingBrackets === false) {
+		options.autoClosingBrackets = 'never';
+		options.autoClosingQuotes = 'never';
+		options.autoSurround = 'never';
+	}
+
+	let cursorBlinking = options.cursorBlinking;
+	if (<any>cursorBlinking === 'visible') {
+		options.cursorBlinking = 'solid';
+	}
+
+	let renderWhitespace = options.renderWhitespace;
+	if (<any>renderWhitespace === true) {
+		options.renderWhitespace = 'boundary';
+	} else if (<any>renderWhitespace === false) {
+		options.renderWhitespace = 'none';
+	}
+
+	let renderLineHighlight = options.renderLineHighlight;
+	if (<any>renderLineHighlight === true) {
+		options.renderLineHighlight = 'line';
+	} else if (<any>renderLineHighlight === false) {
+		options.renderLineHighlight = 'none';
+	}
 }
 
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
@@ -144,7 +170,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	public readonly onDidChange: Event<IConfigurationChangedEvent> = this._onDidChange.event;
 
 	private _rawOptions2: RawEditorOptions;
-	private _validatedOptions2: ValidatedEditorOptions;
+	protected _validatedOptions2: ValidatedEditorOptions;
 	public options!: ComputedEditorOptions;
 
 	constructor(isSimpleWidget: boolean, options: IEditorOptions) {
@@ -358,7 +384,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.cursorSurroundingLines': {
 			'type': 'number',
-			'default': EDITOR_DEFAULTS.viewInfo.cursorSurroundingLines,
+			'default': EditorOptions.cursorSurroundingLines.defaultValue,
 			'description': nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or `scrollOffset` in some other editors.")
 		},
 		'editor.renderFinalNewline': {
@@ -371,12 +397,12 @@ const editorConfiguration: IConfigurationNode = {
 			'items': {
 				'type': 'number'
 			},
-			'default': EDITOR_DEFAULTS.viewInfo.rulers,
+			'default': EditorOptions.rulers.defaultValue,
 			'description': nls.localize('rulers', "Render vertical rulers after a certain number of monospace characters. Use multiple values for multiple rulers. No rulers are drawn if array is empty.")
 		},
 		'editor.wordSeparators': {
 			'type': 'string',
-			'default': EDITOR_DEFAULTS.wordSeparators,
+			'default': EditorOptions.wordSeparators.defaultValue,
 			'description': nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations.")
 		},
 		'editor.tabSize': {
@@ -411,22 +437,22 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.roundedSelection': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.roundedSelection,
+			'default': EditorOptions.roundedSelection.defaultValue,
 			'description': nls.localize('roundedSelection', "Controls whether selections should have rounded corners.")
 		},
 		'editor.scrollBeyondLastLine': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastLine,
+			'default': EditorOptions.scrollBeyondLastLine.defaultValue,
 			'description': nls.localize('scrollBeyondLastLine', "Controls whether the editor will scroll beyond the last line.")
 		},
 		'editor.scrollBeyondLastColumn': {
 			'type': 'number',
-			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastColumn,
+			'default': EditorOptions.scrollBeyondLastColumn.defaultValue,
 			'description': nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally.")
 		},
 		'editor.smoothScrolling': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.smoothScrolling,
+			'default': EditorOptions.smoothScrolling.defaultValue,
 			'description': nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.")
 		},
 		'editor.minimap.enabled': {
@@ -573,7 +599,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.multiCursorMergeOverlapping': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.multiCursorMergeOverlapping,
+			'default': EditorOptions.multiCursorMergeOverlapping.defaultValue,
 			'description': nls.localize('multiCursorMergeOverlapping', "Merge multiple cursors when they are overlapping.")
 		},
 		'editor.quickSuggestions': {
@@ -629,9 +655,8 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('editor.autoClosingBrackets.languageDefined', "Use language configurations to determine when to autoclose brackets."),
 				nls.localize('editor.autoClosingBrackets.beforeWhitespace', "Autoclose brackets only when the cursor is to the left of whitespace."),
 				'',
-
 			],
-			'default': EDITOR_DEFAULTS.autoClosingBrackets,
+			'default': EditorOptions.autoClosingBrackets.defaultValue,
 			'description': nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after the user adds an opening bracket.")
 		},
 		'editor.autoClosingQuotes': {
@@ -643,7 +668,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('editor.autoClosingQuotes.beforeWhitespace', "Autoclose quotes only when the cursor is to the left of whitespace."),
 				'',
 			],
-			'default': EDITOR_DEFAULTS.autoClosingQuotes,
+			'default': EditorOptions.autoClosingQuotes.defaultValue,
 			'description': nls.localize('autoClosingQuotes', "Controls whether the editor should automatically close quotes after the user adds an opening quote.")
 		},
 		'editor.autoClosingOvertype': {
@@ -654,7 +679,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('editor.autoClosingOvertype.auto', "Type over closing quotes or brackets only if they were automatically inserted."),
 				nls.localize('editor.autoClosingOvertype.never', "Never type over closing quotes or brackets."),
 			],
-			'default': EDITOR_DEFAULTS.autoClosingOvertype,
+			'default': EditorOptions.autoClosingOvertype.defaultValue,
 			'description': nls.localize('autoClosingOvertype', "Controls whether the editor should type over closing quotes or brackets.")
 		},
 		'editor.autoSurround': {
@@ -666,7 +691,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('editor.autoSurround.quotes', "Surround with quotes but not brackets."),
 				''
 			],
-			'default': EDITOR_DEFAULTS.autoSurround,
+			'default': EditorOptions.autoSurround.defaultValue,
 			'description': nls.localize('autoSurround', "Controls whether the editor should automatically surround selections.")
 		},
 		'editor.formatOnType': {
@@ -681,7 +706,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.autoIndent': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.autoIndent,
+			'default': EditorOptions.autoIndent.defaultValue,
 			'description': nls.localize('autoIndent', "Controls whether the editor should automatically adjust the indentation when users type, paste or move lines. Extensions with indentation rules of the language must be available.")
 		},
 		'editor.suggestOnTriggerCharacters': {
@@ -719,12 +744,12 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.emptySelectionClipboard': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.emptySelectionClipboard,
+			'default': EditorOptions.emptySelectionClipboard.defaultValue,
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
 		'editor.copyWithSyntaxHighlighting': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.copyWithSyntaxHighlighting,
+			'default': EditorOptions.copyWithSyntaxHighlighting.defaultValue,
 			'description': nls.localize('copyWithSyntaxHighlighting', "Controls whether syntax highlighting should be copied into the clipboard.")
 		},
 		'editor.wordBasedSuggestions': {
@@ -963,44 +988,44 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.overviewRulerBorder': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.overviewRulerBorder,
+			'default': EditorOptions.overviewRulerBorder.defaultValue,
 			'description': nls.localize('overviewRulerBorder', "Controls whether a border should be drawn around the overview ruler.")
 		},
 		'editor.cursorBlinking': {
 			'type': 'string',
 			'enum': ['blink', 'smooth', 'phase', 'expand', 'solid'],
-			'default': blinkingStyleToString(EDITOR_DEFAULTS.viewInfo.cursorBlinking),
+			'default': EditorOptions.cursorBlinking.defaultValue,
 			'description': nls.localize('cursorBlinking', "Control the cursor animation style.")
 		},
 		'editor.mouseWheelZoom': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.mouseWheelZoom,
+			'default': EditorOptions.mouseWheelZoom.defaultValue,
 			'markdownDescription': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.")
 		},
 		'editor.cursorSmoothCaretAnimation': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.cursorSmoothCaretAnimation,
+			'default': EditorOptions.cursorSmoothCaretAnimation.defaultValue,
 			'description': nls.localize('cursorSmoothCaretAnimation', "Controls whether the smooth caret animation should be enabled.")
 		},
 		'editor.cursorStyle': {
 			'type': 'string',
 			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],
-			'default': cursorStyleToString(EDITOR_DEFAULTS.viewInfo.cursorStyle),
+			'default': EditorOptions.cursorStyle.defaultValue,
 			'description': nls.localize('cursorStyle', "Controls the cursor style.")
 		},
 		'editor.cursorWidth': {
 			'type': 'integer',
-			'default': EDITOR_DEFAULTS.viewInfo.cursorWidth,
+			'default': EditorOptions.cursorWidth.defaultValue,
 			'markdownDescription': nls.localize('cursorWidth', "Controls the width of the cursor when `#editor.cursorStyle#` is set to `line`.")
 		},
 		'editor.fontLigatures': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.fontLigatures,
+			'default': EditorOptions.fontLigatures.defaultValue,
 			'description': nls.localize('fontLigatures', "Enables/Disables font ligatures.")
 		},
 		'editor.hideCursorInOverviewRuler': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.hideCursorInOverviewRuler,
+			'default': EditorOptions.hideCursorInOverviewRuler.defaultValue,
 			'description': nls.localize('hideCursorInOverviewRuler', "Controls whether the cursor should be hidden in the overview ruler.")
 		},
 		'editor.renderWhitespace': {
@@ -1012,22 +1037,22 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
 				''
 			],
-			default: EDITOR_DEFAULTS.viewInfo.renderWhitespace,
+			default: EditorOptions.renderWhitespace.defaultValue,
 			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters.")
 		},
 		'editor.renderControlCharacters': {
 			'type': 'boolean',
-			default: EDITOR_DEFAULTS.viewInfo.renderControlCharacters,
+			default: EditorOptions.renderControlCharacters.defaultValue,
 			description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters.")
 		},
 		'editor.renderIndentGuides': {
 			'type': 'boolean',
-			default: EDITOR_DEFAULTS.viewInfo.renderIndentGuides,
+			default: EditorOptions.renderIndentGuides.defaultValue,
 			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides.")
 		},
 		'editor.highlightActiveIndentGuide': {
 			'type': 'boolean',
-			default: EDITOR_DEFAULTS.viewInfo.highlightActiveIndentGuide,
+			default: EditorOptions.highlightActiveIndentGuide.defaultValue,
 			description: nls.localize('highlightActiveIndentGuide', "Controls whether the editor should highlight the active indent guide.")
 		},
 		'editor.renderLineHighlight': {
@@ -1039,7 +1064,7 @@ const editorConfiguration: IConfigurationNode = {
 				'',
 				nls.localize('renderLineHighlight.all', "Highlights both the gutter and the current line."),
 			],
-			default: EDITOR_DEFAULTS.viewInfo.renderLineHighlight,
+			default: EditorOptions.renderLineHighlight.defaultValue,
 			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight.")
 		},
 		'editor.codeLens': {
@@ -1071,12 +1096,12 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.glyphMargin': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.viewInfo.glyphMargin,
+			'default': EditorOptions.glyphMargin.defaultValue,
 			'description': nls.localize('glyphMargin', "Controls whether the editor should render the vertical glyph margin. Glyph margin is mostly used for debugging.")
 		},
 		'editor.useTabStops': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.useTabStops,
+			'default': EditorOptions.useTabStops.defaultValue,
 			'description': nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.")
 		},
 		'editor.trimAutoWhitespace': {
@@ -1091,7 +1116,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.dragAndDrop': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.dragAndDrop,
+			'default': EditorOptions.dragAndDrop.defaultValue,
 			'description': nls.localize('dragAndDrop', "Controls whether the editor should allow moving selections via drag and drop.")
 		},
 		'editor.accessibilitySupport': {
@@ -1107,7 +1132,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.showUnused': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.showUnused,
+			'default': EditorOptions.showUnused.defaultValue,
 			'description': nls.localize('showUnused', "Controls fading out of unused code.")
 		},
 		'editor.links': {

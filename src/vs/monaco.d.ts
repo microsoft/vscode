@@ -2746,7 +2746,7 @@ declare namespace monaco.editor {
 		 * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
 		 * Defaults to 'blink'.
 		 */
-		cursorBlinking?: string;
+		cursorBlinking?: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid';
 		/**
 		 * Zoom the font in the editor when using the mouse wheel in combination with holding Ctrl.
 		 * Defaults to false.
@@ -2761,7 +2761,7 @@ declare namespace monaco.editor {
 		 * Control the cursor style, either 'block' or 'line'.
 		 * Defaults to 'line'.
 		 */
-		cursorStyle?: string;
+		cursorStyle?: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin';
 		/**
 		 * Control the width of the cursor when cursorStyle is set to 'line'
 		 */
@@ -3269,35 +3269,6 @@ declare namespace monaco.editor {
 		readonly cycle: boolean;
 	}
 
-	export interface InternalEditorViewOptions {
-		readonly extraEditorClassName: string;
-		readonly disableMonospaceOptimizations: boolean;
-		readonly rulers: number[];
-		readonly cursorSurroundingLines: number;
-		readonly glyphMargin: boolean;
-		readonly revealHorizontalRightPadding: number;
-		readonly roundedSelection: boolean;
-		readonly overviewRulerLanes: number;
-		readonly overviewRulerBorder: boolean;
-		readonly cursorBlinking: TextEditorCursorBlinkingStyle;
-		readonly mouseWheelZoom: boolean;
-		readonly cursorSmoothCaretAnimation: boolean;
-		readonly cursorStyle: TextEditorCursorStyle;
-		readonly cursorWidth: number;
-		readonly hideCursorInOverviewRuler: boolean;
-		readonly scrollBeyondLastLine: boolean;
-		readonly scrollBeyondLastColumn: number;
-		readonly smoothScrolling: boolean;
-		readonly stopRenderingLineAfter: number;
-		readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'all';
-		readonly renderControlCharacters: boolean;
-		readonly fontLigatures: boolean;
-		readonly renderIndentGuides: boolean;
-		readonly highlightActiveIndentGuide: boolean;
-		readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-		readonly fixedOverflowWidgets: boolean;
-	}
-
 	export interface EditorContribOptions {
 		readonly hover: InternalEditorHoverOptions;
 		readonly links: boolean;
@@ -3339,25 +3310,9 @@ declare namespace monaco.editor {
 	 */
 	export class InternalEditorOptions {
 		readonly _internalEditorOptionsBrand: void;
-		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: number;
-		readonly editorClassName: string;
 		readonly lineHeight: number;
-		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
-		readonly multiCursorMergeOverlapping: boolean;
-		readonly showUnused: boolean;
-		readonly wordSeparators: string;
-		readonly autoClosingBrackets: EditorAutoClosingStrategy;
-		readonly autoClosingQuotes: EditorAutoClosingStrategy;
-		readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
-		readonly autoSurround: EditorAutoSurroundStrategy;
-		readonly autoIndent: boolean;
-		readonly useTabStops: boolean;
-		readonly dragAndDrop: boolean;
-		readonly emptySelectionClipboard: boolean;
-		readonly copyWithSyntaxHighlighting: boolean;
 		readonly fontInfo: FontInfo;
-		readonly viewInfo: InternalEditorViewOptions;
 		readonly contribInfo: EditorContribOptions;
 	}
 
@@ -3366,24 +3321,9 @@ declare namespace monaco.editor {
 	 */
 	export interface IConfigurationChangedEvent {
 		hasChanged(id: EditorOption): boolean;
-		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: boolean;
-		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
-		readonly multiCursorModifier: boolean;
-		readonly multiCursorMergeOverlapping: boolean;
-		readonly wordSeparators: boolean;
-		readonly autoClosingBrackets: boolean;
-		readonly autoClosingQuotes: boolean;
-		readonly autoClosingOvertype: boolean;
-		readonly autoSurround: boolean;
-		readonly autoIndent: boolean;
-		readonly useTabStops: boolean;
-		readonly dragAndDrop: boolean;
-		readonly emptySelectionClipboard: boolean;
-		readonly copyWithSyntaxHighlighting: boolean;
 		readonly fontInfo: boolean;
-		readonly viewInfo: boolean;
 		readonly contribInfo: boolean;
 	}
 
@@ -3595,51 +3535,131 @@ declare namespace monaco.editor {
 
 	export enum EditorOption {
 		accessibilitySupport = 0,
-		ariaLabel = 1,
-		fastScrollSensitivity = 2,
-		folding = 3,
-		glyphMargin = 4,
-		inDiffEditor = 5,
-		lineDecorationsWidth = 6,
-		lineNumbersMinChars = 7,
-		minimap = 8,
-		mouseWheelScrollSensitivity = 9,
-		readOnly = 10,
-		renderFinalNewline = 11,
-		renderLineNumbers = 12,
-		scrollbar = 13,
-		selectionClipboard = 14,
-		selectOnLineNumbers = 15,
-		tabFocusMode = 16,
-		wordWrap = 17,
-		wordWrapBreakAfterCharacters = 18,
-		wordWrapBreakBeforeCharacters = 19,
-		wordWrapBreakObtrusiveCharacters = 20,
-		wordWrapColumn = 21,
-		wordWrapMinified = 22,
-		wrappingIndent = 23,
-		layoutInfo = 24,
-		wrappingInfo = 25
+		autoClosingBrackets = 1,
+		autoClosingOvertype = 2,
+		autoClosingQuotes = 3,
+		autoIndent = 4,
+		automaticLayout = 5,
+		autoSurround = 6,
+		copyWithSyntaxHighlighting = 7,
+		cursorBlinking = 8,
+		cursorSmoothCaretAnimation = 9,
+		cursorStyle = 10,
+		cursorSurroundingLines = 11,
+		cursorWidth = 12,
+		disableLayerHinting = 13,
+		dragAndDrop = 14,
+		emptySelectionClipboard = 15,
+		extraEditorClassName = 16,
+		fastScrollSensitivity = 17,
+		fixedOverflowWidgets = 18,
+		folding = 19,
+		fontLigatures = 20,
+		glyphMargin = 21,
+		hideCursorInOverviewRuler = 22,
+		highlightActiveIndentGuide = 23,
+		inDiffEditor = 24,
+		lineDecorationsWidth = 25,
+		lineNumbers = 26,
+		lineNumbersMinChars = 27,
+		minimap = 28,
+		mouseStyle = 29,
+		mouseWheelScrollSensitivity = 30,
+		mouseWheelZoom = 31,
+		multiCursorMergeOverlapping = 32,
+		multiCursorModifier = 33,
+		overviewRulerBorder = 34,
+		overviewRulerLanes = 35,
+		readOnly = 36,
+		renderControlCharacters = 37,
+		renderIndentGuides = 38,
+		renderFinalNewline = 39,
+		renderLineHighlight = 40,
+		renderWhitespace = 41,
+		revealHorizontalRightPadding = 42,
+		roundedSelection = 43,
+		rulers = 44,
+		scrollbar = 45,
+		scrollBeyondLastColumn = 46,
+		scrollBeyondLastLine = 47,
+		selectionClipboard = 48,
+		selectOnLineNumbers = 49,
+		showUnused = 50,
+		smoothScrolling = 51,
+		stopRenderingLineAfter = 52,
+		useTabStops = 53,
+		wordSeparators = 54,
+		wordWrap = 55,
+		wordWrapBreakAfterCharacters = 56,
+		wordWrapBreakBeforeCharacters = 57,
+		wordWrapBreakObtrusiveCharacters = 58,
+		wordWrapColumn = 59,
+		wordWrapMinified = 60,
+		wrappingIndent = 61,
+		ariaLabel = 62,
+		disableMonospaceOptimizations = 63,
+		editorClassName = 64,
+		tabFocusMode = 65,
+		layoutInfo = 66,
+		wrappingInfo = 67
 	}
 
 	export const EditorOptions: {
 		accessibilitySupport: any;
-		ariaLabel: any;
+		autoClosingBrackets: any;
+		autoClosingOvertype: any;
+		autoClosingQuotes: any;
+		autoIndent: any;
+		automaticLayout: any;
+		autoSurround: any;
+		copyWithSyntaxHighlighting: any;
+		cursorBlinking: any;
+		cursorSmoothCaretAnimation: any;
+		cursorStyle: any;
+		cursorSurroundingLines: any;
+		cursorWidth: any;
+		disableLayerHinting: any;
+		dragAndDrop: any;
+		emptySelectionClipboard: any;
+		extraEditorClassName: any;
 		fastScrollSensitivity: any;
+		fixedOverflowWidgets: any;
 		folding: any;
+		fontLigatures: any;
 		glyphMargin: any;
+		hideCursorInOverviewRuler: any;
+		highlightActiveIndentGuide: any;
 		inDiffEditor: any;
 		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, "lineDecorationsWidth", string | number, string | number>;
+		lineNumbers: any;
 		lineNumbersMinChars: any;
 		minimap: any;
+		mouseStyle: any;
 		mouseWheelScrollSensitivity: any;
+		mouseWheelZoom: any;
+		multiCursorMergeOverlapping: any;
+		multiCursorModifier: any;
+		overviewRulerBorder: any;
+		overviewRulerLanes: any;
 		readOnly: any;
+		renderControlCharacters: any;
+		renderIndentGuides: any;
 		renderFinalNewline: any;
-		renderLineNumbers: any;
+		renderLineHighlight: any;
+		renderWhitespace: any;
+		revealHorizontalRightPadding: any;
+		roundedSelection: any;
+		rulers: any;
 		scrollbar: any;
+		scrollBeyondLastColumn: any;
+		scrollBeyondLastLine: any;
 		selectionClipboard: any;
 		selectOnLineNumbers: any;
-		tabFocusMode: any;
+		showUnused: any;
+		smoothScrolling: any;
+		stopRenderingLineAfter: any;
+		useTabStops: any;
+		wordSeparators: any;
 		wordWrap: any;
 		wordWrapBreakAfterCharacters: any;
 		wordWrapBreakBeforeCharacters: any;
@@ -3647,6 +3667,10 @@ declare namespace monaco.editor {
 		wordWrapColumn: any;
 		wordWrapMinified: any;
 		wrappingIndent: any;
+		ariaLabel: any;
+		disableMonospaceOptimizations: any;
+		editorClassName: any;
+		tabFocusMode: any;
 		layoutInfo: any;
 		wrappingInfo: any;
 	};
