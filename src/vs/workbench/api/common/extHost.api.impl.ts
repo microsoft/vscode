@@ -785,6 +785,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		};
 
 		return <typeof vscode>{
+			extensionId: extension.identifier.value,
 			version: initData.version,
 			// namespaces
 			commands,

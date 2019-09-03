@@ -16,6 +16,11 @@
 
 declare module 'vscode' {
 
+	/**
+	 * The Id of the extension that depends on 'vscode' (in the form of publisher.extensionName).
+	 */
+	export const extensionId: string;
+
 	//#region Joh - call hierarchy
 
 	export enum CallHierarchyDirection {
