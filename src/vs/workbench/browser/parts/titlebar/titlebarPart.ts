@@ -554,7 +554,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				rightMarker < (this.element.clientWidth + this.title.clientWidth) / 2) {
 				this.title.style.position = null;
 				this.title.style.left = null;
-				this.title.style.transform = null;
+				this.title.style.transform = '';
 				return;
 			}
 		}

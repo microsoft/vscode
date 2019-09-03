@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, AbstractLogService, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
 
 interface ILog {
 	level: LogLevel;
@@ -28,8 +28,9 @@ export class BufferLogService extends AbstractLogService implements ILogService 
 	private buffer: ILog[] = [];
 	private _logger: ILogService | undefined = undefined;
 
-	constructor() {
+	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
 		super();
+		this.setLevel(logLevel);
 		this._register(this.onDidChangeLogLevel(level => {
 			if (this._logger) {
 				this._logger.setLevel(level);

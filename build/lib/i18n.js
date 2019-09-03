@@ -176,6 +176,7 @@ class XLF {
         this.buffer.push(line.toString());
     }
 }
+exports.XLF = XLF;
 XLF.parsePseudo = function (xlfString) {
     return new Promise((resolve) => {
         let parser = new xml2js.Parser();
@@ -248,7 +249,6 @@ XLF.parse = function (xlfString) {
         });
     });
 };
-exports.XLF = XLF;
 class Limiter {
     constructor(maxDegreeOfParalellism) {
         this.maxDegreeOfParalellism = maxDegreeOfParalellism;

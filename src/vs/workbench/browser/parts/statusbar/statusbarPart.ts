@@ -57,7 +57,7 @@ class StatusbarViewModel extends Disposable {
 	private readonly _entries: IStatusbarViewModelEntry[] = [];
 	get entries(): IStatusbarViewModelEntry[] { return this._entries; }
 
-	private hidden: Set<string>;
+	private hidden!: Set<string>;
 
 	constructor(private storageService: IStorageService) {
 		super();
@@ -334,14 +334,14 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	//#endregion
 
-	private styleElement: HTMLStyleElement;
+	private styleElement!: HTMLStyleElement;
 
 	private pendingEntries: IPendingStatusbarEntry[] = [];
 
 	private readonly viewModel: StatusbarViewModel;
 
-	private leftItemsContainer: HTMLElement;
-	private rightItemsContainer: HTMLElement;
+	private leftItemsContainer!: HTMLElement;
+	private rightItemsContainer!: HTMLElement;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -627,10 +627,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 }
 
 class StatusbarEntryItem extends Disposable {
-	private entry: IStatusbarEntry;
+	private entry!: IStatusbarEntry;
 
-	private labelContainer: HTMLElement;
-	private label: OcticonLabel;
+	private labelContainer!: HTMLElement;
+	private label!: OcticonLabel;
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());

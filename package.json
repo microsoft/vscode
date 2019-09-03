@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.39.0",
-  "distro": "b573f48a3d523dd3a30958a0ebd88d00fd657c68",
+  "distro": "323c0a11187dcde94de3a5d913cd44437e85369a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -131,7 +131,7 @@
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
     "tslint": "^5.16.0",
-    "typescript": "3.5.2",
+    "typescript": "3.6",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
