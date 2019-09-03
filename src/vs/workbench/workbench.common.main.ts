@@ -76,6 +76,9 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
+import 'vs/workbench/services/userData/common/userIdentityService';
+import 'vs/workbench/services/userData/common/userDataProviderService';
+import 'vs/workbench/services/userData/common/userDataSyncService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
