@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { equals, deepClone } from 'vs/base/common/objects';
+import { equals } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue, Barrier } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -16,13 +16,13 @@ import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides
 import { Configuration, WorkspaceConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -31,7 +31,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private workspace: Workspace;
 	private completeWorkspaceBarrier: Barrier;
@@ -491,6 +491,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		if (this.workspace) {
 			this._configuration.updateDefaultConfiguration(this.defaultConfiguration);
 			if (this.remoteUserConfiguration) {
+				this._configuration.updateLocalUserConfiguration(this.localUserConfiguration.reprocess());
 				this._configuration.updateRemoteUserConfiguration(this.remoteUserConfiguration.reprocess());
 			}
 			if (this.getWorkbenchState() === WorkbenchState.FOLDER) {
@@ -506,29 +507,17 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private registerConfigurationSchemas(): void {
 		if (this.workspace) {
 			const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-			const convertToNotSuggestedProperties = (properties: IJSONSchemaMap): IJSONSchemaMap => {
-				return Object.keys(properties).reduce((result: IJSONSchemaMap, property) => {
-					result[property] = deepClone(properties[property]);
-					result[property].doNotSuggest = true;
-					return result;
-				}, {});
-			};
-
-			const unsupportedApplicationSettings = convertToNotSuggestedProperties(applicationSettings.properties);
-			const unsupportedMachineSettings = convertToNotSuggestedProperties(machineSettings.properties);
-			const unsupportedRemoteMachineSettings = convertToNotSuggestedProperties(machineSettings.properties);
-			const allSettingsSchema: IJSONSchema = { properties: allSettings.properties, patternProperties: allSettings.patternProperties, additionalProperties: true };
-			const userSettingsSchema: IJSONSchema = this.remoteUserConfiguration ? { properties: { ...applicationSettings.properties, ...unsupportedRemoteMachineSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true } : allSettingsSchema;
-			const machineSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true };
-			const workspaceSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...unsupportedMachineSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true };
+			const allSettingsSchema: IJSONSchema = { properties: allSettings.properties, patternProperties: allSettings.patternProperties, additionalProperties: true, allowsTrailingCommas: true, allowComments: true };
+			const userSettingsSchema: IJSONSchema = this.remoteUserConfiguration ? { properties: { ...applicationSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowsTrailingCommas: true, allowComments: true } : allSettingsSchema;
+			const machineSettingsSchema: IJSONSchema = { properties: { ...machineSettings.properties, ...machineOverridableSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowsTrailingCommas: true, allowComments: true };
+			const workspaceSettingsSchema: IJSONSchema = { properties: { ...machineOverridableSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowsTrailingCommas: true, allowComments: true };
 
 			jsonRegistry.registerSchema(defaultSettingsSchemaId, allSettingsSchema);
 			jsonRegistry.registerSchema(userSettingsSchemaId, userSettingsSchema);
 			jsonRegistry.registerSchema(machineSettingsSchemaId, machineSettingsSchema);
 
 			if (WorkbenchState.WORKSPACE === this.getWorkbenchState()) {
-				const unsupportedWindowSettings = convertToNotSuggestedProperties(windowSettings.properties);
-				const folderSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...unsupportedMachineSettings, ...unsupportedWindowSettings, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true };
+				const folderSettingsSchema: IJSONSchema = { properties: { ...machineOverridableSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowsTrailingCommas: true, allowComments: true };
 				jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
 				jsonRegistry.registerSchema(folderSettingsSchemaId, folderSettingsSchema);
 			} else {

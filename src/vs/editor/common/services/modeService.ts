@@ -28,7 +28,7 @@ export interface ILanguageSelection extends IDisposable {
 }
 
 export interface IModeService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onDidCreateMode: Event<IMode>;
 

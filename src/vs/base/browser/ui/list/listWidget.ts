@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole, ListError } from './list';
 import { ListView, IListViewOptions, IListViewDragAndDrop, IAriaProvider } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -1170,6 +1170,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(
+		private user: string,
 		container: HTMLElement,
 		virtualDelegate: IListVirtualDelegate<T>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
@@ -1261,11 +1262,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
 		if (start < 0 || start > this.view.length) {
-			throw new Error(`Invalid start index: ${start}`);
+			throw new ListError(this.user, `Invalid start index: ${start}`);
 		}
 
 		if (deleteCount < 0) {
-			throw new Error(`Invalid delete count: ${deleteCount}`);
+			throw new ListError(this.user, `Invalid delete count: ${deleteCount}`);
 		}
 
 		if (deleteCount === 0 && elements.length === 0) {
@@ -1348,7 +1349,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
@@ -1366,7 +1367,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	setFocus(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
@@ -1518,7 +1519,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	reveal(index: number, relativeTop?: number): void {
 		if (index < 0 || index >= this.length) {
-			throw new Error(`Invalid index ${index}`);
+			throw new ListError(this.user, `Invalid index ${index}`);
 		}
 
 		const scrollTop = this.view.getScrollTop();
@@ -1547,7 +1548,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	 */
 	getRelativeTop(index: number): number | null {
 		if (index < 0 || index >= this.length) {
-			throw new Error(`Invalid index ${index}`);
+			throw new ListError(this.user, `Invalid index ${index}`);
 		}
 
 		const scrollTop = this.view.getScrollTop();
@@ -1574,7 +1575,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	open(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
@@ -1584,7 +1585,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	pin(indexes: number[]): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 

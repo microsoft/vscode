@@ -25,8 +25,8 @@ exports.serviceWorker = [{
 
 exports.workerExtensionHost = [entrypoint('vs/workbench/services/extensions/worker/extensionHostWorker')];
 
-exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.desktop.main']);
-exports.workbenchWeb = entrypoint('vs/workbench/workbench.web.api');
+exports.workbenchDesktop = require('./vs/workbench/buildfile.desktop').collectModules();
+exports.workbenchWeb = require('./vs/workbench/buildfile.web').collectModules();
 
 exports.keyboardMaps = [
 	entrypoint('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),

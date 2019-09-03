@@ -24,7 +24,7 @@ type Credentials = {
 
 export class ProxyAuthHandler {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private retryCount = 0;
 	private disposables: IDisposable[] = [];

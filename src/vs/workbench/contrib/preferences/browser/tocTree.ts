@@ -204,7 +204,7 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 			collapseByDefault: true
 		};
 
-		super(container,
+		super('SettingsTOC', container,
 			new TOCTreeDelegate(),
 			[new TOCRenderer()],
 			options);

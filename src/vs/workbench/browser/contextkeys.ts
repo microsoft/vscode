@@ -209,7 +209,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.multipleEditorGroupsContext.reset();
 		}
 
-		this.activeEditorGroupIndex.set(activeGroup.index);
+		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
 		this.activeEditorGroupLast.set(activeGroup.index === groupCount - 1);
 
 		if (activeControl) {

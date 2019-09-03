@@ -602,10 +602,12 @@ let commandsSchemas: IJSONSchema[] = [];
 let commandsEnum: string[] = [];
 let commandsEnumDescriptions: (string | undefined)[] = [];
 let schema: IJSONSchema = {
-	'id': schemaId,
-	'type': 'array',
-	'title': nls.localize('keybindings.json.title', "Keybindings configuration"),
-	'definitions': {
+	id: schemaId,
+	type: 'array',
+	title: nls.localize('keybindings.json.title', "Keybindings configuration"),
+	allowsTrailingCommas: true,
+	allowComments: true,
+	definitions: {
 		'editorGroupsSchema': {
 			'type': 'array',
 			'items': {
@@ -623,7 +625,7 @@ let schema: IJSONSchema = {
 			}
 		}
 	},
-	'items': {
+	items: {
 		'required': ['key'],
 		'type': 'object',
 		'defaultSnippets': [{ 'body': { 'key': '$1', 'command': '$2', 'when': '$3' } }],

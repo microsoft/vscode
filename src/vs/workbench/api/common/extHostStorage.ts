@@ -16,7 +16,7 @@ export interface IStorageChangeEvent {
 
 export class ExtHostStorage implements ExtHostStorageShape {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	private _proxy: MainThreadStorageShape;
 

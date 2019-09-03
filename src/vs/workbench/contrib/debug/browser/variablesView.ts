@@ -86,7 +86,7 @@ export class VariablesView extends ViewletPanel {
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new VariablesDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
 			new VariablesDataSource(), {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
@@ -179,7 +179,7 @@ export class VariablesView extends ViewletPanel {
 				const dataid = response.dataId;
 				if (dataid) {
 					actions.push(new Separator());
-					actions.push(new Action('debug.addDataBreakpoint', nls.localize('setDataBreakpoint', "Set Data Breakpoint"), undefined, true, () => {
+					actions.push(new Action('debug.breakWhenValueChanges', nls.localize('breakWhenValueChanges', "Break When Value Changes"), undefined, true, () => {
 						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist);
 					}));
 				}

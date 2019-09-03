@@ -5,7 +5,7 @@
 
 import * as Assert from 'vs/base/common/assert';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { INavigator } from 'vs/base/common/iterator';
 import * as _ from './tree';
 import { Event, Emitter, EventMultiplexer, Relay } from 'vs/base/common/event';
@@ -192,7 +192,7 @@ export class ItemRegistry {
 	}
 
 	public dispose(): void {
-		this.items = null!; // StrictNullOverride: nulling out ok in dispose
+		this.items = {};
 
 		this._onDidRevealItem.dispose();
 		this._onExpandItem.dispose();
@@ -864,8 +864,8 @@ export class TreeModel {
 	private context: _.ITreeContext;
 	private lock!: Lock;
 	private input: Item | null;
-	private registry!: ItemRegistry;
-	private registryDisposable!: IDisposable;
+	private registry: ItemRegistry = new ItemRegistry();
+	private registryDisposable: IDisposable = Disposable.None;
 	private traitsToItems: ITraitMap;
 
 	private _onSetInput = new Emitter<IInputEvent>();
@@ -1471,11 +1471,7 @@ export class TreeModel {
 	}
 
 	public dispose(): void {
-		if (this.registry) {
-			this.registry.dispose();
-			this.registry = null!; // StrictNullOverride: nulling out ok in dispose
-		}
-
+		this.registry.dispose();
 		this._onSetInput.dispose();
 		this._onDidSetInput.dispose();
 		this._onRefresh.dispose();

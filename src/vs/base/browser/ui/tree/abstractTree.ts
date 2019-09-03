@@ -1087,6 +1087,7 @@ interface ITreeNodeListOptions<T, TFilterData, TRef> extends IListOptions<ITreeN
 class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>> {
 
 	constructor(
+		user: string,
 		container: HTMLElement,
 		virtualDelegate: IListVirtualDelegate<ITreeNode<T, TFilterData>>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
@@ -1094,7 +1095,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 		private selectionTrait: Trait<T>,
 		options: ITreeNodeListOptions<T, TFilterData, TRef>
 	) {
-		super(container, virtualDelegate, renderers, options);
+		super(user, container, virtualDelegate, renderers, options);
 	}
 
 	protected createMouseController(options: ITreeNodeListOptions<T, TFilterData, TRef>): MouseController<ITreeNode<T, TFilterData>> {
@@ -1195,6 +1196,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
 
 	constructor(
+		user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
@@ -1220,9 +1222,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		this.focus = new Trait(_options.identityProvider);
 		this.selection = new Trait(_options.identityProvider);
-		this.view = new TreeNodeList(container, treeDelegate, this.renderers, this.focus, this.selection, { ...asListOptions(() => this.model, _options), tree: this });
+		this.view = new TreeNodeList(user, container, treeDelegate, this.renderers, this.focus, this.selection, { ...asListOptions(() => this.model, _options), tree: this });
 
-		this.model = this.createModel(this.view, _options);
+		this.model = this.createModel(user, this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
 		this.model.onDidSplice(e => {
@@ -1586,7 +1588,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model.setCollapsed(location, undefined, recursive);
 	}
 
-	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
+	protected abstract createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
 
 	navigate(start?: TRef): ITreeNavigator<T> {
 		return new TreeNavigator(this.view, this.model, start);

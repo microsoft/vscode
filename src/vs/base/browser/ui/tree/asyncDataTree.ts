@@ -6,7 +6,7 @@
 import { ComposedTreeDelegate, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
@@ -339,6 +339,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidDispose(): Event<void> { return this.tree.onDidDispose; }
 
 	constructor(
+		private user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
@@ -354,7 +355,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeSlowState.event));
 		const objectTreeOptions = asObjectTreeOptions<TInput, T, TFilterData>(options) || {};
 
-		this.tree = new ObjectTree(container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
+		this.tree = new ObjectTree(user, container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 
 		this.root = createAsyncDataTreeNode({
 			element: undefined!,
@@ -464,7 +465,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	async updateChildren(element: TInput | T = this.root.element, recursive = true, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
 		if (typeof this.root.element === 'undefined') {
-			throw new Error('Tree input not set');
+			throw new TreeError(this.user, 'Tree input not set');
 		}
 
 		if (this.root.loading) {
@@ -515,7 +516,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	async expand(element: T, recursive: boolean = false): Promise<boolean> {
 		if (typeof this.root.element === 'undefined') {
-			throw new Error('Tree input not set');
+			throw new TreeError(this.user, 'Tree input not set');
 		}
 
 		if (this.root.loading) {
@@ -643,7 +644,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		const node: IAsyncDataTreeNode<TInput, T> | undefined = this.nodes.get((element === this.root.element ? null : element) as T);
 
 		if (!node) {
-			throw new Error(`Data tree node not found: ${element}`);
+			throw new TreeError(this.user, `Data tree node not found: ${element}`);
 		}
 
 		return node;
@@ -875,7 +876,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	getViewState(): IAsyncDataTreeViewState {
 		if (!this.identityProvider) {
-			throw new Error('Can\'t get tree view state without an identity provider');
+			throw new TreeError(this.user, 'Can\'t get tree view state without an identity provider');
 		}
 
 		const getId = (element: T) => this.identityProvider!.getId(element).toString();

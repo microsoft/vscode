@@ -263,6 +263,7 @@ export interface MainThreadKeytarShape extends IDisposable {
 	$setPassword(service: string, account: string, password: string): Promise<void>;
 	$deletePassword(service: string, account: string): Promise<boolean>;
 	$findPassword(service: string): Promise<string | null>;
+	$findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
 }
 
 export interface IRegExpDto {

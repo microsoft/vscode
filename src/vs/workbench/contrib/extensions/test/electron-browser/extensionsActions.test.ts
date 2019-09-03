@@ -2245,7 +2245,7 @@ suite('ExtensionsActions Test', () => {
 			extensionManagementService: remoteExtensionManagementService || createExtensionManagementService()
 		};
 		return {
-			_serviceBrand: {},
+			_serviceBrand: undefined,
 			localExtensionManagementServer: null,
 			remoteExtensionManagementServer,
 			getExtensionManagementServer: (location: URI) => {
@@ -2269,7 +2269,7 @@ suite('ExtensionsActions Test', () => {
 			extensionManagementService: remoteExtensionManagementService || createExtensionManagementService()
 		};
 		return {
-			_serviceBrand: {},
+			_serviceBrand: undefined,
 			localExtensionManagementServer,
 			remoteExtensionManagementServer,
 			getExtensionManagementServer: (location: URI) => {

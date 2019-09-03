@@ -88,9 +88,9 @@ export class WebviewEditor extends BaseEditor {
 		this.withWebview(webview => webview.reload());
 	}
 
-	public layout(_dimension: DOM.Dimension): void {
+	public layout(dimension: DOM.Dimension): void {
 		if (this.input && this.input instanceof WebviewEditorInput) {
-			this.synchronizeWebviewContainerDimensions(this.input.webview);
+			this.synchronizeWebviewContainerDimensions(this.input.webview, dimension);
 			this.input.webview.layout();
 		}
 	}
@@ -114,7 +114,7 @@ export class WebviewEditor extends BaseEditor {
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		const webview = this.input && (this.input as WebviewEditorInput).webview;
 		if (webview) {
 			if (visible) {
@@ -136,7 +136,7 @@ export class WebviewEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	public async setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	public async setInput(input: WebviewEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (this.input && this.input instanceof WebviewEditorInput) {
 			this.input.webview.release(this);
 		}
@@ -170,17 +170,16 @@ export class WebviewEditor extends BaseEditor {
 		this.trackFocus(input.webview);
 	}
 
-	private synchronizeWebviewContainerDimensions(webview: WebviewEditorOverlay) {
+	private synchronizeWebviewContainerDimensions(webview: WebviewEditorOverlay, dimension?: DOM.Dimension) {
 		const webviewContainer = webview.container;
 		if (webviewContainer && webviewContainer.parentElement && this._editorFrame) {
 			const frameRect = this._editorFrame.getBoundingClientRect();
 			const containerRect = webviewContainer.parentElement.getBoundingClientRect();
-
 			webviewContainer.style.position = 'absolute';
 			webviewContainer.style.top = `${frameRect.top - containerRect.top}px`;
 			webviewContainer.style.left = `${frameRect.left - containerRect.left}px`;
-			webviewContainer.style.width = `${frameRect.width}px`;
-			webviewContainer.style.height = `${frameRect.height}px`;
+			webviewContainer.style.width = `${dimension ? dimension.width : frameRect.width}px`;
+			webviewContainer.style.height = `${dimension ? dimension.height : frameRect.height}px`;
 		}
 	}
 

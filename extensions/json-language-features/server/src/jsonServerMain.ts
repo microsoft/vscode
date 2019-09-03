@@ -312,7 +312,7 @@ function validateTextDocument(textDocument: TextDocument, callback?: (diagnostic
 	const jsonDocument = getJSONDocument(textDocument);
 	const version = textDocument.version;
 
-	const documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
+	const documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'warning' } : { comments: 'error', trailingCommas: 'error' };
 	languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
 		setTimeout(() => {
 			const currDocument = documents.get(textDocument.uri);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
@@ -13,7 +13,7 @@ export const IViewletService = createDecorator<IViewletService>('viewletService'
 
 export interface IViewletService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	readonly onDidViewletRegister: Event<ViewletDescriptor>;
 	readonly onDidViewletDeregister: Event<ViewletDescriptor>;

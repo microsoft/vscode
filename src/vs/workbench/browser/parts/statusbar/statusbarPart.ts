@@ -11,7 +11,7 @@ import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -323,7 +323,7 @@ class HideStatusbarEntryAction extends Action {
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	_serviceBrand!: ServiceIdentifier<IStatusbarService>;
+	_serviceBrand: undefined;
 
 	//#region IView
 
@@ -580,9 +580,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Border color
 		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
-		container.style.borderTopWidth = borderColor ? '1px' : null;
-		container.style.borderTopStyle = borderColor ? 'solid' : null;
-		container.style.borderTopColor = borderColor;
+		if (borderColor) {
+			addClass(container, 'status-border-top');
+			container.style.setProperty('--status-border-top-color', borderColor.toString());
+		} else {
+			removeClass(container, 'status-border-top');
+			container.style.removeProperty('--status-border-top-color');
+		}
 
 		// Notification Beak
 		if (!this.styleElement) {

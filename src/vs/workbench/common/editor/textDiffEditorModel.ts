@@ -17,7 +17,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	protected readonly _originalModel: BaseTextEditorModel;
 	protected readonly _modifiedModel: BaseTextEditorModel;
 
-	private _textDiffEditorModel: IDiffEditorModel | null;
+	private _textDiffEditorModel: IDiffEditorModel | null = null;
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);

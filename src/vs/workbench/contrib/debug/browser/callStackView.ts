@@ -105,7 +105,7 @@ export class CallStackView extends ViewletPanel {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, treeContainer, new CallStackDelegate(), [
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
 			new SessionsRenderer(),
 			new ThreadsRenderer(),
 			this.instantiationService.createInstance(StackFramesRenderer),

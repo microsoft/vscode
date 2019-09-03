@@ -92,7 +92,7 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ResourceLabelFormattersHandler, LifecyclePhase.Restored);
 
 export class LabelService implements ILabelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private formatters: ResourceLabelFormatter[] = [];
 	private readonly _onDidChangeFormatters = new Emitter<void>();

@@ -10,7 +10,7 @@ import { DynamicWebviewEditorOverlay } from './dynamicWebviewEditorOverlay';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class WebviewService implements IWebviewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
