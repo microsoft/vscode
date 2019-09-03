@@ -55,8 +55,8 @@ export interface ICursors {
 	setColumnSelectData(columnSelectData: IColumnSelectData): void;
 
 	setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
-	reveal(horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
-	revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
+	reveal(source: string, horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
+	revealRange(source: string, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
 
 	scrollTo(desiredScrollTop: number): void;
 

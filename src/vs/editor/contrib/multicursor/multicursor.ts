@@ -72,7 +72,7 @@ export class InsertCursorAbove extends EditorAction {
 			CursorChangeReason.Explicit,
 			CursorMoveCommands.addCursorUp(context, cursors.getAll(), useLogicalLine)
 		);
-		cursors.reveal(true, RevealTarget.TopMost, ScrollType.Smooth);
+		cursors.reveal(args.source, true, RevealTarget.TopMost, ScrollType.Smooth);
 	}
 }
 
@@ -121,7 +121,7 @@ export class InsertCursorBelow extends EditorAction {
 			CursorChangeReason.Explicit,
 			CursorMoveCommands.addCursorDown(context, cursors.getAll(), useLogicalLine)
 		);
-		cursors.reveal(true, RevealTarget.BottomMost, ScrollType.Smooth);
+		cursors.reveal(args.source, true, RevealTarget.BottomMost, ScrollType.Smooth);
 	}
 }
 
