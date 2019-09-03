@@ -85,7 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
 			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 
-			if (!commit) { // dev mode
+			if (!commit || env['TEST_RESOLVER_USE_SERVER_FROM_SOURCES']) { // dev mode
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
