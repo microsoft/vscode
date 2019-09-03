@@ -12,6 +12,7 @@ import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/v
 import { DomReadingContext, ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { HorizontalRange, IViewLines, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -71,6 +72,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _typicalHalfwidthCharacterWidth: number;
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
+	private _selections: Selection[];
 	private _scrollOff: number;
 	private _canUseLayerHinting: boolean;
 	private _viewLineOptions: ViewLineOptions;
@@ -98,6 +100,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._scrollOff = conf.editor.viewInfo.cursorSurroundingLines;
 		this._canUseLayerHinting = conf.editor.canUseLayerHinting;
 		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
+		this._selections = [];
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName('view-lines');
@@ -188,6 +191,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return false;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._selections = e.selections;
 		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
 		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
 		let r = false;
@@ -223,7 +227,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		// Using the future viewport here in order to handle multiple
 		// incoming reveal range requests that might all desire to be animated
-		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.range, e.verticalType);
+		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.source, e.range, e.verticalType);
 
 		// validate the new desired scroll top
 		let newScrollPosition = this._context.viewLayout.validateScrollPosition({ scrollTop: desiredScrollTop });
@@ -589,7 +593,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 	}
 
-	private _computeScrollTopToRevealRange(viewport: Viewport, range: Range, verticalType: viewEvents.VerticalRevealType): number {
+	private _computeScrollTopToRevealRange(viewport: Viewport, source: string, range: Range, verticalType: viewEvents.VerticalRevealType): number {
 		const viewportStartY = viewport.top;
 		const viewportHeight = viewport.height;
 		const viewportEndY = viewportStartY + viewportHeight;
@@ -600,9 +604,16 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.startLineNumber);
 		boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
 
-		const context = Math.min((viewportHeight / this._lineHeight) / 2, this._scrollOff);
-		boxStartY -= context * this._lineHeight;
-		boxEndY += Math.max(0, (context - 1)) * this._lineHeight;
+		const shouldIgnoreScrollOff = source === 'mouse' && (
+			this._selections.length > 1 // scroll off might trigger scrolling and mess up with multi cursor
+			|| (this._selections.length > 0 && this._selections[0].isEmpty()) // we don't want to single click triggering selection
+		);
+
+		if (!shouldIgnoreScrollOff) {
+			const context = Math.min((viewportHeight / this._lineHeight) / 2, this._scrollOff);
+			boxStartY -= context * this._lineHeight;
+			boxEndY += Math.max(0, (context - 1)) * this._lineHeight;
+		}
 
 		if (verticalType === viewEvents.VerticalRevealType.Simple || verticalType === viewEvents.VerticalRevealType.Bottom) {
 			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom
