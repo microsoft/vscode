@@ -8,7 +8,6 @@ import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
-import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toCanonicalName } from 'vs/base/node/encoding';
 import * as pfs from 'vs/base/node/pfs';
@@ -17,9 +16,9 @@ import { TextSearchProvider, TextSearchResult, TextSearchMatch, TextSearchComple
 
 export class TextSearchManager {
 
-	private collector: TextSearchResultsCollector;
+	private collector: TextSearchResultsCollector | null = null;
 
-	private isLimitHit: boolean;
+	private isLimitHit = false;
 	private resultCount = 0;
 
 	constructor(private query: ITextQuery, private provider: TextSearchProvider, private _pfs: typeof pfs = pfs) {
@@ -52,7 +51,7 @@ export class TextSearchManager {
 					const newResultSize = this.resultSize(result);
 					this.resultCount += newResultSize;
 					if (newResultSize > 0) {
-						this.collector.add(result, folderIdx);
+						this.collector!.add(result, folderIdx);
 					}
 				}
 			};
@@ -62,7 +61,7 @@ export class TextSearchManager {
 				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
 			})).then(results => {
 				tokenSource.dispose();
-				this.collector.flush();
+				this.collector!.flush();
 
 				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
 				resolve({
@@ -198,8 +197,7 @@ function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQuery {
 export class TextSearchResultsCollector {
 	private _batchedCollector: BatchedCollector<IFileMatch>;
 
-	private _currentFolderIdx: number;
-	private _currentUri: URI;
+	private _currentFolderIdx: number = -1;
 	private _currentFileMatch: IFileMatch | null = null;
 
 	constructor(private _onResult: (result: IFileMatch[]) => void) {
@@ -210,7 +208,7 @@ export class TextSearchResultsCollector {
 		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
 		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
 		// providers that send results in random order. We could do this step afterwards instead.
-		if (this._currentFileMatch && (this._currentFolderIdx !== folderIdx || !resources.isEqual(this._currentUri, data.uri))) {
+		if (this._currentFileMatch && this._currentFolderIdx !== folderIdx) {
 			this.pushToCollector();
 			this._currentFileMatch = null;
 		}

@@ -517,7 +517,7 @@ export class QueryGlobTester {
 	private _excludeExpression: glob.IExpression;
 	private _parsedExcludeExpression: glob.ParsedExpression;
 
-	private _parsedIncludeExpression: glob.ParsedExpression;
+	private _parsedIncludeExpression: glob.ParsedExpression | null = null;
 
 	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
 		this._excludeExpression = {
