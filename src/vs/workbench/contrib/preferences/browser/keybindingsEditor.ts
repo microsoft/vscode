@@ -127,7 +127,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.createBody(keybindingsEditorElement);
 	}
 
-	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		this.keybindingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => this.render(!!(options && options.preserveFocus)));
@@ -453,7 +453,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private createList(parent: HTMLElement): void {
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
-		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingItemRenderer(this, this.instantiationService)], {
+		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, 'KeybindingsEditor', this.keybindingsListContainer, new Delegate(), [new KeybindingItemRenderer(this, this.instantiationService)], {
 			identityProvider: { getId: (e: IListEntry) => e.id },
 			ariaLabel: localize('keybindingsLabel', "Keybindings"),
 			setRowLineHeight: false,

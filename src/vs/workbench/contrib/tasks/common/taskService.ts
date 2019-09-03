@@ -51,7 +51,7 @@ export interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
 }
 
 export interface ITaskService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onDidStateChange: Event<TaskEvent>;
 	supportsMultipleTaskExecutions: boolean;
 

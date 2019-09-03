@@ -22,7 +22,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export class BackupMainService implements IBackupMainService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	protected backupHome: string;
 	protected workspacesJsonPath: string;
@@ -138,7 +138,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	registerWorkspaceBackupSync(workspaceInfo: IWorkspaceBackupInfo, migrateFrom?: string): string {
-		if (!this.rootWorkspaces.some(w => workspaceInfo.workspace.id === w.workspace.id)) {
+		if (!this.rootWorkspaces.some(window => workspaceInfo.workspace.id === window.workspace.id)) {
 			this.rootWorkspaces.push(workspaceInfo);
 			this.saveSync();
 		}
@@ -219,7 +219,7 @@ export class BackupMainService implements IBackupMainService {
 			backupFolder = this.getRandomEmptyWindowId();
 		}
 
-		if (!this.emptyWorkspaces.some(w => !!w.backupFolder && isEqual(w.backupFolder, backupFolder!, !platform.isLinux))) {
+		if (!this.emptyWorkspaces.some(window => !!window.backupFolder && isEqual(window.backupFolder, backupFolder!, !platform.isLinux))) {
 			this.emptyWorkspaces.push({ backupFolder, remoteAuthority });
 			this.saveSync();
 		}
@@ -353,7 +353,7 @@ export class BackupMainService implements IBackupMainService {
 
 		// New empty window backup
 		let newBackupFolder = this.getRandomEmptyWindowId();
-		while (this.emptyWorkspaces.some(w => !!w.backupFolder && isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
+		while (this.emptyWorkspaces.some(window => !!window.backupFolder && isEqual(window.backupFolder, newBackupFolder, platform.isLinux))) {
 			newBackupFolder = this.getRandomEmptyWindowId();
 		}
 
@@ -374,7 +374,7 @@ export class BackupMainService implements IBackupMainService {
 
 		// New empty window backup
 		let newBackupFolder = this.getRandomEmptyWindowId();
-		while (this.emptyWorkspaces.some(w => !!w.backupFolder && isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
+		while (this.emptyWorkspaces.some(window => !!window.backupFolder && isEqual(window.backupFolder, newBackupFolder, platform.isLinux))) {
 			newBackupFolder = this.getRandomEmptyWindowId();
 		}
 

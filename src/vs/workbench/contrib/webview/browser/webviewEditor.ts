@@ -114,7 +114,7 @@ export class WebviewEditor extends BaseEditor {
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		const webview = this.input && (this.input as WebviewEditorInput).webview;
 		if (webview) {
 			if (visible) {
@@ -136,7 +136,7 @@ export class WebviewEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	public async setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	public async setInput(input: WebviewEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (this.input && this.input instanceof WebviewEditorInput) {
 			this.input.webview.release(this);
 		}

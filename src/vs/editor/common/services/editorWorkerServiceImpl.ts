@@ -46,7 +46,7 @@ function canSyncModel(modelService: IModelService, resource: URI): boolean {
 }
 
 export class EditorWorkerServiceImpl extends Disposable implements IEditorWorkerService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _modelService: IModelService;
 	private readonly _workerManager: WorkerManager;

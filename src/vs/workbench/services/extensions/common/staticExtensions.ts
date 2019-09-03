@@ -12,13 +12,13 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 export const IStaticExtensionsService = createDecorator<IStaticExtensionsService>('IStaticExtensionsService');
 
 export interface IStaticExtensionsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	getExtensions(): Promise<IExtensionDescription[]>;
 }
 
 export class StaticExtensionsService implements IStaticExtensionsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _descriptions: IExtensionDescription[] = [];
 

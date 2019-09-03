@@ -419,7 +419,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new LoadedScriptsDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'LoadedScriptsView', this.treeContainer, new LoadedScriptsDelegate(),
 			[new LoadedScriptsRenderer(this.treeLabels)],
 			new LoadedScriptsDataSource(),
 			{

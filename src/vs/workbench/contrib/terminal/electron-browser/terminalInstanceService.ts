@@ -27,7 +27,7 @@ let WebLinksAddon: typeof XTermWebLinksAddon;
 let SearchAddon: typeof XTermSearchAddon;
 
 export class TerminalInstanceService implements ITerminalInstanceService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

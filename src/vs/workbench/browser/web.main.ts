@@ -121,7 +121,7 @@ class CodeRendererMain extends Disposable {
 
 		// Log
 		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'vscode-log' });
-		const logService = new BufferLogService();
+		const logService = new BufferLogService(this.configuration.logLevel);
 		serviceCollection.set(ILogService, logService);
 
 		const payload = this.resolveWorkspaceInitializationPayload();

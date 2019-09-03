@@ -21,7 +21,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	private readonly _proxy: ExtHostDebugServiceShape;
 	private readonly _toDispose = new DisposableStore();
-	private _breakpointEventsActive: boolean;
+	private _breakpointEventsActive: boolean | undefined;
 	private readonly _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
 	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;

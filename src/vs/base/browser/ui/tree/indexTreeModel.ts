@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeNode, TreeVisibility, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { tail2 } from 'vs/base/common/arrays';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { ISequence, Iterator } from 'vs/base/common/iterator';
@@ -66,7 +66,12 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
 	readonly onDidSplice = this._onDidSplice.event;
 
-	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, rootElement: T, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
+	constructor(
+		private user: string,
+		private list: ISpliceable<ITreeNode<T, TFilterData>>,
+		rootElement: T,
+		options: IIndexTreeModelOptions<T, TFilterData> = {}
+	) {
 		this.collapseByDefault = typeof options.collapseByDefault === 'undefined' ? false : options.collapseByDefault;
 		this.filter = options.filter;
 		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
@@ -94,7 +99,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
 	): Iterator<ITreeElement<T>> {
 		if (location.length === 0) {
-			throw new Error('Invalid tree location');
+			throw new TreeError(this.user, 'Invalid tree location');
 		}
 
 		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
@@ -177,7 +182,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 	rerender(location: number[]): void {
 		if (location.length === 0) {
-			throw new Error('Invalid tree location');
+			throw new TreeError(this.user, 'Invalid tree location');
 		}
 
 		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
@@ -492,7 +497,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		const [index, ...rest] = location;
 
 		if (index < 0 || index > node.children.length) {
-			throw new Error('Invalid tree location');
+			throw new TreeError(this.user, 'Invalid tree location');
 		}
 
 		return this.getTreeNode(rest, node.children[index]);
@@ -508,7 +513,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		const index = location[location.length - 1];
 
 		if (index < 0 || index > parentNode.children.length) {
-			throw new Error('Invalid tree location');
+			throw new TreeError(this.user, 'Invalid tree location');
 		}
 
 		const node = parentNode.children[index];
@@ -520,7 +525,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		const [index, ...rest] = location;
 
 		if (index < 0 || index > node.children.length) {
-			throw new Error('Invalid tree location');
+			throw new TreeError(this.user, 'Invalid tree location');
 		}
 
 		// TODO@joao perf!

@@ -5,7 +5,6 @@
 
 import { IURLService } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractURLService } from 'vs/platform/url/common/urlService';
 import { Event } from 'vs/base/common/event';
@@ -39,7 +38,7 @@ export interface IURLCallbackProvider {
 
 export class BrowserURLService extends AbstractURLService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private provider: IURLCallbackProvider | undefined;
 

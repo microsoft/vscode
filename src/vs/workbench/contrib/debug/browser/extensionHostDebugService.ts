@@ -9,7 +9,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -52,7 +51,7 @@ registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService);
 
 class BrowserDebugHelperService implements IDebugHelperService {
 
-	_serviceBrand!: ServiceIdentifier<IDebugHelperService>;
+	_serviceBrand: undefined;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined {
 		return undefined;

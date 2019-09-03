@@ -218,7 +218,7 @@ export interface IShellLaunchConfig {
 }
 
 export interface ITerminalService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
@@ -248,7 +248,7 @@ export interface ITerminalService {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
-	// tslint:disable-next-line: no-dom-globals
+	// tslint:disable-next-line: no-dom-globals TODO@daniel
 	createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
@@ -304,7 +304,7 @@ export interface ITerminalService {
  * Provides access to native or electron APIs to other terminal services.
  */
 export interface ITerminalNativeService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly linuxDistro: LinuxDistro;
 

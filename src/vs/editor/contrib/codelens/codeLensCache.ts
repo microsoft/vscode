@@ -17,7 +17,7 @@ import { once } from 'vs/base/common/functional';
 export const ICodeLensCache = createDecorator<ICodeLensCache>('ICodeLensCache');
 
 export interface ICodeLensCache {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	put(model: ITextModel, data: CodeLensModel): void;
 	get(model: ITextModel): CodeLensModel | undefined;
 	delete(model: ITextModel): void;
@@ -38,7 +38,7 @@ class CacheItem {
 
 export class CodeLensCache implements ICodeLensCache {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _fakeProvider = new class implements CodeLensProvider {
 		provideCodeLenses(): CodeLensList {

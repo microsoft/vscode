@@ -27,7 +27,7 @@ export class DialogChannel implements IServerChannel {
 
 export class DialogChannelClient implements IDialogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private channel: IChannel) { }
 

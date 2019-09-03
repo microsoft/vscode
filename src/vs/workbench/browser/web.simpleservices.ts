@@ -38,10 +38,10 @@ import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/
 
 export class SimpleUpdateService implements IUpdateService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onStateChange = Event.None;
-	state: State;
+	state!: State;
 
 	checkForUpdates(context: any): Promise<void> {
 		return Promise.resolve(undefined);
@@ -72,7 +72,7 @@ registerSingleton(IUpdateService, SimpleUpdateService);
 
 export class SimpleWindowService extends Disposable implements IWindowService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChangeFocus: Event<boolean> = Event.None;
 	readonly onDidChangeMaximize: Event<boolean> = Event.None;
@@ -360,7 +360,7 @@ registerSingleton(IWindowService, SimpleWindowService);
 //#region Window
 
 export class SimpleWindowsService implements IWindowsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	windowCount = 1;
 
@@ -670,7 +670,7 @@ registerSingleton(IWindowsService, SimpleWindowsService);
 
 export class SimpleWorkspaceEditingService implements IWorkspaceEditingService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
 		return Promise.resolve(undefined);
@@ -714,7 +714,7 @@ registerSingleton(IWorkspaceEditingService, SimpleWorkspaceEditingService, true)
 
 export class SimpleWorkspacesService implements IWorkspacesService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
 		// @ts-ignore
@@ -738,7 +738,7 @@ registerSingleton(IWorkspacesService, SimpleWorkspacesService);
 //#region remote
 
 class SimpleTunnelService implements ITunnelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	openTunnel(remotePort: number) {
 		return undefined;
 	}
@@ -752,7 +752,7 @@ registerSingleton(ITunnelService, SimpleTunnelService);
 
 class SimpleWorkspaceStatsService implements IWorkspaceStatsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	getTags(): Promise<Tags> {
 		return Promise.resolve({});

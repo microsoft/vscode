@@ -40,7 +40,7 @@ export class RequestChannel implements IServerChannel {
 
 export class RequestChannelClient {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) { }
 

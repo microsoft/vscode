@@ -5,7 +5,6 @@
 
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface ICredentialsProvider {
@@ -18,7 +17,7 @@ export interface ICredentialsProvider {
 
 export class BrowserCredentialsService implements ICredentialsService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private credentialsProvider: ICredentialsProvider;
 
