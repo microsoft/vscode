@@ -468,11 +468,11 @@ export class CustomMenubarControl extends MenubarControl {
 		if (firstTime) {
 			this.menubar = this._register(new MenuBar(
 				this.container, {
-					enableMnemonics: this.currentEnableMenuBarMnemonics,
-					disableAltFocus: this.currentDisableMenuBarAltFocus,
-					visibility: this.currentMenubarVisibility,
-					getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
-				}
+				enableMnemonics: this.currentEnableMenuBarMnemonics,
+				disableAltFocus: this.currentDisableMenuBarAltFocus,
+				visibility: this.currentMenubarVisibility,
+				getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
+			}
 			));
 
 			this.accessibilityService.alwaysUnderlineAccessKeys().then(val => {

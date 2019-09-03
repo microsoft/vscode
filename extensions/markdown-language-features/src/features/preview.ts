@@ -140,9 +140,9 @@ export class MarkdownPreview extends Disposable {
 			MarkdownPreview.viewType,
 			MarkdownPreview.getPreviewTitle(resource, locked),
 			previewColumn, {
-				enableFindWidget: true,
-				...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
-			});
+			enableFindWidget: true,
+			...MarkdownPreview.getWebviewOptions(resource, contributionProvider.contributions)
+		});
 
 		return new MarkdownPreview(
 			webview,

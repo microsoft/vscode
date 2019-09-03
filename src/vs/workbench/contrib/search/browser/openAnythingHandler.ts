@@ -40,7 +40,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
-	private searchDelayer: ThrottledDelayer<QuickOpenModel>;
+	private searchDelayer: ThrottledDelayer<QuickOpenModel | null>;
 	private isClosed: boolean;
 	private scorerCache: ScorerCache;
 	private includeSymbols: boolean;
@@ -83,7 +83,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		});
 	}
 
-	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel | null> {
 		this.isClosed = false; // Treat this call as the handler being in use
 
 		// Find a suitable range from the pattern looking for ":" and "#"
@@ -99,7 +99,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		}
 
 		// The throttler needs a factory for its promises
-		const resultsPromise = () => {
+		const resultsPromise = (): Promise<QuickOpenModel | null> => {
 			const resultPromises: Promise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results

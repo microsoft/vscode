@@ -383,10 +383,10 @@ export class SettingsEditor2 extends BaseEditor {
 				return SettingsEditor2.SUGGESTIONS.filter(tag => query.indexOf(tag) === -1).map(tag => strings.endsWith(tag, ':') ? tag : tag + ' ');
 			}
 		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
-				placeholderText: searchBoxLabel,
-				focusContextKey: this.searchFocusContextKey,
-				// TODO: Aria-live
-			})
+			placeholderText: searchBoxLabel,
+			focusContextKey: this.searchFocusContextKey,
+			// TODO: Aria-live
+		})
 		);
 
 		this._register(this.searchWidget.onFocus(() => {
