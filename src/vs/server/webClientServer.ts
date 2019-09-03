@@ -152,10 +152,11 @@ export class WebClientServer extends Disposable {
 		}
 
 		// Strip `/static/` from the path
-		const relativeFilePath = path.normalize(parsedUrl.pathname!.substr('/static/'.length));
+		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
+		const relativeFilePath = path.normalize(normalizedPathname.substr('/static/'.length));
 
 		const client = (this._environmentService.args as any)['client'];
-		if (client && parsedUrl.pathname !== '/static/out/vs/code/browser/workbench/workbench.js') {
+		if (client && normalizedPathname !== '/static/out/vs/code/browser/workbench/workbench.js') {
 			// use provided path as client root
 			const filePath = path.join(path.normalize(client), relativeFilePath);
 			return serveFile(this._logService, req, res, filePath, headers);
