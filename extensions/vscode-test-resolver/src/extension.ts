@@ -78,7 +78,6 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 
 			const { updateUrl, commit, quality, serverDataFolderName, dataFolderName } = getProductConfiguration();
-			const serverCommand = process.platform === 'win32' ? 'server.cmd' : 'server.sh';
 			const commandArgs = ['--port=0', '--disable-telemetry'];
 			const env = getNewEnv();
 			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
@@ -86,10 +85,12 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 
 			if (!commit) { // dev mode
+				const serverCommand = process.platform === 'win32' ? 'server.bat' : 'server.sh';
 				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
 				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
 			} else {
+				const serverCommand = process.platform === 'win32' ? 'server.cmd' : 'server.sh';
 				let serverLocation = env['VSCODE_REMOTE_SERVER_PATH']; // support environment
 				if (!serverLocation) {
 					const serverBin = path.join(remoteDataDir, 'bin');
