@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ISuggestDataDto, ICodeActionDto, ICallHierarchyItemDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ISuggestDataDto, ICodeActionDto, ICallHierarchyGraphDto } from '../common/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -111,14 +111,20 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return <modes.ILink>data;
 	}
 
-	private static _reviveCallHierarchyItemDto(data: ICallHierarchyItemDto[] | undefined): callh.CallHierarchyItem[] {
+	private static _reviveCallHierarchyItemDto(data: ICallHierarchyGraphDto | undefined): callh.CallHierarchyCall[] {
 		if (!data) {
 			return [];
 		}
-		return <callh.CallHierarchyItem[]>data.map(value => {
-			value.source.uri = URI.revive(value.source.uri);
-			value.targets.forEach(target => target.uri = URI.revive(target.uri));
-			return value;
+
+		// Revive all uris, inplace without create new objects
+		data.nodes.forEach(value => value.uri = URI.revive(value.uri));
+
+		return data.edges.map(edge => {
+			return {
+				source: <callh.CallHierarchySymbol>data.nodes[edge.source],
+				sourceRange: edge.sourceRange,
+				target: <callh.CallHierarchySymbol>data.nodes[edge.target],
+			};
 		});
 	}
 

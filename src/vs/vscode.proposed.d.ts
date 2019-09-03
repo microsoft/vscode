@@ -51,23 +51,16 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents edges inside a call hierarchy graph, e.g. a single source vertex and one or
-	 * more target vertices. When using the [`CallsTo`-direction](#CallHierarchyItemProvider.CallsTo) the `source`
-	 * represents a symbol that is called from one or more `target`-symbols, e.g a function being called by other functions.
-	 * When using the [`CallsFrom`-direction](#CallHierarchyItemProvider.CallsFrom) then `source` represents a symbols
-	 * that calls one more more `target`-symbols, e.g a function calling other functions.
+	 * Represents a directed edge inside a call graph. The `source` is a symbol making a call
+	 * at `sourceRange` (`sourceRange` is contained inside the full range of source) to the
+	 * `target` symbol.
 	 */
-	export class CallHierarchyItem {
-
-		/**
-		 * The source symbol that calls or is called.
-		 */
+	export class CallHierarchyCall {
 		source: CallHierarchySymbol;
+		souceRange: Range;
+		target: CallHierarchySymbol;
 
-		/**
-		 * Target symbols that call `source` or are called by `source`.
-		 */
-		targets: ReadonlyArray<CallHierarchySymbol>;
+		constructor(source: CallHierarchySymbol, sourceRange: Range, target: CallHierarchySymbol);
 	}
 
 	/**
@@ -86,7 +79,7 @@ declare module 'vscode' {
 		 * @return An array of call hierarchy items or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCallHierarchyItems(document: TextDocument, position: Position, direction: CallHierarchyDirection, token: CancellationToken): ProviderResult<CallHierarchyItem[]>;
+		provideCallHierarchyItems(document: TextDocument, position: Position, direction: CallHierarchyDirection, token: CancellationToken): ProviderResult<CallHierarchyCall[]>;
 	}
 
 	export namespace languages {

@@ -17,6 +17,7 @@ export const enum CallHierarchyDirection {
 }
 
 export interface CallHierarchySymbol {
+	id: string;
 	kind: SymbolKind;
 	tags: SymbolTag[];
 	name: string;
@@ -26,9 +27,10 @@ export interface CallHierarchySymbol {
 	selectionRange: IRange;
 }
 
-export interface CallHierarchyItem {
+export interface CallHierarchyCall {
 	source: CallHierarchySymbol;
-	targets: CallHierarchySymbol[];
+	sourceRange: IRange;
+	target: CallHierarchySymbol;
 }
 
 export interface CallHierarchyProvider {
@@ -38,7 +40,7 @@ export interface CallHierarchyProvider {
 		position: IPosition,
 		direction: CallHierarchyDirection,
 		token: CancellationToken
-	): ProviderResult<CallHierarchyItem[]>;
+	): ProviderResult<CallHierarchyCall[]>;
 }
 
 export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();

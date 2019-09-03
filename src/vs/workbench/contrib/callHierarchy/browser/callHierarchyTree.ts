@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyProvider, CallHierarchySymbol } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import { CallHierarchyCall, CallHierarchyDirection, CallHierarchyProvider, CallHierarchySymbol } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
@@ -12,16 +12,52 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { hash } from 'vs/base/common/hash';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { groupBy } from 'vs/base/common/arrays';
+import { compare } from 'vs/base/common/strings';
+import { Range } from 'vs/editor/common/core/range';
 
 export class Call {
+
+	static create(calls: CallHierarchyCall[], direction: CallHierarchyDirection): Call[] {
+
+		for (const call of calls) {
+			console.log(`FROM ${call.source.name} TO ${call.target.name} (at ${call.sourceRange.startLineNumber},${call.sourceRange.startColumn})`);
+		}
+		console.log('rooted: ' + (direction === CallHierarchyDirection.CallsFrom ? 'FROM' : 'TO'));
+
+		if (direction === CallHierarchyDirection.CallsFrom) {
+			const groups = groupBy(calls, (a, b) => Call.compareSymbol(a.source, b.source));
+			return groups.map(group => {
+				const targets = groupBy(group.map(call => call.target), Call.compareSymbol);
+				return new Call(group[0].source, [], targets.map(t => new Call(t[0], [], undefined)));
+			});
+
+		} else {
+			const groups = groupBy(calls, (a, b) => Call.compareSymbol(a.target, b.target));
+			return groups.map(group => {
+				const targets = groupBy(group.map(call => call.source), Call.compareSymbol);
+				return new Call(group[0].target, [], targets.map(t => new Call(t[0], [], undefined)));
+			});
+		}
+	}
+
+	static compareSymbol(a: CallHierarchySymbol, b: CallHierarchySymbol): number {
+		let res = compare(a.uri.toString(), b.uri.toString());
+		if (res === 0) {
+			res = Range.compareRangesUsingStarts(a.range, b.range);
+		}
+		return res;
+	}
+
+
 	constructor(
 		readonly source: CallHierarchySymbol,
-		readonly targets: CallHierarchySymbol[],
-		readonly parent: Call | undefined
+		readonly ranges: Range[],
+		readonly children: Call[] | undefined,
 	) { }
 }
 
-export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchyItem[], Call> {
+export class SingleDirectionDataSource implements IAsyncDataSource<Call[], Call> {
 
 	constructor(
 		public provider: CallHierarchyProvider,
@@ -33,43 +69,49 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 		return true;
 	}
 
-	async getChildren(callOrItems: CallHierarchyItem[] | Call): Promise<Call[]> {
+	async getChildren(parent: Call[] | Call): Promise<Call[]> {
 
-		if (Array.isArray(callOrItems)) {
-			// 'root'
-			return callOrItems.map(item => new Call(item.source, item.targets, undefined));
-
+		// root
+		if (Array.isArray(parent)) {
+			return parent;
 		}
 
+		// root'ish
+		if (parent.children) {
+			return parent.children;
+		}
+
+		// drill down
+		const reference = await this._textModelService.createModelReference(parent.source.uri);
 		const direction = this.getDirection();
-		const result: Call[] = [];
-		await Promise.all(callOrItems.targets.map(async item => {
 
-			const reference = await this._textModelService.createModelReference(item.uri);
+		const calls = await this.provider.provideCallHierarchyItems(
+			reference.object.textEditorModel,
+			Range.lift(parent.source.range).getStartPosition(),
+			direction,
+			CancellationToken.None
+		);
 
-			const items = await this.provider.provideCallHierarchyItems(
-				reference.object.textEditorModel,
-				{ lineNumber: item.selectionRange.startLineNumber, column: item.selectionRange.startColumn },
-				direction,
-				CancellationToken.None
-			);
+		if (!calls) {
+			return [];
+		}
 
-			if (items) {
-				for (const item of items) {
-					result.push(new Call(item.source, item.targets, callOrItems));
-				}
+		const targets: CallHierarchySymbol[] = [];
+		for (const call of calls) {
+			if ((direction === CallHierarchyDirection.CallsFrom ? call.source : call.target).id === parent.source.id) {
+				targets.push(direction === CallHierarchyDirection.CallsFrom ? call.target : call.source);
+			} else {
+				console.warn('DROPPING', call);
 			}
+		}
 
-			reference.dispose();
-		}));
-
-		return result;
+		return groupBy(targets, (a, b) => compare(a.id, b.id)).map(group => new Call(group[0], [], undefined));
 	}
 }
 
 export class IdentityProvider implements IIdentityProvider<Call> {
 	getId(element: Call): { toString(): string; } {
-		return hash(element.source.uri.toString(), hash(JSON.stringify(element.source.range))).toString() + (element.parent ? this.getId(element.parent) : '');
+		return hash(element.source.uri.toString(), hash(JSON.stringify(element.source.range))).toString();
 	}
 }
 

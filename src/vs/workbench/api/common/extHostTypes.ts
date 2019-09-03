@@ -1171,9 +1171,16 @@ export class CallHierarchySymbol {
 	}
 }
 
-export class CallHierarchyItem {
+export class CallHierarchyCall {
 	source: CallHierarchySymbol;
-	targets: CallHierarchySymbol[];
+	souceRange: Range;
+	target: CallHierarchySymbol;
+
+	constructor(source: CallHierarchySymbol, sourceRange: Range, target: CallHierarchySymbol) {
+		this.source = source;
+		this.souceRange = sourceRange;
+		this.target = target;
+	}
 }
 
 @es5ClassCompat

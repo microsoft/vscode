@@ -7,7 +7,7 @@ import 'vs/css!./media/callHierarchy';
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyProvider, CallHierarchyDirection, CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import { CallHierarchyProvider, CallHierarchyDirection, CallHierarchyCall } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { FuzzyScore } from 'vs/base/common/filters';
 import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
@@ -93,7 +93,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	private _parent!: HTMLElement;
 	private _message!: HTMLElement;
 	private _splitView!: SplitView;
-	private _tree!: WorkbenchAsyncDataTree<CallHierarchyItem[], callHTree.Call, FuzzyScore>;
+	private _tree!: WorkbenchAsyncDataTree<callHTree.Call[], callHTree.Call, FuzzyScore>;
 	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
 	private _editor!: EmbeddedCodeEditorWidget;
 	private _dim!: Dimension;
@@ -255,7 +255,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				localDispose.add(value);
 			});
 
-			let node: callHTree.Call | CallHierarchyItem[] = element;
+			let node: callHTree.Call | CallHierarchyCall[] = element;
 			let names = [element.source.name];
 			while (true) {
 				let parent = this._tree.getParentElement(node);
@@ -294,11 +294,11 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				return;
 			}
 
-			if (e.element && isNonEmptyArray(e.element.targets)) {
+			if (e.element && isNonEmptyArray(e.element.children)) {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: e.element.source.uri,
-					options: { selection: e.element.targets[0].range }
+					options: { selection: e.element.children[0].source.range }
 				});
 			}
 		}));
@@ -306,11 +306,11 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._disposables.add(this._tree.onDidChangeSelection(e => {
 			const [element] = e.elements;
 			// don't close on click
-			if (element && isNonEmptyArray(element.targets) && e.browserEvent instanceof KeyboardEvent) {
+			if (element && isNonEmptyArray(element.children) && e.browserEvent instanceof KeyboardEvent) {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: element.source.uri,
-					options: { selection: element.targets[0].range }
+					options: { selection: element.children[0].source.range }
 				});
 			}
 		}));
@@ -331,7 +331,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._message.focus();
 	}
 
-	async showItem(items: CallHierarchyItem[]): Promise<void> {
+	async showItem(items: CallHierarchyCall[]): Promise<void> {
 
 		if (isFalsyOrEmpty(items)) {
 			return this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
@@ -341,9 +341,10 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 
 		this._show();
 		const viewState = this._treeViewStates.get(this._direction);
-		await this._tree.setInput(items, viewState);
+		const input = callHTree.Call.create(items, this._direction);
+		await this._tree.setInput(input, viewState);
 
-		const [root] = this._tree.getNode(items).children;
+		const [root] = this._tree.getNode(input).children;
 		await this._tree.expand(<callHTree.Call>root.element);
 
 		this._parent.dataset['state'] = State.Data;
