@@ -182,7 +182,7 @@ class WordHighlighter {
 		this.editor = editor;
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
-		this.occurrencesHighlight = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
+		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
 		this.model = this.editor.getModel();
 		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 
@@ -203,7 +203,7 @@ class WordHighlighter {
 			this._stopAll();
 		}));
 		this.toUnhook.add(editor.onDidChangeConfiguration((e) => {
-			let newValue = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
+			let newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
 			if (this.occurrencesHighlight !== newValue) {
 				this.occurrencesHighlight = newValue;
 				this._stopAll();

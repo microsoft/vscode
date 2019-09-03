@@ -173,7 +173,7 @@ export class SuggestModel implements IDisposable {
 	// --- handle configuration & precondition changes
 
 	private _updateQuickSuggest(): void {
-		this._quickSuggestDelay = this._editor.getConfiguration().contribInfo.quickSuggestionsDelay;
+		this._quickSuggestDelay = this._editor.getOption(EditorOption.quickSuggestionsDelay);
 
 		if (isNaN(this._quickSuggestDelay) || (!this._quickSuggestDelay && this._quickSuggestDelay !== 0) || this._quickSuggestDelay < 0) {
 			this._quickSuggestDelay = 10;
@@ -186,7 +186,7 @@ export class SuggestModel implements IDisposable {
 
 		if (this._editor.getOption(EditorOption.readOnly)
 			|| !this._editor.hasModel()
-			|| !this._editor.getConfiguration().contribInfo.suggestOnTriggerCharacters) {
+			|| !this._editor.getOption(EditorOption.suggestOnTriggerCharacters)) {
 
 			return;
 		}

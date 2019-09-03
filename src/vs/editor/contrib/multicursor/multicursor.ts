@@ -809,13 +809,13 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	constructor(editor: ICodeEditor) {
 		super();
 		this.editor = editor;
-		this._isEnabled = editor.getConfiguration().contribInfo.selectionHighlight;
+		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 		this.decorations = [];
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
-			this._isEnabled = editor.getConfiguration().contribInfo.selectionHighlight;
+			this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 		}));
 		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 

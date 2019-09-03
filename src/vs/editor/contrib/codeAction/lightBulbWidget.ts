@@ -14,6 +14,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 namespace LightBulbState {
 
@@ -106,7 +107,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}));
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			// hide when told to do so
-			if (e.contribInfo && !this._editor.getConfiguration().contribInfo.lightbulbEnabled) {
+			if (e.contribInfo && !this._editor.getOption(EditorOption.lightbulb).enabled) {
 				this.hide();
 			}
 		}));
@@ -138,7 +139,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 
 		const config = this._editor.getConfiguration();
-		if (!config.contribInfo.lightbulbEnabled) {
+		const options = this._editor.getOptions();
+		if (!options.get(EditorOption.lightbulb).enabled) {
 			return this.hide();
 		}
 

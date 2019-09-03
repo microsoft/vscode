@@ -533,7 +533,7 @@ export interface IEditorOptions {
 	quickSuggestions?: boolean | { other: boolean, comments: boolean, strings: boolean };
 	/**
 	 * Quick suggestions show delay (in ms)
-	 * Defaults to 500 (ms)
+	 * Defaults to 10 (ms)
 	 */
 	quickSuggestionsDelay?: number;
 	/**
@@ -588,7 +588,7 @@ export interface IEditorOptions {
 	 * Accept suggestions on ENTER.
 	 * Defaults to 'on'.
 	 */
-	acceptSuggestionOnEnter?: boolean | 'on' | 'smart' | 'off';
+	acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
 	/**
 	 * Accept suggestions on provider defined characters.
 	 * Defaults to true.
@@ -947,32 +947,17 @@ export interface InternalParameterHintOptions {
 
 export interface EditorContribOptions {
 	readonly hover: InternalEditorHoverOptions;
-	readonly links: boolean;
-	readonly contextmenu: boolean;
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
-	readonly quickSuggestionsDelay: number;
 	readonly parameterHints: InternalParameterHintOptions;
-	readonly formatOnType: boolean;
-	readonly formatOnPaste: boolean;
-	readonly suggestOnTriggerCharacters: boolean;
-	readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
-	readonly acceptSuggestionOnCommitCharacter: boolean;
-	readonly wordBasedSuggestions: boolean;
 	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 	readonly suggest: InternalSuggestOptions;
 	readonly gotoLocation: InternalGoToLocationOptions;
-	readonly selectionHighlight: boolean;
-	readonly occurrencesHighlight: boolean;
-	readonly codeLens: boolean;
 	readonly foldingStrategy: 'auto' | 'indentation';
 	readonly showFoldingControls: 'always' | 'mouseover';
-	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
-	readonly colorDecorators: boolean;
-	readonly lightbulbEnabled: boolean;
 	readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
 	readonly codeActionsOnSaveTimeout: number;
 }
@@ -1113,34 +1098,19 @@ export class InternalEditorOptions {
 	private static _equalsContribOptions(a: EditorContribOptions, b: EditorContribOptions): boolean {
 		return (
 			this._equalsHoverOptions(a.hover, b.hover)
-			&& a.links === b.links
-			&& a.contextmenu === b.contextmenu
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
-			&& a.quickSuggestionsDelay === b.quickSuggestionsDelay
 			&& this._equalsParameterHintOptions(a.parameterHints, b.parameterHints)
-			&& a.formatOnType === b.formatOnType
-			&& a.formatOnPaste === b.formatOnPaste
-			&& a.suggestOnTriggerCharacters === b.suggestOnTriggerCharacters
-			&& a.acceptSuggestionOnEnter === b.acceptSuggestionOnEnter
-			&& a.acceptSuggestionOnCommitCharacter === b.acceptSuggestionOnCommitCharacter
-			&& a.wordBasedSuggestions === b.wordBasedSuggestions
 			&& a.suggestSelection === b.suggestSelection
 			&& a.suggestFontSize === b.suggestFontSize
 			&& a.suggestLineHeight === b.suggestLineHeight
 			&& a.tabCompletion === b.tabCompletion
 			&& this._equalsSuggestOptions(a.suggest, b.suggest)
 			&& InternalEditorOptions._equalsGotoLocationOptions(a.gotoLocation, b.gotoLocation)
-			&& a.selectionHighlight === b.selectionHighlight
-			&& a.occurrencesHighlight === b.occurrencesHighlight
-			&& a.codeLens === b.codeLens
 			&& a.foldingStrategy === b.foldingStrategy
 			&& a.showFoldingControls === b.showFoldingControls
-			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
-			&& a.colorDecorators === b.colorDecorators
 			&& objects.equals(a.codeActionsOnSave, b.codeActionsOnSave)
 			&& a.codeActionsOnSaveTimeout === b.codeActionsOnSaveTimeout
-			&& a.lightbulbEnabled === b.lightbulbEnabled
 		);
 	}
 
@@ -1387,39 +1357,20 @@ export class EditorOptionsValidator {
 		} else {
 			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
 		}
-		// Compatibility support for acceptSuggestionOnEnter
-		if (typeof opts.acceptSuggestionOnEnter === 'boolean') {
-			opts.acceptSuggestionOnEnter = opts.acceptSuggestionOnEnter ? 'on' : 'off';
-		}
 		const find = this._sanitizeFindOpts(opts.find, defaults.find);
 		return {
 			hover: this._sanitizeHoverOpts(opts.hover, defaults.hover),
-			links: _boolean(opts.links, defaults.links),
-			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
 			quickSuggestions: quickSuggestions,
-			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
 			parameterHints: this._sanitizeParameterHintOpts(opts.parameterHints, defaults.parameterHints),
-			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
-			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
-			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
-			acceptSuggestionOnEnter: _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']),
-			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
-			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
 			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
 			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
 			gotoLocation: this._sanitizeGotoLocationOpts(opts, defaults.gotoLocation),
-			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
-			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
-			codeLens: _boolean(opts.codeLens, defaults.codeLens),
 			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
-			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
-			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
-			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
 			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
 			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
 		};
@@ -1513,20 +1464,15 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			delay: 300,
 			sticky: true
 		},
-		links: true,
-		contextmenu: true,
-		quickSuggestions: { other: true, comments: false, strings: false },
-		quickSuggestionsDelay: 10,
+		quickSuggestions: {
+			other: true,
+			comments: false,
+			strings: false
+		},
 		parameterHints: {
 			enabled: true,
 			cycle: false
 		},
-		formatOnType: false,
-		formatOnPaste: false,
-		suggestOnTriggerCharacters: true,
-		acceptSuggestionOnEnter: 'on',
-		acceptSuggestionOnCommitCharacter: true,
-		wordBasedSuggestions: true,
 		suggestSelection: 'recentlyUsed',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
@@ -1544,20 +1490,14 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		gotoLocation: {
 			multiple: 'peek'
 		},
-		selectionHighlight: true,
-		occurrencesHighlight: true,
-		codeLens: true,
 		foldingStrategy: 'auto',
 		showFoldingControls: 'mouseover',
-		matchBrackets: true,
 		find: {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false,
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true
 		},
-		colorDecorators: true,
-		lightbulbEnabled: true,
 		codeActionsOnSave: {},
 		codeActionsOnSaveTimeout: 750
 	},
@@ -1829,7 +1769,7 @@ export interface InternalEditorMinimapOptions {
 	readonly maxColumn: number;
 }
 
-class EditorMinimapOption<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorMinimapOptions>> extends BaseEditorOption<K1, K2, InternalEditorMinimapOptions, InternalEditorMinimapOptions> {
+class EditorMinimap<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorMinimapOptions>> extends BaseEditorOption<K1, K2, InternalEditorMinimapOptions, InternalEditorMinimapOptions> {
 	public validate(input: IEditorMinimapOptions | undefined): InternalEditorMinimapOptions {
 		if (typeof input !== 'object') {
 			return this.defaultValue;
@@ -1974,11 +1914,36 @@ class EditorTabFocusMode<K1 extends EditorOption, K2 extends PossibleKeyName<und
 
 //#endregion
 
-//#region tabFocusMode
+//#region emptySelectionClipboard
 
 class EditorEmptySelectionClipboard<K1 extends EditorOption, K2 extends PossibleKeyName<boolean>> extends EditorBooleanOption<K1, K2> {
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
 		return value && env.emptySelectionClipboard;
+	}
+}
+
+//#endregion
+
+//#region lightbulb
+
+export type ValidEditorLightbulbOptions = Required<IEditorLightbulbOptions>;
+
+class EditorLightbulb<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorLightbulbOptions>> extends BaseEditorOption<K1, K2, ValidEditorLightbulbOptions> {
+	public validate(input: IEditorLightbulbOptions | undefined): ValidEditorLightbulbOptions {
+		if (typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			enabled: _boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: ValidEditorLightbulbOptions): ValidEditorLightbulbOptions {
+		return value;
+	}
+	public equals(a: ValidEditorLightbulbOptions, b: ValidEditorLightbulbOptions): boolean {
+		return (
+			a.enabled === b.enabled
+		);
 	}
 }
 
@@ -2000,7 +1965,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalSliderSize: number;
 }
 
-class EditorScrollbarOption<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorScrollbarOptions>> extends BaseEditorOption<K1, K2, InternalEditorScrollbarOptions, InternalEditorScrollbarOptions> {
+class EditorScrollbar<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorScrollbarOptions>> extends BaseEditorOption<K1, K2, InternalEditorScrollbarOptions, InternalEditorScrollbarOptions> {
 	public validate(input: IEditorScrollbarOptions | undefined): InternalEditorScrollbarOptions {
 		if (typeof input !== 'object') {
 			return this.defaultValue;
@@ -2482,6 +2447,8 @@ function _multiCursorModifierFromString(multiCursorModifier: 'ctrlCmd' | 'alt'):
 }
 
 export const enum EditorOption {
+	acceptSuggestionOnCommitCharacter,
+	acceptSuggestionOnEnter,
 	accessibilitySupport,
 	autoClosingBrackets,
 	autoClosingOvertype,
@@ -2489,6 +2456,9 @@ export const enum EditorOption {
 	autoIndent,
 	automaticLayout,
 	autoSurround,
+	codeLens,
+	colorDecorators,
+	contextmenu,
 	copyWithSyntaxHighlighting,
 	cursorBlinking,
 	cursorSmoothCaretAnimation,
@@ -2503,21 +2473,28 @@ export const enum EditorOption {
 	fixedOverflowWidgets,
 	folding,
 	fontLigatures,
+	formatOnPaste,
+	formatOnType,
 	glyphMargin,
 	hideCursorInOverviewRuler,
 	highlightActiveIndentGuide,
 	inDiffEditor,
+	lightbulb,
 	lineDecorationsWidth,
 	lineNumbers,
 	lineNumbersMinChars,
+	links,
+	matchBrackets,
 	minimap,
 	mouseStyle,
 	mouseWheelScrollSensitivity,
 	mouseWheelZoom,
 	multiCursorMergeOverlapping,
 	multiCursorModifier,
+	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
+	quickSuggestionsDelay,
 	readOnly,
 	renderControlCharacters,
 	renderIndentGuides,
@@ -2531,11 +2508,14 @@ export const enum EditorOption {
 	scrollBeyondLastColumn,
 	scrollBeyondLastLine,
 	selectionClipboard,
+	selectionHighlight,
 	selectOnLineNumbers,
 	showUnused,
 	smoothScrolling,
 	stopRenderingLineAfter,
+	suggestOnTriggerCharacters,
 	useTabStops,
+	wordBasedSuggestions,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -2554,6 +2534,8 @@ export const enum EditorOption {
 }
 
 export const EditorOptions = {
+	acceptSuggestionOnCommitCharacter: registerEditorOption(new EditorBooleanOption(EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true)),
+	acceptSuggestionOnEnter: registerEditorOption(new EditorEnumOption(EditorOption.acceptSuggestionOnEnter, 'acceptSuggestionOnEnter', 'on', ['on', 'smart', 'off'], x => x)),
 	accessibilitySupport: registerEditorOption(new EditorAccessibilitySupportOption(EditorOption.accessibilitySupport, 'accessibilitySupport', 'auto')),
 	autoClosingBrackets: registerEditorOption(new EditorEnumOption(EditorOption.autoClosingBrackets, 'autoClosingBrackets', 'languageDefined', ['always', 'languageDefined', 'beforeWhitespace', 'never'], x => x)),
 	autoClosingOvertype: registerEditorOption(new EditorEnumOption(EditorOption.autoClosingOvertype, 'autoClosingOvertype', 'auto', ['always', 'auto', 'never'], x => x)),
@@ -2561,6 +2543,9 @@ export const EditorOptions = {
 	autoIndent: registerEditorOption(new EditorBooleanOption(EditorOption.autoIndent, 'autoIndent', true)),
 	automaticLayout: registerEditorOption(new EditorBooleanOption(EditorOption.automaticLayout, 'automaticLayout', false)),
 	autoSurround: registerEditorOption(new EditorEnumOption(EditorOption.autoSurround, 'autoSurround', 'languageDefined', ['languageDefined', 'quotes', 'brackets', 'never'], x => x)),
+	codeLens: registerEditorOption(new EditorBooleanOption(EditorOption.codeLens, 'codeLens', true)),
+	colorDecorators: registerEditorOption(new EditorBooleanOption(EditorOption.colorDecorators, 'colorDecorators', true)),
+	contextmenu: registerEditorOption(new EditorBooleanOption(EditorOption.contextmenu, 'contextmenu', true)),
 	copyWithSyntaxHighlighting: registerEditorOption(new EditorBooleanOption(EditorOption.copyWithSyntaxHighlighting, 'copyWithSyntaxHighlighting', true)),
 	cursorBlinking: registerEditorOption(new EditorEnumOption(EditorOption.cursorBlinking, 'cursorBlinking', 'blink', ['blink', 'smooth', 'phase', 'expand', 'solid'], _cursorBlinkingStyleFromString)),
 	cursorSmoothCaretAnimation: registerEditorOption(new EditorBooleanOption(EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation', false)),
@@ -2575,14 +2560,21 @@ export const EditorOptions = {
 	fixedOverflowWidgets: registerEditorOption(new EditorBooleanOption(EditorOption.fixedOverflowWidgets, 'fixedOverflowWidgets', false)),
 	folding: registerEditorOption(new EditorBooleanOption(EditorOption.folding, 'folding', true)),
 	fontLigatures: registerEditorOption(new EditorBooleanOption(EditorOption.fontLigatures, 'fontLigatures', true)),
+	formatOnPaste: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnPaste, 'formatOnPaste', false)),
+	formatOnType: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnType, 'formatOnType', false)),
 	glyphMargin: registerEditorOption(new EditorBooleanOption(EditorOption.glyphMargin, 'glyphMargin', true)),
 	hideCursorInOverviewRuler: registerEditorOption(new EditorBooleanOption(EditorOption.hideCursorInOverviewRuler, 'hideCursorInOverviewRuler', false)),
 	highlightActiveIndentGuide: registerEditorOption(new EditorBooleanOption(EditorOption.highlightActiveIndentGuide, 'highlightActiveIndentGuide', true)),
 	inDiffEditor: registerEditorOption(new EditorBooleanOption(EditorOption.inDiffEditor, 'inDiffEditor', false)),
+	lightbulb: registerEditorOption(new EditorLightbulb(EditorOption.lightbulb, 'lightbulb', {
+		enabled: true
+	})),
 	lineDecorationsWidth: registerEditorOption(new EditorPassthroughOption(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10)),
 	lineNumbers: registerEditorOption(new EditorRenderLineNumbersOption(EditorOption.lineNumbers, 'lineNumbers', { renderType: RenderLineNumbersType.On, renderFn: null })),
 	lineNumbersMinChars: registerEditorOption(new EditorIntOption(EditorOption.lineNumbersMinChars, 'lineNumbersMinChars', 5, 1, 10)),
-	minimap: registerEditorOption(new EditorMinimapOption(EditorOption.minimap, 'minimap', {
+	links: registerEditorOption(new EditorBooleanOption(EditorOption.links, 'links', true)),
+	matchBrackets: registerEditorOption(new EditorBooleanOption(EditorOption.matchBrackets, 'matchBrackets', true)),
+	minimap: registerEditorOption(new EditorMinimap(EditorOption.minimap, 'minimap', {
 		enabled: true,
 		side: 'right',
 		showSlider: 'mouseover',
@@ -2594,8 +2586,10 @@ export const EditorOptions = {
 	mouseWheelZoom: registerEditorOption(new EditorBooleanOption(EditorOption.mouseWheelZoom, 'mouseWheelZoom', false)),
 	multiCursorMergeOverlapping: registerEditorOption(new EditorBooleanOption(EditorOption.multiCursorMergeOverlapping, 'multiCursorMergeOverlapping', true)),
 	multiCursorModifier: registerEditorOption(new EditorEnumOption(EditorOption.multiCursorModifier, 'multiCursorModifier', 'alt', ['ctrlCmd', 'alt'], _multiCursorModifierFromString)),
+	occurrencesHighlight: registerEditorOption(new EditorBooleanOption(EditorOption.occurrencesHighlight, 'occurrencesHighlight', true)),
 	overviewRulerBorder: registerEditorOption(new EditorBooleanOption(EditorOption.overviewRulerBorder, 'overviewRulerBorder', true)),
 	overviewRulerLanes: registerEditorOption(new EditorIntOption(EditorOption.overviewRulerLanes, 'overviewRulerLanes', 2, 0, 3)),
+	quickSuggestionsDelay: registerEditorOption(new EditorIntOption(EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay', 10, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
 	readOnly: registerEditorOption(new EditorBooleanOption(EditorOption.readOnly, 'readOnly', false)),
 	renderControlCharacters: registerEditorOption(new EditorBooleanOption(EditorOption.renderControlCharacters, 'renderControlCharacters', false)),
 	renderIndentGuides: registerEditorOption(new EditorBooleanOption(EditorOption.renderIndentGuides, 'renderIndentGuides', true)),
@@ -2605,7 +2599,7 @@ export const EditorOptions = {
 	revealHorizontalRightPadding: registerEditorOption(new EditorIntOption(EditorOption.revealHorizontalRightPadding, 'revealHorizontalRightPadding', 30, 0, 1000)),
 	roundedSelection: registerEditorOption(new EditorBooleanOption(EditorOption.roundedSelection, 'roundedSelection', true)),
 	rulers: registerEditorOption(new EditorRulers(EditorOption.rulers, 'rulers', [])),
-	scrollbar: registerEditorOption(new EditorScrollbarOption(EditorOption.scrollbar, 'scrollbar', {
+	scrollbar: registerEditorOption(new EditorScrollbar(EditorOption.scrollbar, 'scrollbar', {
 		vertical: ScrollbarVisibility.Auto,
 		horizontal: ScrollbarVisibility.Auto,
 		arrowSize: 11,
@@ -2621,11 +2615,14 @@ export const EditorOptions = {
 	scrollBeyondLastColumn: registerEditorOption(new EditorIntOption(EditorOption.scrollBeyondLastColumn, 'scrollBeyondLastColumn', 5, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
 	scrollBeyondLastLine: registerEditorOption(new EditorBooleanOption(EditorOption.scrollBeyondLastLine, 'scrollBeyondLastLine', true)),
 	selectionClipboard: registerEditorOption(new EditorBooleanOption(EditorOption.selectionClipboard, 'selectionClipboard', true)),
+	selectionHighlight: registerEditorOption(new EditorBooleanOption(EditorOption.selectionHighlight, 'selectionHighlight', true)),
 	selectOnLineNumbers: registerEditorOption(new EditorBooleanOption(EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true)),
 	showUnused: registerEditorOption(new EditorBooleanOption(EditorOption.showUnused, 'showUnused', true)),
 	smoothScrolling: registerEditorOption(new EditorBooleanOption(EditorOption.smoothScrolling, 'smoothScrolling', false)),
 	stopRenderingLineAfter: registerEditorOption(new EditorIntOption(EditorOption.stopRenderingLineAfter, 'stopRenderingLineAfter', 10000, -1, Constants.MAX_SAFE_SMALL_INTEGER)),
+	suggestOnTriggerCharacters: registerEditorOption(new EditorBooleanOption(EditorOption.suggestOnTriggerCharacters, 'suggestOnTriggerCharacters', true)),
 	useTabStops: registerEditorOption(new EditorBooleanOption(EditorOption.useTabStops, 'useTabStops', true)),
+	wordBasedSuggestions: registerEditorOption(new EditorBooleanOption(EditorOption.wordBasedSuggestions, 'wordBasedSuggestions', true)),
 	wordSeparators: registerEditorOption(new EditorStringOption(EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS)),
 	wordWrap: registerEditorOption(new EditorEnumOption(EditorOption.wordWrap, 'wordWrap', 'off', ['off', 'on', 'wordWrapColumn', 'bounded'], x => x)),
 	wordWrapBreakAfterCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters', ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣')),

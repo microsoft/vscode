@@ -155,6 +155,13 @@ function migrateOptions(options: IEditorOptions): void {
 	} else if (<any>renderLineHighlight === false) {
 		options.renderLineHighlight = 'none';
 	}
+
+	let acceptSuggestionOnEnter = options.acceptSuggestionOnEnter;
+	if (<any>acceptSuggestionOnEnter === true) {
+		options.acceptSuggestionOnEnter = 'on';
+	} else if (<any>acceptSuggestionOnEnter === false) {
+		options.acceptSuggestionOnEnter = 'off';
+	}
 }
 
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
@@ -633,7 +640,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.quickSuggestionsDelay': {
 			'type': 'integer',
-			'default': EDITOR_DEFAULTS.contribInfo.quickSuggestionsDelay,
+			'default': EditorOptions.quickSuggestionsDelay.defaultValue,
 			'minimum': 0,
 			'description': nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up.")
 		},
@@ -696,12 +703,12 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.formatOnType': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.formatOnType,
+			'default': EditorOptions.formatOnType.defaultValue,
 			'description': nls.localize('formatOnType', "Controls whether the editor should automatically format the line after typing.")
 		},
 		'editor.formatOnPaste': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.formatOnPaste,
+			'default': EditorOptions.formatOnPaste.defaultValue,
 			'description': nls.localize('formatOnPaste', "Controls whether the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.")
 		},
 		'editor.autoIndent': {
@@ -711,13 +718,13 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.suggestOnTriggerCharacters,
+			'default': EditorOptions.suggestOnTriggerCharacters.defaultValue,
 			'description': nls.localize('suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters.")
 		},
 		'editor.acceptSuggestionOnEnter': {
 			'type': 'string',
 			'enum': ['on', 'smart', 'off'],
-			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter,
+			'default': EditorOptions.acceptSuggestionOnEnter.defaultValue,
 			'markdownEnumDescriptions': [
 				'',
 				nls.localize('acceptSuggestionOnEnterSmart', "Only accept a suggestion with `Enter` when it makes a textual change."),
@@ -727,7 +734,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.acceptSuggestionOnCommitCharacter': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnCommitCharacter,
+			'default': EditorOptions.acceptSuggestionOnCommitCharacter.defaultValue,
 			'markdownDescription': nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.")
 		},
 		'editor.snippetSuggestions': {
@@ -754,7 +761,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wordBasedSuggestions': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
+			'default': EditorOptions.wordBasedSuggestions.defaultValue,
 			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
 		'editor.suggestSelection': {
@@ -973,12 +980,12 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.selectionHighlight,
+			'default': EditorOptions.selectionHighlight.defaultValue,
 			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight matches similar to the selection.")
 		},
 		'editor.occurrencesHighlight': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.occurrencesHighlight,
+			'default': EditorOptions.occurrencesHighlight.defaultValue,
 			'description': nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.")
 		},
 		'editor.overviewRulerLanes': {
@@ -1069,7 +1076,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.codeLens': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.codeLens,
+			'default': EditorOptions.codeLens.defaultValue,
 			'description': nls.localize('codeLens', "Controls whether the editor shows CodeLens.")
 		},
 		'editor.folding': {
@@ -1091,7 +1098,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.matchBrackets': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.matchBrackets,
+			'default': EditorOptions.matchBrackets.defaultValue,
 			'description': nls.localize('matchBrackets', "Highlight matching brackets when one of them is selected.")
 		},
 		'editor.glyphMargin': {
@@ -1137,17 +1144,17 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.links': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.links,
+			'default': EditorOptions.links.defaultValue,
 			'description': nls.localize('links', "Controls whether the editor should detect links and make them clickable.")
 		},
 		'editor.colorDecorators': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.colorDecorators,
+			'default': EditorOptions.colorDecorators.defaultValue,
 			'description': nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.")
 		},
 		'editor.lightbulb.enabled': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
+			'default': EditorOptions.lightbulb.defaultValue.enabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb in the editor.")
 		},
 		'editor.maxTokenizationLineLength': {

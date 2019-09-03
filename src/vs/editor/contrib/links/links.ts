@@ -140,9 +140,9 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			this.cleanUpActiveLinkDecoration();
 		}));
 
-		this.enabled = editor.getConfiguration().contribInfo.links;
+		this.enabled = editor.getOption(EditorOption.links);
 		this.listenersToRemove.add(editor.onDidChangeConfiguration((e) => {
-			let enabled = editor.getConfiguration().contribInfo.links;
+			const enabled = editor.getOption(EditorOption.links);
 			if (this.enabled === enabled) {
 				// No change in our configuration option
 				return;

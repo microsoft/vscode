@@ -2919,7 +2919,7 @@ declare namespace monaco.editor {
 		};
 		/**
 		 * Quick suggestions show delay (in ms)
-		 * Defaults to 500 (ms)
+		 * Defaults to 10 (ms)
 		 */
 		quickSuggestionsDelay?: number;
 		/**
@@ -2974,7 +2974,7 @@ declare namespace monaco.editor {
 		 * Accept suggestions on ENTER.
 		 * Defaults to 'on'.
 		 */
-		acceptSuggestionOnEnter?: boolean | 'on' | 'smart' | 'off';
+		acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
 		/**
 		 * Accept suggestions on provider defined characters.
 		 * Defaults to true.
@@ -3271,36 +3271,21 @@ declare namespace monaco.editor {
 
 	export interface EditorContribOptions {
 		readonly hover: InternalEditorHoverOptions;
-		readonly links: boolean;
-		readonly contextmenu: boolean;
 		readonly quickSuggestions: boolean | {
 			other: boolean;
 			comments: boolean;
 			strings: boolean;
 		};
-		readonly quickSuggestionsDelay: number;
 		readonly parameterHints: InternalParameterHintOptions;
-		readonly formatOnType: boolean;
-		readonly formatOnPaste: boolean;
-		readonly suggestOnTriggerCharacters: boolean;
-		readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
-		readonly acceptSuggestionOnCommitCharacter: boolean;
-		readonly wordBasedSuggestions: boolean;
 		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
 		readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 		readonly suggest: InternalSuggestOptions;
 		readonly gotoLocation: InternalGoToLocationOptions;
-		readonly selectionHighlight: boolean;
-		readonly occurrencesHighlight: boolean;
-		readonly codeLens: boolean;
 		readonly foldingStrategy: 'auto' | 'indentation';
 		readonly showFoldingControls: 'always' | 'mouseover';
-		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
-		readonly colorDecorators: boolean;
-		readonly lightbulbEnabled: boolean;
 		readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
 		readonly codeActionsOnSaveTimeout: number;
 	}
@@ -3399,6 +3384,8 @@ declare namespace monaco.editor {
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
 	}
+
+	export type ValidEditorLightbulbOptions = Required<IEditorLightbulbOptions>;
 
 	export interface InternalEditorScrollbarOptions {
 		readonly arrowSize: number;
@@ -3534,77 +3521,94 @@ declare namespace monaco.editor {
 	}
 
 	export enum EditorOption {
-		accessibilitySupport = 0,
-		autoClosingBrackets = 1,
-		autoClosingOvertype = 2,
-		autoClosingQuotes = 3,
-		autoIndent = 4,
-		automaticLayout = 5,
-		autoSurround = 6,
-		copyWithSyntaxHighlighting = 7,
-		cursorBlinking = 8,
-		cursorSmoothCaretAnimation = 9,
-		cursorStyle = 10,
-		cursorSurroundingLines = 11,
-		cursorWidth = 12,
-		disableLayerHinting = 13,
-		dragAndDrop = 14,
-		emptySelectionClipboard = 15,
-		extraEditorClassName = 16,
-		fastScrollSensitivity = 17,
-		fixedOverflowWidgets = 18,
-		folding = 19,
-		fontLigatures = 20,
-		glyphMargin = 21,
-		hideCursorInOverviewRuler = 22,
-		highlightActiveIndentGuide = 23,
-		inDiffEditor = 24,
-		lineDecorationsWidth = 25,
-		lineNumbers = 26,
-		lineNumbersMinChars = 27,
-		minimap = 28,
-		mouseStyle = 29,
-		mouseWheelScrollSensitivity = 30,
-		mouseWheelZoom = 31,
-		multiCursorMergeOverlapping = 32,
-		multiCursorModifier = 33,
-		overviewRulerBorder = 34,
-		overviewRulerLanes = 35,
-		readOnly = 36,
-		renderControlCharacters = 37,
-		renderIndentGuides = 38,
-		renderFinalNewline = 39,
-		renderLineHighlight = 40,
-		renderWhitespace = 41,
-		revealHorizontalRightPadding = 42,
-		roundedSelection = 43,
-		rulers = 44,
-		scrollbar = 45,
-		scrollBeyondLastColumn = 46,
-		scrollBeyondLastLine = 47,
-		selectionClipboard = 48,
-		selectOnLineNumbers = 49,
-		showUnused = 50,
-		smoothScrolling = 51,
-		stopRenderingLineAfter = 52,
-		useTabStops = 53,
-		wordSeparators = 54,
-		wordWrap = 55,
-		wordWrapBreakAfterCharacters = 56,
-		wordWrapBreakBeforeCharacters = 57,
-		wordWrapBreakObtrusiveCharacters = 58,
-		wordWrapColumn = 59,
-		wordWrapMinified = 60,
-		wrappingIndent = 61,
-		ariaLabel = 62,
-		disableMonospaceOptimizations = 63,
-		editorClassName = 64,
-		tabFocusMode = 65,
-		layoutInfo = 66,
-		wrappingInfo = 67
+		acceptSuggestionOnCommitCharacter = 0,
+		acceptSuggestionOnEnter = 1,
+		accessibilitySupport = 2,
+		autoClosingBrackets = 3,
+		autoClosingOvertype = 4,
+		autoClosingQuotes = 5,
+		autoIndent = 6,
+		automaticLayout = 7,
+		autoSurround = 8,
+		codeLens = 9,
+		colorDecorators = 10,
+		contextmenu = 11,
+		copyWithSyntaxHighlighting = 12,
+		cursorBlinking = 13,
+		cursorSmoothCaretAnimation = 14,
+		cursorStyle = 15,
+		cursorSurroundingLines = 16,
+		cursorWidth = 17,
+		disableLayerHinting = 18,
+		dragAndDrop = 19,
+		emptySelectionClipboard = 20,
+		extraEditorClassName = 21,
+		fastScrollSensitivity = 22,
+		fixedOverflowWidgets = 23,
+		folding = 24,
+		fontLigatures = 25,
+		formatOnPaste = 26,
+		formatOnType = 27,
+		glyphMargin = 28,
+		hideCursorInOverviewRuler = 29,
+		highlightActiveIndentGuide = 30,
+		inDiffEditor = 31,
+		lightbulb = 32,
+		lineDecorationsWidth = 33,
+		lineNumbers = 34,
+		lineNumbersMinChars = 35,
+		links = 36,
+		matchBrackets = 37,
+		minimap = 38,
+		mouseStyle = 39,
+		mouseWheelScrollSensitivity = 40,
+		mouseWheelZoom = 41,
+		multiCursorMergeOverlapping = 42,
+		multiCursorModifier = 43,
+		occurrencesHighlight = 44,
+		overviewRulerBorder = 45,
+		overviewRulerLanes = 46,
+		quickSuggestionsDelay = 47,
+		readOnly = 48,
+		renderControlCharacters = 49,
+		renderIndentGuides = 50,
+		renderFinalNewline = 51,
+		renderLineHighlight = 52,
+		renderWhitespace = 53,
+		revealHorizontalRightPadding = 54,
+		roundedSelection = 55,
+		rulers = 56,
+		scrollbar = 57,
+		scrollBeyondLastColumn = 58,
+		scrollBeyondLastLine = 59,
+		selectionClipboard = 60,
+		selectionHighlight = 61,
+		selectOnLineNumbers = 62,
+		showUnused = 63,
+		smoothScrolling = 64,
+		stopRenderingLineAfter = 65,
+		suggestOnTriggerCharacters = 66,
+		useTabStops = 67,
+		wordBasedSuggestions = 68,
+		wordSeparators = 69,
+		wordWrap = 70,
+		wordWrapBreakAfterCharacters = 71,
+		wordWrapBreakBeforeCharacters = 72,
+		wordWrapBreakObtrusiveCharacters = 73,
+		wordWrapColumn = 74,
+		wordWrapMinified = 75,
+		wrappingIndent = 76,
+		ariaLabel = 77,
+		disableMonospaceOptimizations = 78,
+		editorClassName = 79,
+		tabFocusMode = 80,
+		layoutInfo = 81,
+		wrappingInfo = 82
 	}
 
 	export const EditorOptions: {
+		acceptSuggestionOnCommitCharacter: any;
+		acceptSuggestionOnEnter: any;
 		accessibilitySupport: any;
 		autoClosingBrackets: any;
 		autoClosingOvertype: any;
@@ -3612,6 +3616,9 @@ declare namespace monaco.editor {
 		autoIndent: any;
 		automaticLayout: any;
 		autoSurround: any;
+		codeLens: any;
+		colorDecorators: any;
+		contextmenu: any;
 		copyWithSyntaxHighlighting: any;
 		cursorBlinking: any;
 		cursorSmoothCaretAnimation: any;
@@ -3626,21 +3633,28 @@ declare namespace monaco.editor {
 		fixedOverflowWidgets: any;
 		folding: any;
 		fontLigatures: any;
+		formatOnPaste: any;
+		formatOnType: any;
 		glyphMargin: any;
 		hideCursorInOverviewRuler: any;
 		highlightActiveIndentGuide: any;
 		inDiffEditor: any;
+		lightbulb: any;
 		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, "lineDecorationsWidth", string | number, string | number>;
 		lineNumbers: any;
 		lineNumbersMinChars: any;
+		links: any;
+		matchBrackets: any;
 		minimap: any;
 		mouseStyle: any;
 		mouseWheelScrollSensitivity: any;
 		mouseWheelZoom: any;
 		multiCursorMergeOverlapping: any;
 		multiCursorModifier: any;
+		occurrencesHighlight: any;
 		overviewRulerBorder: any;
 		overviewRulerLanes: any;
+		quickSuggestionsDelay: any;
 		readOnly: any;
 		renderControlCharacters: any;
 		renderIndentGuides: any;
@@ -3654,11 +3668,14 @@ declare namespace monaco.editor {
 		scrollBeyondLastColumn: any;
 		scrollBeyondLastLine: any;
 		selectionClipboard: any;
+		selectionHighlight: any;
 		selectOnLineNumbers: any;
 		showUnused: any;
 		smoothScrolling: any;
 		stopRenderingLineAfter: any;
+		suggestOnTriggerCharacters: any;
 		useTabStops: any;
+		wordBasedSuggestions: any;
 		wordSeparators: any;
 		wordWrap: any;
 		wordWrapBreakAfterCharacters: any;
