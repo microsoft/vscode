@@ -987,17 +987,17 @@ export class SearchModel extends Disposable {
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start));
 
-		return currentRequest;
+		return currentRequest.finally(() => {
+			/* __GDPR__
+				"searchResultsFinished" : {
+					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				}
+			*/
+			this.telemetryService.publicLog('searchResultsFinished', { duration: Date.now() - start });
+		});
 	}
 
 	private onSearchCompleted(completed: ISearchComplete | null, duration: number): ISearchComplete | null {
-		/* __GDPR__
-			"searchResultsFinished" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('searchResultsFinished', { duration });
-
 		if (!this._searchQuery) {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
