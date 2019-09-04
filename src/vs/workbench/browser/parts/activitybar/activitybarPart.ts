@@ -198,6 +198,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		this.createGlobalActivityActionBar(globalActivities);
 
+		this.element.style.display = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? null : 'none';
+
 		return content;
 	}
 
@@ -366,6 +368,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			.filter(v => this.compositeBar.isPinned(v.id))
 			.sort((v1, v2) => pinnedCompositeIds.indexOf(v1.id) - pinnedCompositeIds.indexOf(v2.id))
 			.map(v => v.id);
+	}
+
+	setVisible(visible: boolean): void {
+		if (this.element) {
+			this.element.style.display = visible ? null : 'none';
+		}
 	}
 
 	layout(width: number, height: number): void {
