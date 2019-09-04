@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -376,7 +376,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IClipboardService clipboardService: IClipboardService
+		@optional(IClipboardService) clipboardService: IClipboardService | null,
 	) {
 		applyConfigurationValues(configurationService, options, true);
 		options = options || {};
@@ -384,7 +384,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			options.theme = themeService.setTheme(options.theme);
 		}
 
-		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, clipboardService);
+		super(domElement, options, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService);
 
 		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
