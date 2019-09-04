@@ -280,6 +280,7 @@ export class TextAreaHandler extends ViewPart {
 			const column = this._selections[0].startColumn;
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+				'keyboard',
 				new Range(lineNumber, column, lineNumber, column),
 				viewEvents.VerticalRevealType.Simple,
 				true,

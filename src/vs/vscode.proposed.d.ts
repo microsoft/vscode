@@ -883,7 +883,7 @@ declare module 'vscode' {
 		 *   onDidWrite: writeEmitter.event,
 		 *   onDidClose: closeEmitter.event,
 		 *   open: () => writeEmitter.fire('Press y to exit successfully'),
-		 *   close: () => {}
+		 *   close: () => {},
 		 *   handleInput: data => {
 		 *     if (data !== 'y') {
 		 *       vscode.window.showInformationMessage('Something went wrong');

@@ -198,7 +198,13 @@ export class ViewRevealRangeRequestEvent {
 
 	public readonly scrollType: ScrollType;
 
-	constructor(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
+	/**
+	 * Source of the call that caused the event.
+	 */
+	readonly source: string;
+
+	constructor(source: string, range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
+		this.source = source;
 		this.range = range;
 		this.verticalType = verticalType;
 		this.revealHorizontal = revealHorizontal;

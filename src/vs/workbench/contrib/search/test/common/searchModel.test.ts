@@ -21,14 +21,14 @@ import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import * as process from 'vs/base/common/process';
 
 const nullEvent = new class {
-	id: number;
-	topic: string;
-	name: string;
-	description: string;
+	id: number = -1;
+	topic!: string;
+	name!: string;
+	description!: string;
 	data: any;
 
-	startTime: Date;
-	stopTime: Date;
+	startTime!: Date;
+	stopTime!: Date;
 
 	stop(): void {
 		return;
@@ -158,6 +158,7 @@ suite('SearchModel', () => {
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		await timeout(0); // TODO@rob https://github.com/microsoft/vscode/issues/80251
 
 		assert.ok(target.calledThrice);
 		const data = target.args[0];

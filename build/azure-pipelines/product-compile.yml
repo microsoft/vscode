@@ -20,7 +20,7 @@ steps:
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
 - task: AzureKeyVault@1

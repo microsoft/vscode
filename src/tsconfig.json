@@ -24,6 +24,9 @@
 		"./vs"
 	],
 	"exclude": [
-		"./typings/require-monaco.d.ts"
+		"./typings/require-monaco.d.ts",
+		"./typings/xterm.d.ts",
+		"./typings/xterm-addon-search.d.ts",
+		"./typings/xterm-addon-web-links.d.ts"
 	]
 }

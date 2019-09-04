@@ -118,7 +118,10 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const favicon = gulp.src('resources/server/favicon.ico', { base: 'resources/server' });
 		const manifest = gulp.src('resources/server/manifest.json', { base: 'resources/server' });
-		const pwaicon = gulp.src('resources/server/code.png', { base: 'resources/server' });
+		const pwaicons = es.merge(
+			gulp.src('resources/server/code-192.png', { base: 'resources/server' }),
+			gulp.src('resources/server/code-512.png', { base: 'resources/server' })
+		);
 
 		let all = es.merge(
 			packageJsonStream,
@@ -128,7 +131,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			deps,
 			favicon,
 			manifest,
-			pwaicon
+			pwaicons
 		);
 
 		let result = all
