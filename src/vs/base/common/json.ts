@@ -207,17 +207,17 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 
 	function scanHexDigits(count: number): number {
 		let digits = 0;
-		let value = 0;
+		let hexValue = 0;
 		while (digits < count) {
 			const ch = text.charCodeAt(pos);
 			if (ch >= CharacterCodes._0 && ch <= CharacterCodes._9) {
-				value = value * 16 + ch - CharacterCodes._0;
+				hexValue = hexValue * 16 + ch - CharacterCodes._0;
 			}
 			else if (ch >= CharacterCodes.A && ch <= CharacterCodes.F) {
-				value = value * 16 + ch - CharacterCodes.A + 10;
+				hexValue = hexValue * 16 + ch - CharacterCodes.A + 10;
 			}
 			else if (ch >= CharacterCodes.a && ch <= CharacterCodes.f) {
-				value = value * 16 + ch - CharacterCodes.a + 10;
+				hexValue = hexValue * 16 + ch - CharacterCodes.a + 10;
 			}
 			else {
 				break;
@@ -226,9 +226,9 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 			digits++;
 		}
 		if (digits < count) {
-			value = -1;
+			hexValue = -1;
 		}
-		return value;
+		return hexValue;
 	}
 
 	function setPosition(newPosition: number) {
