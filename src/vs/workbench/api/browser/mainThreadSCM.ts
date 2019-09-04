@@ -198,7 +198,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 			for (const [start, deleteCount, rawResources] of groupSlices) {
 				const resources = rawResources.map(rawResource => {
-					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, source, letter, color] = rawResource;
+					const [handle, sourceUri, icons, tooltip, strikeThrough, faded] = rawResource;
 					const icon = icons[0];
 					const iconDark = icons[1] || icon;
 					const decorations = {
@@ -206,10 +206,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 						iconDark: iconDark ? URI.parse(iconDark) : undefined,
 						tooltip,
 						strikeThrough,
-						faded,
-						source,
-						letter,
-						color: color ? color.id : undefined
+						faded
 					};
 
 					return new MainThreadSCMResource(

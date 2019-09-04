@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { MainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, Decoration } from 'vs/workbench/api/common/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { asArray } from 'vs/base/common/arrays';
@@ -59,12 +59,14 @@ export class ExtHostDecorations implements IExtHostDecorations {
 			}
 			const { provider, extensionId } = entry;
 			return Promise.resolve(provider.provideDecoration(URI.revive(uri), token)).then(data => {
-				if (data && data.letter && data.letter.length !== 1) {
-					console.warn(`INVALID decoration from extension '${extensionId.value}'. The 'letter' must be set and be one character, not '${data.letter}'.`);
+				if (!data) {
+					return;
 				}
-				if (data) {
-					result[id] = <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color, data.source];
-
+				try {
+					Decoration.validate(data);
+					result[id] = <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color];
+				} catch (e) {
+					console.warn(`INVALID decoration from extension '${extensionId.value}': ${e}`);
 				}
 			}, err => {
 				console.error(err);

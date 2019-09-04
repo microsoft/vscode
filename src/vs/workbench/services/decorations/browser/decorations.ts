@@ -18,14 +18,12 @@ export interface IDecorationData {
 	readonly letter?: string;
 	readonly tooltip?: string;
 	readonly bubble?: boolean;
-	readonly source?: string;
 }
 
 export interface IDecoration {
 	readonly tooltip: string;
 	readonly labelClassName: string;
 	readonly badgeClassName: string;
-	update(data: IDecorationData): IDecoration;
 }
 
 export interface IDecorationsProvider {
@@ -46,5 +44,5 @@ export interface IDecorationsService {
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable;
 
-	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration | undefined;
+	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined;
 }
