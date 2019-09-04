@@ -114,11 +114,11 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 
 			const result = await this.dialogService.confirm({
-				message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
+				message: localize('confirmUrl', "Allow an extension to open this URI?", extensionId),
 				checkbox: {
 					label: localize('rememberConfirmUrl', "Don't ask again for this extension."),
 				},
-				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uriString}`,
+				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URI:\n\n${uriString}`,
 				primaryButton: localize('open', "&&Open"),
 				type: 'question'
 			});
