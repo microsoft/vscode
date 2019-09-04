@@ -125,9 +125,12 @@ abstract class ViewItem {
 		}
 	}
 
-	layout(orthogonalSize: number | undefined): void {
+	layout(position: number, orthogonalSize: number | undefined): void {
+		this.layoutContainer(position);
 		this.view.layout(this.size, orthogonalSize);
 	}
+
+	abstract layoutContainer(position: number): void;
 
 	dispose(): IView {
 		this.disposable.dispose();
@@ -137,16 +140,16 @@ abstract class ViewItem {
 
 class VerticalViewItem extends ViewItem {
 
-	layout(orthogonalSize: number | undefined): void {
-		super.layout(orthogonalSize);
+	layoutContainer(position: number): void {
+		this.container.style.top = `${position}px`;
 		this.container.style.height = `${this.size}px`;
 	}
 }
 
 class HorizontalViewItem extends ViewItem {
 
-	layout(orthogonalSize: number | undefined): void {
-		super.layout(orthogonalSize);
+	layoutContainer(position: number): void {
+		this.container.style.left = `${position}px`;
 		this.container.style.width = `${this.size}px`;
 	}
 }
@@ -846,7 +849,12 @@ export class SplitView extends Disposable {
 		this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 
 		// Layout views
-		this.viewItems.forEach(item => item.layout(this.orthogonalSize));
+		let position = 0;
+
+		for (const viewItem of this.viewItems) {
+			viewItem.layout(position, this.orthogonalSize);
+			position += viewItem.size;
+		}
 
 		// Layout sashes
 		this.sashItems.forEach(item => item.sash.layout());
