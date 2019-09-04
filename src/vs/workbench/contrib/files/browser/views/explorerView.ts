@@ -522,8 +522,6 @@ export class ExplorerView extends ViewletPanel {
 
 		while (item && item.resource.toString() !== resource.toString()) {
 			await this.tree.expand(item);
-			// Tree returns too early from the expand, need to wait for next tick #77106
-			await timeout(0);
 			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
 		}
 
