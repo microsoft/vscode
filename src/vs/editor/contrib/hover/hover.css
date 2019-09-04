@@ -55,7 +55,11 @@
 	margin-bottom: 0;
 }
 
+/* MarkupContent Layout */
 .monaco-editor-hover ul {
+	padding-left: 20px;
+}
+.monaco-editor-hover ol {
 	padding-left: 20px;
 }
 
