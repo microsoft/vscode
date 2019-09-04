@@ -661,11 +661,7 @@ export type SCMRawResource = [
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/,
-
-	string | undefined /*source*/,
-	string | undefined /*letter*/,
-	ThemeColor | null /*color*/
+	boolean /*faded*/
 ];
 
 export type SCMRawResourceSplice = [
@@ -1272,7 +1268,7 @@ export interface DecorationRequest {
 	readonly uri: UriComponents;
 }
 
-export type DecorationData = [number, boolean, string, string, ThemeColor, string];
+export type DecorationData = [number, boolean, string, string, ThemeColor];
 export type DecorationReply = { [id: number]: DecorationData };
 
 export interface ExtHostDecorationsShape {
