@@ -105,7 +105,7 @@ export class WebClientServer extends Disposable {
 		try {
 			const pathname = parsedUrl.pathname!;
 
-			if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code.png') {
+			if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code-192.png' || pathname === '/code-512.png') {
 				// always serve icons/manifest, even without a token
 				return serveFile(this._logService, req, res, path.join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
 			}
