@@ -487,12 +487,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return;
 		}
 
-		const history = this.ensureHistoryLoaded();
-
 		const historyInput = this.preferResourceInput(input);
 
 		// Remove any existing entry and add to the beginning
 		this.removeFromHistory(input);
+
+		const history = this.ensureHistoryLoaded();
 		history.unshift(historyInput);
 
 		// Respect max entries setting
