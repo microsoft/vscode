@@ -26,6 +26,7 @@ import { Schemas } from 'vs/base/common/network';
 import { SupportsWorkspacesContext, IsWebContext, RemoteFileDialogContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenLocalFileFolderCommand, OpenFileAction, OpenFolderAction, OpenLocalFileCommand, OpenLocalFolderCommand, OpenWorkspaceAction, SaveLocalFileCommand } from 'vs/workbench/browser/actions/workspaceActions';
+import { CanSaveActiveEditorContext } from 'vs/workbench/common/editor';
 
 // Contribute Global Actions
 const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
@@ -625,7 +626,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save")
+		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+		precondition: ContextKeyExpr.and(CanSaveActiveEditorContext, DirtyEditorContext)
 	},
 	order: 1
 });
@@ -634,7 +636,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_AS_COMMAND_ID,
-		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As...")
+		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."),
+		precondition: CanSaveActiveEditorContext
 	},
 	order: 2
 });
