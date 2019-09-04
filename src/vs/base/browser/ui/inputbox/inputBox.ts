@@ -240,6 +240,7 @@ export class InputBox extends Widget {
 	}
 
 	public setPlaceHolder(placeHolder: string): void {
+		this.placeholder = placeHolder;
 		this.input.setAttribute('placeholder', placeHolder);
 		this.input.title = placeHolder;
 	}
