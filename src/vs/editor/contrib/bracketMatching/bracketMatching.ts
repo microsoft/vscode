@@ -59,12 +59,12 @@ class SelectToBracketAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		let controller = BracketMatchingController.get(editor);
 		if (!controller) {
 			return;
 		}
-		controller.selectToBracket();
+		controller.selectToBracket(args);
 	}
 }
 
@@ -179,7 +179,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._editor.revealRange(newSelections[0]);
 	}
 
-	public selectToBracket(): void {
+	public selectToBracket(args: any): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -216,6 +216,11 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			}
 
 			if (openBracket && closeBracket) {
+				if (args.selectBrackets === false) {
+					openBracket.column += 1;
+					closeBracket.column -= 1;
+				}
+
 				newSelections.push(new Selection(openBracket.lineNumber, openBracket.column, closeBracket.lineNumber, closeBracket.column));
 			}
 		});
