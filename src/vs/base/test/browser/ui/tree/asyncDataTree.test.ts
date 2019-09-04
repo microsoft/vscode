@@ -442,20 +442,83 @@ suite('AsyncDataTree', function () {
 		const pExpandA = tree.expand(_('a'));
 		assert.equal(calls.length, 1, 'expand(a) still hasn\'t called getChildren(a)');
 
-		const call = calls.pop()!;
+		calls.pop()!();
 		assert.equal(calls.length, 0, 'no pending getChildren calls');
 
-		call(); // resolve getChildren(a)
-		assert.equal(calls.length, 0, 'still no call, the machinery hasn\'t completed');
-
 		await pUpdateChildrenA;
-		assert.equal(calls.length, 1, 'finally, expand(a) reached getChildren(a)');
+		assert.equal(calls.length, 0, 'expand(a) should not have forced a second refresh');
 
-		let result = await Promise.race<any>([pExpandA, timeout(10).then(() => 'timeout')]);
-		assert.equal(result, 'timeout', 'should have timed out');
+		const result = await pExpandA;
+		assert.equal(result, true, 'expand(a) should be done');
+	});
+
+	test('issue #80098 - first expand should call getChildren', async () => {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new class implements IListVirtualDelegate<Element> {
+			getHeight() { return 20; }
+			getTemplateId(element: Element): string { return 'default'; }
+		};
+
+		const renderer = new class implements ITreeRenderer<Element, void, HTMLElement> {
+			readonly templateId = 'default';
+			renderTemplate(container: HTMLElement): HTMLElement {
+				return container;
+			}
+			renderElement(element: ITreeNode<Element, void>, index: number, templateData: HTMLElement): void {
+				templateData.textContent = element.element.id;
+			}
+			disposeTemplate(templateData: HTMLElement): void {
+				// noop
+			}
+		};
+
+		const calls: Function[] = [];
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			getChildren(element: Element): Promise<Element[]> {
+				return new Promise(c => calls.push(() => c(element.children)));
+			}
+		};
+
+		const identityProvider = new class implements IIdentityProvider<Element> {
+			getId(element: Element) {
+				return element.id;
+			}
+		};
+
+		const root: Element = {
+			id: 'root',
+			children: [{
+				id: 'a', children: [{
+					id: 'aa'
+				}]
+			}]
+		};
+
+		const _: (id: string) => Element = find.bind(null, root.children);
+
+		const tree = new AsyncDataTree<Element, Element>('test', container, delegate, [renderer], dataSource, { identityProvider });
+		tree.layout(200);
+
+		const pSetInput = tree.setInput(root);
+		calls.pop()!(); // resolve getChildren(root)
+		await pSetInput;
+
+		const pExpandA = tree.expand(_('a'));
+		assert.equal(calls.length, 1, 'expand(a) should\'ve called getChildren(a)');
+
+		let race = await Promise.race([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
+		assert.equal(race, 'timeout', 'expand(a) should not be yet done');
 
 		calls.pop()!();
-		result = await Promise.race<any>([pExpandA, timeout(10).then(() => 'timeout')]);
-		assert.equal(result, true, 'should not have timed out, but resolved from expand(a)');
+		assert.equal(calls.length, 0, 'no pending getChildren calls');
+
+		race = await Promise.race([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
+		assert.equal(race, 'expand', 'expand(a) should now be done');
 	});
 });
