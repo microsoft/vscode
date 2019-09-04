@@ -40,7 +40,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { domEvent } from 'vs/base/browser/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
@@ -90,7 +89,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 	readonly markersViewModel: MarkersViewModel;
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -109,16 +107,16 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService, storageService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.panelState = this.getMemento(StorageScope.WORKSPACE);
-		this.markersViewModel = instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']);
-		this.markersViewModel.onDidChange(this.onDidChangeViewState, this, this.disposables);
+		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));
+		this._register(this.markersViewModel.onDidChange(marker => this.onDidChangeViewState(marker)));
 		this.setCurrentActiveEditor();
 
 		this.filter = new Filter(new FilterOptions());
 		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
 
 		// actions
-		this.collapseAllAction = new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, async () => this.collapseAll());
-		this.filterAction = this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelState['filter'] || '', filterHistory: this.panelState['filterHistory'] || [], useFilesExclude: !!this.panelState['useFilesExclude'] });
+		this.collapseAllAction = this._register(new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, async () => this.collapseAll()));
+		this.filterAction = this._register(this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelState['filter'] || '', filterHistory: this.panelState['filterHistory'] || [], useFilesExclude: !!this.panelState['useFilesExclude'] }));
 	}
 
 	public create(parent: HTMLElement): void {
@@ -322,7 +320,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			}
 		};
 
-		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree,
 			'MarkersPanel',
 			this.treeContainer,
 			virtualDelegate,
@@ -334,7 +332,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 				dnd: new ResourceDragAndDrop(this.instantiationService),
 				expandOnlyOnTwistieClick: (e: TreeElement) => e instanceof Marker && e.relatedInformation.length > 0
 			}
-		);
+		));
 
 		onDidChangeRenderNodeCount.input = this.tree.onDidChangeRenderNodeCount;
 
@@ -728,10 +726,4 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		super.saveState();
 	}
 
-	public dispose(): void {
-		super.dispose();
-		this.tree.dispose();
-		this.markersViewModel.dispose();
-		this.disposables = dispose(this.disposables);
-	}
 }
