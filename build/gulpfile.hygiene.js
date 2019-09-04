@@ -57,6 +57,7 @@ const indentationFilter = [
 	'!test/assert.js',
 
 	// except specific folders
+	'!test/automation/out/**',
 	'!test/smoke/out/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
