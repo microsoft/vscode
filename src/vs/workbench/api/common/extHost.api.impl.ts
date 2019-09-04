@@ -538,12 +538,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createInputBox(): vscode.InputBox {
 				return extHostQuickOpen.createInputBox(extension.identifier);
 			},
-			registerUserDataProvider: proposedApiFunction(extension, (identity: string, userDataProvider: vscode.UserDataProvider): vscode.Disposable => {
+			registerUserDataProvider: (identity: string, userDataProvider: vscode.UserDataProvider): vscode.Disposable => {
+				checkProposedApiEnabled(extension);
 				return extHostUserData.registerUserDataProvider(identity, userDataProvider);
-			}),
-			registerUserLoginProvider: proposedApiFunction(extension, (identity: string, userLoginProvider: vscode.UserLoginProvider): vscode.Disposable => {
+			},
+			registerUserLoginProvider: (identity: string, userLoginProvider: vscode.UserLoginProvider): vscode.Disposable => {
+				checkProposedApiEnabled(extension);
 				return extHostUserData.registerUserLoginProvider(identity, userLoginProvider);
-			})
+			}
 		};
 
 		// namespace: workspace
