@@ -67,6 +67,7 @@ let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COU
 const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
 const ctrlEnterReplaceAllWarningPromptedKey = 'ctrlEnterReplaceAll.windows.donotask';
 
+const ctrlKeyMod = (platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 export class FindWidgetViewZone implements IViewZone {
 	public readonly afterLineNumber: number;
 	public heightInPx: number;
@@ -111,7 +112,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _notificationService: INotificationService;
 
 	private _domNode!: HTMLElement;
-	private _cachedHeight: number | null;
+	private _cachedHeight: number | null = null;
 	private _findInput!: FindInput;
 	private _replaceInput!: ReplaceInput;
 
@@ -776,7 +777,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
-		if (e.equals(KeyMod.WinCtrl | KeyCode.Enter)) {
+		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
 			const inputElement = this._findInput.inputBox.inputElement;
 			const start = inputElement.selectionStart;
 			const end = inputElement.selectionEnd;
@@ -818,7 +819,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
-		if (e.equals(KeyMod.WinCtrl | KeyCode.Enter)) {
+		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
 			if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
 				// this is the first time when users press Ctrl + Enter to replace all
 				this._notificationService.info(
@@ -836,7 +837,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			const end = inputElement.selectionEnd;
 			const content = inputElement.value;
 
-			if (start && end) {
+			if (start !== null && end !== null) {
 				const value = content.substr(0, start) + '\n' + content.substr(end);
 				this._replaceInput.inputBox.value = value;
 				inputElement.setSelectionRange(start + 1, start + 1);

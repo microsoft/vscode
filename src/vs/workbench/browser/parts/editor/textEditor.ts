@@ -39,7 +39,7 @@ export interface IEditorConfiguration {
 export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	private editorControl: IEditor;
 	private _editorContainer: HTMLElement;
-	private hasPendingConfigurationChange: boolean;
+	private hasPendingConfigurationChange: boolean | undefined;
 	private lastAppliedEditorOptions?: IEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
 
@@ -191,7 +191,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, token);
 
 		// Update editor options after having set the input. We do this because there can be
@@ -200,7 +200,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		this._editorContainer.setAttribute('aria-label', this.computeAriaLabel());
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 
 		// Pass on to Editor
 		if (visible) {

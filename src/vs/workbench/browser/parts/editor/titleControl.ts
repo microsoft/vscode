@@ -57,7 +57,7 @@ export abstract class TitleControl extends Themable {
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
 
-	protected editorActionsToolbar: ToolBar;
+	private editorActionsToolbar: ToolBar;
 
 	private resourceContext: ResourceContextKey;
 	private editorPinnedContext: IContextKey<boolean>;
@@ -274,7 +274,7 @@ export abstract class TitleControl extends Themable {
 					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.group.count - 1);
 				}
 
-				applyDragImage(e, label, 'monaco-editor-group-drag-image');
+				applyDragImage(e, withUndefinedAsNull(label), 'monaco-editor-group-drag-image');
 			}
 		}));
 

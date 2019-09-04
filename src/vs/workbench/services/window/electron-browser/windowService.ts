@@ -19,7 +19,7 @@ export class WindowService extends Disposable implements IWindowService {
 	readonly onDidChangeFocus: Event<boolean>;
 	readonly onDidChangeMaximize: Event<boolean>;
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _windowId: number;
 	private remoteAuthority: string | undefined;

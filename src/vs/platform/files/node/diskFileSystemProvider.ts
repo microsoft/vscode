@@ -38,7 +38,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	onDidChangeCapabilities: Event<void> = Event.None;
 
-	protected _capabilities: FileSystemProviderCapabilities;
+	protected _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
 			this._capabilities =

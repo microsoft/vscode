@@ -9,11 +9,10 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 const emptyDialogService = new class implements IDialogService {
-	_serviceBrand: 'dialogService';
+	_serviceBrand: undefined;
 	show(): never {
 		throw new Error('not implemented');
 	}
@@ -33,7 +32,7 @@ const emptyCommandService: ICommandService = {
 };
 
 const emptyNotificationService = new class implements INotificationService {
-	_serviceBrand: ServiceIdentifier<INotificationService>;
+	_serviceBrand: undefined;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
@@ -55,7 +54,7 @@ const emptyNotificationService = new class implements INotificationService {
 };
 
 class EmptyNotificationService implements INotificationService {
-	_serviceBrand: ServiceIdentifier<INotificationService>;
+	_serviceBrand: undefined;
 
 	constructor(private withNotify: (notification: INotification) => void) {
 	}

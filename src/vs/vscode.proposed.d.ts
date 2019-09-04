@@ -16,17 +16,6 @@
 
 declare module 'vscode' {
 
-	//#region Joh - ExecutionContext
-	// THIS is a deprecated proposal
-	export enum ExtensionExecutionContext {
-		Local = 1,
-		Remote = 2
-	}
-	export interface ExtensionContext {
-		executionContext: ExtensionExecutionContext;
-	}
-	//#endregion
-
 	//#region Joh - call hierarchy
 
 	export enum CallHierarchyDirection {
@@ -894,7 +883,7 @@ declare module 'vscode' {
 		 *   onDidWrite: writeEmitter.event,
 		 *   onDidClose: closeEmitter.event,
 		 *   open: () => writeEmitter.fire('Press y to exit successfully'),
-		 *   close: () => {}
+		 *   close: () => {},
 		 *   handleInput: data => {
 		 *     if (data !== 'y') {
 		 *       vscode.window.showInformationMessage('Something went wrong');

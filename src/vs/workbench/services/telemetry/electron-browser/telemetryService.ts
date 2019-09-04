@@ -20,7 +20,7 @@ import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/pla
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private impl: ITelemetryService;
 

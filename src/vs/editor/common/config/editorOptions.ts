@@ -244,7 +244,6 @@ export interface ICodeActionsOnSaveOptions {
 export interface IEditorOptions {
 	/**
 	 * This editor is used inside a diff editor.
-	 * @internal
 	 */
 	inDiffEditor?: boolean;
 	/**
@@ -366,7 +365,6 @@ export interface IEditorOptions {
 	/**
 	 * Control the mouse pointer style, either 'text' or 'default' or 'copy'
 	 * Defaults to 'text'
-	 * @internal
 	 */
 	mouseStyle?: 'text' | 'default' | 'copy';
 	/**
@@ -730,23 +728,19 @@ export interface IEditorOptions {
 	showUnused?: boolean;
 
 	/**
-	 * Do not use.
-	 * @internal
+	 * Do not use, this is a computed option.
 	 */
 	editorClassName?: undefined;
 	/**
-	 * Do not use.
-	 * @internal
+	 * Do not use, this is a computed option.
 	 */
 	tabFocusMode?: undefined;
 	/**
-	 * Do not use.
-	 * @internal
+	 * Do not use, this is a computed option.
 	 */
 	layoutInfo?: undefined;
 	/**
-	 * Do not use.
-	 * @internal
+	 * Do not use, this is a computed option.
 	 */
 	wrappingInfo?: undefined;
 }
@@ -1503,6 +1497,9 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	},
 };
 
+/**
+ * @internal
+ */
 export interface IRawEditorOptionsBag extends IEditorOptions {
 	[key: string]: any;
 }
@@ -1568,17 +1565,38 @@ export class ChangedEditorOptions {
 		this._values[id] = value;
 	}
 }
+/**
+ * @internal
+ */
 type PossibleKeyName0<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
+/**
+ * @internal
+ */
 type PossibleKeyName<V> = NonNullable<PossibleKeyName0<V>>;
 
 export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2 = NonNullable<IEditorOptions[K2]>, T3 = T2> {
 	readonly id: K1;
 	readonly name: K2;
 	readonly defaultValue: T2;
+	/**
+	 * @internal
+	 */
 	read(options: IRawEditorOptionsBag): IEditorOptions[K2] | undefined;
+	/**
+	 * @internal
+	 */
 	mix(a: IEditorOptions[K2] | undefined, b: IEditorOptions[K2] | undefined): IEditorOptions[K2] | undefined;
+	/**
+	 * @internal
+	 */
 	validate(input: IEditorOptions[K2] | undefined): T2;
+	/**
+	 * @internal
+	 */
 	compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
+	/**
+	 * @internal
+	 */
 	equals(a: T3, b: T3): boolean;
 }
 
@@ -1592,7 +1610,10 @@ function registerEditorOption<K1 extends EditorOption, K2 extends keyof IEditorO
 	return option;
 }
 
-export abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2 = IEditorOptions[K2], T3 = T2> implements IEditorOption<K1, K2, T2, T3> {
+/**
+ * @internal
+ */
+abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2 = IEditorOptions[K2], T3 = T2> implements IEditorOption<K1, K2, T2, T3> {
 
 	public readonly id: K1;
 	public readonly name: K2;
@@ -1824,7 +1845,7 @@ class EditorRulers<K1 extends EditorOption, K2 extends PossibleKeyName<number[]>
 	public validate(input: number[] | undefined): number[] {
 		if (Array.isArray(input)) {
 			let rulers: number[] = [];
-			for (let value in input) {
+			for (let value of input) {
 				rulers.push(_clampedInt(value, 0, 0, 10000));
 			}
 			rulers.sort();
@@ -2535,14 +2556,14 @@ export const enum EditorOption {
 
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: registerEditorOption(new EditorBooleanOption(EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true)),
-	acceptSuggestionOnEnter: registerEditorOption(new EditorEnumOption(EditorOption.acceptSuggestionOnEnter, 'acceptSuggestionOnEnter', 'on', ['on', 'smart', 'off'], x => x)),
+	acceptSuggestionOnEnter: registerEditorOption(new EditorEnumOption(EditorOption.acceptSuggestionOnEnter, 'acceptSuggestionOnEnter', 'on', ['on', 'smart', 'off'], (x: 'on' | 'smart' | 'off') => x)),
 	accessibilitySupport: registerEditorOption(new EditorAccessibilitySupportOption(EditorOption.accessibilitySupport, 'accessibilitySupport', 'auto')),
-	autoClosingBrackets: registerEditorOption(new EditorEnumOption(EditorOption.autoClosingBrackets, 'autoClosingBrackets', 'languageDefined', ['always', 'languageDefined', 'beforeWhitespace', 'never'], x => x)),
-	autoClosingOvertype: registerEditorOption(new EditorEnumOption(EditorOption.autoClosingOvertype, 'autoClosingOvertype', 'auto', ['always', 'auto', 'never'], x => x)),
-	autoClosingQuotes: registerEditorOption(new EditorEnumOption(EditorOption.autoClosingQuotes, 'autoClosingQuotes', 'languageDefined', ['always', 'languageDefined', 'beforeWhitespace', 'never'], x => x)),
+	autoClosingBrackets: registerEditorOption(new EditorEnumOption(EditorOption.autoClosingBrackets, 'autoClosingBrackets', 'languageDefined', ['always', 'languageDefined', 'beforeWhitespace', 'never'], (x: 'always' | 'languageDefined' | 'beforeWhitespace' | 'never') => x)),
+	autoClosingOvertype: registerEditorOption(new EditorEnumOption(EditorOption.autoClosingOvertype, 'autoClosingOvertype', 'auto', ['always', 'auto', 'never'], (x: 'always' | 'auto' | 'never') => x)),
+	autoClosingQuotes: registerEditorOption(new EditorEnumOption(EditorOption.autoClosingQuotes, 'autoClosingQuotes', 'languageDefined', ['always', 'languageDefined', 'beforeWhitespace', 'never'], (x: 'always' | 'languageDefined' | 'beforeWhitespace' | 'never') => x)),
 	autoIndent: registerEditorOption(new EditorBooleanOption(EditorOption.autoIndent, 'autoIndent', true)),
 	automaticLayout: registerEditorOption(new EditorBooleanOption(EditorOption.automaticLayout, 'automaticLayout', false)),
-	autoSurround: registerEditorOption(new EditorEnumOption(EditorOption.autoSurround, 'autoSurround', 'languageDefined', ['languageDefined', 'quotes', 'brackets', 'never'], x => x)),
+	autoSurround: registerEditorOption(new EditorEnumOption(EditorOption.autoSurround, 'autoSurround', 'languageDefined', ['languageDefined', 'quotes', 'brackets', 'never'], (x: 'languageDefined' | 'quotes' | 'brackets' | 'never') => x)),
 	codeLens: registerEditorOption(new EditorBooleanOption(EditorOption.codeLens, 'codeLens', true)),
 	colorDecorators: registerEditorOption(new EditorBooleanOption(EditorOption.colorDecorators, 'colorDecorators', true)),
 	contextmenu: registerEditorOption(new EditorBooleanOption(EditorOption.contextmenu, 'contextmenu', true)),
@@ -2581,7 +2602,7 @@ export const EditorOptions = {
 		renderCharacters: true,
 		maxColumn: 120,
 	})),
-	mouseStyle: registerEditorOption(new EditorEnumOption(EditorOption.mouseStyle, 'mouseStyle', 'text', ['text', 'default', 'copy'], x => x)),
+	mouseStyle: registerEditorOption(new EditorEnumOption(EditorOption.mouseStyle, 'mouseStyle', 'text', ['text', 'default', 'copy'], (x: 'text' | 'default' | 'copy') => x)),
 	mouseWheelScrollSensitivity: registerEditorOption(new EditorFloatOption(EditorOption.mouseWheelScrollSensitivity, 'mouseWheelScrollSensitivity', 1, x => (x === 0 ? 1 : x))),
 	mouseWheelZoom: registerEditorOption(new EditorBooleanOption(EditorOption.mouseWheelZoom, 'mouseWheelZoom', false)),
 	multiCursorMergeOverlapping: registerEditorOption(new EditorBooleanOption(EditorOption.multiCursorMergeOverlapping, 'multiCursorMergeOverlapping', true)),
@@ -2594,8 +2615,8 @@ export const EditorOptions = {
 	renderControlCharacters: registerEditorOption(new EditorBooleanOption(EditorOption.renderControlCharacters, 'renderControlCharacters', false)),
 	renderIndentGuides: registerEditorOption(new EditorBooleanOption(EditorOption.renderIndentGuides, 'renderIndentGuides', true)),
 	renderFinalNewline: registerEditorOption(new EditorBooleanOption(EditorOption.renderFinalNewline, 'renderFinalNewline', true)),
-	renderLineHighlight: registerEditorOption(new EditorEnumOption(EditorOption.renderLineHighlight, 'renderLineHighlight', 'line', ['none', 'gutter', 'line', 'all'], x => x)),
-	renderWhitespace: registerEditorOption(new EditorEnumOption(EditorOption.renderWhitespace, 'renderWhitespace', 'none', ['none', 'boundary', 'selection', 'all'], x => x)),
+	renderLineHighlight: registerEditorOption(new EditorEnumOption(EditorOption.renderLineHighlight, 'renderLineHighlight', 'line', ['none', 'gutter', 'line', 'all'], (x: 'none' | 'gutter' | 'line' | 'all') => x)),
+	renderWhitespace: registerEditorOption(new EditorEnumOption(EditorOption.renderWhitespace, 'renderWhitespace', 'none', ['none', 'boundary', 'selection', 'all'], (x: 'none' | 'boundary' | 'selection' | 'all') => x)),
 	revealHorizontalRightPadding: registerEditorOption(new EditorIntOption(EditorOption.revealHorizontalRightPadding, 'revealHorizontalRightPadding', 30, 0, 1000)),
 	roundedSelection: registerEditorOption(new EditorBooleanOption(EditorOption.roundedSelection, 'roundedSelection', true)),
 	rulers: registerEditorOption(new EditorRulers(EditorOption.rulers, 'rulers', [])),
@@ -2624,7 +2645,7 @@ export const EditorOptions = {
 	useTabStops: registerEditorOption(new EditorBooleanOption(EditorOption.useTabStops, 'useTabStops', true)),
 	wordBasedSuggestions: registerEditorOption(new EditorBooleanOption(EditorOption.wordBasedSuggestions, 'wordBasedSuggestions', true)),
 	wordSeparators: registerEditorOption(new EditorStringOption(EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS)),
-	wordWrap: registerEditorOption(new EditorEnumOption(EditorOption.wordWrap, 'wordWrap', 'off', ['off', 'on', 'wordWrapColumn', 'bounded'], x => x)),
+	wordWrap: registerEditorOption(new EditorEnumOption(EditorOption.wordWrap, 'wordWrap', 'off', ['off', 'on', 'wordWrapColumn', 'bounded'], (x: 'off' | 'on' | 'wordWrapColumn' | 'bounded') => x)),
 	wordWrapBreakAfterCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters', ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣')),
 	wordWrapBreakBeforeCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters', '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋')),
 	wordWrapBreakObtrusiveCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakObtrusiveCharacters, 'wordWrapBreakObtrusiveCharacters', '.')),

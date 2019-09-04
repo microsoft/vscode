@@ -50,7 +50,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult, BaseFolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult, FolderMatch, FolderMatchWithResource } from 'vs/workbench/contrib/search/common/searchModel';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -78,9 +78,9 @@ export class SearchView extends ViewletPanel {
 	private static readonly WIDE_VIEW_SIZE = 1000;
 	private static readonly ACTIONS_RIGHT_CLASS_NAME = 'actions-right';
 
-	private isDisposed: boolean;
+	private isDisposed = false;
 
-	private container: HTMLElement;
+	private container!: HTMLElement;
 	private queryBuilder: QueryBuilder;
 	private viewModel: SearchModel;
 	private memento: Memento;
@@ -93,36 +93,37 @@ export class SearchView extends ViewletPanel {
 	private firstMatchFocused: IContextKey<boolean>;
 	private fileMatchOrMatchFocused: IContextKey<boolean>;
 	private fileMatchOrFolderMatchFocus: IContextKey<boolean>;
+	private fileMatchOrFolderMatchWithResourceFocus: IContextKey<boolean>;
 	private fileMatchFocused: IContextKey<boolean>;
 	private folderMatchFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
 
-	private state: SearchUIState;
+	private state: SearchUIState = SearchUIState.Idle;
 
 	private actions: Array<CollapseDeepestExpandedLevelAction | ClearSearchResultsAction> = [];
 	private cancelAction: CancelSearchAction;
 	private refreshAction: RefreshAction;
-	private contextMenu: IMenu;
+	private contextMenu: IMenu | null = null;
 
-	private tree: WorkbenchObjectTree<RenderableMatch>;
-	private treeLabels: ResourceLabels;
+	private tree!: WorkbenchObjectTree<RenderableMatch>;
+	private treeLabels!: ResourceLabels;
 	private viewletState: MementoObject;
-	private messagesElement: HTMLElement;
+	private messagesElement!: HTMLElement;
 	private messageDisposables: IDisposable[] = [];
-	private searchWidgetsContainerElement: HTMLElement;
-	private searchWidget: SearchWidget;
-	private size: dom.Dimension;
-	private queryDetails: HTMLElement;
-	private toggleQueryDetailsButton: HTMLElement;
-	private inputPatternExcludes: ExcludePatternInputWidget;
-	private inputPatternIncludes: PatternInputWidget;
-	private resultsElement: HTMLElement;
+	private searchWidgetsContainerElement!: HTMLElement;
+	private searchWidget!: SearchWidget;
+	private size!: dom.Dimension;
+	private queryDetails!: HTMLElement;
+	private toggleQueryDetailsButton!: HTMLElement;
+	private inputPatternExcludes!: ExcludePatternInputWidget;
+	private inputPatternIncludes!: PatternInputWidget;
+	private resultsElement!: HTMLElement;
 
 	private currentSelectedFileMatch: FileMatch | undefined;
 
 	private delayedRefresh: Delayer<void>;
-	private changedWhileHidden: boolean;
+	private changedWhileHidden: boolean = false;
 
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
@@ -163,6 +164,7 @@ export class SearchView extends ViewletPanel {
 		this.firstMatchFocused = Constants.FirstMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchOrMatchFocused = Constants.FileMatchOrMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchOrFolderMatchFocus = Constants.FileMatchOrFolderMatchFocusKey.bindTo(contextKeyService);
+		this.fileMatchOrFolderMatchWithResourceFocus = Constants.FileMatchOrFolderMatchWithResourceFocusKey.bindTo(contextKeyService);
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(contextKeyService);
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
@@ -439,28 +441,20 @@ export class SearchView extends ViewletPanel {
 
 	private refreshAndUpdateCount(event?: IChangeEvent): void {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-		this.updateSearchResultCount(this.viewModel.searchResult.query.userDisabledExcludesAndIgnoreFiles);
+		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles);
 		return this.refreshTree(event);
 	}
 
 	refreshTree(event?: IChangeEvent): void {
 		const collapseResults = this.configurationService.getValue<ISearchConfigurationProperties>('search').collapseResults;
 		if (!event || event.added || event.removed) {
+			// Refresh whole tree
 			this.tree.setChildren(null, this.createResultIterator(collapseResults));
 		} else {
+			// FileMatch modified, refresh those elements
 			event.elements.forEach(element => {
-				if (element instanceof BaseFolderMatch) {
-					// The folder may or may not be in the tree. Refresh the whole thing.
-					this.tree.setChildren(null, this.createResultIterator(collapseResults));
-					return;
-				}
-
-				if (element instanceof SearchResult) {
-					this.tree.setChildren(null, this.createIterator(element, collapseResults));
-				} else {
-					this.tree.setChildren(element, this.createIterator(element, collapseResults));
-					this.tree.rerender(element);
-				}
+				this.tree.setChildren(element, this.createIterator(element, collapseResults));
+				this.tree.rerender(element);
 			});
 		}
 	}
@@ -481,7 +475,7 @@ export class SearchView extends ViewletPanel {
 		});
 	}
 
-	private createFolderIterator(folderMatch: BaseFolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
+	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
 		const filesIt = Iterator.fromArray(
 			folderMatch.matches()
 				.sort(searchMatchComparer));
@@ -506,9 +500,9 @@ export class SearchView extends ViewletPanel {
 		return Iterator.map(matchesIt, r => (<ITreeElement<RenderableMatch>>{ element: r }));
 	}
 
-	private createIterator(match: BaseFolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
+	private createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
 		return match instanceof SearchResult ? this.createResultIterator(collapseResults) :
-			match instanceof BaseFolderMatch ? this.createFolderIterator(match, collapseResults) :
+			match instanceof FolderMatch ? this.createFolderIterator(match, collapseResults) :
 				this.createFileIterator(match);
 	}
 
@@ -640,6 +634,7 @@ export class SearchView extends ViewletPanel {
 
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
 		this.tree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree,
+			'SearchView',
 			this.resultsElement,
 			delegate,
 			[
@@ -678,6 +673,7 @@ export class SearchView extends ViewletPanel {
 				this.folderMatchFocused.set(focus instanceof FolderMatch);
 				this.matchFocused.set(focus instanceof Match);
 				this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
+				this.fileMatchOrFolderMatchWithResourceFocus.set(focus instanceof FileMatch || focus instanceof FolderMatchWithResource);
 			}
 		}));
 
@@ -688,6 +684,7 @@ export class SearchView extends ViewletPanel {
 			this.folderMatchFocused.reset();
 			this.matchFocused.reset();
 			this.fileMatchOrFolderMatchFocus.reset();
+			this.fileMatchOrFolderMatchWithResourceFocus.reset();
 		}));
 	}
 

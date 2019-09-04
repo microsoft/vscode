@@ -6,12 +6,11 @@
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 import { IdleValue } from 'vs/base/common/async';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 type KeytarModule = typeof import('keytar');
 export class KeytarCredentialsService implements ICredentialsService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly _keytar = new IdleValue<Promise<KeytarModule>>(() => import('keytar'));
 

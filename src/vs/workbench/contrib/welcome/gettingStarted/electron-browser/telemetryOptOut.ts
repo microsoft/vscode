@@ -22,8 +22,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 export class TelemetryOptOut implements IWorkbenchContribution {
 
 	private static TELEMETRY_OPT_OUT_SHOWN = 'workbench.telemetryOptOutShown';
-	private privacyUrl: string;
-	private optOutUrl: string;
+	private privacyUrl: string | undefined;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -50,7 +49,6 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			}
 			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
 
-			this.optOutUrl = product.telemetryOptOutUrl;
 			this.privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;
 
 			if (experimentState && experimentState.state === ExperimentState.Run && telemetryService.isOptedIn) {
@@ -58,15 +56,15 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 				return;
 			}
 
-			const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", this.privacyUrl, this.optOutUrl);
-			const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", this.privacyUrl, this.optOutUrl);
+			const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", this.privacyUrl, product.telemetryOptOutUrl);
+			const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", this.privacyUrl, product.telemetryOptOutUrl);
 
 			notificationService.prompt(
 				Severity.Info,
 				telemetryService.isOptedIn ? optOutNotice : optInNotice,
 				[{
 					label: localize('telemetryOptOut.readMore', "Read More"),
-					run: () => openerService.open(URI.parse(this.optOutUrl))
+					run: () => openerService.open(URI.parse(product.telemetryOptOutUrl))
 				}],
 				{ sticky: true }
 			);

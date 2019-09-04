@@ -143,7 +143,7 @@ export class Sash extends Disposable {
 		this._register(domEvent(this.el, EventType.Start)(this.onTouchStart, this));
 
 		if (isIPad) {
-			// see also http://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
+			// see also https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
 			addClass(this.el, 'touch');
 		}
 
@@ -402,11 +402,6 @@ export class Sash extends Disposable {
 
 	dispose(): void {
 		super.dispose();
-
-		if (this.el && this.el.parentElement) {
-			this.el.parentElement.removeChild(this.el);
-		}
-
-		this.el = null!; // StrictNullOverride: nulling out ok in dispose
+		this.el.remove();
 	}
 }

@@ -927,9 +927,9 @@ export class TreeView extends HeightMap {
 						getLength: () => previousChildrenIds.length,
 						getElementAtIndex: (i: number) => previousChildrenIds[i]
 					}, {
-						getLength: () => afterModelItems.length,
-						getElementAtIndex: (i: number) => afterModelItems[i].id
-					},
+					getLength: () => afterModelItems.length,
+					getElementAtIndex: (i: number) => afterModelItems[i].id
+				},
 					null
 				);
 

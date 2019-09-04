@@ -2637,6 +2637,10 @@ declare namespace monaco.editor {
 	 */
 	export interface IEditorOptions {
 		/**
+		 * This editor is used inside a diff editor.
+		 */
+		inDiffEditor?: boolean;
+		/**
 		 * The aria label for the editor's textarea (when it is focused).
 		 */
 		ariaLabel?: string;
@@ -2752,6 +2756,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		mouseWheelZoom?: boolean;
+		/**
+		 * Control the mouse pointer style, either 'text' or 'default' or 'copy'
+		 * Defaults to 'text'
+		 */
+		mouseStyle?: 'text' | 'default' | 'copy';
 		/**
 		 * Enable smooth caret animation.
 		 * Defaults to false.
@@ -3114,6 +3123,22 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
+		/**
+		 * Do not use, this is a computed option.
+		 */
+		editorClassName?: undefined;
+		/**
+		 * Do not use, this is a computed option.
+		 */
+		tabFocusMode?: undefined;
+		/**
+		 * Do not use, this is a computed option.
+		 */
+		layoutInfo?: undefined;
+		/**
+		 * Do not use, this is a computed option.
+		 */
+		wrappingInfo?: undefined;
 	}
 
 	/**
@@ -3325,41 +3350,14 @@ declare namespace monaco.editor {
 		readonly accessibilitySupport: AccessibilitySupport;
 	}
 
-	export interface IRawEditorOptionsBag extends IEditorOptions {
-		[key: string]: any;
-	}
-
 	export interface IComputedEditorOptions {
 		get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 	}
-
-	type PossibleKeyName0<V> = {
-		[K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never;
-	}[keyof IEditorOptions];
-
-	type PossibleKeyName<V> = NonNullable<PossibleKeyName0<V>>;
 
 	export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2 = NonNullable<IEditorOptions[K2]>, T3 = T2> {
 		readonly id: K1;
 		readonly name: K2;
 		readonly defaultValue: T2;
-		read(options: IRawEditorOptionsBag): IEditorOptions[K2] | undefined;
-		mix(a: IEditorOptions[K2] | undefined, b: IEditorOptions[K2] | undefined): IEditorOptions[K2] | undefined;
-		validate(input: IEditorOptions[K2] | undefined): T2;
-		compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
-		equals(a: T3, b: T3): boolean;
-	}
-
-	export abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2 = IEditorOptions[K2], T3 = T2> implements IEditorOption<K1, K2, T2, T3> {
-		readonly id: K1;
-		readonly name: K2;
-		readonly defaultValue: T2;
-		constructor(id: K1, name: K2, defaultValue: T2, deps?: EditorOption[]);
-		read(options: IRawEditorOptionsBag): IEditorOptions[K2] | undefined;
-		mix(a: IEditorOptions[K2] | undefined, b: IEditorOptions[K2] | undefined): IEditorOptions[K2] | undefined;
-		abstract validate(input: IEditorOptions[K2] | undefined): T2;
-		abstract compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
-		equals(a: T3, b: T3): boolean;
 	}
 
 	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
@@ -3607,89 +3605,89 @@ declare namespace monaco.editor {
 	}
 
 	export const EditorOptions: {
-		acceptSuggestionOnCommitCharacter: any;
-		acceptSuggestionOnEnter: any;
-		accessibilitySupport: any;
-		autoClosingBrackets: any;
-		autoClosingOvertype: any;
-		autoClosingQuotes: any;
-		autoIndent: any;
-		automaticLayout: any;
-		autoSurround: any;
-		codeLens: any;
-		colorDecorators: any;
-		contextmenu: any;
-		copyWithSyntaxHighlighting: any;
-		cursorBlinking: any;
-		cursorSmoothCaretAnimation: any;
-		cursorStyle: any;
-		cursorSurroundingLines: any;
-		cursorWidth: any;
-		disableLayerHinting: any;
-		dragAndDrop: any;
-		emptySelectionClipboard: any;
-		extraEditorClassName: any;
-		fastScrollSensitivity: any;
-		fixedOverflowWidgets: any;
-		folding: any;
-		fontLigatures: any;
-		formatOnPaste: any;
-		formatOnType: any;
-		glyphMargin: any;
-		hideCursorInOverviewRuler: any;
-		highlightActiveIndentGuide: any;
-		inDiffEditor: any;
-		lightbulb: any;
+		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, "acceptSuggestionOnCommitCharacter", boolean, boolean>;
+		acceptSuggestionOnEnter: IEditorOption<EditorOption.acceptSuggestionOnEnter, "acceptSuggestionOnEnter", "on" | "off" | "smart", "on" | "off" | "smart">;
+		accessibilitySupport: IEditorOption<EditorOption.accessibilitySupport, "accessibilitySupport", "auto" | "on" | "off", any>;
+		autoClosingBrackets: IEditorOption<EditorOption.autoClosingBrackets, "autoClosingBrackets", EditorAutoClosingStrategy, EditorAutoClosingStrategy>;
+		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, "autoClosingOvertype", EditorAutoClosingOvertypeStrategy, EditorAutoClosingOvertypeStrategy>;
+		autoClosingQuotes: IEditorOption<EditorOption.autoClosingQuotes, "autoClosingQuotes", EditorAutoClosingStrategy, EditorAutoClosingStrategy>;
+		autoIndent: IEditorOption<EditorOption.autoIndent, "autoIndent", boolean, boolean>;
+		automaticLayout: IEditorOption<EditorOption.automaticLayout, "automaticLayout", boolean, boolean>;
+		autoSurround: IEditorOption<EditorOption.autoSurround, "autoSurround", EditorAutoSurroundStrategy, EditorAutoSurroundStrategy>;
+		codeLens: IEditorOption<EditorOption.codeLens, "codeLens", boolean, boolean>;
+		colorDecorators: IEditorOption<EditorOption.colorDecorators, "colorDecorators", boolean, boolean>;
+		contextmenu: IEditorOption<EditorOption.contextmenu, "contextmenu", boolean, boolean>;
+		copyWithSyntaxHighlighting: IEditorOption<EditorOption.copyWithSyntaxHighlighting, "copyWithSyntaxHighlighting", boolean, boolean>;
+		cursorBlinking: IEditorOption<EditorOption.cursorBlinking, "cursorBlinking", "blink" | "smooth" | "phase" | "expand" | "solid", TextEditorCursorBlinkingStyle>;
+		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, "cursorSmoothCaretAnimation", boolean, boolean>;
+		cursorStyle: IEditorOption<EditorOption.cursorStyle, "cursorStyle", "line" | "block" | "underline" | "line-thin" | "block-outline" | "underline-thin", TextEditorCursorStyle>;
+		cursorSurroundingLines: IEditorOption<EditorOption.cursorSurroundingLines, "cursorSurroundingLines", number, number>;
+		cursorWidth: IEditorOption<EditorOption.cursorWidth, "cursorWidth", number, number>;
+		disableLayerHinting: IEditorOption<EditorOption.disableLayerHinting, "disableLayerHinting", boolean, boolean>;
+		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, "dragAndDrop", boolean, boolean>;
+		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, "emptySelectionClipboard", boolean, boolean>;
+		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, "extraEditorClassName", string, string>;
+		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, "fastScrollSensitivity", number, number>;
+		fixedOverflowWidgets: IEditorOption<EditorOption.fixedOverflowWidgets, "fixedOverflowWidgets", boolean, boolean>;
+		folding: IEditorOption<EditorOption.folding, "folding", boolean, boolean>;
+		fontLigatures: IEditorOption<EditorOption.fontLigatures, "fontLigatures", boolean, boolean>;
+		formatOnPaste: IEditorOption<EditorOption.formatOnPaste, "formatOnPaste", boolean, boolean>;
+		formatOnType: IEditorOption<EditorOption.formatOnType, "formatOnType", boolean, boolean>;
+		glyphMargin: IEditorOption<EditorOption.glyphMargin, "glyphMargin", boolean, boolean>;
+		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, "hideCursorInOverviewRuler", boolean, boolean>;
+		highlightActiveIndentGuide: IEditorOption<EditorOption.highlightActiveIndentGuide, "highlightActiveIndentGuide", boolean, boolean>;
+		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, "inDiffEditor", boolean, boolean>;
+		lightbulb: IEditorOption<EditorOption.lightbulb, "lightbulb", any, any>;
 		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, "lineDecorationsWidth", string | number, string | number>;
-		lineNumbers: any;
-		lineNumbersMinChars: any;
-		links: any;
-		matchBrackets: any;
-		minimap: any;
-		mouseStyle: any;
-		mouseWheelScrollSensitivity: any;
-		mouseWheelZoom: any;
-		multiCursorMergeOverlapping: any;
-		multiCursorModifier: any;
-		occurrencesHighlight: any;
-		overviewRulerBorder: any;
-		overviewRulerLanes: any;
-		quickSuggestionsDelay: any;
-		readOnly: any;
-		renderControlCharacters: any;
-		renderIndentGuides: any;
-		renderFinalNewline: any;
-		renderLineHighlight: any;
-		renderWhitespace: any;
-		revealHorizontalRightPadding: any;
-		roundedSelection: any;
-		rulers: any;
-		scrollbar: any;
-		scrollBeyondLastColumn: any;
-		scrollBeyondLastLine: any;
-		selectionClipboard: any;
-		selectionHighlight: any;
-		selectOnLineNumbers: any;
-		showUnused: any;
-		smoothScrolling: any;
-		stopRenderingLineAfter: any;
-		suggestOnTriggerCharacters: any;
-		useTabStops: any;
-		wordBasedSuggestions: any;
-		wordSeparators: any;
-		wordWrap: any;
-		wordWrapBreakAfterCharacters: any;
-		wordWrapBreakBeforeCharacters: any;
-		wordWrapBreakObtrusiveCharacters: any;
-		wordWrapColumn: any;
-		wordWrapMinified: any;
-		wrappingIndent: any;
-		ariaLabel: any;
-		disableMonospaceOptimizations: any;
-		editorClassName: any;
-		tabFocusMode: any;
-		layoutInfo: any;
-		wrappingInfo: any;
+		lineNumbers: IEditorOption<EditorOption.lineNumbers, "lineNumbers", InternalEditorRenderLineNumbersOptions, InternalEditorRenderLineNumbersOptions>;
+		lineNumbersMinChars: IEditorOption<EditorOption.lineNumbersMinChars, "lineNumbersMinChars", number, number>;
+		links: IEditorOption<EditorOption.links, "links", boolean, boolean>;
+		matchBrackets: IEditorOption<EditorOption.matchBrackets, "matchBrackets", boolean, boolean>;
+		minimap: IEditorOption<EditorOption.minimap, "minimap", InternalEditorMinimapOptions, InternalEditorMinimapOptions>;
+		mouseStyle: IEditorOption<EditorOption.mouseStyle, "mouseStyle", "text" | "default" | "copy", "text" | "default" | "copy">;
+		mouseWheelScrollSensitivity: IEditorOption<EditorOption.mouseWheelScrollSensitivity, "mouseWheelScrollSensitivity", number, number>;
+		mouseWheelZoom: IEditorOption<EditorOption.mouseWheelZoom, "mouseWheelZoom", boolean, boolean>;
+		multiCursorMergeOverlapping: IEditorOption<EditorOption.multiCursorMergeOverlapping, "multiCursorMergeOverlapping", boolean, boolean>;
+		multiCursorModifier: IEditorOption<EditorOption.multiCursorModifier, "multiCursorModifier", "ctrlCmd" | "alt", "altKey" | "metaKey" | "ctrlKey">;
+		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, "occurrencesHighlight", boolean, boolean>;
+		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, "overviewRulerBorder", boolean, boolean>;
+		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, "overviewRulerLanes", number, number>;
+		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, "quickSuggestionsDelay", number, number>;
+		readOnly: IEditorOption<EditorOption.readOnly, "readOnly", boolean, boolean>;
+		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, "renderControlCharacters", boolean, boolean>;
+		renderIndentGuides: IEditorOption<EditorOption.renderIndentGuides, "renderIndentGuides", boolean, boolean>;
+		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, "renderFinalNewline", boolean, boolean>;
+		renderLineHighlight: IEditorOption<EditorOption.renderLineHighlight, "renderLineHighlight", "line" | "none" | "all" | "gutter", "line" | "none" | "all" | "gutter">;
+		renderWhitespace: IEditorOption<EditorOption.renderWhitespace, "renderWhitespace", "none" | "boundary" | "selection" | "all", "none" | "boundary" | "selection" | "all">;
+		revealHorizontalRightPadding: IEditorOption<EditorOption.revealHorizontalRightPadding, "revealHorizontalRightPadding", number, number>;
+		roundedSelection: IEditorOption<EditorOption.roundedSelection, "roundedSelection", boolean, boolean>;
+		rulers: IEditorOption<EditorOption.rulers, "rulers", {}, {}>;
+		scrollbar: IEditorOption<EditorOption.scrollbar, "scrollbar", InternalEditorScrollbarOptions, InternalEditorScrollbarOptions>;
+		scrollBeyondLastColumn: IEditorOption<EditorOption.scrollBeyondLastColumn, "scrollBeyondLastColumn", number, number>;
+		scrollBeyondLastLine: IEditorOption<EditorOption.scrollBeyondLastLine, "scrollBeyondLastLine", boolean, boolean>;
+		selectionClipboard: IEditorOption<EditorOption.selectionClipboard, "selectionClipboard", boolean, boolean>;
+		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, "selectionHighlight", boolean, boolean>;
+		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, "selectOnLineNumbers", boolean, boolean>;
+		showUnused: IEditorOption<EditorOption.showUnused, "showUnused", boolean, boolean>;
+		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, "smoothScrolling", boolean, boolean>;
+		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, "stopRenderingLineAfter", number, number>;
+		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, "suggestOnTriggerCharacters", boolean, boolean>;
+		useTabStops: IEditorOption<EditorOption.useTabStops, "useTabStops", boolean, boolean>;
+		wordBasedSuggestions: IEditorOption<EditorOption.wordBasedSuggestions, "wordBasedSuggestions", boolean, boolean>;
+		wordSeparators: IEditorOption<EditorOption.wordSeparators, "wordSeparators", string, string>;
+		wordWrap: IEditorOption<EditorOption.wordWrap, "wordWrap", "on" | "off" | "wordWrapColumn" | "bounded", "on" | "off" | "wordWrapColumn" | "bounded">;
+		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, "wordWrapBreakAfterCharacters", string, string>;
+		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, "wordWrapBreakBeforeCharacters", string, string>;
+		wordWrapBreakObtrusiveCharacters: IEditorOption<EditorOption.wordWrapBreakObtrusiveCharacters, "wordWrapBreakObtrusiveCharacters", string, string>;
+		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, "wordWrapColumn", number, number>;
+		wordWrapMinified: IEditorOption<EditorOption.wordWrapMinified, "wordWrapMinified", boolean, boolean>;
+		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, "wrappingIndent", "none" | "same" | "indent" | "deepIndent", WrappingIndent>;
+		ariaLabel: IEditorOption<EditorOption.ariaLabel, "ariaLabel", string, string>;
+		disableMonospaceOptimizations: IEditorOption<EditorOption.disableMonospaceOptimizations, "disableMonospaceOptimizations", boolean, boolean>;
+		editorClassName: IEditorOption<EditorOption.editorClassName, "editorClassName", undefined, string>;
+		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, "tabFocusMode", undefined, boolean>;
+		layoutInfo: IEditorOption<EditorOption.layoutInfo, "layoutInfo", undefined, EditorLayoutInfo>;
+		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, "wrappingInfo", undefined, EditorWrappingInfo>;
 	};
 
 	export type EditorOptionsType = typeof EditorOptions;

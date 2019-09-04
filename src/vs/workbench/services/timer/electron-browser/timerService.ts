@@ -297,13 +297,13 @@ export interface IStartupMetrics {
 }
 
 export interface ITimerService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	readonly startupMetrics: Promise<IStartupMetrics>;
 }
 
 class TimerService implements ITimerService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _startupMetrics?: Promise<IStartupMetrics>;
 

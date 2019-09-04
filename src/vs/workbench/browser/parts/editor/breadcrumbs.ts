@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 
@@ -19,7 +19,7 @@ export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditor
 
 export interface IBreadcrumbsService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	register(group: GroupIdentifier, widget: BreadcrumbsWidget): IDisposable;
 
@@ -29,7 +29,7 @@ export interface IBreadcrumbsService {
 
 export class BreadcrumbsService implements IBreadcrumbsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _map = new Map<number, BreadcrumbsWidget>();
 

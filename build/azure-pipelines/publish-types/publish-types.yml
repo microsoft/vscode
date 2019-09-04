@@ -13,7 +13,23 @@ steps:
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
+
+- bash: |
+    TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
+    CHANNEL="G1C14HJ2F"
+
+    if [ "$TAG_VERSION" == "1.999.0" ]; then
+      MESSAGE="<!here>. Someone pushed 1.999.0 tag. Please delete it ASAP from remote and local."
+
+      curl -X POST -H "Authorization: Bearer $(SLACK_TOKEN)" \
+      -H 'Content-type: application/json; charset=utf-8' \
+      --data '{"channel":"'"$CHANNEL"'", "link_names": true, "text":"'"$MESSAGE"'"}' \
+      https://slack.com/api/chat.postMessage
+
+      exit 1
+    fi
+  displayName: Check 1.999.0 tag
 
 - bash: |
     # Install build dependencies

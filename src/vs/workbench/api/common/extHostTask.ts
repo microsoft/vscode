@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
-	readonly _serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	taskExecutions: vscode.TaskExecution[];
 	onDidStartTask: Event<vscode.TaskStartEvent>;

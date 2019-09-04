@@ -299,7 +299,7 @@ suite('Snippet Variables Resolver', function () {
 		let workspace: IWorkspace;
 		let resolver: VariableResolver;
 		const workspaceService = new class implements IWorkspaceContextService {
-			_serviceBrand: any;
+			_serviceBrand: undefined;
 			_throw = () => { throw new Error(); };
 			onDidChangeWorkbenchState = this._throw;
 			onDidChangeWorkspaceName = this._throw;

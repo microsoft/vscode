@@ -13,11 +13,10 @@ import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class WindowsService implements IWindowsService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private channel: IChannel;
 

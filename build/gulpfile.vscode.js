@@ -480,7 +480,7 @@ gulp.task(task.define(
 		optimizeVSCodeTask,
 		function () {
 			const pathToMetadata = './out-vscode/nls.metadata.json';
-			const pathToExtensions = './extensions/*';
+			const pathToExtensions = '.build/extensions/*';
 			const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
 
 			return es.merge(
@@ -501,7 +501,7 @@ gulp.task(task.define(
 		optimizeVSCodeTask,
 		function () {
 			const pathToMetadata = './out-vscode/nls.metadata.json';
-			const pathToExtensions = './extensions/*';
+			const pathToExtensions = '.build/extensions/*';
 			const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
 
 			return es.merge(

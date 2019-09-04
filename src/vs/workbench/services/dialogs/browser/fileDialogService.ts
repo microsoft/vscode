@@ -23,7 +23,7 @@ import { isWeb } from 'vs/base/common/platform';
 
 export class FileDialogService implements IFileDialogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IWindowService private readonly windowService: IWindowService,

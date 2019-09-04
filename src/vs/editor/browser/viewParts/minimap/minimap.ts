@@ -518,6 +518,7 @@ export class Minimap extends ViewPart {
 			lineNumber = Math.min(lineNumber, this._context.model.getLineCount());
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+				'mouse',
 				new Range(lineNumber, 1, lineNumber, 1),
 				viewEvents.VerticalRevealType.Center,
 				false,

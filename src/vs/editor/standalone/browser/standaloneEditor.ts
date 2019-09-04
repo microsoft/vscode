@@ -373,7 +373,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		EditorOption: standaloneEnums.EditorOption,
 
 		// classes
-		BaseEditorOption: <any>editorOptions.BaseEditorOption,
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,
 		BareFontInfo: <any>BareFontInfo,
 		FontInfo: <any>FontInfo,

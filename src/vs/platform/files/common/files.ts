@@ -6,7 +6,7 @@
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -18,7 +18,7 @@ export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event that is fired when a file system provider is added or removed

@@ -468,7 +468,7 @@ export class FindModelBoundToEditorModel {
 
 		let searchRegex = searchData.regex;
 		if (!searchRegex.multiline) {
-			let mod = 'm';
+			let mod = 'mu';
 			if (searchRegex.ignoreCase) {
 				mod += 'i';
 			}

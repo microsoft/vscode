@@ -291,7 +291,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 				scanError = ScanError.UnexpectedEndOfString;
 				break;
 			}
-			let ch = text.charCodeAt(pos);
+			const ch = text.charCodeAt(pos);
 			if (ch === CharacterCodes.doubleQuote) {
 				result += text.substring(start, pos);
 				pos++;
@@ -304,8 +304,8 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 					scanError = ScanError.UnexpectedEndOfString;
 					break;
 				}
-				ch = text.charCodeAt(pos++);
-				switch (ch) {
+				const ch2 = text.charCodeAt(pos++);
+				switch (ch2) {
 					case CharacterCodes.doubleQuote:
 						result += '\"';
 						break;
@@ -331,9 +331,9 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 						result += '\t';
 						break;
 					case CharacterCodes.u:
-						const ch = scanHexDigits(4);
-						if (ch >= 0) {
-							result += String.fromCharCode(ch);
+						const ch3 = scanHexDigits(4);
+						if (ch3 >= 0) {
+							result += String.fromCharCode(ch3);
 						} else {
 							scanError = ScanError.InvalidUnicode;
 						}

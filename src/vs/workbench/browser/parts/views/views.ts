@@ -20,7 +20,6 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { values } from 'vs/base/common/map';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { toggleClass, addClass } from 'vs/base/browser/dom';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 function filterViewRegisterEvent(container: ViewContainer, event: Event<{ viewContainer: ViewContainer, views: IViewDescriptor[] }>): Event<IViewDescriptor[]> {
@@ -382,7 +381,7 @@ export class ContributableViewsModel extends Disposable {
 			return 0;
 		}
 
-		return (this.getViewOrder(a) - this.getViewOrder(b)) || this.getGroupOrderResult(a, b) || (a.id < b.id ? -1 : 1);
+		return (this.getViewOrder(a) - this.getViewOrder(b)) || this.getGroupOrderResult(a, b);
 	}
 
 	private getGroupOrderResult(a: IViewDescriptor, b: IViewDescriptor) {
@@ -434,7 +433,7 @@ export class ContributableViewsModel extends Disposable {
 		const splices = sortedDiff<IViewDescriptor>(
 			this.viewDescriptors,
 			viewDescriptors,
-			this.compareViewDescriptors.bind(this)
+			(a, b) => a.id === b.id ? 0 : a.id < b.id ? -1 : 1
 		).reverse();
 
 		const toRemove: { index: number, viewDescriptor: IViewDescriptor }[] = [];
@@ -635,7 +634,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 
 export class ViewsService extends Disposable implements IViewsService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly viewDescriptorCollections: Map<ViewContainer, { viewDescriptorCollection: IViewDescriptorCollection, disposable: IDisposable }>;
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;

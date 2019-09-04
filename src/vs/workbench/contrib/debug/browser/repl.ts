@@ -71,7 +71,7 @@ const IPrivateReplService = createDecorator<IPrivateReplService>('privateReplSer
 const DECORATION_KEY = 'replinputdecoration';
 
 interface IPrivateReplService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	acceptReplInput(): void;
 	getVisibleContent(): string;
 	selectSession(session?: IDebugSession): void;
@@ -85,7 +85,7 @@ function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 
 const sessionsToIgnore = new Set<IDebugSession>();
 export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
 	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
@@ -406,6 +406,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
+			'DebugRepl',
 			treeContainer,
 			this.replDelegate,
 			[

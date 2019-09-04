@@ -76,13 +76,14 @@ export class PagedList<T> implements IDisposable {
 	private _model!: IPagedModel<T>;
 
 	constructor(
+		user: string,
 		container: HTMLElement,
 		virtualDelegate: IListVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IListOptions<any> = {}
 	) {
 		const pagedRenderers = renderers.map(r => new PagedRenderer<T, ITemplateData<T>>(r, () => this.model));
-		this.list = new List(container, virtualDelegate, pagedRenderers, options);
+		this.list = new List(user, container, virtualDelegate, pagedRenderers, options);
 	}
 
 	getHTMLElement(): HTMLElement {

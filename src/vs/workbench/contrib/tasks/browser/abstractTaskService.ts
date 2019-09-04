@@ -173,7 +173,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
 
 	private static CustomizationTelemetryEventName: string = 'taskService.customize';
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
@@ -1723,18 +1723,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return entries;
 		}), {
-				placeHolder,
-				matchOnDescription: true,
-				onDidTriggerItemButton: context => {
-					let task = context.item.task;
-					this.quickInputService.cancel();
-					if (ContributedTask.is(task)) {
-						this.customize(task, undefined, true);
-					} else if (CustomTask.is(task)) {
-						this.openConfig(task);
-					}
+			placeHolder,
+			matchOnDescription: true,
+			onDidTriggerItemButton: context => {
+				let task = context.item.task;
+				this.quickInputService.cancel();
+				if (ContributedTask.is(task)) {
+					this.customize(task, undefined, true);
+				} else if (CustomTask.is(task)) {
+					this.openConfig(task);
 				}
-			});
+			}
+		});
 	}
 
 	private showIgnoredFoldersMessage(): Promise<void> {

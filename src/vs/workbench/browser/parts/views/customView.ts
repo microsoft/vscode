@@ -201,7 +201,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 		this.root = new Root();
@@ -370,28 +371,28 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		const aligner = new Aligner(this.themeService);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner);
 
-		this.tree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new CustomTreeDelegate(), [renderer],
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CustomView', this.treeContainer, new CustomTreeDelegate(), [renderer],
 			dataSource, {
-				identityProvider: new CustomViewIdentityProvider(),
-				accessibilityProvider: {
-					getAriaLabel(element: ITreeItem): string {
-						return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
-					}
-				},
-				ariaLabel: this.title,
-				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (item: ITreeItem) => {
-						return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
-					}
-				},
-				expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
-				collapseByDefault: (e: ITreeItem): boolean => {
-					return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
-				},
-				multipleSelectionSupport: this.canSelectMany,
-			}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+			identityProvider: new CustomViewIdentityProvider(),
+			accessibilityProvider: {
+				getAriaLabel(element: ITreeItem): string {
+					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
+				}
+			},
+			ariaLabel: this.title,
+			keyboardNavigationLabelProvider: {
+				getKeyboardNavigationLabel: (item: ITreeItem) => {
+					return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
+				}
+			},
+			expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
+			collapseByDefault: (e: ITreeItem): boolean => {
+				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
+			},
+			multipleSelectionSupport: this.canSelectMany,
+		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		aligner.tree = this.tree;
-		const actionRunner = new MultipleSelectionActionRunner(() => this.tree!.getSelection());
+		const actionRunner = new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection());
 		renderer.actionRunner = actionRunner;
 
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
@@ -848,8 +849,13 @@ class Aligner extends Disposable {
 
 class MultipleSelectionActionRunner extends ActionRunner {
 
-	constructor(private getSelectedResources: (() => ITreeItem[])) {
+	constructor(notificationService: INotificationService, private getSelectedResources: (() => ITreeItem[])) {
 		super();
+		this._register(this.onDidRun(e => {
+			if (e.error) {
+				notificationService.error(localize('command-error', 'Error running command {1}: {0}. This is likely caused by the extension that contributes {1}.', e.error.message, e.action.id));
+			}
+		}));
 	}
 
 	runAction(action: IAction, context: TreeViewItemHandleArg): Promise<any> {

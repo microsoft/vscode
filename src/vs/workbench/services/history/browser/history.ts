@@ -24,7 +24,7 @@ import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -99,7 +99,7 @@ interface IRecentlyClosedFile {
 
 export class HistoryService extends Disposable implements IHistoryService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private static readonly STORAGE_KEY = 'history.entries';
 	private static readonly MAX_HISTORY_ITEMS = 200;
@@ -120,9 +120,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private lastEditLocation: IStackEntry | undefined;
 
-	private history: Array<IEditorInput | IResourceInput>;
+	private history: Array<IEditorInput | IResourceInput> | undefined;
 	private recentlyClosedFiles: IRecentlyClosedFile[];
-	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
 
 	private fileInputFactory: IFileInputFactory;
@@ -155,7 +154,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.lastIndex = -1;
 		this.stack = [];
 		this.recentlyClosedFiles = [];
-		this.loaded = false;
 		this.resourceFilter = this._register(instantiationService.createInstance(
 			ResourceGlobMatcher,
 			(root?: URI) => this.getExcludes(root),
@@ -489,17 +487,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return;
 		}
 
-		this.ensureHistoryLoaded();
+		const history = this.ensureHistoryLoaded();
 
 		const historyInput = this.preferResourceInput(input);
 
 		// Remove any existing entry and add to the beginning
 		this.removeFromHistory(input);
-		this.history.unshift(historyInput);
+		history.unshift(historyInput);
 
 		// Respect max entries setting
-		if (this.history.length > HistoryService.MAX_HISTORY_ITEMS) {
-			this.clearOnEditorDispose(this.history.pop()!, this.editorHistoryListeners);
+		if (history.length > HistoryService.MAX_HISTORY_ITEMS) {
+			this.clearOnEditorDispose(history.pop()!, this.editorHistoryListeners);
 		}
 
 		// Remove this from the history unless the history input is a resource
@@ -555,9 +553,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private removeExcludedFromHistory(): void {
-		this.ensureHistoryLoaded();
+		const history = this.ensureHistoryLoaded();
 
-		this.history = this.history.filter(e => {
+		this.history = history.filter(e => {
 			const include = this.include(e);
 
 			// Cleanup any listeners associated with the input when removing from history
@@ -570,9 +568,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
-		this.ensureHistoryLoaded();
+		const history = this.ensureHistoryLoaded();
 
-		this.history = this.history.filter(e => {
+		this.history = history.filter(e => {
 			const matches = this.matches(arg1, e);
 
 			// Cleanup any listeners associated with the input when removing from history
@@ -849,17 +847,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	getHistory(): Array<IEditorInput | IResourceInput> {
-		this.ensureHistoryLoaded();
+		const history = this.ensureHistoryLoaded();
 
-		return this.history.slice(0);
+		return history.slice(0);
 	}
 
-	private ensureHistoryLoaded(): void {
-		if (!this.loaded) {
-			this.loadHistory();
+	private ensureHistoryLoaded(): Array<IEditorInput | IResourceInput> {
+		if (!this.history) {
+			this.history = this.loadHistory();
 		}
 
-		this.loaded = true;
+		return this.history;
 	}
 
 	private saveState(): void {
@@ -893,7 +891,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
 
-	private loadHistory(): void {
+	private loadHistory(): Array<IEditorInput | IResourceInput> {
 		let entries: ISerializedEditorHistoryEntry[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
@@ -903,7 +901,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
-		this.history = coalesce(entries.map(entry => {
+		return coalesce(entries.map(entry => {
 			try {
 				return this.safeLoadHistoryEntry(registry, entry);
 			} catch (error) {
