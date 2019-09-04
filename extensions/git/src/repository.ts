@@ -1653,18 +1653,24 @@ export class Repository implements Disposable {
 	}
 
 	private updateInputBoxPlaceholder(): void {
-		const HEAD = this.HEAD;
+		const branchName = this.getBranchName();
 
-		if (HEAD) {
-			const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-			const tagName = tag && tag.name;
-			const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
-
+		if (branchName) {
 			// '{0}' will be replaced by the corresponding key-command later in the process, which is why it needs to stay.
-			this._sourceControl.inputBox.placeholder = localize('commitMessageWithHeadLabel', "Message ({0} to commit on '{1}')", "{0}", head);
+			this._sourceControl.inputBox.placeholder = localize('commitMessageWithHeadLabel', "Message ({0} to commit on '{1}')", "{0}", branchName);
 		} else {
 			this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message ({0} to commit)");
 		}
+	}
+
+	getBranchName(): string | undefined {
+		const HEAD = this.HEAD;
+		if (HEAD === undefined) {
+			return;
+		}
+		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+		const tagName = tag && tag.name;
+		return HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
 	}
 
 	dispose(): void {

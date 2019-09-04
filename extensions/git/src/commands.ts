@@ -1370,9 +1370,10 @@ export class CommandCenter {
 				value = (await repository.getCommit(repository.HEAD.commit)).message;
 			}
 
+			const branchName = repository.getBranchName();
 			return await window.showInputBox({
 				value,
-				placeHolder: localize('commit message', "Commit message"),
+				placeHolder: branchName ? localize('commitMessageWithHeadLabel2', "Message (commit on '{0}')", branchName) : localize('commit message', "Commit message"),
 				prompt: localize('provide commit message', "Please provide a commit message"),
 				ignoreFocusOut: true
 			});
