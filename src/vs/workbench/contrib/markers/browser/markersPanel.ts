@@ -69,22 +69,20 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private lastSelectedRelativeTop: number = 0;
 	private currentActiveResource: URI | null = null;
 
-	private tree: WorkbenchObjectTree<TreeElement, FilterData>;
-	private treeLabels: ResourceLabels;
-	private rangeHighlightDecorations: RangeHighlightDecorations;
+	private readonly rangeHighlightDecorations: RangeHighlightDecorations;
+	private readonly filter: Filter;
 
-	private actions: IAction[];
-	private collapseAllAction: IAction;
-	private filterAction: MarkersFilterAction;
-	private filterInputActionViewItem: MarkersFilterActionViewItem;
+	private tree!: WorkbenchObjectTree<TreeElement, FilterData>;
+	private treeContainer!: HTMLElement;
+	private messageBoxContainer!: HTMLElement;
+	private ariaLabelElement!: HTMLElement;
 
-	private treeContainer: HTMLElement;
-	private messageBoxContainer: HTMLElement;
-	private ariaLabelElement: HTMLElement;
+	private readonly collapseAllAction: IAction;
+	private readonly filterAction: MarkersFilterAction;
+	private filterInputActionViewItem: MarkersFilterActionViewItem | null = null;
+
 	private readonly panelState: MementoObject;
 	private panelFoucusContextKey: IContextKey<boolean>;
-
-	private filter: Filter;
 
 	private _onDidFilter = this._register(new Emitter<void>());
 	readonly onDidFilter: Event<void> = this._onDidFilter.event;
@@ -114,12 +112,18 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.markersViewModel = instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']);
 		this.markersViewModel.onDidChange(this.onDidChangeViewState, this, this.disposables);
 		this.setCurrentActiveEditor();
+
+		this.filter = new Filter(new FilterOptions());
+		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
+
+		// actions
+		this.collapseAllAction = new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, async () => this.collapseAll());
+		this.filterAction = this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelState['filter'] || '', filterHistory: this.panelState['filterHistory'] || [], useFilesExclude: !!this.panelState['useFilesExclude'] });
 	}
 
 	public create(parent: HTMLElement): void {
 		super.create(parent);
 
-		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
 
 		dom.addClass(parent, 'markers-panel');
 
@@ -128,7 +132,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.createArialLabelElement(container);
 		this.createMessageBox(container);
 		this.createTree(container);
-		this.createActions();
 		this.createListeners();
 
 		this.updateFilter();
@@ -178,10 +181,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	public getActions(): IAction[] {
-		if (!this.actions) {
-			this.createActions();
-		}
-		return this.actions;
+		return [this.filterAction, this.collapseAllAction];
 	}
 
 	public showQuickFixes(marker: Marker): void {
@@ -306,15 +306,14 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
 
-		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
+		const treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 
 		const virtualDelegate = new VirtualDelegate(this.markersViewModel);
 		const renderers = [
-			this.instantiationService.createInstance(ResourceMarkersRenderer, this.treeLabels, onDidChangeRenderNodeCount.event),
+			this.instantiationService.createInstance(ResourceMarkersRenderer, treeLabels, onDidChangeRenderNodeCount.event),
 			this.instantiationService.createInstance(MarkerRenderer, this.markersViewModel),
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];
-		this.filter = new Filter(new FilterOptions());
 		const accessibilityProvider = this.instantiationService.createInstance(MarkersTreeAccessibilityProvider);
 
 		const identityProvider = {
@@ -396,17 +395,12 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}));
 	}
 
-	private createActions(): void {
-		this.collapseAllAction = new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action collapse-all', true, async () => {
-			this.tree.collapseAll();
-			this.tree.setSelection([]);
-			this.tree.setFocus([]);
-			this.tree.getHTMLElement().focus();
-			this.tree.focusFirst();
-		});
-
-		this.filterAction = this.instantiationService.createInstance(MarkersFilterAction, { filterText: this.panelState['filter'] || '', filterHistory: this.panelState['filterHistory'] || [], useFilesExclude: !!this.panelState['useFilesExclude'] });
-		this.actions = [this.filterAction, this.collapseAllAction];
+	private collapseAll(): void {
+		this.tree.collapseAll();
+		this.tree.setSelection([]);
+		this.tree.setFocus([]);
+		this.tree.getHTMLElement().focus();
+		this.tree.focusFirst();
 	}
 
 	private createListeners(): void {
@@ -423,7 +417,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 				this.updateFilter();
 			}
 		}));
-		this.actions.forEach(a => this._register(a));
 	}
 
 	private onDidChangeModel(change: MarkerChangesEvent) {
