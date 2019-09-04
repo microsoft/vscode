@@ -1119,40 +1119,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh - CompletionItemTag, https://github.com/microsoft/vscode/issues/23927
-
-	export enum SymbolTag {
-		Deprecated = 1
-	}
-
-	export interface SymbolInformation {
-		/**
-		 *
-		 */
-		tags?: ReadonlyArray<SymbolTag>;
-	}
-
-	export interface DocumentSymbol {
-		/**
-		 *
-		 */
-		tags?: ReadonlyArray<SymbolTag>;
-	}
-
-	export enum CompletionItemTag {
-		Deprecated = 1
-	}
-
-	export interface CompletionItem {
-
-		/**
-		 *
-		 */
-		tags?: ReadonlyArray<CompletionItemTag>;
-	}
-
-	//#endregion
-
 	// #region Ben - extension auth flow (desktop+web)
 
 	export interface AppUriOptions {

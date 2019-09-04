@@ -2532,6 +2532,18 @@ declare module 'vscode' {
 		TypeParameter = 25
 	}
 
+
+	/**
+	 * Symbol tags are extra annotations that tweak the rendering of a symbol.
+	 */
+	export enum SymbolTag {
+
+		/**
+		 * Render a symbol as obsolete, usually using a strike-out.
+		 */
+		Deprecated = 1
+	}
+
 	/**
 	 * Represents information about programming constructs like variables, classes,
 	 * interfaces etc.
@@ -2552,6 +2564,11 @@ declare module 'vscode' {
 		 * The kind of this symbol.
 		 */
 		kind: SymbolKind;
+
+		/**
+		 * Tags for this symbol.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
 
 		/**
 		 * The location of this symbol.
@@ -2603,6 +2620,11 @@ declare module 'vscode' {
 		 * The kind of this symbol.
 		 */
 		kind: SymbolKind;
+
+		/**
+		 * Tags for this symbol.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
 
 		/**
 		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
@@ -3286,6 +3308,17 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Completion item tags are extra annotations that tweak the rendering of a completion
+	 * item.
+	 */
+	export enum CompletionItemTag {
+		/**
+		 * Render a completion as obsolete, usually using a strike-out.
+		 */
+		Deprecated = 1
+	}
+
+	/**
 	 * A completion item represents a text snippet that is proposed to complete text that is being typed.
 	 *
 	 * It is sufficient to create a completion item from just a [label](#CompletionItem.label). In that
@@ -3314,6 +3347,11 @@ declare module 'vscode' {
 		 * an icon is chosen by the editor.
 		 */
 		kind?: CompletionItemKind;
+
+		/**
+		 * Tags for this completion item.
+		 */
+		tags?: ReadonlyArray<CompletionItemTag>;
 
 		/**
 		 * A human-readable string with additional information
