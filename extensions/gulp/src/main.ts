@@ -156,8 +156,13 @@ class FolderDetector {
 		try {
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr && stderr.length > 0) {
-				getOutputChannel().appendLine(stderr);
-				showError();
+				// Filter out "No license field"
+				const errors = stderr.split('\n');
+				errors.pop(); // The last line is empty.
+				if (!errors.every(value => value.indexOf('No license field') >= 0)) {
+					getOutputChannel().appendLine(stderr);
+					showError();
+				}
 			}
 			let result: vscode.Task[] = [];
 			if (stdout) {
