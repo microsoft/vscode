@@ -982,16 +982,7 @@ export class SearchModel extends Disposable {
 		*/
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
-		const onDoneStopwatch = Event.stopwatch(onDone);
 		const start = Date.now();
-
-		/* __GDPR__
-			"searchResultsFinished" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-			}
-		*/
-		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
-
 		currentRequest.then(
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start));
@@ -1000,6 +991,13 @@ export class SearchModel extends Disposable {
 	}
 
 	private onSearchCompleted(completed: ISearchComplete | null, duration: number): ISearchComplete | null {
+		/* __GDPR__
+			"searchResultsFinished" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+			}
+		*/
+		this.telemetryService.publicLog('searchResultsFinished', { duration });
+
 		if (!this._searchQuery) {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
