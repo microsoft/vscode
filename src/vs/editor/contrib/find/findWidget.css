@@ -208,6 +208,12 @@
 	background-image: url('images/chevron-next-light.svg');
 }
 
+.monaco-editor .find-widget .find-all {
+	width: auto;
+	padding: 0 .5em;
+	text-align: center;
+}
+
 .monaco-editor .find-widget .disabled {
 	opacity: 0.3;
 	cursor: default;

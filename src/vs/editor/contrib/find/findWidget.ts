@@ -39,11 +39,14 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 export interface IFindController {
 	replace(): void;
 	replaceAll(): void;
+	selectAllMatches(): void;
 	getGlobalBufferTerm(): string;
 }
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
+const NLS_ALL_MATCH_BTN_LABEL = nls.localize('label.allMatchButton', "Select all matches");
+const NLS_FIND_ALL = nls.localize('label.findAll', "Find All");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
 const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in selection");
@@ -118,6 +121,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _toggleReplaceBtn!: SimpleButton;
 	private _matchesCount!: HTMLElement;
+	private _allMatchBtn!: SimpleButton;
 	private _prevBtn!: SimpleButton;
 	private _nextBtn!: SimpleButton;
 	private _toggleSelectionFind!: SimpleCheckbox;
@@ -447,6 +451,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		let findInputIsNonEmpty = (this._state.searchString.length > 0);
 		let matchesCount = this._state.matchesCount ? true : false;
+		this._allMatchBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
 		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
 		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
@@ -967,6 +972,17 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._matchesCount.className = 'matchesCount';
 		this._updateMatchesCount();
 
+
+		// Find All button
+		this._allMatchBtn = this._register(new SimpleButton({
+			label: NLS_ALL_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.SelectAllMatchesAction),
+			className: 'find-all',
+			onTrigger: () => {
+				this._controller.selectAllMatches();
+			},
+			onKeyDown: (e) => {}
+		}));
+
 		// Previous button
 		this._prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
@@ -994,6 +1010,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		actionsContainer.appendChild(this._matchesCount);
 		actionsContainer.appendChild(this._prevBtn.domNode);
 		actionsContainer.appendChild(this._nextBtn.domNode);
+		// Insert find all button
+		actionsContainer.appendChild(this._allMatchBtn.domNode);
+		this._allMatchBtn.domNode.appendChild(document.createTextNode(NLS_FIND_ALL));
 
 		// Toggle selection button
 		this._toggleSelectionFind = this._register(new SimpleCheckbox({
