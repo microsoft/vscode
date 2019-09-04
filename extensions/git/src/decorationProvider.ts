@@ -9,7 +9,7 @@ import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent, dispose, anyEvent, fireEvent } from './util';
-import { GitErrorCodes, Status } from './api/git';
+import { GitErrorCodes } from './api/git';
 
 type Callback = { resolve: (status: boolean) => void, reject: (err: any) => void };
 
@@ -123,10 +123,7 @@ class GitDecorationProvider implements DecorationProvider {
 
 	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, DecorationData>): void {
 		group.resourceStates.forEach(r => {
-			if (r.resourceDecoration
-				&& r.type !== Status.DELETED
-				&& r.type !== Status.INDEX_DELETED
-			) {
+			if (r.resourceDecoration) {
 				// not deleted and has a decoration
 				bucket.set(r.original.toString(), r.resourceDecoration);
 			}

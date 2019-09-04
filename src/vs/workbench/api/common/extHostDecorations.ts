@@ -63,7 +63,7 @@ export class ExtHostDecorations implements IExtHostDecorations {
 					console.warn(`INVALID decoration from extension '${extensionId.value}'. The 'letter' must be set and be one character, not '${data.letter}'.`);
 				}
 				if (data) {
-					result[id] = <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color, data.source];
+					result[id] = <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color];
 
 				}
 			}, err => {

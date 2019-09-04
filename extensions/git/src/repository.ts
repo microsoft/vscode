@@ -157,10 +157,7 @@ export class Resource implements SourceControlResourceState {
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
-		const letter = this.letter;
-		const color = this.color;
-
-		return { strikeThrough, faded, tooltip, light, dark, letter, color, source: 'git.resource' /*todo@joh*/ };
+		return { strikeThrough, faded, tooltip, light, dark };
 	}
 
 	get letter(): string {
@@ -252,7 +249,7 @@ export class Resource implements SourceControlResourceState {
 		const letter = this.letter;
 		const color = this.color;
 		const priority = this.priority;
-		return { bubble: true, source: 'git.resource', title, letter, color, priority };
+		return { bubble: true, title, letter, color, priority };
 	}
 
 	constructor(
