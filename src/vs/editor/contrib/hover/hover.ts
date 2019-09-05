@@ -75,7 +75,7 @@ export class ModesHoverController implements IEditorContribution {
 		this._hookEvents();
 
 		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.contribInfo) {
+			if (e.hasChanged(EditorOption.hover)) {
 				this._hideWidgets();
 				this._unhookEvents();
 				this._hookEvents();
@@ -86,7 +86,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _hookEvents(): void {
 		const hideWidgetsEventHandler = () => this._hideWidgets();
 
-		const hoverOpts = this._editor.getConfiguration().contribInfo.hover;
+		const hoverOpts = this._editor.getOption(EditorOption.hover);
 		this._isHoverEnabled = hoverOpts.enabled;
 		this._isHoverSticky = hoverOpts.sticky;
 		if (this._isHoverEnabled) {
@@ -147,7 +147,6 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		// const this._editor.getConfiguration().contribInfo.hover.sticky;
 		let targetType = mouseEvent.target.type;
 
 		if (this._isMouseDown && this._hoverClicked && this.contentWidget.isColorPickerVisible()) {

@@ -121,7 +121,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 			if (shouldRestartFind) {
 				this._start({
 					forceRevealReplace: false,
-					seedSearchStringFromSelection: false && this._editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
+					seedSearchStringFromSelection: false && this._editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 					seedSearchStringFromGlobalClipboard: false,
 					shouldFocus: FindStartFocusAction.NoFocusChange,
 					shouldAnimate: false,
@@ -353,7 +353,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public getGlobalBufferTerm(): string {
-		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
+		if (this._editor.getOption(EditorOption.find).globalFindClipboard
 			&& this._clipboardService
 			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
@@ -364,7 +364,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public setGlobalBufferTerm(text: string) {
-		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
+		if (this._editor.getOption(EditorOption.find).globalFindClipboard
 			&& this._clipboardService
 			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
@@ -399,7 +399,7 @@ export class FindController extends CommonFindController implements IFindControl
 			this._createFindWidget();
 		}
 
-		if (!this._widget!.getPosition() && this._editor.getConfiguration().contribInfo.find.autoFindInSelection) {
+		if (!this._widget!.getPosition() && this._editor.getOption(EditorOption.find).autoFindInSelection) {
 			// not visible yet so we need to set search scope if `editor.find.autoFindInSelection` is `true`
 			opts.updateSearchScope = true;
 		}
@@ -457,8 +457,8 @@ export class StartFindAction extends EditorAction {
 		if (controller) {
 			controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
-				seedSearchStringFromGlobalClipboard: editor.getConfiguration().contribInfo.find.globalFindClipboard,
+				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
+				seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).globalFindClipboard,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true,
 				updateSearchScope: false
@@ -508,7 +508,7 @@ export abstract class MatchFindAction extends EditorAction {
 		if (controller && !this._run(controller)) {
 			controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
+				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: true,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
@@ -620,7 +620,7 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 		if (!this._run(controller)) {
 			controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
+				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
@@ -709,7 +709,7 @@ export class StartFindReplaceAction extends EditorAction {
 		// we only seed search string from selection when the current selection is single line and not empty,
 		// + the find input is not focused
 		let seedSearchStringFromSelection = !currentSelection.isEmpty()
-			&& currentSelection.startLineNumber === currentSelection.endLineNumber && editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection
+			&& currentSelection.startLineNumber === currentSelection.endLineNumber && editor.getOption(EditorOption.find).seedSearchStringFromSelection
 			&& !findInputFocused;
 		/*
 		 * if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input is still empty, so we should focus the Find Input instead of Replace Input.
@@ -726,7 +726,7 @@ export class StartFindReplaceAction extends EditorAction {
 			controller.start({
 				forceRevealReplace: true,
 				seedSearchStringFromSelection: seedSearchStringFromSelection,
-				seedSearchStringFromGlobalClipboard: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
+				seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 				shouldFocus: shouldFocus,
 				shouldAnimate: true,
 				updateSearchScope: false

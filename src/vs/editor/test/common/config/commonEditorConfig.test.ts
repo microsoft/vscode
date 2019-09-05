@@ -186,8 +186,8 @@ suite('Common Editor Config', () => {
 		});
 		let config = new TestConfiguration({ hover: hoverOptions });
 
-		assert.equal(config.editor.contribInfo.hover.enabled, true);
+		assert.equal(config.options.get(EditorOption.hover).enabled, true);
 		config.updateOptions({ hover: { enabled: false } });
-		assert.equal(config.editor.contribInfo.hover.enabled, false);
+		assert.equal(config.options.get(EditorOption.hover).enabled, false);
 	});
 });

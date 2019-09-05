@@ -89,8 +89,8 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.editor = editor;
 		const options = this.editor.getOptions();
 		this._isEnabled = options.get(EditorOption.folding);
-		this._autoHideFoldingControls = this.editor.getConfiguration().contribInfo.showFoldingControls === 'mouseover';
-		this._useFoldingProviders = this.editor.getConfiguration().contribInfo.foldingStrategy !== 'indentation';
+		this._autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
+		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
 
 		this.foldingModel = null;
 		this.hiddenRangeModel = null;
@@ -110,7 +110,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this._register(this.editor.onDidChangeModel(() => this.onModelChanged()));
 
 		this._register(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.contribInfo || e.hasChanged(EditorOption.folding)) {
+			if (e.hasChanged(EditorOption.folding) || e.hasChanged(EditorOption.showFoldingControls) || e.hasChanged(EditorOption.foldingStrategy)) {
 				let oldIsEnabled = this._isEnabled;
 				const options = this.editor.getOptions();
 				this._isEnabled = options.get(EditorOption.folding);
@@ -119,13 +119,13 @@ export class FoldingController extends Disposable implements IEditorContribution
 					this.onModelChanged();
 				}
 				let oldShowFoldingControls = this._autoHideFoldingControls;
-				this._autoHideFoldingControls = this.editor.getConfiguration().contribInfo.showFoldingControls === 'mouseover';
+				this._autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
 				if (oldShowFoldingControls !== this._autoHideFoldingControls) {
 					this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
 					this.onModelContentChanged();
 				}
 				let oldUseFoldingProviders = this._useFoldingProviders;
-				this._useFoldingProviders = this.editor.getConfiguration().contribInfo.foldingStrategy !== 'indentation';
+				this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
 				if (oldUseFoldingProviders !== this._useFoldingProviders) {
 					this.onFoldingStrategyChanged();
 				}

@@ -107,7 +107,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}));
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			// hide when told to do so
-			if (e.contribInfo && !this._editor.getOption(EditorOption.lightbulb).enabled) {
+			if (e.hasChanged(EditorOption.lightbulb) && !this._editor.getOption(EditorOption.lightbulb).enabled) {
 				this.hide();
 			}
 		}));

@@ -192,8 +192,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this.updateAccessibilitySupport();
 			}
 
-			if (e.contribInfo) {
-				const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+			if (e.hasChanged(EditorOption.find)) {
+				const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
 				if (addExtraSpaceOnTop && !this._viewZone) {
 					this._viewZone = new FindWidgetViewZone(0);
 					this._showViewZone();
@@ -239,7 +239,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 
 		this._codeEditor.addOverlayWidget(this);
-		if (this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop) {
+		if (this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop) {
 			this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
 		}
 
@@ -467,7 +467,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			const selection = this._codeEditor.getSelection();
 			const isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
-			if (isSelection && this._codeEditor.getConfiguration().contribInfo.find.autoFindInSelection) {
+			if (isSelection && this._codeEditor.getOption(EditorOption.find).autoFindInSelection) {
 				this._toggleSelectionFind.checked = true;
 			} else {
 				this._toggleSelectionFind.checked = false;
@@ -488,7 +488,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._codeEditor.layoutOverlayWidget(this);
 
 			let adjustEditorScrollTop = true;
-			if (this._codeEditor.getConfiguration().contribInfo.find.seedSearchStringFromSelection && selection) {
+			if (this._codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection && selection) {
 				const domNode = this._codeEditor.getDomNode();
 				if (domNode) {
 					const editorCoords = dom.getDomNodePagePosition(domNode);
@@ -535,7 +535,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _layoutViewZone() {
-		const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+		const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
 
 		if (!addExtraSpaceOnTop) {
 			this._removeViewZone();
@@ -563,7 +563,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			return;
 		}
 
-		const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+		const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
 
 		if (!addExtraSpaceOnTop) {
 			return;

@@ -148,7 +148,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Disable hover
-		const oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
+		const oldHoverSetting = this._editor.getOption(EditorOption.hover);
 		this._editor.updateOptions({
 			hover: {
 				enabled: false

@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { IEditorOptions, RawEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, ComputedEditorOptions, ChangedEditorOptions, IValidatedEditorOptions, InternalEditorOptions, IConfigurationChangedEvent, EditorOptionsValidator, EDITOR_DEFAULTS, InternalEditorOptionsFactory, EDITOR_FONT_DEFAULTS, EditorOptions, EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, RawEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, ComputedEditorOptions, ChangedEditorOptions, InternalEditorOptions, IConfigurationChangedEvent, InternalEditorOptionsFactory, EDITOR_FONT_DEFAULTS, EditorOptions, EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -116,51 +116,69 @@ export class EditorConfiguration2 {
  * Compatibility with old options
  */
 function migrateOptions(options: IEditorOptions): void {
-	let wordWrap = options.wordWrap;
+	const wordWrap = options.wordWrap;
 	if (<any>wordWrap === true) {
 		options.wordWrap = 'on';
 	} else if (<any>wordWrap === false) {
 		options.wordWrap = 'off';
 	}
 
-	let lineNumbers = options.lineNumbers;
+	const lineNumbers = options.lineNumbers;
 	if (<any>lineNumbers === true) {
 		options.lineNumbers = 'on';
 	} else if (<any>lineNumbers === false) {
 		options.lineNumbers = 'off';
 	}
 
-	let autoClosingBrackets = options.autoClosingBrackets;
+	const autoClosingBrackets = options.autoClosingBrackets;
 	if (<any>autoClosingBrackets === false) {
 		options.autoClosingBrackets = 'never';
 		options.autoClosingQuotes = 'never';
 		options.autoSurround = 'never';
 	}
 
-	let cursorBlinking = options.cursorBlinking;
+	const cursorBlinking = options.cursorBlinking;
 	if (<any>cursorBlinking === 'visible') {
 		options.cursorBlinking = 'solid';
 	}
 
-	let renderWhitespace = options.renderWhitespace;
+	const renderWhitespace = options.renderWhitespace;
 	if (<any>renderWhitespace === true) {
 		options.renderWhitespace = 'boundary';
 	} else if (<any>renderWhitespace === false) {
 		options.renderWhitespace = 'none';
 	}
 
-	let renderLineHighlight = options.renderLineHighlight;
+	const renderLineHighlight = options.renderLineHighlight;
 	if (<any>renderLineHighlight === true) {
 		options.renderLineHighlight = 'line';
 	} else if (<any>renderLineHighlight === false) {
 		options.renderLineHighlight = 'none';
 	}
 
-	let acceptSuggestionOnEnter = options.acceptSuggestionOnEnter;
+	const acceptSuggestionOnEnter = options.acceptSuggestionOnEnter;
 	if (<any>acceptSuggestionOnEnter === true) {
 		options.acceptSuggestionOnEnter = 'on';
 	} else if (<any>acceptSuggestionOnEnter === false) {
 		options.acceptSuggestionOnEnter = 'off';
+	}
+
+	const tabCompletion = options.tabCompletion;
+	if (<any>tabCompletion === false) {
+		options.tabCompletion = 'off';
+	} else if (<any>tabCompletion === true) {
+		options.tabCompletion = 'onlySnippets';
+	}
+
+	const hover = options.hover;
+	if (<any>hover === true) {
+		options.hover = {
+			enabled: true
+		};
+	} else if (<any>hover === false) {
+		options.hover = {
+			enabled: false
+		};
 	}
 }
 
@@ -168,7 +186,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	public readonly isSimpleWidget: boolean;
 	protected _rawOptions: IEditorOptions;
-	protected _validatedOptions: IValidatedEditorOptions;
 	public editor!: InternalEditorOptions;
 	private _isDominatedByLongLines: boolean;
 	private _lineNumbersDigitCount: number;
@@ -193,8 +210,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions.find = objects.mixin({}, this._rawOptions.find || {});
 		this._rawOptions.hover = objects.mixin({}, this._rawOptions.hover || {});
 		this._rawOptions.parameterHints = objects.mixin({}, this._rawOptions.parameterHints || {});
-
-		this._validatedOptions = EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 
 		this._rawOptions2 = EditorConfiguration2.readOptions(options);
 		this._validatedOptions2 = EditorConfiguration2.validateOptions(this._rawOptions2);
@@ -237,7 +252,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	private _computeInternalOptions(): [InternalEditorOptions, ComputedEditorOptions] {
-		const opts = this._validatedOptions;
 		const partialEnv = this._getEnvConfiguration();
 		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, partialEnv.zoomLevel, this.isSimpleWidget);
 		const env: IEnvironmentalOptions = {
@@ -252,7 +266,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			tabFocusMode: TabFocus.getTabFocusMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport
 		};
-		const r = InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
+		const r = InternalEditorOptionsFactory.createInternalEditorOptions(env);
 		const r2 = EditorConfiguration2.computeOptions(this._validatedOptions2, env);
 		return [r, r2];
 	}
@@ -308,7 +322,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._rawOptions = objects.mixin(this._rawOptions, newOptions || {});
 		this._rawOptions2 = EditorConfiguration2.mixOptions(this._rawOptions2, newOptions);
 
-		this._validatedOptions = EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this._validatedOptions2 = EditorConfiguration2.validateOptions(this._rawOptions2);
 
 		this._recomputeOptions();
@@ -491,32 +504,32 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.hover.enabled': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.hover.enabled,
+			'default': EditorOptions.hover.defaultValue.enabled,
 			'description': nls.localize('hover.enabled', "Controls whether the hover is shown.")
 		},
 		'editor.hover.delay': {
 			'type': 'number',
-			'default': EDITOR_DEFAULTS.contribInfo.hover.delay,
+			'default': EditorOptions.hover.defaultValue.delay,
 			'description': nls.localize('hover.delay', "Controls the delay in milliseconds after which the hover is shown.")
 		},
 		'editor.hover.sticky': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.hover.sticky,
+			'default': EditorOptions.hover.defaultValue.sticky,
 			'description': nls.localize('hover.sticky', "Controls whether the hover should remain visible when mouse is moved over it.")
 		},
 		'editor.find.seedSearchStringFromSelection': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.find.seedSearchStringFromSelection,
+			'default': EditorOptions.find.defaultValue.seedSearchStringFromSelection,
 			'description': nls.localize('find.seedSearchStringFromSelection', "Controls whether the search string in the Find Widget is seeded from the editor selection.")
 		},
 		'editor.find.autoFindInSelection': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.find.autoFindInSelection,
+			'default': EditorOptions.find.defaultValue.autoFindInSelection,
 			'description': nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried out on selected text or the entire file in the editor.")
 		},
 		'editor.find.globalFindClipboard': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.find.globalFindClipboard,
+			'default': EditorOptions.find.defaultValue.globalFindClipboard,
 			'description': nls.localize('find.globalFindClipboard', "Controls whether the Find Widget should read or modify the shared find clipboard on macOS."),
 			'included': platform.isMacintosh
 		},
@@ -635,7 +648,7 @@ const editorConfiguration: IConfigurationNode = {
 					}
 				}
 			],
-			'default': EDITOR_DEFAULTS.contribInfo.quickSuggestions,
+			'default': EditorOptions.quickSuggestions.defaultValue,
 			'description': nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
 		},
 		'editor.quickSuggestionsDelay': {
@@ -646,12 +659,12 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.parameterHints.enabled': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.parameterHints.enabled,
+			'default': EditorOptions.parameterHints.defaultValue.enabled,
 			'description': nls.localize('parameterHints.enabled', "Enables a pop-up that shows parameter documentation and type information as you type.")
 		},
 		'editor.parameterHints.cycle': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.parameterHints.cycle,
+			'default': EditorOptions.parameterHints.defaultValue.cycle,
 			'description': nls.localize('parameterHints.cycle', "Controls whether the parameter hints menu cycles or closes when reaching the end of the list.")
 		},
 		'editor.autoClosingBrackets': {
@@ -746,7 +759,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('snippetSuggestions.inline', "Show snippets suggestions with other suggestions."),
 				nls.localize('snippetSuggestions.none', "Do not show snippet suggestions."),
 			],
-			'default': EDITOR_DEFAULTS.contribInfo.suggest.snippets,
+			'default': EditorOptions.snippetSuggestions.defaultValue,
 			'description': nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		},
 		'editor.emptySelectionClipboard': {
@@ -761,7 +774,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wordBasedSuggestions': {
 			'type': 'boolean',
-			'default': EditorOptions.wordBasedSuggestions.defaultValue,
+			'default': true,
 			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
 		'editor.suggestSelection': {
@@ -820,12 +833,12 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.suggest.showIcons': {
 			type: 'boolean',
-			default: EDITOR_DEFAULTS.contribInfo.suggest.showIcons,
+			default: EditorOptions.suggest.defaultValue.showIcons,
 			description: nls.localize('suggest.showIcons', "Controls whether to show or hide icons in suggestions.")
 		},
 		'editor.suggest.maxVisibleSuggestions': {
 			type: 'number',
-			default: EDITOR_DEFAULTS.contribInfo.suggest.maxVisibleSuggestions,
+			default: EditorOptions.suggest.defaultValue.maxVisibleSuggestions,
 			minimum: 1,
 			maximum: 15,
 			description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
@@ -971,7 +984,7 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('editor.gotoLocation.multiple', "Controls the behavior of 'Go To' commands, like Go To Definition, when multiple target locations exist."),
 			type: 'string',
 			enum: ['peek', 'gotoAndPeek', 'goto'],
-			default: EDITOR_DEFAULTS.contribInfo.gotoLocation.multiple,
+			default: EditorOptions.gotoLocation.defaultValue.multiple,
 			enumDescriptions: [
 				nls.localize('editor.gotoLocation.multiple.peek', 'Show peek view of the results (default)'),
 				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a peek view'),
@@ -1087,13 +1100,13 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.foldingStrategy': {
 			'type': 'string',
 			'enum': ['auto', 'indentation'],
-			'default': EDITOR_DEFAULTS.contribInfo.foldingStrategy,
+			'default': EditorOptions.foldingStrategy.defaultValue,
 			'markdownDescription': nls.localize('foldingStrategy', "Controls the strategy for computing folding ranges. `auto` uses a language specific folding strategy, if available. `indentation` uses the indentation based folding strategy.")
 		},
 		'editor.showFoldingControls': {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
-			'default': EDITOR_DEFAULTS.contribInfo.showFoldingControls,
+			'default': EditorOptions.showFoldingControls.defaultValue,
 			'description': nls.localize('showFoldingControls', "Controls whether the fold controls on the gutter are automatically hidden.")
 		},
 		'editor.matchBrackets': {
@@ -1177,12 +1190,12 @@ const editorConfiguration: IConfigurationNode = {
 			'additionalProperties': {
 				'type': 'boolean'
 			},
-			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSave,
+			'default': {},
 			'description': nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
 		},
 		'editor.codeActionsOnSaveTimeout': {
 			'type': 'number',
-			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSaveTimeout,
+			'default': 750,
 			'description': nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled.")
 		},
 		'editor.selectionClipboard': {

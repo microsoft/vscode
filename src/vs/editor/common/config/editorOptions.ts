@@ -217,7 +217,7 @@ export interface ISuggestOptions {
 	/**
 	 * Max suggestions to show in suggestions. Defaults to 12.
 	 */
-	maxVisibleSuggestions?: boolean;
+	maxVisibleSuggestions?: number;
 	/**
 	 * Names of suggestion types to filter.
 	 */
@@ -231,11 +231,10 @@ export interface IGotoLocationOptions {
 	multiple?: 'peek' | 'gotoAndPeek' | 'goto';
 }
 
-/**
- * Configuration map for codeActionsOnSave
- */
-export interface ICodeActionsOnSaveOptions {
-	[kind: string]: boolean;
+export interface IQuickSuggestionsOptions {
+	other: boolean;
+	comments: boolean;
+	strings: boolean;
 }
 
 /**
@@ -528,7 +527,7 @@ export interface IEditorOptions {
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
-	quickSuggestions?: boolean | { other: boolean, comments: boolean, strings: boolean };
+	quickSuggestions?: boolean | IQuickSuggestionsOptions;
 	/**
 	 * Quick suggestions show delay (in ms)
 	 * Defaults to 10 (ms)
@@ -605,10 +604,6 @@ export interface IEditorOptions {
 	 */
 	copyWithSyntaxHighlighting?: boolean;
 	/**
-	 * Enable word based suggestions. Defaults to 'true'
-	 */
-	wordBasedSuggestions?: boolean;
-	/**
 	 * The history mode for suggestions.
 	 */
 	suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
@@ -625,7 +620,7 @@ export interface IEditorOptions {
 	/**
 	 * Enable tab completion.
 	 */
-	tabCompletion?: boolean | 'on' | 'off' | 'onlySnippets';
+	tabCompletion?: 'on' | 'off' | 'onlySnippets';
 	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
@@ -645,10 +640,6 @@ export interface IEditorOptions {
 	 * Control the behavior and rendering of the code action lightbulb.
 	 */
 	lightbulb?: IEditorLightbulbOptions;
-	/**
-	 * Code action kinds to be run on save.
-	 */
-	codeActionsOnSave?: ICodeActionsOnSaveOptions;
 	/**
 	 * Timeout for running code actions on save.
 	 */
@@ -903,68 +894,6 @@ function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'l
 	}
 }
 
-export interface InternalEditorFindOptions {
-	readonly seedSearchStringFromSelection: boolean;
-	readonly autoFindInSelection: boolean;
-	readonly addExtraSpaceOnTop: boolean;
-	/**
-	 * @internal
-	 */
-	readonly globalFindClipboard: boolean;
-}
-
-export interface InternalEditorHoverOptions {
-	readonly enabled: boolean;
-	readonly delay: number;
-	readonly sticky: boolean;
-}
-
-export interface InternalGoToLocationOptions {
-	readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
-}
-
-export interface InternalSuggestOptions {
-	readonly filterGraceful: boolean;
-	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
-	readonly snippetsPreventQuickSuggestions: boolean;
-	readonly localityBonus: boolean;
-	readonly shareSuggestSelections: boolean;
-	readonly showIcons: boolean;
-	readonly maxVisibleSuggestions: number;
-	readonly filteredTypes: Record<string, boolean>;
-}
-
-export interface InternalParameterHintOptions {
-	readonly enabled: boolean;
-	readonly cycle: boolean;
-}
-
-export interface EditorContribOptions {
-	readonly hover: InternalEditorHoverOptions;
-	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
-	readonly parameterHints: InternalParameterHintOptions;
-	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
-	readonly suggestFontSize: number;
-	readonly suggestLineHeight: number;
-	readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
-	readonly suggest: InternalSuggestOptions;
-	readonly gotoLocation: InternalGoToLocationOptions;
-	readonly foldingStrategy: 'auto' | 'indentation';
-	readonly showFoldingControls: 'always' | 'mouseover';
-	readonly find: InternalEditorFindOptions;
-	readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
-	readonly codeActionsOnSaveTimeout: number;
-}
-
-/**
- * Validated configuration options for the editor.
- * This is a 1 to 1 validated/parsed version of IEditorOptions merged on top of the defaults.
- * @internal
- */
-export interface IValidatedEditorOptions {
-	readonly contribInfo: EditorContribOptions;
-}
-
 /**
  * Internal configuration options (transformed or computed) for the editor.
  */
@@ -976,7 +905,6 @@ export class InternalEditorOptions {
 
 	// ---- grouped options
 	readonly fontInfo: FontInfo;
-	readonly contribInfo: EditorContribOptions;
 
 	/**
 	 * @internal
@@ -985,12 +913,10 @@ export class InternalEditorOptions {
 		pixelRatio: number;
 		lineHeight: number;
 		fontInfo: FontInfo;
-		contribInfo: EditorContribOptions;
 	}) {
 		this.pixelRatio = source.pixelRatio;
 		this.lineHeight = source.lineHeight | 0;
 		this.fontInfo = source.fontInfo;
-		this.contribInfo = source.contribInfo;
 	}
 
 	/**
@@ -1001,7 +927,6 @@ export class InternalEditorOptions {
 			this.pixelRatio === other.pixelRatio
 			&& this.lineHeight === other.lineHeight
 			&& this.fontInfo.equals(other.fontInfo)
-			&& InternalEditorOptions._equalsContribOptions(this.contribInfo, other.contribInfo)
 		);
 	}
 
@@ -1019,110 +944,7 @@ export class InternalEditorOptions {
 			pixelRatio: (this.pixelRatio !== newOpts.pixelRatio),
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
-			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo))
 		};
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _equalFindOptions(a: InternalEditorFindOptions, b: InternalEditorFindOptions): boolean {
-		return (
-			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
-			&& a.autoFindInSelection === b.autoFindInSelection
-			&& a.globalFindClipboard === b.globalFindClipboard
-			&& a.addExtraSpaceOnTop === b.addExtraSpaceOnTop
-		);
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _equalsParameterHintOptions(a: InternalParameterHintOptions, b: InternalParameterHintOptions): boolean {
-		return (
-			a.enabled === b.enabled
-			&& a.cycle === b.cycle
-		);
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _equalsHoverOptions(a: InternalEditorHoverOptions, b: InternalEditorHoverOptions): boolean {
-		return (
-			a.enabled === b.enabled
-			&& a.delay === b.delay
-			&& a.sticky === b.sticky
-		);
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _equalsSuggestOptions(a: InternalSuggestOptions, b: InternalSuggestOptions): any {
-		if (a === b) {
-			return true;
-		} else if (!a || !b) {
-			return false;
-		} else {
-			return a.filterGraceful === b.filterGraceful
-				&& a.snippets === b.snippets
-				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions
-				&& a.localityBonus === b.localityBonus
-				&& a.shareSuggestSelections === b.shareSuggestSelections
-				&& a.showIcons === b.showIcons
-				&& a.maxVisibleSuggestions === b.maxVisibleSuggestions
-				&& objects.equals(a.filteredTypes, b.filteredTypes);
-		}
-	}
-
-	private static _equalsGotoLocationOptions(a: InternalGoToLocationOptions | undefined, b: InternalGoToLocationOptions | undefined): boolean {
-		if (a === b) {
-			return true;
-		} else if (!a || !b) {
-			return false;
-		} else {
-			return a.multiple === b.multiple;
-		}
-	}
-
-	/**
-	 * @internal
-	 */
-	private static _equalsContribOptions(a: EditorContribOptions, b: EditorContribOptions): boolean {
-		return (
-			this._equalsHoverOptions(a.hover, b.hover)
-			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
-			&& this._equalsParameterHintOptions(a.parameterHints, b.parameterHints)
-			&& a.suggestSelection === b.suggestSelection
-			&& a.suggestFontSize === b.suggestFontSize
-			&& a.suggestLineHeight === b.suggestLineHeight
-			&& a.tabCompletion === b.tabCompletion
-			&& this._equalsSuggestOptions(a.suggest, b.suggest)
-			&& InternalEditorOptions._equalsGotoLocationOptions(a.gotoLocation, b.gotoLocation)
-			&& a.foldingStrategy === b.foldingStrategy
-			&& a.showFoldingControls === b.showFoldingControls
-			&& this._equalFindOptions(a.find, b.find)
-			&& objects.equals(a.codeActionsOnSave, b.codeActionsOnSave)
-			&& a.codeActionsOnSaveTimeout === b.codeActionsOnSaveTimeout
-		);
-	}
-
-	private static _equalsQuickSuggestions(a: boolean | { other: boolean, comments: boolean, strings: boolean }, b: boolean | { other: boolean, comments: boolean, strings: boolean }): boolean {
-		if (typeof a === 'boolean') {
-			if (typeof b !== 'boolean') {
-				return false;
-			}
-			return a === b;
-		}
-		if (typeof b === 'boolean') {
-			return false;
-		}
-		return (
-			a.comments === b.comments
-			&& a.other === b.other
-			&& a.strings === b.strings
-		);
 	}
 }
 
@@ -1134,7 +956,6 @@ export interface IConfigurationChangedEvent {
 	readonly pixelRatio: boolean;
 	readonly lineHeight: boolean;
 	readonly fontInfo: boolean;
-	readonly contribInfo: boolean;
 }
 
 export interface IEnvironmentalOptions {
@@ -1150,7 +971,7 @@ export interface IEnvironmentalOptions {
 	readonly accessibilitySupport: AccessibilitySupport;
 }
 
-function _boolean<T>(value: any, defaultValue: T): boolean | T {
+function _boolean(value: any, defaultValue: boolean): boolean {
 	if (typeof value === 'undefined') {
 		return defaultValue;
 	}
@@ -1159,21 +980,6 @@ function _boolean<T>(value: any, defaultValue: T): boolean | T {
 		return false;
 	}
 	return Boolean(value);
-}
-
-function _booleanMap(value: { [key: string]: boolean } | undefined, defaultValue: { [key: string]: boolean }): { [key: string]: boolean } {
-	if (!value) {
-		return defaultValue;
-	}
-
-	const out = Object.create(null);
-	for (const k of Object.keys(value)) {
-		const v = value[k];
-		if (typeof v === 'boolean') {
-			out[k] = v;
-		}
-	}
-	return out;
 }
 
 function _string(value: any, defaultValue: string): string {
@@ -1257,131 +1063,13 @@ function _scrollbarVisibilityFromString(visibility: string | undefined, defaultV
 /**
  * @internal
  */
-export class EditorOptionsValidator {
-
-	/**
-	 * Validate raw editor options.
-	 * i.e. since they can be defined by the user, they might be invalid.
-	 */
-	public static validate(opts: IEditorOptions, defaults: IValidatedEditorOptions): IValidatedEditorOptions {
-		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
-		return {
-			contribInfo: contribInfo,
-		};
-	}
-
-	private static _sanitizeFindOpts(opts: IEditorFindOptions | undefined, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
-		if (typeof opts !== 'object') {
-			return defaults;
-		}
-
-		return {
-			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection),
-			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection),
-			globalFindClipboard: _boolean(opts.globalFindClipboard, defaults.globalFindClipboard),
-			addExtraSpaceOnTop: _boolean(opts.addExtraSpaceOnTop, defaults.addExtraSpaceOnTop)
-		};
-	}
-
-	private static _sanitizeParameterHintOpts(opts: IEditorParameterHintOptions | undefined, defaults: InternalParameterHintOptions): InternalParameterHintOptions {
-		if (typeof opts !== 'object') {
-			return defaults;
-		}
-
-		return {
-			enabled: _boolean(opts.enabled, defaults.enabled),
-			cycle: _boolean(opts.cycle, defaults.cycle)
-		};
-	}
-
-	private static _sanitizeHoverOpts(_opts: boolean | IEditorHoverOptions | undefined, defaults: InternalEditorHoverOptions): InternalEditorHoverOptions {
-		let opts: IEditorHoverOptions;
-		if (typeof _opts === 'boolean') {
-			opts = {
-				enabled: _opts
-			};
-		} else if (typeof _opts === 'object') {
-			opts = _opts;
-		} else {
-			return defaults;
-		}
-
-		return {
-			enabled: _boolean(opts.enabled, defaults.enabled),
-			delay: _clampedInt(opts.delay, defaults.delay, 0, 10000),
-			sticky: _boolean(opts.sticky, defaults.sticky)
-		};
-	}
-
-	private static _sanitizeSuggestOpts(opts: IEditorOptions, defaults: InternalSuggestOptions): InternalSuggestOptions {
-		const suggestOpts = opts.suggest || {};
-		return {
-			filterGraceful: _boolean(suggestOpts.filterGraceful, defaults.filterGraceful),
-			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
-			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
-			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
-			shareSuggestSelections: _boolean(suggestOpts.shareSuggestSelections, defaults.shareSuggestSelections),
-			showIcons: _boolean(suggestOpts.showIcons, defaults.showIcons),
-			maxVisibleSuggestions: _clampedInt(suggestOpts.maxVisibleSuggestions, defaults.maxVisibleSuggestions, 1, 15),
-			filteredTypes: isObject(suggestOpts.filteredTypes) ? suggestOpts.filteredTypes : Object.create(null)
-		};
-	}
-
-	private static _sanitizeGotoLocationOpts(opts: IEditorOptions, defaults: InternalGoToLocationOptions): InternalGoToLocationOptions {
-		const gotoOpts = opts.gotoLocation || {};
-		return {
-			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(gotoOpts.multiple, defaults.multiple, ['peek', 'gotoAndPeek', 'goto'])
-		};
-	}
-
-	private static _sanitizeTabCompletionOpts(opts: boolean | 'on' | 'off' | 'onlySnippets' | undefined, defaults: 'on' | 'off' | 'onlySnippets'): 'on' | 'off' | 'onlySnippets' {
-		if (opts === false) {
-			return 'off';
-		} else if (opts === true) {
-			return 'onlySnippets';
-		} else {
-			return _stringSet<'on' | 'off' | 'onlySnippets'>(opts, defaults, ['on', 'off', 'onlySnippets']);
-		}
-	}
-
-	private static _sanitizeContribInfo(opts: IEditorOptions, defaults: EditorContribOptions): EditorContribOptions {
-		let quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
-		if (typeof opts.quickSuggestions === 'object') {
-			quickSuggestions = { other: true, ...opts.quickSuggestions };
-		} else {
-			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
-		}
-		const find = this._sanitizeFindOpts(opts.find, defaults.find);
-		return {
-			hover: this._sanitizeHoverOpts(opts.hover, defaults.hover),
-			quickSuggestions: quickSuggestions,
-			parameterHints: this._sanitizeParameterHintOpts(opts.parameterHints, defaults.parameterHints),
-			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
-			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
-			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
-			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
-			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
-			gotoLocation: this._sanitizeGotoLocationOpts(opts, defaults.gotoLocation),
-			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
-			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
-			find: find,
-			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
-			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
-		};
-	}
-}
-
-/**
- * @internal
- */
 export class InternalEditorOptionsFactory {
 
-	public static createInternalEditorOptions(env: IEnvironmentalOptions, opts: IValidatedEditorOptions) {
+	public static createInternalEditorOptions(env: IEnvironmentalOptions) {
 		return new InternalEditorOptions({
 			pixelRatio: env.pixelRatio,
 			lineHeight: env.fontInfo.lineHeight,
 			fontInfo: env.fontInfo,
-			contribInfo: opts.contribInfo,
 		});
 	}
 }
@@ -1446,55 +1134,6 @@ export const EDITOR_MODEL_DEFAULTS = {
 	detectIndentation: true,
 	trimAutoWhitespace: true,
 	largeFileOptimizations: true
-};
-
-/**
- * @internal
- */
-export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
-	contribInfo: {
-		hover: {
-			enabled: true,
-			delay: 300,
-			sticky: true
-		},
-		quickSuggestions: {
-			other: true,
-			comments: false,
-			strings: false
-		},
-		parameterHints: {
-			enabled: true,
-			cycle: false
-		},
-		suggestSelection: 'recentlyUsed',
-		suggestFontSize: 0,
-		suggestLineHeight: 0,
-		tabCompletion: 'off',
-		suggest: {
-			filterGraceful: true,
-			snippets: 'inline',
-			snippetsPreventQuickSuggestions: true,
-			localityBonus: false,
-			shareSuggestSelections: false,
-			showIcons: true,
-			maxVisibleSuggestions: 12,
-			filteredTypes: Object.create(null)
-		},
-		gotoLocation: {
-			multiple: 'peek'
-		},
-		foldingStrategy: 'auto',
-		showFoldingControls: 'mouseover',
-		find: {
-			seedSearchStringFromSelection: true,
-			autoFindInSelection: false,
-			globalFindClipboard: false,
-			addExtraSpaceOnTop: true
-		},
-		codeActionsOnSave: {},
-		codeActionsOnSaveTimeout: 750
-	},
 };
 
 /**
@@ -1565,6 +1204,9 @@ export class ChangedEditorOptions {
 		this._values[id] = value;
 	}
 }
+
+//#region IEditorOption
+
 /**
  * @internal
  */
@@ -1598,16 +1240,6 @@ export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IEditor
 	 * @internal
 	 */
 	equals(a: T3, b: T3): boolean;
-}
-
-/**
- * @internal
- */
-export const editorOptionsRegistry: IEditorOption<EditorOption, any>[] = [];
-
-function registerEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2, T3>(option: IEditorOption<K1, K2, T2, T3>): IEditorOption<K1, K2, T2, T3> {
-	editorOptionsRegistry[option.id] = option;
-	return option;
 }
 
 /**
@@ -1724,6 +1356,7 @@ class EditorPassthroughOption<K1 extends EditorOption, K2 extends keyof IEditorO
 		return value;
 	}
 }
+//#endregion
 
 //#region renderLineNumbers
 
@@ -1813,6 +1446,84 @@ class EditorMinimap<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorM
 			&& a.showSlider === b.showSlider
 			&& a.renderCharacters === b.renderCharacters
 			&& a.maxColumn === b.maxColumn
+		);
+	}
+}
+
+//#endregion
+
+//#region hover
+
+export interface InternalEditorHoverOptions {
+	readonly enabled: boolean;
+	readonly delay: number;
+	readonly sticky: boolean;
+}
+
+class EditorHover<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorHoverOptions>> extends BaseEditorOption<K1, K2, InternalEditorHoverOptions> {
+	public validate(input: IEditorHoverOptions | undefined): InternalEditorHoverOptions {
+		if (typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			enabled: _boolean(input.enabled, this.defaultValue.enabled),
+			delay: _clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
+			sticky: _boolean(input.sticky, this.defaultValue.sticky)
+		};
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalEditorHoverOptions): InternalEditorHoverOptions {
+		return value;
+	}
+	public equals(a: InternalEditorHoverOptions, b: InternalEditorHoverOptions): boolean {
+		return (
+			a.enabled === b.enabled
+			&& a.delay === b.delay
+			&& a.sticky === b.sticky
+		);
+	}
+}
+
+//#endregion
+
+//#region quickSuggestions
+
+export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
+
+class EditorQuickSuggestions<K1 extends EditorOption, K2 extends PossibleKeyName<boolean | IQuickSuggestionsOptions>> extends BaseEditorOption<K1, K2, ValidQuickSuggestionsOptions> {
+	public readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
+	constructor(id: K1, name: K2, defaultValue: Readonly<Required<IQuickSuggestionsOptions>>) {
+		super(id, name, defaultValue);
+	}
+	public validate(input: boolean | IQuickSuggestionsOptions | undefined): ValidQuickSuggestionsOptions {
+		if (typeof input === 'boolean') {
+			return input;
+		}
+		if (typeof input === 'object') {
+			return {
+				other: _boolean(input.other, this.defaultValue.other),
+				comments: _boolean(input.comments, this.defaultValue.comments),
+				strings: _boolean(input.strings, this.defaultValue.strings),
+			};
+		}
+		return this.defaultValue;
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: ValidQuickSuggestionsOptions): ValidQuickSuggestionsOptions {
+		return value;
+	}
+	public equals(a: ValidQuickSuggestionsOptions, b: ValidQuickSuggestionsOptions): boolean {
+		if (typeof a === 'boolean') {
+			if (typeof b !== 'boolean') {
+				return false;
+			}
+			return a === b;
+		}
+		if (typeof b === 'boolean') {
+			return false;
+		}
+		return (
+			a.comments === b.comments
+			&& a.other === b.other
+			&& a.strings === b.strings
 		);
 	}
 }
@@ -2023,6 +1734,161 @@ class EditorScrollbar<K1 extends EditorOption, K2 extends PossibleKeyName<IEdito
 			&& a.horizontalSliderSize === b.horizontalSliderSize
 			&& a.verticalScrollbarSize === b.verticalScrollbarSize
 			&& a.verticalSliderSize === b.verticalSliderSize
+		);
+	}
+}
+
+//#endregion
+
+//#region suggest
+
+export type ValidSuggestOptions = Readonly<Required<ISuggestOptions>>;
+
+export interface InternalSuggestOptions {
+	readonly filterGraceful: boolean;
+	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+	readonly snippetsPreventQuickSuggestions: boolean;
+	readonly localityBonus: boolean;
+	readonly shareSuggestSelections: boolean;
+	readonly showIcons: boolean;
+	readonly maxVisibleSuggestions: number;
+	readonly filteredTypes: Record<string, boolean>;
+}
+
+class EditorSuggest<K1 extends EditorOption, K2 extends PossibleKeyName<ISuggestOptions>> extends BaseEditorOption<K1, K2, ValidSuggestOptions, InternalSuggestOptions> {
+	public validate(input: ISuggestOptions | undefined): ValidSuggestOptions {
+		if (typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			filterGraceful: _boolean(input.filterGraceful, this.defaultValue.filterGraceful),
+			snippetsPreventQuickSuggestions: _boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
+			localityBonus: _boolean(input.localityBonus, this.defaultValue.localityBonus),
+			shareSuggestSelections: _boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
+			showIcons: _boolean(input.showIcons, this.defaultValue.showIcons),
+			maxVisibleSuggestions: _clampedInt(input.maxVisibleSuggestions, this.defaultValue.maxVisibleSuggestions, 1, 15),
+			filteredTypes: isObject(input.filteredTypes) ? input.filteredTypes : Object.create(null)
+		};
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: ValidSuggestOptions): InternalSuggestOptions {
+		const snippetSuggestions = options.get(EditorOption.snippetSuggestions);
+		return {
+			filterGraceful: value.filterGraceful,
+			snippets: snippetSuggestions,
+			snippetsPreventQuickSuggestions: value.snippetsPreventQuickSuggestions,
+			localityBonus: value.localityBonus,
+			shareSuggestSelections: value.shareSuggestSelections,
+			showIcons: value.showIcons,
+			maxVisibleSuggestions: value.maxVisibleSuggestions,
+			filteredTypes: value.filteredTypes,
+		};
+	}
+	public equals(a: InternalSuggestOptions, b: InternalSuggestOptions): boolean {
+		return (
+			a.filterGraceful === b.filterGraceful
+			&& a.snippets === b.snippets
+			&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions
+			&& a.localityBonus === b.localityBonus
+			&& a.shareSuggestSelections === b.shareSuggestSelections
+			&& a.showIcons === b.showIcons
+			&& a.maxVisibleSuggestions === b.maxVisibleSuggestions
+			&& objects.equals(a.filteredTypes, b.filteredTypes)
+		);
+	}
+}
+
+//#endregion
+
+//#region parameterHints
+
+export interface InternalParameterHintOptions {
+	readonly enabled: boolean;
+	readonly cycle: boolean;
+}
+
+class EditorParameterHints<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorParameterHintOptions>> extends BaseEditorOption<K1, K2, InternalParameterHintOptions> {
+	public validate(input: IEditorParameterHintOptions | undefined): InternalParameterHintOptions {
+		if (typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			enabled: _boolean(input.enabled, this.defaultValue.enabled),
+			cycle: _boolean(input.cycle, this.defaultValue.cycle)
+		};
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalParameterHintOptions): InternalParameterHintOptions {
+		return value;
+	}
+	public equals(a: InternalParameterHintOptions, b: InternalParameterHintOptions): boolean {
+		return (
+			a.enabled === b.enabled
+			&& a.cycle === b.cycle
+		);
+	}
+}
+
+//#endregion
+
+//#region find
+
+export interface InternalEditorFindOptions {
+	readonly seedSearchStringFromSelection: boolean;
+	readonly autoFindInSelection: boolean;
+	readonly addExtraSpaceOnTop: boolean;
+	/**
+	 * @internal
+	 */
+	readonly globalFindClipboard: boolean;
+}
+
+class EditorFind<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorFindOptions>> extends BaseEditorOption<K1, K2, InternalEditorFindOptions> {
+	public validate(input: IEditorFindOptions | undefined): InternalEditorFindOptions {
+		if (typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			seedSearchStringFromSelection: _boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
+			autoFindInSelection: _boolean(input.autoFindInSelection, this.defaultValue.autoFindInSelection),
+			globalFindClipboard: _boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
+			addExtraSpaceOnTop: _boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop)
+		};
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalEditorFindOptions): InternalEditorFindOptions {
+		return value;
+	}
+	public equals(a: InternalEditorFindOptions, b: InternalEditorFindOptions): boolean {
+		return (
+			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
+			&& a.autoFindInSelection === b.autoFindInSelection
+			&& a.globalFindClipboard === b.globalFindClipboard
+			&& a.addExtraSpaceOnTop === b.addExtraSpaceOnTop
+		);
+	}
+}
+
+//#endregion
+
+//#region gotoLocation
+
+export interface InternalGoToLocationOptions {
+	readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
+}
+
+class EditorGoToLocation<K1 extends EditorOption, K2 extends PossibleKeyName<IGotoLocationOptions>> extends BaseEditorOption<K1, K2, InternalGoToLocationOptions> {
+	public validate(input: IGotoLocationOptions | undefined): InternalGoToLocationOptions {
+		if (typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(input.multiple, this.defaultValue.multiple, ['peek', 'gotoAndPeek', 'goto'])
+		};
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalGoToLocationOptions): InternalGoToLocationOptions {
+		return value;
+	}
+	public equals(a: InternalGoToLocationOptions, b: InternalGoToLocationOptions): boolean {
+		return (
+			a.multiple === b.multiple
 		);
 	}
 }
@@ -2467,6 +2333,16 @@ function _multiCursorModifierFromString(multiCursorModifier: 'ctrlCmd' | 'alt'):
 	return 'altKey';
 }
 
+/**
+ * @internal
+ */
+export const editorOptionsRegistry: IEditorOption<EditorOption, any>[] = [];
+
+function registerEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2, T3>(option: IEditorOption<K1, K2, T2, T3>): IEditorOption<K1, K2, T2, T3> {
+	editorOptionsRegistry[option.id] = option;
+	return option;
+}
+
 export const enum EditorOption {
 	acceptSuggestionOnCommitCharacter,
 	acceptSuggestionOnEnter,
@@ -2491,14 +2367,18 @@ export const enum EditorOption {
 	emptySelectionClipboard,
 	extraEditorClassName,
 	fastScrollSensitivity,
+	find,
 	fixedOverflowWidgets,
 	folding,
+	foldingStrategy,
 	fontLigatures,
 	formatOnPaste,
 	formatOnType,
 	glyphMargin,
+	gotoLocation,
 	hideCursorInOverviewRuler,
 	highlightActiveIndentGuide,
+	hover,
 	inDiffEditor,
 	lightbulb,
 	lineDecorationsWidth,
@@ -2515,6 +2395,8 @@ export const enum EditorOption {
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
+	parameterHints,
+	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
 	renderControlCharacters,
@@ -2531,12 +2413,17 @@ export const enum EditorOption {
 	selectionClipboard,
 	selectionHighlight,
 	selectOnLineNumbers,
+	showFoldingControls,
 	showUnused,
+	snippetSuggestions,
 	smoothScrolling,
 	stopRenderingLineAfter,
+	suggestFontSize,
+	suggestLineHeight,
 	suggestOnTriggerCharacters,
+	suggestSelection,
+	tabCompletion,
 	useTabStops,
-	wordBasedSuggestions,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -2550,6 +2437,7 @@ export const enum EditorOption {
 	disableMonospaceOptimizations,
 	editorClassName,
 	tabFocusMode,
+	suggest,
 	layoutInfo,
 	wrappingInfo,
 }
@@ -2578,14 +2466,29 @@ export const EditorOptions = {
 	emptySelectionClipboard: registerEditorOption(new EditorEmptySelectionClipboard(EditorOption.emptySelectionClipboard, 'emptySelectionClipboard', true)),
 	extraEditorClassName: registerEditorOption(new EditorStringOption(EditorOption.extraEditorClassName, 'extraEditorClassName', '')),
 	fastScrollSensitivity: registerEditorOption(new EditorFloatOption(EditorOption.fastScrollSensitivity, 'fastScrollSensitivity', 5, x => (x <= 0 ? 5 : x))),
+	find: registerEditorOption(new EditorFind(EditorOption.find, 'find', {
+		seedSearchStringFromSelection: true,
+		autoFindInSelection: false,
+		globalFindClipboard: false,
+		addExtraSpaceOnTop: true
+	})),
 	fixedOverflowWidgets: registerEditorOption(new EditorBooleanOption(EditorOption.fixedOverflowWidgets, 'fixedOverflowWidgets', false)),
 	folding: registerEditorOption(new EditorBooleanOption(EditorOption.folding, 'folding', true)),
+	foldingStrategy: registerEditorOption(new EditorEnumOption(EditorOption.foldingStrategy, 'foldingStrategy', 'auto', ['auto', 'indentation'], (x: 'auto' | 'indentation') => x)),
 	fontLigatures: registerEditorOption(new EditorBooleanOption(EditorOption.fontLigatures, 'fontLigatures', true)),
 	formatOnPaste: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnPaste, 'formatOnPaste', false)),
 	formatOnType: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnType, 'formatOnType', false)),
 	glyphMargin: registerEditorOption(new EditorBooleanOption(EditorOption.glyphMargin, 'glyphMargin', true)),
+	gotoLocation: registerEditorOption(new EditorGoToLocation(EditorOption.gotoLocation, 'gotoLocation', {
+		multiple: 'peek'
+	})),
 	hideCursorInOverviewRuler: registerEditorOption(new EditorBooleanOption(EditorOption.hideCursorInOverviewRuler, 'hideCursorInOverviewRuler', false)),
 	highlightActiveIndentGuide: registerEditorOption(new EditorBooleanOption(EditorOption.highlightActiveIndentGuide, 'highlightActiveIndentGuide', true)),
+	hover: registerEditorOption(new EditorHover(EditorOption.hover, 'hover', {
+		enabled: true,
+		delay: 300,
+		sticky: true
+	})),
 	inDiffEditor: registerEditorOption(new EditorBooleanOption(EditorOption.inDiffEditor, 'inDiffEditor', false)),
 	lightbulb: registerEditorOption(new EditorLightbulb(EditorOption.lightbulb, 'lightbulb', {
 		enabled: true
@@ -2610,6 +2513,15 @@ export const EditorOptions = {
 	occurrencesHighlight: registerEditorOption(new EditorBooleanOption(EditorOption.occurrencesHighlight, 'occurrencesHighlight', true)),
 	overviewRulerBorder: registerEditorOption(new EditorBooleanOption(EditorOption.overviewRulerBorder, 'overviewRulerBorder', true)),
 	overviewRulerLanes: registerEditorOption(new EditorIntOption(EditorOption.overviewRulerLanes, 'overviewRulerLanes', 2, 0, 3)),
+	parameterHints: registerEditorOption(new EditorParameterHints(EditorOption.parameterHints, 'parameterHints', {
+		enabled: true,
+		cycle: false
+	})),
+	quickSuggestions: registerEditorOption(new EditorQuickSuggestions(EditorOption.quickSuggestions, 'quickSuggestions', {
+		other: true,
+		comments: false,
+		strings: false
+	})),
 	quickSuggestionsDelay: registerEditorOption(new EditorIntOption(EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay', 10, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
 	readOnly: registerEditorOption(new EditorBooleanOption(EditorOption.readOnly, 'readOnly', false)),
 	renderControlCharacters: registerEditorOption(new EditorBooleanOption(EditorOption.renderControlCharacters, 'renderControlCharacters', false)),
@@ -2638,12 +2550,17 @@ export const EditorOptions = {
 	selectionClipboard: registerEditorOption(new EditorBooleanOption(EditorOption.selectionClipboard, 'selectionClipboard', true)),
 	selectionHighlight: registerEditorOption(new EditorBooleanOption(EditorOption.selectionHighlight, 'selectionHighlight', true)),
 	selectOnLineNumbers: registerEditorOption(new EditorBooleanOption(EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true)),
+	showFoldingControls: registerEditorOption(new EditorEnumOption(EditorOption.showFoldingControls, 'showFoldingControls', 'mouseover', ['always', 'mouseover'], (x: 'always' | 'mouseover') => x)),
 	showUnused: registerEditorOption(new EditorBooleanOption(EditorOption.showUnused, 'showUnused', true)),
+	snippetSuggestions: registerEditorOption(new EditorEnumOption<EditorOption.snippetSuggestions, 'snippetSuggestions', 'top' | 'bottom' | 'inline' | 'none'>(EditorOption.snippetSuggestions, 'snippetSuggestions', 'inline', ['top', 'bottom', 'inline', 'none'], x => x)),
 	smoothScrolling: registerEditorOption(new EditorBooleanOption(EditorOption.smoothScrolling, 'smoothScrolling', false)),
 	stopRenderingLineAfter: registerEditorOption(new EditorIntOption(EditorOption.stopRenderingLineAfter, 'stopRenderingLineAfter', 10000, -1, Constants.MAX_SAFE_SMALL_INTEGER)),
+	suggestFontSize: registerEditorOption(new EditorIntOption(EditorOption.suggestFontSize, 'suggestFontSize', 0, 0, 1000)),
+	suggestLineHeight: registerEditorOption(new EditorIntOption(EditorOption.suggestLineHeight, 'suggestLineHeight', 0, 0, 1000)),
 	suggestOnTriggerCharacters: registerEditorOption(new EditorBooleanOption(EditorOption.suggestOnTriggerCharacters, 'suggestOnTriggerCharacters', true)),
+	suggestSelection: registerEditorOption(new EditorEnumOption(EditorOption.suggestSelection, 'suggestSelection', 'recentlyUsed', ['first', 'recentlyUsed', 'recentlyUsedByPrefix'], (x: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix') => x)),
+	tabCompletion: registerEditorOption(new EditorEnumOption(EditorOption.tabCompletion, 'tabCompletion', 'off', ['on', 'off', 'onlySnippets'], (x: 'on' | 'off' | 'onlySnippets') => x)),
 	useTabStops: registerEditorOption(new EditorBooleanOption(EditorOption.useTabStops, 'useTabStops', true)),
-	wordBasedSuggestions: registerEditorOption(new EditorBooleanOption(EditorOption.wordBasedSuggestions, 'wordBasedSuggestions', true)),
 	wordSeparators: registerEditorOption(new EditorStringOption(EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS)),
 	wordWrap: registerEditorOption(new EditorEnumOption(EditorOption.wordWrap, 'wordWrap', 'off', ['off', 'on', 'wordWrapColumn', 'bounded'], (x: 'off' | 'on' | 'wordWrapColumn' | 'bounded') => x)),
 	wordWrapBreakAfterCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters', ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣')),
@@ -2653,11 +2570,20 @@ export const EditorOptions = {
 	wordWrapMinified: registerEditorOption(new EditorBooleanOption(EditorOption.wordWrapMinified, 'wordWrapMinified', true)),
 	wrappingIndent: registerEditorOption(new EditorEnumOption(EditorOption.wrappingIndent, 'wrappingIndent', 'same', ['none', 'same', 'indent', 'deepIndent'], _wrappingIndentFromString)),
 
-	// Leave these at the end!
+	// Leave these at the end (because they have dependencies!)
 	ariaLabel: registerEditorOption(new EditorAriaLabel(EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content"), [EditorOption.accessibilitySupport])),
 	disableMonospaceOptimizations: registerEditorOption(new EditorDisableMonospaceOptimizations(EditorOption.disableMonospaceOptimizations, 'disableMonospaceOptimizations', false, [EditorOption.fontLigatures])),
 	editorClassName: registerEditorOption(new EditorClassName(EditorOption.editorClassName, 'editorClassName', undefined, [EditorOption.mouseStyle, EditorOption.fontLigatures, EditorOption.extraEditorClassName])),
 	tabFocusMode: registerEditorOption(new EditorTabFocusMode(EditorOption.tabFocusMode, 'tabFocusMode', undefined, [EditorOption.readOnly])),
+	suggest: registerEditorOption(new EditorSuggest(EditorOption.suggest, 'suggest', {
+		filterGraceful: true,
+		snippetsPreventQuickSuggestions: true,
+		localityBonus: false,
+		shareSuggestSelections: false,
+		showIcons: true,
+		maxVisibleSuggestions: 12,
+		filteredTypes: Object.create(null)
+	}, [EditorOption.snippetSuggestions])),
 	layoutInfo: registerEditorOption(new EditorLayoutInfoComputer(EditorOption.layoutInfo, 'layoutInfo', undefined, [EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding, EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers])),
 	wrappingInfo: registerEditorOption(new EditorWrappingInfoComputer(EditorOption.wrappingInfo, 'wrappingInfo', undefined, [EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified, EditorOption.layoutInfo, EditorOption.accessibilitySupport])),
 };
