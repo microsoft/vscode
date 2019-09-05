@@ -5,7 +5,58 @@
 
 import { URI } from 'vs/base/common/uri';
 
-//https://stackoverflow.com/questions/56356655/structuring-a-typescript-project-with-workers/56374158#56374158
+//#region --- lib.webworker.d.ts madness ---
+
+interface ExtendableEvent extends Event {
+	waitUntil(f: any): void;
+}
+
+interface FetchEvent extends ExtendableEvent {
+	readonly clientId: string;
+	readonly preloadResponse: Promise<any>;
+	readonly replacesClientId: string;
+	readonly request: Request;
+	readonly resultingClientId: string;
+	respondWith(r: Response | Promise<Response>): void;
+}
+interface ExtendableMessageEvent extends ExtendableEvent {
+	readonly data: any;
+	readonly lastEventId: string;
+	readonly origin: string;
+	readonly ports: ReadonlyArray<MessagePort>;
+	readonly source: ServiceWorker | MessagePort | null;
+}
+
+interface ServiceWorkerGlobalScopeEventMap {
+	'activate': ExtendableEvent;
+	'fetch': FetchEvent;
+	'install': ExtendableEvent;
+	'message': ExtendableMessageEvent;
+	'messageerror': MessageEvent;
+}
+
+interface Clients {
+	claim(): Promise<void>;
+	get(id: string): Promise<any>;
+}
+
+interface ServiceWorkerGlobalScope {
+	readonly clients: Clients;
+	onactivate: ((this: ServiceWorkerGlobalScope, ev: ExtendableEvent) => any) | null;
+	onfetch: ((this: ServiceWorkerGlobalScope, ev: FetchEvent) => any) | null;
+	oninstall: ((this: ServiceWorkerGlobalScope, ev: ExtendableEvent) => any) | null;
+	onmessage: ((this: ServiceWorkerGlobalScope, ev: ExtendableMessageEvent) => any) | null;
+	onmessageerror: ((this: ServiceWorkerGlobalScope, ev: MessageEvent) => any) | null;
+	readonly registration: ServiceWorkerRegistration;
+	skipWaiting(): Promise<void>;
+	addEventListener<K extends keyof ServiceWorkerGlobalScopeEventMap>(type: K, listener: (this: ServiceWorkerGlobalScope, ev: ServiceWorkerGlobalScopeEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+	addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+	removeEventListener<K extends keyof ServiceWorkerGlobalScopeEventMap>(type: K, listener: (this: ServiceWorkerGlobalScope, ev: ServiceWorkerGlobalScopeEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+	removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+}
+
+//#endregion
+
 declare var self: ServiceWorkerGlobalScope;
 
 //#region --- installing/activating

@@ -64,6 +64,10 @@
 	outline: none;
 }
 
+.monaco-inputbox > .wrapper > textarea.input.empty {
+	white-space: nowrap;
+}
+
 .monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
 	display: none;
 }

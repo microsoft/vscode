@@ -512,7 +512,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					}
 					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
-				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
+				return extHostTerminalService.createTerminal(nameOrOptions, shellPath, shellArgs);
 			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
@@ -831,7 +831,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DocumentSymbol: extHostTypes.DocumentSymbol,
 			EndOfLine: extHostTypes.EndOfLine,
 			EventEmitter: Emitter,
-			ExtensionExecutionContext: extHostTypes.ExtensionExecutionContext,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			CustomExecution2: extHostTypes.CustomExecution2,
 			FileChangeType: extHostTypes.FileChangeType,
@@ -891,7 +890,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed
 			CallHierarchyDirection: extHostTypes.CallHierarchyDirection,
-			CallHierarchyItem: extHostTypes.CallHierarchyItem
+			CallHierarchyItem: extHostTypes.CallHierarchyItem,
+			Decoration: extHostTypes.Decoration
 		};
 	};
 }

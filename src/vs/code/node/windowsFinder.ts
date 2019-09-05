@@ -14,7 +14,7 @@ export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
 	openedFolderUri?: URI;
 
-	extensionDevelopmentPath?: string | string[];
+	extensionDevelopmentPath?: string[];
 	lastFocusTime: number;
 }
 
@@ -95,30 +95,17 @@ export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], wor
 	return null;
 }
 
-export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath: string | string[]): W | null {
+export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPaths: string[]): W | null {
 
 	const matches = (uriString: string): boolean => {
-		if (Array.isArray(extensionDevelopmentPath)) {
-			return extensionDevelopmentPath.some(p => extpath.isEqual(p, uriString, !platform.isLinux /* ignorecase */));
-		} else if (extensionDevelopmentPath) {
-			return extpath.isEqual(extensionDevelopmentPath, uriString, !platform.isLinux /* ignorecase */);
-		}
-		return false;
+		return extensionDevelopmentPaths.some(p => extpath.isEqual(p, uriString, !platform.isLinux /* ignorecase */));
 	};
 
 	for (const window of windows) {
 		// match on extension development path. The path can be one or more paths or uri strings, using paths.isEqual is not 100% correct but good enough
-
-		if (window.extensionDevelopmentPath) {
-			if (Array.isArray(window.extensionDevelopmentPath)) {
-				if (window.extensionDevelopmentPath.some(p => matches(p))) {
-					return window;
-				}
-			} else if (window.extensionDevelopmentPath) {
-				if (matches(window.extensionDevelopmentPath)) {
-					return window;
-				}
-			}
+		const currPaths = window.extensionDevelopmentPath;
+		if (currPaths && currPaths.some(p => matches(p))) {
+			return window;
 		}
 	}
 

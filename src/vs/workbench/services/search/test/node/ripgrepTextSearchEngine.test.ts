@@ -17,9 +17,12 @@ suite('RipgrepTextSearchEngine', () => {
 		assert.equal(unicodeEscapesToPCRE2('\\\\\\u1234'), '\\\\\\x{1234}');
 		assert.equal(unicodeEscapesToPCRE2('foo\\\\\\u1234'), 'foo\\\\\\x{1234}');
 
+		assert.equal(unicodeEscapesToPCRE2('\\u{1234}'), '\\x{1234}');
+		assert.equal(unicodeEscapesToPCRE2('\\u{1234}\\u{0001}'), '\\x{1234}\\x{0001}');
+		assert.equal(unicodeEscapesToPCRE2('foo\\u{1234}bar'), 'foo\\x{1234}bar');
+
+		assert.equal(unicodeEscapesToPCRE2('foo\\u{123456}7bar'), 'foo\\u{123456}7bar');
 		assert.equal(unicodeEscapesToPCRE2('\\u123'), '\\u123');
-		assert.equal(unicodeEscapesToPCRE2('\\u12345'), '\\u12345');
-		assert.equal(unicodeEscapesToPCRE2('\\\\u12345'), '\\\\u12345');
 		assert.equal(unicodeEscapesToPCRE2('foo'), 'foo');
 		assert.equal(unicodeEscapesToPCRE2(''), '');
 	});

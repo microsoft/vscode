@@ -23,10 +23,10 @@ import { deepClone } from 'vs/base/common/objects';
 //  | +-4
 //  | +-2
 //  +-H
-//  | +-V
-//  |   +-1
-//  |   +-5
-//  +-3
+//    +-V
+//    | +-1
+//    | +-5
+//    +-3
 
 suite('Grid', function () {
 	let container: HTMLElement;

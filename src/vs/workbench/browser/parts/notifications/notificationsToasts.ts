@@ -54,7 +54,7 @@ export class NotificationsToasts extends Themable {
 
 	private notificationsToastsContainer: HTMLElement;
 	private workbenchDimensions: Dimension;
-	private isNotificationsCenterVisible: boolean;
+	private isNotificationsCenterVisible: boolean | undefined;
 	private mapNotificationToToast: Map<INotificationViewItem, INotificationToast>;
 	private notificationsToastsVisibleContextKey: IContextKey<boolean>;
 

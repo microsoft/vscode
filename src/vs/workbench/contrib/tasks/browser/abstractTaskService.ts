@@ -1723,18 +1723,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return entries;
 		}), {
-				placeHolder,
-				matchOnDescription: true,
-				onDidTriggerItemButton: context => {
-					let task = context.item.task;
-					this.quickInputService.cancel();
-					if (ContributedTask.is(task)) {
-						this.customize(task, undefined, true);
-					} else if (CustomTask.is(task)) {
-						this.openConfig(task);
-					}
+			placeHolder,
+			matchOnDescription: true,
+			onDidTriggerItemButton: context => {
+				let task = context.item.task;
+				this.quickInputService.cancel();
+				if (ContributedTask.is(task)) {
+					this.customize(task, undefined, true);
+				} else if (CustomTask.is(task)) {
+					this.openConfig(task);
 				}
-			});
+			}
+		});
 	}
 
 	private showIgnoredFoldersMessage(): Promise<void> {
@@ -2152,7 +2152,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return taskPromise.then((taskMap) => {
 				type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
 				let entries: QuickPickInput<EntryType>[] = [];
-				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 					let tasks = taskMap.all();
 					let needsCreateOrOpen: boolean = true;
 					if (tasks.length > 0) {

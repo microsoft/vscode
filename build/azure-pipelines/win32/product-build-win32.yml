@@ -25,7 +25,7 @@ steps:
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
 
 - task: UsePythonVersion@0
   inputs:
@@ -113,10 +113,15 @@ steps:
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - powershell: |
+    # Figure out the full absolute path of the product we just built
+    # including the remote server and configure the integration tests
+    # to run with these builds instead of running out of sources.
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { yarn gulp "electron-$(VSCODE_ARCH)" }
-    exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+    $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+    $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
+    $AppNameShort = $AppProductJson.nameShort
+    exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-integration.bat --build --tfs "Integration Tests" }
   displayName: Run integration tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 

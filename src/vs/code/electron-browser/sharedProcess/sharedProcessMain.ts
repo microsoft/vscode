@@ -27,7 +27,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { ipcRenderer } from 'electron';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
@@ -35,8 +35,6 @@ import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
-import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -119,11 +117,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const windowsService = new WindowsService(mainProcessService);
 	services.set(IWindowsService, windowsService);
-
-	const activeWindowManager = new ActiveWindowManager(windowsService);
-	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
-	const dialogChannel = server.getChannel('dialog', activeWindowRouter);
-	services.set(IDialogService, new DialogChannelClient(dialogChannel));
 
 	// Files
 	const fileService = new FileService(logService);

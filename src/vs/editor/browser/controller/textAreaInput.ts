@@ -54,6 +54,11 @@ const enum TextAreaInputEventType {
 	blur
 }
 
+interface CompositionEvent extends UIEvent {
+	readonly data: string;
+	readonly locale: string;
+}
+
 /**
  * Writes screen reader content to the textarea and is able to analyze its input events to generate:
  *  - onCut

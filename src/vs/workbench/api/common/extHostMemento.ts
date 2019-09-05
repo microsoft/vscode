@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionMemento } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 
-export class ExtensionMemento implements IExtensionMemento {
+export class ExtensionMemento implements vscode.Memento {
 
 	private readonly _id: string;
 	private readonly _shared: boolean;
