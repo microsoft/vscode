@@ -454,6 +454,7 @@ export interface IDebugConfiguration {
 		wordWrap: boolean;
 	};
 	focusWindowOnBreak: boolean;
+	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
 }
 
 export interface IGlobalConfig {
