@@ -71,7 +71,6 @@ const TextInputActions: IAction[] = [
 export class ElectronWindow extends Disposable {
 
 	private touchBarMenu: IMenu | undefined;
-	private touchBarUpdater: RunOnceScheduler | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
 	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
 
@@ -394,16 +393,15 @@ export class ElectronWindow extends Disposable {
 		this.touchBarMenu = undefined;
 
 		// Create new (delayed)
-		this.touchBarUpdater = new RunOnceScheduler(() => this.doUpdateTouchbarMenu(), 300);
-		this.touchBarDisposables.add(this.touchBarUpdater);
-		this.touchBarUpdater.schedule();
+		const scheduler: RunOnceScheduler = this.touchBarDisposables.add(new RunOnceScheduler(() => this.doUpdateTouchbarMenu(scheduler), 300));
+		scheduler.schedule();
 	}
 
-	private doUpdateTouchbarMenu(): void {
+	private doUpdateTouchbarMenu(scheduler: RunOnceScheduler): void {
 		if (!this.touchBarMenu) {
 			this.touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
 			this.touchBarDisposables.add(this.touchBarMenu);
-			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => this.touchBarUpdater!.schedule()));
+			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => scheduler.schedule()));
 		}
 
 		const actions: Array<MenuItemAction | Separator> = [];
