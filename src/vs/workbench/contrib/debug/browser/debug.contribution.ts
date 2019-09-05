@@ -264,6 +264,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('debug.focusWindowOnBreak', "Controls whether the workbench window should be focused when the debugger breaks."),
 			default: true
+		},
+		'debug.onTaskErrors': {
+			enum: ['debugAnyway', 'showErrors', 'prompt'],
+			description: nls.localize('debug.onTaskErrors', "Controls what to do when errors are encountered after running a preLaunchTask."),
+			default: 'prompt'
 		}
 	}
 });
