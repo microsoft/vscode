@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
+import * as arrays from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
 import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, ComputedEditorOptions, ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOptions, EDITOR_MODEL_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
@@ -97,11 +98,26 @@ class EditorConfiguration2 {
 		return result;
 	}
 
+	private static _deepEquals<T>(a: T, b: T): boolean {
+		if (typeof a !== 'object' || typeof b !== 'object') {
+			return (a === b);
+		}
+		if (Array.isArray(a) || Array.isArray(b)) {
+			return (Array.isArray(a) && Array.isArray(b) ? arrays.equals(a, b) : false);
+		}
+		for (let key in a) {
+			if (!EditorConfiguration2._deepEquals(a[key], b[key])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	public static checkEquals(a: ComputedEditorOptions, b: ComputedEditorOptions): ConfigurationChangedEvent | null {
 		const result: boolean[] = [];
 		let somethingChanged = false;
 		for (const editorOption of editorOptionsRegistry) {
-			const changed = !editorOption.equals(a._read(editorOption.id), b._read(editorOption.id));
+			const changed = !EditorConfiguration2._deepEquals(a._read(editorOption.id), b._read(editorOption.id));
 			result[editorOption.id] = changed;
 			if (changed) {
 				somethingChanged = true;

@@ -5,8 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as assert from 'vs/base/common/assert';
-import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -1144,10 +1142,6 @@ export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IExtend
 	 * @internal
 	 */
 	compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
-	/**
-	 * @internal
-	 */
-	equals(a: T3, b: T3): boolean;
 }
 
 /**
@@ -1169,9 +1163,6 @@ abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IExten
 	}
 	public abstract validate(input: IExtendedEditorOptions[K2] | undefined): T2;
 	public abstract compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
-	public equals(a: T3, b: T3): boolean {
-		return (a === b);
-	}
 }
 
 class EditorBooleanOption<K1 extends EditorOption, K2 extends PossibleKeyName<boolean>> extends BaseEditorOption<K1, K2, boolean> {
@@ -1296,12 +1287,6 @@ class EditorRenderLineNumbersOption<K1 extends EditorOption, K2 extends Possible
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalEditorRenderLineNumbersOptions): InternalEditorRenderLineNumbersOptions {
 		return value;
 	}
-	public equals(a: InternalEditorRenderLineNumbersOptions, b: InternalEditorRenderLineNumbersOptions): boolean {
-		return (
-			a.renderType === b.renderType
-			&& a.renderFn === b.renderFn
-		);
-	}
 }
 
 //#endregion
@@ -1332,15 +1317,6 @@ class EditorMinimap<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorM
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalEditorMinimapOptions): InternalEditorMinimapOptions {
 		return value;
 	}
-	public equals(a: InternalEditorMinimapOptions, b: InternalEditorMinimapOptions): boolean {
-		return (
-			a.enabled === b.enabled
-			&& a.side === b.side
-			&& a.showSlider === b.showSlider
-			&& a.renderCharacters === b.renderCharacters
-			&& a.maxColumn === b.maxColumn
-		);
-	}
 }
 
 //#endregion
@@ -1366,13 +1342,6 @@ class EditorHover<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorHov
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalEditorHoverOptions): InternalEditorHoverOptions {
 		return value;
-	}
-	public equals(a: InternalEditorHoverOptions, b: InternalEditorHoverOptions): boolean {
-		return (
-			a.enabled === b.enabled
-			&& a.delay === b.delay
-			&& a.sticky === b.sticky
-		);
 	}
 }
 
@@ -1402,22 +1371,6 @@ class EditorQuickSuggestions<K1 extends EditorOption, K2 extends PossibleKeyName
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: ValidQuickSuggestionsOptions): ValidQuickSuggestionsOptions {
 		return value;
-	}
-	public equals(a: ValidQuickSuggestionsOptions, b: ValidQuickSuggestionsOptions): boolean {
-		if (typeof a === 'boolean') {
-			if (typeof b !== 'boolean') {
-				return false;
-			}
-			return a === b;
-		}
-		if (typeof b === 'boolean') {
-			return false;
-		}
-		return (
-			a.comments === b.comments
-			&& a.other === b.other
-			&& a.strings === b.strings
-		);
 	}
 }
 
@@ -1459,9 +1412,6 @@ class EditorRulers<K1 extends EditorOption, K2 extends PossibleKeyName<number[]>
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number[]): number[] {
 		return value;
-	}
-	public equals(a: number[], b: number[]): boolean {
-		return arrays.equals(a, b);
 	}
 }
 
@@ -1593,9 +1543,6 @@ class EditorFontInfo<K1 extends EditorOption, K2 extends PossibleKeyName<undefin
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: undefined): FontInfo {
 		return env.fontInfo;
 	}
-	public equals(a: FontInfo, b: FontInfo): boolean {
-		return a.equals(b);
-	}
 }
 
 //#endregion
@@ -1625,11 +1572,6 @@ class EditorLightbulb<K1 extends EditorOption, K2 extends PossibleKeyName<IEdito
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: ValidEditorLightbulbOptions): ValidEditorLightbulbOptions {
 		return value;
-	}
-	public equals(a: ValidEditorLightbulbOptions, b: ValidEditorLightbulbOptions): boolean {
-		return (
-			a.enabled === b.enabled
-		);
 	}
 }
 
@@ -1674,21 +1616,6 @@ class EditorScrollbar<K1 extends EditorOption, K2 extends PossibleKeyName<IEdito
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalEditorScrollbarOptions): InternalEditorScrollbarOptions {
 		return value;
-	}
-	public equals(a: InternalEditorScrollbarOptions, b: InternalEditorScrollbarOptions): boolean {
-		return (
-			a.arrowSize === b.arrowSize
-			&& a.vertical === b.vertical
-			&& a.horizontal === b.horizontal
-			&& a.useShadows === b.useShadows
-			&& a.verticalHasArrows === b.verticalHasArrows
-			&& a.horizontalHasArrows === b.horizontalHasArrows
-			&& a.handleMouseWheel === b.handleMouseWheel
-			&& a.horizontalScrollbarSize === b.horizontalScrollbarSize
-			&& a.horizontalSliderSize === b.horizontalSliderSize
-			&& a.verticalScrollbarSize === b.verticalScrollbarSize
-			&& a.verticalSliderSize === b.verticalSliderSize
-		);
 	}
 }
 
@@ -1737,18 +1664,6 @@ class EditorSuggest<K1 extends EditorOption, K2 extends PossibleKeyName<ISuggest
 			filteredTypes: value.filteredTypes,
 		};
 	}
-	public equals(a: InternalSuggestOptions, b: InternalSuggestOptions): boolean {
-		return (
-			a.filterGraceful === b.filterGraceful
-			&& a.snippets === b.snippets
-			&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions
-			&& a.localityBonus === b.localityBonus
-			&& a.shareSuggestSelections === b.shareSuggestSelections
-			&& a.showIcons === b.showIcons
-			&& a.maxVisibleSuggestions === b.maxVisibleSuggestions
-			&& objects.equals(a.filteredTypes, b.filteredTypes)
-		);
-	}
 }
 
 //#endregion
@@ -1772,12 +1687,6 @@ class EditorParameterHints<K1 extends EditorOption, K2 extends PossibleKeyName<I
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalParameterHintOptions): InternalParameterHintOptions {
 		return value;
-	}
-	public equals(a: InternalParameterHintOptions, b: InternalParameterHintOptions): boolean {
-		return (
-			a.enabled === b.enabled
-			&& a.cycle === b.cycle
-		);
 	}
 }
 
@@ -1810,14 +1719,6 @@ class EditorFind<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorFind
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalEditorFindOptions): InternalEditorFindOptions {
 		return value;
 	}
-	public equals(a: InternalEditorFindOptions, b: InternalEditorFindOptions): boolean {
-		return (
-			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
-			&& a.autoFindInSelection === b.autoFindInSelection
-			&& a.globalFindClipboard === b.globalFindClipboard
-			&& a.addExtraSpaceOnTop === b.addExtraSpaceOnTop
-		);
-	}
 }
 
 //#endregion
@@ -1839,11 +1740,6 @@ class EditorGoToLocation<K1 extends EditorOption, K2 extends PossibleKeyName<IGo
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalGoToLocationOptions): InternalGoToLocationOptions {
 		return value;
-	}
-	public equals(a: InternalGoToLocationOptions, b: InternalGoToLocationOptions): boolean {
-		return (
-			a.multiple === b.multiple
-		);
 	}
 }
 
@@ -2021,40 +1917,6 @@ export class EditorLayoutInfoComputer<K1 extends EditorOption, K2 extends Possib
 			minimapMaxColumn: minimap.maxColumn,
 			pixelRatio: env.pixelRatio
 		});
-	}
-	public equals(a: EditorLayoutInfo, b: EditorLayoutInfo): boolean {
-		return (
-			a.width === b.width
-			&& a.height === b.height
-			&& a.glyphMarginLeft === b.glyphMarginLeft
-			&& a.glyphMarginWidth === b.glyphMarginWidth
-			&& a.glyphMarginHeight === b.glyphMarginHeight
-			&& a.lineNumbersLeft === b.lineNumbersLeft
-			&& a.lineNumbersWidth === b.lineNumbersWidth
-			&& a.lineNumbersHeight === b.lineNumbersHeight
-			&& a.decorationsLeft === b.decorationsLeft
-			&& a.decorationsWidth === b.decorationsWidth
-			&& a.decorationsHeight === b.decorationsHeight
-			&& a.contentLeft === b.contentLeft
-			&& a.contentWidth === b.contentWidth
-			&& a.contentHeight === b.contentHeight
-			&& a.renderMinimap === b.renderMinimap
-			&& a.minimapLeft === b.minimapLeft
-			&& a.minimapWidth === b.minimapWidth
-			&& a.viewportColumn === b.viewportColumn
-			&& a.verticalScrollbarWidth === b.verticalScrollbarWidth
-			&& a.horizontalScrollbarHeight === b.horizontalScrollbarHeight
-			&& EditorLayoutInfoComputer._equalsOverviewRuler(a.overviewRuler, b.overviewRuler)
-		);
-	}
-
-	private static _equalsOverviewRuler(a: OverviewRulerPosition, b: OverviewRulerPosition): boolean {
-		return (
-			a.width === b.width
-			&& a.height === b.height
-			&& a.top === b.top
-			&& a.right === b.right
-		);
 	}
 
 	public static compute(_opts: IEditorLayoutProviderOpts): EditorLayoutInfo {
@@ -2264,14 +2126,6 @@ class EditorWrappingInfoComputer<K1 extends EditorOption, K2 extends PossibleKey
 			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
 			wrappingColumn: bareWrappingInfo.wrappingColumn,
 		};
-	}
-	public equals(a: EditorWrappingInfo, b: EditorWrappingInfo): boolean {
-		return (
-			a.isDominatedByLongLines === b.isDominatedByLongLines
-			&& a.isWordWrapMinified === b.isWordWrapMinified
-			&& a.isViewportWrapping === b.isViewportWrapping
-			&& a.wrappingColumn === b.wrappingColumn
-		);
 	}
 }
 
