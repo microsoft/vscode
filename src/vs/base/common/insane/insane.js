@@ -92,8 +92,11 @@ let __insane_exports;
 
 		insane.defaults = defaults;
 		module.exports = insane;
+		
+		// ESM-comment-begin
 		__insane_exports = insane;
-
+		// ESM-comment-end
+		
 	}, { "./defaults": 2, "./parser": 7, "./sanitizer": 8, "assignment": 6, "he": 9 }], 5: [function (require, module, exports) {
 		'use strict';
 
