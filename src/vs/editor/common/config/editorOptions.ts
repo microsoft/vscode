@@ -1556,7 +1556,9 @@ class EditorPixelRatio<K1 extends EditorOption, K2 extends PossibleKeyName<undef
 
 class EditorLineHeight<K1 extends EditorOption, K2 extends PossibleKeyName<number>> extends EditorIntOption<K1, K2> {
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
-		// The lineHeight is computed from the fontSize if it is 0 and the result of that computation is in the env.fontInfo
+		// The lineHeight is computed from the fontSize if it is 0.
+		// Moreover, the final lineHeight respects the editor zoom level.
+		// So take the result from env.fontInfo
 		return env.fontInfo.lineHeight;
 	}
 }
@@ -1574,7 +1576,9 @@ class EditorFontSize<K1 extends EditorOption, K2 extends PossibleKeyName<number>
 		return _clamp(r, 8, 100);
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
-		return value;
+		// The final fontSize respects the editor zoom level.
+		// So take the result from env.fontInfo
+		return env.fontInfo.fontSize;
 	}
 }
 

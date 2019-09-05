@@ -81,31 +81,7 @@ class EditorConfiguration2 {
 		return result;
 	}
 
-	private static _mix(a: any, b: any): any {
-		switch (typeof b) {
-			case 'bigint': return b;
-			case 'boolean': return b;
-			case 'function': return b;
-			case 'number': return b;
-			case 'object': return (Array.isArray(b) || typeof a !== 'object' ? b : objects.mixin(objects.mixin({}, a), b));
-			case 'string': return b;
-			default:
-				return a;
-		}
-	}
-
-	public static mixOptions(a: RawEditorOptions, _b: IEditorOptions): RawEditorOptions {
-		const b: { [key: string]: any; } = _b;
-		const result = new RawEditorOptions();
-		for (const editorOption of editorOptionsRegistry) {
-			const bValue = b[editorOption.name];
-			result._write(editorOption.id, EditorConfiguration2._mix(a._read(editorOption.id), bValue));
-		}
-		return result;
-	}
-
 	public static validateOptions(options: RawEditorOptions): ValidatedEditorOptions {
-		// console.log(`validateOptions`, options);
 		const result = new ValidatedEditorOptions();
 		for (const editorOption of editorOptionsRegistry) {
 			result._write(editorOption.id, editorOption.validate(options._read(editorOption.id)));
@@ -114,7 +90,6 @@ class EditorConfiguration2 {
 	}
 
 	public static computeOptions(options: ValidatedEditorOptions, env: IEnvironmentalOptions): ComputedEditorOptions {
-		// console.log(`computeOptions`, options, env);
 		const result = new ComputedEditorOptions();
 		for (const editorOption of editorOptionsRegistry) {
 			result._write(editorOption.id, editorOption.compute(env, result, options._read(editorOption.id)));
@@ -123,7 +98,6 @@ class EditorConfiguration2 {
 	}
 
 	public static checkEquals(a: ComputedEditorOptions, b: ComputedEditorOptions): ConfigurationChangedEvent | null {
-		// console.log(`equals`, a, b);
 		const result: boolean[] = [];
 		let somethingChanged = false;
 		for (const editorOption of editorOptionsRegistry) {
@@ -207,39 +181,37 @@ function migrateOptions(options: IEditorOptions): void {
 	}
 }
 
-export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
+function deepCloneAndMigrateOptions(_options: IEditorOptions): IEditorOptions {
+	const options = objects.deepClone(_options);
+	migrateOptions(options);
+	return options;
+}
 
-	public readonly isSimpleWidget: boolean;
-	protected _rawOptions: IEditorOptions;
-	private _isDominatedByLongLines: boolean;
-	private _lineNumbersDigitCount: number;
+export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
 	private _onDidChange = this._register(new Emitter<ConfigurationChangedEvent>());
 	public readonly onDidChange: Event<ConfigurationChangedEvent> = this._onDidChange.event;
 
-	private _rawOptions2: RawEditorOptions;
-	protected _validatedOptions2: ValidatedEditorOptions;
+	public readonly isSimpleWidget: boolean;
 	public options!: ComputedEditorOptions;
 
-	constructor(isSimpleWidget: boolean, options: IEditorOptions) {
+	private _isDominatedByLongLines: boolean;
+	private _lineNumbersDigitCount: number;
+
+	private _rawOptions: IEditorOptions;
+	private _readOptions: RawEditorOptions;
+	protected _validatedOptions: ValidatedEditorOptions;
+
+	constructor(isSimpleWidget: boolean, _options: IEditorOptions) {
 		super();
-		migrateOptions(options);
-
 		this.isSimpleWidget = isSimpleWidget;
-
-		// Do a "deep clone of sorts" on the incoming options
-		this._rawOptions = objects.mixin({}, options || {});
-		this._rawOptions.scrollbar = objects.mixin({}, this._rawOptions.scrollbar || {});
-		this._rawOptions.minimap = objects.mixin({}, this._rawOptions.minimap || {});
-		this._rawOptions.find = objects.mixin({}, this._rawOptions.find || {});
-		this._rawOptions.hover = objects.mixin({}, this._rawOptions.hover || {});
-		this._rawOptions.parameterHints = objects.mixin({}, this._rawOptions.parameterHints || {});
-
-		this._rawOptions2 = EditorConfiguration2.readOptions(options);
-		this._validatedOptions2 = EditorConfiguration2.validateOptions(this._rawOptions2);
 
 		this._isDominatedByLongLines = false;
 		this._lineNumbersDigitCount = 1;
+
+		this._rawOptions = deepCloneAndMigrateOptions(_options);
+		this._readOptions = EditorConfiguration2.readOptions(this._rawOptions);
+		this._validatedOptions = EditorConfiguration2.validateOptions(this._readOptions);
 
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
@@ -256,15 +228,17 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		const oldOptions = this.options;
 		const newOptions = this._computeInternalOptions();
 
-		const changeEvent = (oldOptions ? EditorConfiguration2.checkEquals(oldOptions, newOptions) : null);
+		if (!oldOptions) {
+			this.options = newOptions;
+		} else {
+			const changeEvent = EditorConfiguration2.checkEquals(oldOptions, newOptions);
 
-		if (oldOptions && changeEvent === null) {
-			return;
-		}
+			if (changeEvent === null) {
+				// nothing changed!
+				return;
+			}
 
-		this.options = newOptions;
-
-		if (changeEvent) {
+			this.options = newOptions;
 			this._onDidChange.fire(changeEvent);
 		}
 	}
@@ -275,7 +249,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	private _computeInternalOptions(): ComputedEditorOptions {
 		const partialEnv = this._getEnvConfiguration();
-		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions2, partialEnv.zoomLevel, this.isSimpleWidget);
+		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, this.isSimpleWidget);
 		const env: IEnvironmentalOptions = {
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight,
@@ -288,7 +262,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			tabFocusMode: TabFocus.getTabFocusMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport
 		};
-		return EditorConfiguration2.computeOptions(this._validatedOptions2, env);
+		return EditorConfiguration2.computeOptions(this._validatedOptions, env);
 	}
 
 	private static _primitiveArrayEquals(a: any[], b: any[]): boolean {
@@ -331,18 +305,17 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return true;
 	}
 
-	public updateOptions(newOptions: IEditorOptions): void {
-		if (typeof newOptions === 'undefined') {
+	public updateOptions(_newOptions: IEditorOptions): void {
+		if (typeof _newOptions === 'undefined') {
 			return;
 		}
-		migrateOptions(newOptions);
+		const newOptions = deepCloneAndMigrateOptions(_newOptions);
 		if (CommonEditorConfiguration._subsetEquals(this._rawOptions, newOptions)) {
 			return;
 		}
 		this._rawOptions = objects.mixin(this._rawOptions, newOptions || {});
-		this._rawOptions2 = EditorConfiguration2.mixOptions(this._rawOptions2, newOptions);
-
-		this._validatedOptions2 = EditorConfiguration2.validateOptions(this._rawOptions2);
+		this._readOptions = EditorConfiguration2.readOptions(this._rawOptions);
+		this._validatedOptions = EditorConfiguration2.validateOptions(this._readOptions);
 
 		this._recomputeOptions();
 	}

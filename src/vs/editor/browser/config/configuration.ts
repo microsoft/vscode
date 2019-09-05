@@ -320,7 +320,7 @@ export class Configuration extends CommonEditorConfiguration {
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
 
-		if (this._validatedOptions2.get(EditorOption.automaticLayout)) {
+		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
 			this._elementSizeObserver.startObserving();
 		}
 
