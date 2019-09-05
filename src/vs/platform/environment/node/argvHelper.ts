@@ -8,14 +8,19 @@ import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
 import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
 
 function parseAndValidate(cmdLineArgs: string[]): ParsedArgs {
-	const onUnknownOption = (id: string) => {
-		throw new Error(localize('unknownOption', "Option '{0}' is unknown. Use --help for the list of supported options.", id));
+	const errorReporter: ErrorReporter = {
+		onUnknownOption: (id) => {
+			throw new Error(localize('unknownOption', "Option '{0}' is unknown. Use --help for the list of supported options.", id));
+		},
+		onMultipleValues: (id, val) => {
+			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}.'", id, val));
+		}
 	};
 
-	const args = parseArgs(cmdLineArgs, undefined, onUnknownOption);
+	const args = parseArgs(cmdLineArgs, undefined, errorReporter);
 	if (args.goto) {
 		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
 	}
@@ -59,7 +64,6 @@ export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
 	if (process.env['VSCODE_DEV']) {
 		args = stripAppPath(args) || [];
 	}
-	console.log(args.join(','));
 
 	return parseAndValidate(args);
 }

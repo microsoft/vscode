@@ -98,7 +98,17 @@ export const options: Option[] = [
 	{ id: 'nolazy', type: 'boolean' }, // node inspect
 ];
 
-export function parseArgs(args: string[], isOptionSupported = (_: Option) => true, reportUnknownOption: (id: string) => void = () => { }): ParsedArgs {
+export interface ErrorReporter {
+	onUnknownOption(id: string): void;
+	onMultipleValues(id: string, usedValue: string): void;
+}
+
+const ignoringReporter: ErrorReporter = {
+	onUnknownOption: () => { },
+	onMultipleValues: () => { }
+};
+
+export function parseArgs(args: string[], isOptionSupported = (_: Option) => true, errorReporter: ErrorReporter = ignoringReporter): ParsedArgs {
 	const alias: { [key: string]: string } = {};
 	const string: string[] = [];
 	const boolean: string[] = [];
@@ -145,11 +155,15 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 					if (val && !Array.isArray(val)) {
 						val = [val];
 					}
+				} else if (o.type === 'string') {
+					if (Array.isArray(val)) {
+						val = val.pop(); // take the last
+						errorReporter.onMultipleValues(o.id, val);
+					}
 				}
 				cleanedArgs[o.id] = val;
-
 			} else {
-				reportUnknownOption(o.id);
+				errorReporter.onUnknownOption(o.id);
 			}
 		}
 		delete parsedArgs[o.id];
@@ -160,7 +174,7 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 	delete parsedArgs._;
 
 	for (let key in parsedArgs) {
-		reportUnknownOption(key);
+		errorReporter.onUnknownOption(key);
 	}
 
 	return cleanedArgs;
