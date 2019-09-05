@@ -25,7 +25,7 @@ export class StandaloneReferencesController extends ReferencesController {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(
-			true,
+			false,
 			editor,
 			contextKeyService,
 			editorService,
