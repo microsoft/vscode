@@ -8,7 +8,7 @@ import * as _url from 'url';
 import * as _cp from 'child_process';
 import * as _http from 'http';
 import * as _os from 'os';
-import { parseArgs, buildHelpMessage, buildVersionMessage, asArray, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
+import { parseArgs, buildHelpMessage, buildVersionMessage, createWaitMarkerFile, ErrorReporter, Option } from 'vs/platform/environment/node/argv';
 import { OpenCommandPipeArgs, RunCommandPipeArgs, StatusPipeArgs } from 'vs/workbench/api/node/extHostCLIServer';
 
 interface ProductDescription {
@@ -18,8 +18,8 @@ interface ProductDescription {
 	executableName: string;
 }
 
-const isSupportedForCmd = (id: string) => {
-	switch (id) {
+const isSupportedForCmd = (opt: Option) => {
+	switch (opt.id) {
 		case 'user-data-dir':
 		case 'extensions-dir':
 		case 'list-extensions':
@@ -35,8 +35,8 @@ const isSupportedForCmd = (id: string) => {
 	}
 };
 
-const isSupportedForPipe = (id: string) => {
-	switch (id) {
+const isSupportedForPipe = (opt: Option) => {
+	switch (opt.id) {
 		case 'version':
 		case 'help':
 		case 'folder-uri':
@@ -64,14 +64,23 @@ export function main(desc: ProductDescription, args: string[]): void {
 		console.log('Command is only available in WSL or inside a Visual Studio Code terminal.');
 		return;
 	}
+	const errorReporter: ErrorReporter = {
+		onMultipleValues: (id: string, usedValue) => {
+			console.error(`Option ${id} can only be defined once. Using value ${usedValue}.`);
+		},
 
-	const parsedArgs = parseArgs(args);
+		onUnknownOption: (id: string) => {
+			console.error(`Ignoring option ${id}: not supported for ${desc.executableName}.`);
+		}
+	};
 
 	const isSupported = cliCommand ? isSupportedForCmd : isSupportedForPipe;
+
+	const parsedArgs = parseArgs(args, isSupported, errorReporter);
 	const mapFileUri = remoteAuthority ? mapFileToRemoteUri : (uri: string) => uri;
 
 	if (parsedArgs.help) {
-		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, o => isSupported(o.id), false));
+		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, isSupported, false));
 		return;
 	}
 	if (parsedArgs.version) {
@@ -82,21 +91,14 @@ export function main(desc: ProductDescription, args: string[]): void {
 		getCredential(parsedArgs['gitCredential']);
 		return;
 	}
-	// warn about unsupported arguments
-	for (let key in parsedArgs) {
-		if (key !== '_' && !isSupported(key) && parsedArgs[key as keyof typeof parsedArgs] !== false) {
-			console.error(`Ignoring option ${key}: not supported for ${desc.executableName}.`);
-			delete parsedArgs[key as keyof typeof parsedArgs];
-		}
-	}
 
-	let folderURIs = asArray(parsedArgs['folder-uri']).map(mapFileUri);
+	let folderURIs = (parsedArgs['folder-uri'] || []).map(mapFileUri);
 	parsedArgs['folder-uri'] = folderURIs;
 
-	let fileURIs = asArray(parsedArgs['file-uri']).map(mapFileUri);
+	let fileURIs = (parsedArgs['file-uri'] || []).map(mapFileUri);
 	parsedArgs['file-uri'] = fileURIs;
 
-	let inputPaths = asArray(parsedArgs['_']);
+	let inputPaths = parsedArgs['_'];
 	for (let input of inputPaths) {
 		translatePath(input, mapFileUri, folderURIs, fileURIs);
 	}
@@ -104,11 +106,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 	delete parsedArgs['_'];
 
 	if (parsedArgs.extensionDevelopmentPath) {
-		if (Array.isArray(parsedArgs.extensionDevelopmentPath)) {
-			parsedArgs.extensionDevelopmentPath = parsedArgs.extensionDevelopmentPath.map(p => mapFileUri(pathToURI(p).href));
-		} else {
-			parsedArgs.extensionDevelopmentPath = mapFileUri(pathToURI(parsedArgs.extensionDevelopmentPath).href);
-		}
+		parsedArgs.extensionDevelopmentPath = parsedArgs.extensionDevelopmentPath.map(p => mapFileUri(pathToURI(p).href));
 	}
 
 	if (parsedArgs.extensionTestsPath) {
@@ -157,7 +155,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 		}
 	} else {
 		if (args.length === 0) {
-			console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, o => isSupported(o.id), false));
+			console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, isSupported, false));
 			return;
 		}
 		if (parsedArgs.status) {
@@ -320,5 +318,6 @@ function mapFileToRemoteUri(uri: string): string {
 	return uri.replace(/^file:\/\//, 'vscode-remote://' + remoteAuthority);
 }
 
-let [, , productName, version, commit, executableName, ...args] = process.argv;
-main({ productName, version, commit, executableName }, args);
+let [, , productName, version, commit, executableName, ...remainingArgs] = process.argv;
+main({ productName, version, commit, executableName }, remainingArgs);
+

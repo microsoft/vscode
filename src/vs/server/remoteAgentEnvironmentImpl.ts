@@ -81,12 +81,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				this.logService.info(`Scanning extensions using UI language: ${language}`);
 				const uriTransformer = createRemoteURITransformer(args.remoteAuthority);
 
-				let extensionDevelopmentLocations: URI[] | undefined;
-				if (Array.isArray(args.extensionDevelopmentPath)) {
-					extensionDevelopmentLocations = args.extensionDevelopmentPath.map(url => URI.revive(uriTransformer.transformIncoming(url)));
-				} else if (args.extensionDevelopmentPath) {
-					extensionDevelopmentLocations = [URI.revive(uriTransformer.transformIncoming(args.extensionDevelopmentPath))];
-				}
+				const extensionDevelopmentLocations = args.extensionDevelopmentPath && args.extensionDevelopmentPath.map(url => URI.revive(uriTransformer.transformIncoming(url)));
 
 				let environmentData = await this.getEnvironmentData(language, extensionDevelopmentLocations);
 				environmentData = transformOutgoingURIs(environmentData, uriTransformer);
