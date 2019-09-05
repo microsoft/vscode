@@ -123,7 +123,7 @@ steps:
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
     DISPLAY=:10 yarn smoketest -- --remote --build "$APP_ROOT"
   displayName: Run smoke tests
-  continueOnError: WarnAndContinue
+  continueOnError: true
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 
