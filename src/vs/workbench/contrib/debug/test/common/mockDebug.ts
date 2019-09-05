@@ -180,6 +180,10 @@ export class MockSession implements IDebugSession {
 		return 'mockname';
 	}
 
+	setName(name: string): void {
+		throw new Error('not implemented');
+	}
+
 	getSourceForUri(modelUri: uri): Source {
 		throw new Error('not implemented');
 	}
@@ -201,6 +205,10 @@ export class MockSession implements IDebugSession {
 	}
 
 	get onDidEndAdapter(): Event<AdapterEndEvent> {
+		throw new Error('not implemented');
+	}
+
+	get onDidChangeName(): Event<string> {
 		throw new Error('not implemented');
 	}
 
