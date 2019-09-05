@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IEditorHoverOptions, EditorOption, IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -189,5 +189,16 @@ suite('Common Editor Config', () => {
 		assert.equal(config.options.get(EditorOption.hover).enabled, true);
 		config.updateOptions({ hover: { enabled: false } });
 		assert.equal(config.options.get(EditorOption.hover).enabled, false);
+	});
+
+	test('does not emit event when nothing changes', () => {
+		const config = new TestConfiguration({ glyphMargin: true, roundedSelection: false });
+		let event: IConfigurationChangedEvent | null = null;
+		config.onDidChange(e => event = e);
+		assert.equal(config.options.get(EditorOption.glyphMargin), true);
+
+		config.updateOptions({ glyphMargin: true });
+		config.updateOptions({ roundedSelection: false });
+		assert.equal(event, null);
 	});
 });
