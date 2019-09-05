@@ -1170,7 +1170,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return { openFolderInNewWindow: !!openFolderInNewWindow, openFilesInNewWindow };
 	}
 
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string | string[], openConfig: IOpenConfiguration): void {
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): void {
 
 		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
@@ -1205,10 +1205,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 					}
 				}
 			}
-		}
-
-		if (!Array.isArray(extensionDevelopmentPath)) {
-			extensionDevelopmentPath = [extensionDevelopmentPath];
 		}
 
 		let authority = '';
