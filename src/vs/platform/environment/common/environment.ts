@@ -8,8 +8,8 @@ import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
 	_: string[];
-	'folder-uri'?: string | string[];
-	'file-uri'?: string | string[];
+	'folder-uri'?: string[];
+	'file-uri'?: string[];
 	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
@@ -36,7 +36,7 @@ export interface ParsedArgs {
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
 	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string | string[]; // one or more local paths or URIs
+	extensionDevelopmentPath?: string[]; // one or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
 	'extension-development-confirm-save'?: boolean;
 	'inspect-extensions'?: string;
@@ -45,14 +45,14 @@ export interface ParsedArgs {
 	'inspect-search'?: string;
 	'inspect-brk-search'?: string;
 	'disable-extensions'?: boolean;
-	'disable-extension'?: string | string[];
+	'disable-extension'?: string[];
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'category'?: string;
-	'install-extension'?: string | string[];
-	'uninstall-extension'?: string | string[];
-	'locate-extension'?: string | string[];
-	'enable-proposed-api'?: string | string[];
+	'install-extension'?: string[];
+	'uninstall-extension'?: string[];
+	'locate-extension'?: string[];
+	'enable-proposed-api'?: string[];
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
 	'skip-release-notes'?: boolean;

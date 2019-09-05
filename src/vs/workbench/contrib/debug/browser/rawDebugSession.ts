@@ -583,13 +583,9 @@ export class RawDebugSession {
 
 						const v = args[key];
 						if (v) {
-							if (Array.isArray(v)) {
-								v.push(value);
-							} else {
-								args[key] = [v, value];
-							}
+							v.push(value);
 						} else {
-							args[key] = value;
+							args[key] = [value];
 						}
 
 					} else {
