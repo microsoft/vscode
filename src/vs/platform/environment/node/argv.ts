@@ -93,6 +93,7 @@ export const options: Option[] = [
 	{ id: 'force', type: 'boolean' },
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
+	{ id: 'disable-inspect', type: 'boolean' },
 
 	{ id: 'js-flags', type: 'string' }, // chrome js flags
 	{ id: 'nolazy', type: 'boolean' }, // node inspect
