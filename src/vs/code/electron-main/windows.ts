@@ -12,7 +12,6 @@ import { IBackupMainService, IEmptyWindowBackupInfo } from 'vs/platform/backup/c
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/common/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { hasArgs, asArray } from 'vs/platform/environment/node/argv';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, FileFilter } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason, LifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -450,7 +449,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
 
-			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !hasArgs(openConfig.cli._) && !hasArgs(openConfig.cli['file-uri']) && !hasArgs(openConfig.cli['folder-uri']) && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
+			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
@@ -811,7 +810,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 
 		// Extract paths: from CLI
-		else if (hasArgs(openConfig.cli._) || hasArgs(openConfig.cli['folder-uri']) || hasArgs(openConfig.cli['file-uri'])) {
+		else if (openConfig.cli._.length || openConfig.cli['folder-uri'] || openConfig.cli['file-uri']) {
 			windowsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
 			isCommandLineOrAPICall = true;
 		}
@@ -885,31 +884,36 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		const parseOptions: IPathParseOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto, remoteAuthority: cli.remote || undefined };
 
 		// folder uris
-		const folderUris = asArray(cli['folder-uri']);
-		for (let f of folderUris) {
-			const folderUri = this.argToUri(f);
-			if (folderUri) {
-				const path = this.parseUri({ folderUri }, parseOptions);
-				if (path) {
-					pathsToOpen.push(path);
+		const folderUris = cli['folder-uri'];
+		if (folderUris) {
+			for (let f of folderUris) {
+				const folderUri = this.argToUri(f);
+				if (folderUri) {
+					const path = this.parseUri({ folderUri }, parseOptions);
+					if (path) {
+						pathsToOpen.push(path);
+					}
 				}
 			}
 		}
 
+
 		// file uris
-		const fileUris = asArray(cli['file-uri']);
-		for (let f of fileUris) {
-			const fileUri = this.argToUri(f);
-			if (fileUri) {
-				const path = this.parseUri(hasWorkspaceFileExtension(f) ? { workspaceUri: fileUri } : { fileUri }, parseOptions);
-				if (path) {
-					pathsToOpen.push(path);
+		const fileUris = cli['file-uri'];
+		if (fileUris) {
+			for (let f of fileUris) {
+				const fileUri = this.argToUri(f);
+				if (fileUri) {
+					const path = this.parseUri(hasWorkspaceFileExtension(f) ? { workspaceUri: fileUri } : { fileUri }, parseOptions);
+					if (path) {
+						pathsToOpen.push(path);
+					}
 				}
 			}
 		}
 
 		// folder or file paths
-		const cliArgs = asArray(cli._);
+		const cliArgs = cli._;
 		for (let cliArg of cliArgs) {
 			const path = this.parsePath(cliArg, parseOptions);
 			if (path) {
@@ -1166,7 +1170,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return { openFolderInNewWindow: !!openFolderInNewWindow, openFilesInNewWindow };
 	}
 
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string | string[], openConfig: IOpenConfiguration): void {
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): void {
 
 		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
@@ -1178,8 +1182,8 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 			return;
 		}
-		let folderUris = asArray(openConfig.cli['folder-uri']);
-		let fileUris = asArray(openConfig.cli['file-uri']);
+		let folderUris = openConfig.cli['folder-uri'] || [];
+		let fileUris = openConfig.cli['file-uri'] || [];
 		let cliArgs = openConfig.cli._;
 
 		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
@@ -1201,10 +1205,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 					}
 				}
 			}
-		}
-
-		if (!Array.isArray(extensionDevelopmentPath)) {
-			extensionDevelopmentPath = [extensionDevelopmentPath];
 		}
 
 		let authority = '';
