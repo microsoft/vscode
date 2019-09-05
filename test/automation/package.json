@@ -24,18 +24,17 @@
     "@types/ncp": "2.0.1",
     "@types/node": "8.0.33",
     "@types/puppeteer": "^1.19.0",
-    "@types/rimraf": "2.0.2",
     "@types/tmp": "0.1.0",
     "concurrently": "^3.5.1",
     "cpx": "^1.5.0",
-    "mkdirp": "^0.5.1",
-    "ncp": "^2.0.0",
-    "rimraf": "^2.6.1",
-    "tmp": "0.1.0",
     "typescript": "2.9.2",
     "watch": "^1.0.2"
   },
   "dependencies": {
+    "mkdirp": "^0.5.1",
+    "ncp": "^2.0.0",
+    "puppeteer": "^1.19.0",
+    "tmp": "0.1.0",
     "vscode-uri": "^2.0.3"
   }
 }
