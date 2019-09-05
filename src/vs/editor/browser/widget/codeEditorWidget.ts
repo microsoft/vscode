@@ -1289,7 +1289,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return {
 			top: top,
 			left: left,
-			height: this._configuration.editor.lineHeight
+			height: options.get(EditorOption.lineHeight)
 		};
 	}
 

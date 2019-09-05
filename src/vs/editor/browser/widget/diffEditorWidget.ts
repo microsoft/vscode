@@ -1998,7 +1998,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		const layoutInfo = this.modifiedEditorOptions.get(EditorOption.layoutInfo);
 		const lineDecorationsWidth = layoutInfo.decorationsWidth;
 
-		let lineHeight = this.modifiedEditorConfiguration.lineHeight;
+		let lineHeight = this.modifiedEditorOptions.get(EditorOption.lineHeight);
 		const typicalHalfwidthCharacterWidth = this.modifiedEditorConfiguration.fontInfo.typicalHalfwidthCharacterWidth;
 		let maxCharsPerLine = 0;
 		const originalContent: string[] = [];
@@ -2054,7 +2054,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			sb.appendASCIIString(' char-delete');
 		}
 		sb.appendASCIIString('" style="top:');
-		sb.appendASCIIString(String(count * config.lineHeight));
+		sb.appendASCIIString(String(count * options.get(EditorOption.lineHeight)));
 		sb.appendASCIIString('px;width:1000000px;">');
 
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, originalModel.mightContainNonBasicASCII());

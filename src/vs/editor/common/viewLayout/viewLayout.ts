@@ -30,7 +30,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const options = this._configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._linesLayout = new LinesLayout(lineCount, this._configuration.editor.lineHeight);
+		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight));
 
 		this.scrollable = this._register(new Scrollable(0, scheduleAtNextAnimationFrame));
 		this._configureSmoothScrollDuration();
@@ -59,11 +59,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	// ---- begin view event handlers
 
 	public onConfigurationChanged(e: IConfigurationChangedEvent): void {
-		if (e.lineHeight) {
-			this._linesLayout.setLineHeight(this._configuration.editor.lineHeight);
+		const options = this._configuration.options;
+		if (e.hasChanged(EditorOption.lineHeight)) {
+			this._linesLayout.setLineHeight(options.get(EditorOption.lineHeight));
 		}
 		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const options = this._configuration.options;
 			const layoutInfo = options.get(EditorOption.layoutInfo);
 			this.scrollable.setScrollDimensions({
 				width: layoutInfo.contentWidth,
@@ -102,11 +102,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	private _getTotalHeight(): number {
+		const options = this._configuration.options;
 		const scrollDimensions = this.scrollable.getScrollDimensions();
 
 		let result = this._linesLayout.getLinesTotalHeight();
-		if (this._configuration.options.get(EditorOption.scrollBeyondLastLine)) {
-			result += scrollDimensions.height - this._configuration.editor.lineHeight;
+		if (options.get(EditorOption.scrollBeyondLastLine)) {
+			result += scrollDimensions.height - options.get(EditorOption.lineHeight);
 		} else {
 			result += this._getHorizontalScrollbarHeight(scrollDimensions);
 		}

@@ -33,7 +33,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const options = this._context.configuration.options;
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._enabled = options.get(EditorOption.renderIndentGuides);
 		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
@@ -56,7 +56,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const options = this._context.configuration.options;
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._enabled = options.get(EditorOption.renderIndentGuides);
 		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);

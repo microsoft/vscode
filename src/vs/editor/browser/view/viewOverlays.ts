@@ -149,7 +149,7 @@ export class ViewOverlayLine implements IVisibleLine {
 
 	constructor(configuration: IConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
 		this._configuration = configuration;
-		this._lineHeight = this._configuration.editor.lineHeight;
+		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
 		this._dynamicOverlays = dynamicOverlays;
 
 		this._domNode = null;
@@ -173,9 +173,7 @@ export class ViewOverlayLine implements IVisibleLine {
 		// Nothing
 	}
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
-		if (e.lineHeight) {
-			this._lineHeight = this._configuration.editor.lineHeight;
-		}
+		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {

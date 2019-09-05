@@ -29,7 +29,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
 		this._contentWidth = layoutInfo.contentWidth;
 
@@ -52,7 +52,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
 		this._contentWidth = layoutInfo.contentWidth;
 		return true;

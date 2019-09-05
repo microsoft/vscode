@@ -45,7 +45,7 @@ export class ViewZones extends ViewPart {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentLeft = layoutInfo.contentLeft;
 
@@ -92,11 +92,11 @@ export class ViewZones extends ViewPart {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentLeft = layoutInfo.contentLeft;
 
-		if (e.lineHeight) {
+		if (e.hasChanged(EditorOption.lineHeight)) {
 			this._recomputeWhitespacesProps();
 		}
 

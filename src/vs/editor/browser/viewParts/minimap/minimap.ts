@@ -108,7 +108,7 @@ class MinimapOptions {
 
 	constructor(configuration: IConfiguration) {
 		const options = configuration.options;
-		const pixelRatio = configuration.editor.pixelRatio;
+		const pixelRatio = options.get(EditorOption.pixelRatio);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const fontInfo = configuration.editor.fontInfo;
 
@@ -118,7 +118,7 @@ class MinimapOptions {
 		this.showSlider = minimapOpts.showSlider;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
-		this.lineHeight = configuration.editor.lineHeight;
+		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.minimapLeft = layoutInfo.minimapLeft;
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;

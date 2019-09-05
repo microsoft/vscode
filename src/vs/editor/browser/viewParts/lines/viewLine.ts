@@ -90,7 +90,7 @@ export class ViewLineOptions {
 			&& !options.get(EditorOption.disableMonospaceOptimizations)
 		);
 		this.canUseHalfwidthRightwardsArrow = config.editor.fontInfo.canUseHalfwidthRightwardsArrow;
-		this.lineHeight = config.editor.lineHeight;
+		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 		this.fontLigatures = options.get(EditorOption.fontLigatures);
 	}

@@ -242,7 +242,7 @@ export class HitTestContext {
 		const options = context.configuration.options;
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
-		this.lineHeight = context.configuration.editor.lineHeight;
+		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.typicalHalfwidthCharacterWidth = context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		this.lastViewCursorsRenderData = lastViewCursorsRenderData;
 		this._context = context;

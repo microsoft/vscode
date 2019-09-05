@@ -90,7 +90,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._glyphMargin = options.get(EditorOption.glyphMargin);
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
@@ -110,7 +110,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._glyphMargin = options.get(EditorOption.glyphMargin);
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;

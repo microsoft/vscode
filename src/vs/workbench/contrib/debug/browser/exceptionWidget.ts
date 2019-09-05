@@ -15,6 +15,7 @@ import { Color } from 'vs/base/common/color';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 const $ = dom.$;
 
 // theming
@@ -89,7 +90,7 @@ export class ExceptionWidget extends ZoneWidget {
 		// Reload the height with respect to the exception text content and relayout it to match the line count.
 		this.container!.style.height = 'initial';
 
-		const lineHeight = this.editor.getConfiguration().lineHeight;
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const arrowHeight = Math.round(lineHeight / 3);
 		const computedLinesNumber = Math.ceil((this.container!.offsetHeight + arrowHeight) / lineHeight);
 

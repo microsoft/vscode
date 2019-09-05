@@ -121,7 +121,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.autoClosingOvertype)
 			|| e.hasChanged(EditorOption.autoSurround)
 			|| e.hasChanged(EditorOption.useTabStops)
-			|| e.lineHeight
+			|| e.hasChanged(EditorOption.lineHeight)
 			|| e.hasChanged(EditorOption.readOnly)
 		);
 	}
@@ -133,7 +133,6 @@ export class CursorConfiguration {
 	) {
 		this._languageIdentifier = languageIdentifier;
 
-		const c = configuration.editor;
 		const options = configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
@@ -141,8 +140,8 @@ export class CursorConfiguration {
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
-		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / c.fontInfo.lineHeight) - 2);
-		this.lineHeight = c.lineHeight;
+		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
 		this.useTabStops = options.get(EditorOption.useTabStops);
 		this.wordSeparators = options.get(EditorOption.wordSeparators);
 		this.emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);

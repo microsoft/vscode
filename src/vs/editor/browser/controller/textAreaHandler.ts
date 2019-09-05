@@ -130,7 +130,7 @@ export class TextAreaHandler extends ViewPart {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.contentHeight;
 		this._fontInfo = conf.fontInfo;
-		this._lineHeight = conf.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 
@@ -383,7 +383,7 @@ export class TextAreaHandler extends ViewPart {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.contentHeight;
 		this._fontInfo = conf.fontInfo;
-		this._lineHeight = conf.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.textArea.setAttribute('aria-label', options.get(EditorOption.ariaLabel));

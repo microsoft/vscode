@@ -3110,10 +3110,17 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
+	}
+
+	export type IExtendedEditorOptions = IEditorOptions & {
 		/**
 		 * Do not use, this is a computed option.
 		 */
 		editorClassName?: undefined;
+		/**
+		 * Do not use, this is a computed option.
+		 */
+		pixelRatio?: undefined;
 		/**
 		 * Do not use, this is a computed option.
 		 */
@@ -3126,7 +3133,7 @@ declare namespace monaco.editor {
 		 * Do not use, this is a computed option.
 		 */
 		wrappingInfo?: undefined;
-	}
+	};
 
 	/**
 	 * Configuration options for the diff editor.
@@ -3254,8 +3261,6 @@ declare namespace monaco.editor {
 	 */
 	export class InternalEditorOptions {
 		readonly _internalEditorOptionsBrand: void;
-		readonly pixelRatio: number;
-		readonly lineHeight: number;
 		readonly fontInfo: FontInfo;
 	}
 
@@ -3264,8 +3269,6 @@ declare namespace monaco.editor {
 	 */
 	export interface IConfigurationChangedEvent {
 		hasChanged(id: EditorOption): boolean;
-		readonly pixelRatio: boolean;
-		readonly lineHeight: boolean;
 		readonly fontInfo: boolean;
 	}
 
@@ -3286,7 +3289,7 @@ declare namespace monaco.editor {
 		get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 	}
 
-	export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2 = NonNullable<IEditorOptions[K2]>, T3 = T2> {
+	export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IExtendedEditorOptions, T2 = NonNullable<IExtendedEditorOptions[K2]>, T3 = T2> {
 		readonly id: K1;
 		readonly name: K2;
 		readonly defaultValue: T2;
@@ -3525,63 +3528,65 @@ declare namespace monaco.editor {
 		inDiffEditor = 35,
 		lightbulb = 36,
 		lineDecorationsWidth = 37,
-		lineNumbers = 38,
-		lineNumbersMinChars = 39,
-		links = 40,
-		matchBrackets = 41,
-		minimap = 42,
-		mouseStyle = 43,
-		mouseWheelScrollSensitivity = 44,
-		mouseWheelZoom = 45,
-		multiCursorMergeOverlapping = 46,
-		multiCursorModifier = 47,
-		occurrencesHighlight = 48,
-		overviewRulerBorder = 49,
-		overviewRulerLanes = 50,
-		parameterHints = 51,
-		quickSuggestions = 52,
-		quickSuggestionsDelay = 53,
-		readOnly = 54,
-		renderControlCharacters = 55,
-		renderIndentGuides = 56,
-		renderFinalNewline = 57,
-		renderLineHighlight = 58,
-		renderWhitespace = 59,
-		revealHorizontalRightPadding = 60,
-		roundedSelection = 61,
-		rulers = 62,
-		scrollbar = 63,
-		scrollBeyondLastColumn = 64,
-		scrollBeyondLastLine = 65,
-		selectionClipboard = 66,
-		selectionHighlight = 67,
-		selectOnLineNumbers = 68,
-		showFoldingControls = 69,
-		showUnused = 70,
-		snippetSuggestions = 71,
-		smoothScrolling = 72,
-		stopRenderingLineAfter = 73,
-		suggestFontSize = 74,
-		suggestLineHeight = 75,
-		suggestOnTriggerCharacters = 76,
-		suggestSelection = 77,
-		tabCompletion = 78,
-		useTabStops = 79,
-		wordSeparators = 80,
-		wordWrap = 81,
-		wordWrapBreakAfterCharacters = 82,
-		wordWrapBreakBeforeCharacters = 83,
-		wordWrapBreakObtrusiveCharacters = 84,
-		wordWrapColumn = 85,
-		wordWrapMinified = 86,
-		wrappingIndent = 87,
-		ariaLabel = 88,
-		disableMonospaceOptimizations = 89,
-		editorClassName = 90,
-		tabFocusMode = 91,
-		suggest = 92,
-		layoutInfo = 93,
-		wrappingInfo = 94
+		lineHeight = 38,
+		lineNumbers = 39,
+		lineNumbersMinChars = 40,
+		links = 41,
+		matchBrackets = 42,
+		minimap = 43,
+		mouseStyle = 44,
+		mouseWheelScrollSensitivity = 45,
+		mouseWheelZoom = 46,
+		multiCursorMergeOverlapping = 47,
+		multiCursorModifier = 48,
+		occurrencesHighlight = 49,
+		overviewRulerBorder = 50,
+		overviewRulerLanes = 51,
+		parameterHints = 52,
+		quickSuggestions = 53,
+		quickSuggestionsDelay = 54,
+		readOnly = 55,
+		renderControlCharacters = 56,
+		renderIndentGuides = 57,
+		renderFinalNewline = 58,
+		renderLineHighlight = 59,
+		renderWhitespace = 60,
+		revealHorizontalRightPadding = 61,
+		roundedSelection = 62,
+		rulers = 63,
+		scrollbar = 64,
+		scrollBeyondLastColumn = 65,
+		scrollBeyondLastLine = 66,
+		selectionClipboard = 67,
+		selectionHighlight = 68,
+		selectOnLineNumbers = 69,
+		showFoldingControls = 70,
+		showUnused = 71,
+		snippetSuggestions = 72,
+		smoothScrolling = 73,
+		stopRenderingLineAfter = 74,
+		suggestFontSize = 75,
+		suggestLineHeight = 76,
+		suggestOnTriggerCharacters = 77,
+		suggestSelection = 78,
+		tabCompletion = 79,
+		useTabStops = 80,
+		wordSeparators = 81,
+		wordWrap = 82,
+		wordWrapBreakAfterCharacters = 83,
+		wordWrapBreakBeforeCharacters = 84,
+		wordWrapBreakObtrusiveCharacters = 85,
+		wordWrapColumn = 86,
+		wordWrapMinified = 87,
+		wrappingIndent = 88,
+		ariaLabel = 89,
+		disableMonospaceOptimizations = 90,
+		editorClassName = 91,
+		pixelRatio = 92,
+		tabFocusMode = 93,
+		suggest = 94,
+		layoutInfo = 95,
+		wrappingInfo = 96
 	}
 
 	export const EditorOptions: {
@@ -3623,6 +3628,7 @@ declare namespace monaco.editor {
 		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, "inDiffEditor", boolean, boolean>;
 		lightbulb: IEditorOption<EditorOption.lightbulb, "lightbulb", any, any>;
 		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, "lineDecorationsWidth", string | number, string | number>;
+		lineHeight: IEditorOption<EditorOption.lineHeight, "lineHeight", number, number>;
 		lineNumbers: IEditorOption<EditorOption.lineNumbers, "lineNumbers", InternalEditorRenderLineNumbersOptions, InternalEditorRenderLineNumbersOptions>;
 		lineNumbersMinChars: IEditorOption<EditorOption.lineNumbersMinChars, "lineNumbersMinChars", number, number>;
 		links: IEditorOption<EditorOption.links, "links", boolean, boolean>;
@@ -3676,6 +3682,7 @@ declare namespace monaco.editor {
 		ariaLabel: IEditorOption<EditorOption.ariaLabel, "ariaLabel", string, string>;
 		disableMonospaceOptimizations: IEditorOption<EditorOption.disableMonospaceOptimizations, "disableMonospaceOptimizations", boolean, boolean>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, "editorClassName", undefined, string>;
+		pixelRatio: IEditorOption<EditorOption.pixelRatio, "pixelRatio", undefined, number>;
 		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, "tabFocusMode", undefined, boolean>;
 		suggest: IEditorOption<EditorOption.suggest, "suggest", any, InternalSuggestOptions>;
 		layoutInfo: IEditorOption<EditorOption.layoutInfo, "layoutInfo", undefined, EditorLayoutInfo>;

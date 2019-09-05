@@ -59,7 +59,7 @@ export class InlineDiffMargin extends Disposable {
 		this._diffActions = document.createElement('div');
 		this._diffActions.className = 'lightbulb-glyph';
 		this._diffActions.style.position = 'absolute';
-		const lineHeight = editor.getConfiguration().lineHeight;
+		const lineHeight = editor.getOption(EditorOption.lineHeight);
 		const lineFeed = editor.getModel()!.getEOL();
 		this._diffActions.style.right = '0px';
 		this._diffActions.style.visibility = 'hidden';

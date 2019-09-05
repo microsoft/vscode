@@ -717,11 +717,17 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+}
 
+export type IExtendedEditorOptions = IEditorOptions & {
 	/**
 	 * Do not use, this is a computed option.
 	 */
 	editorClassName?: undefined;
+	/**
+	 * Do not use, this is a computed option.
+	 */
+	pixelRatio?: undefined;
 	/**
 	 * Do not use, this is a computed option.
 	 */
@@ -734,7 +740,7 @@ export interface IEditorOptions {
 	 * Do not use, this is a computed option.
 	 */
 	wrappingInfo?: undefined;
-}
+};
 
 /**
  * Configuration options for the diff editor.
@@ -900,9 +906,6 @@ function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'l
 export class InternalEditorOptions {
 	readonly _internalEditorOptionsBrand: void;
 
-	readonly pixelRatio: number;
-	readonly lineHeight: number;
-
 	// ---- grouped options
 	readonly fontInfo: FontInfo;
 
@@ -910,12 +913,8 @@ export class InternalEditorOptions {
 	 * @internal
 	 */
 	constructor(source: {
-		pixelRatio: number;
-		lineHeight: number;
 		fontInfo: FontInfo;
 	}) {
-		this.pixelRatio = source.pixelRatio;
-		this.lineHeight = source.lineHeight | 0;
 		this.fontInfo = source.fontInfo;
 	}
 
@@ -924,9 +923,7 @@ export class InternalEditorOptions {
 	 */
 	public equals(other: InternalEditorOptions): boolean {
 		return (
-			this.pixelRatio === other.pixelRatio
-			&& this.lineHeight === other.lineHeight
-			&& this.fontInfo.equals(other.fontInfo)
+			this.fontInfo.equals(other.fontInfo)
 		);
 	}
 
@@ -941,8 +938,6 @@ export class InternalEditorOptions {
 				}
 				return changeEvent.get(id);
 			},
-			pixelRatio: (this.pixelRatio !== newOpts.pixelRatio),
-			lineHeight: (this.lineHeight !== newOpts.lineHeight),
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 		};
 	}
@@ -953,8 +948,6 @@ export class InternalEditorOptions {
  */
 export interface IConfigurationChangedEvent {
 	hasChanged(id: EditorOption): boolean;
-	readonly pixelRatio: boolean;
-	readonly lineHeight: boolean;
 	readonly fontInfo: boolean;
 }
 
@@ -1067,8 +1060,6 @@ export class InternalEditorOptionsFactory {
 
 	public static createInternalEditorOptions(env: IEnvironmentalOptions) {
 		return new InternalEditorOptions({
-			pixelRatio: env.pixelRatio,
-			lineHeight: env.fontInfo.lineHeight,
 			fontInfo: env.fontInfo,
 		});
 	}
@@ -1139,7 +1130,7 @@ export const EDITOR_MODEL_DEFAULTS = {
 /**
  * @internal
  */
-export interface IRawEditorOptionsBag extends IEditorOptions {
+export interface IRawEditorOptionsBag extends IExtendedEditorOptions {
 	[key: string]: any;
 }
 
@@ -1210,28 +1201,28 @@ export class ChangedEditorOptions {
 /**
  * @internal
  */
-type PossibleKeyName0<V> = { [K in keyof IEditorOptions]: IEditorOptions[K] extends V | undefined ? K : never }[keyof IEditorOptions];
+type PossibleKeyName0<V> = { [K in keyof IExtendedEditorOptions]: IExtendedEditorOptions[K] extends V | undefined ? K : never }[keyof IExtendedEditorOptions];
 /**
  * @internal
  */
 type PossibleKeyName<V> = NonNullable<PossibleKeyName0<V>>;
 
-export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2 = NonNullable<IEditorOptions[K2]>, T3 = T2> {
+export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IExtendedEditorOptions, T2 = NonNullable<IExtendedEditorOptions[K2]>, T3 = T2> {
 	readonly id: K1;
 	readonly name: K2;
 	readonly defaultValue: T2;
 	/**
 	 * @internal
 	 */
-	read(options: IRawEditorOptionsBag): IEditorOptions[K2] | undefined;
+	read(options: IRawEditorOptionsBag): IExtendedEditorOptions[K2] | undefined;
 	/**
 	 * @internal
 	 */
-	mix(a: IEditorOptions[K2] | undefined, b: IEditorOptions[K2] | undefined): IEditorOptions[K2] | undefined;
+	mix(a: IExtendedEditorOptions[K2] | undefined, b: IExtendedEditorOptions[K2] | undefined): IExtendedEditorOptions[K2] | undefined;
 	/**
 	 * @internal
 	 */
-	validate(input: IEditorOptions[K2] | undefined): T2;
+	validate(input: IExtendedEditorOptions[K2] | undefined): T2;
 	/**
 	 * @internal
 	 */
@@ -1245,7 +1236,7 @@ export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IEditor
 /**
  * @internal
  */
-abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2 = IEditorOptions[K2], T3 = T2> implements IEditorOption<K1, K2, T2, T3> {
+abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IExtendedEditorOptions, T2 = IExtendedEditorOptions[K2], T3 = T2> implements IEditorOption<K1, K2, T2, T3> {
 
 	public readonly id: K1;
 	public readonly name: K2;
@@ -1259,10 +1250,10 @@ abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IEdito
 			assert.ok(dep < id);
 		}
 	}
-	public read(options: IRawEditorOptionsBag): IEditorOptions[K2] | undefined {
+	public read(options: IRawEditorOptionsBag): IExtendedEditorOptions[K2] | undefined {
 		return options[<any>this.name];
 	}
-	public mix(a: IEditorOptions[K2] | undefined, b: IEditorOptions[K2] | undefined): IEditorOptions[K2] | undefined {
+	public mix(a: IExtendedEditorOptions[K2] | undefined, b: IExtendedEditorOptions[K2] | undefined): IExtendedEditorOptions[K2] | undefined {
 		switch (typeof b) {
 			case 'bigint': return b;
 			case 'boolean': return b;
@@ -1274,7 +1265,7 @@ abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IEdito
 				return a;
 		}
 	}
-	public abstract validate(input: IEditorOptions[K2] | undefined): T2;
+	public abstract validate(input: IExtendedEditorOptions[K2] | undefined): T2;
 	public abstract compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T2): T3;
 	public equals(a: T3, b: T3): boolean {
 		return (a === b);
@@ -1337,7 +1328,7 @@ class EditorEnumOption<K1 extends EditorOption, K2 extends PossibleKeyName<T1>, 
 		this.allowedValues = allowedValues;
 		this.convert = convert;
 	}
-	public validate(input: IEditorOptions[K2] | undefined): T1 {
+	public validate(input: IExtendedEditorOptions[K2] | undefined): T1 {
 		return _stringSet<T1>(<any>input, this.defaultValue, this.allowedValues);
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: T1): T2 {
@@ -1345,14 +1336,14 @@ class EditorEnumOption<K1 extends EditorOption, K2 extends PossibleKeyName<T1>, 
 	}
 }
 
-class EditorPassthroughOption<K1 extends EditorOption, K2 extends keyof IEditorOptions> extends BaseEditorOption<K1, K2> {
-	public validate(input: IEditorOptions[K2] | undefined): IEditorOptions[K2] {
+class EditorPassthroughOption<K1 extends EditorOption, K2 extends keyof IExtendedEditorOptions> extends BaseEditorOption<K1, K2> {
+	public validate(input: IExtendedEditorOptions[K2] | undefined): IExtendedEditorOptions[K2] {
 		if (typeof input === 'undefined') {
 			return this.defaultValue;
 		}
 		return input;
 	}
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: IEditorOptions[K2]): IEditorOptions[K2] {
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: IExtendedEditorOptions[K2]): IExtendedEditorOptions[K2] {
 		return value;
 	}
 }
@@ -1641,6 +1632,32 @@ class EditorTabFocusMode<K1 extends EditorOption, K2 extends PossibleKeyName<und
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: undefined): boolean {
 		const readOnly = options.get(EditorOption.readOnly);
 		return (readOnly ? true : env.tabFocusMode);
+	}
+}
+
+//#endregion
+
+//#region pixelRatio
+
+class EditorPixelRatio<K1 extends EditorOption, K2 extends PossibleKeyName<undefined>> extends BaseEditorOption<K1, K2, undefined, number> {
+	public validate(input: undefined): undefined {
+		return undefined;
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: undefined): number {
+		return env.pixelRatio;
+	}
+}
+
+//#endregion
+
+//#region lineHeight
+
+class EditorLineHeight<K1 extends EditorOption, K2 extends PossibleKeyName<number>> extends BaseEditorOption<K1, K2, number> {
+	public validate(input: number | undefined): number {
+		return this.defaultValue;
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+		return env.fontInfo.lineHeight;
 	}
 }
 
@@ -2338,7 +2355,7 @@ function _multiCursorModifierFromString(multiCursorModifier: 'ctrlCmd' | 'alt'):
  */
 export const editorOptionsRegistry: IEditorOption<EditorOption, any>[] = [];
 
-function registerEditorOption<K1 extends EditorOption, K2 extends keyof IEditorOptions, T2, T3>(option: IEditorOption<K1, K2, T2, T3>): IEditorOption<K1, K2, T2, T3> {
+function registerEditorOption<K1 extends EditorOption, K2 extends keyof IExtendedEditorOptions, T2, T3>(option: IEditorOption<K1, K2, T2, T3>): IEditorOption<K1, K2, T2, T3> {
 	editorOptionsRegistry[option.id] = option;
 	return option;
 }
@@ -2382,6 +2399,7 @@ export const enum EditorOption {
 	inDiffEditor,
 	lightbulb,
 	lineDecorationsWidth,
+	lineHeight,
 	lineNumbers,
 	lineNumbersMinChars,
 	links,
@@ -2436,6 +2454,7 @@ export const enum EditorOption {
 	ariaLabel,
 	disableMonospaceOptimizations,
 	editorClassName,
+	pixelRatio,
 	tabFocusMode,
 	suggest,
 	layoutInfo,
@@ -2494,6 +2513,7 @@ export const EditorOptions = {
 		enabled: true
 	})),
 	lineDecorationsWidth: registerEditorOption(new EditorPassthroughOption(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10)),
+	lineHeight: registerEditorOption(new EditorLineHeight(EditorOption.lineHeight, 'lineHeight', EDITOR_FONT_DEFAULTS.lineHeight)),
 	lineNumbers: registerEditorOption(new EditorRenderLineNumbersOption(EditorOption.lineNumbers, 'lineNumbers', { renderType: RenderLineNumbersType.On, renderFn: null })),
 	lineNumbersMinChars: registerEditorOption(new EditorIntOption(EditorOption.lineNumbersMinChars, 'lineNumbersMinChars', 5, 1, 10)),
 	links: registerEditorOption(new EditorBooleanOption(EditorOption.links, 'links', true)),
@@ -2574,6 +2594,7 @@ export const EditorOptions = {
 	ariaLabel: registerEditorOption(new EditorAriaLabel(EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content"), [EditorOption.accessibilitySupport])),
 	disableMonospaceOptimizations: registerEditorOption(new EditorDisableMonospaceOptimizations(EditorOption.disableMonospaceOptimizations, 'disableMonospaceOptimizations', false, [EditorOption.fontLigatures])),
 	editorClassName: registerEditorOption(new EditorClassName(EditorOption.editorClassName, 'editorClassName', undefined, [EditorOption.mouseStyle, EditorOption.fontLigatures, EditorOption.extraEditorClassName])),
+	pixelRatio: registerEditorOption(new EditorPixelRatio(EditorOption.pixelRatio, 'pixelRatio', undefined)),
 	tabFocusMode: registerEditorOption(new EditorTabFocusMode(EditorOption.tabFocusMode, 'tabFocusMode', undefined, [EditorOption.readOnly])),
 	suggest: registerEditorOption(new EditorSuggest(EditorOption.suggest, 'suggest', {
 		filterGraceful: true,
@@ -2587,14 +2608,6 @@ export const EditorOptions = {
 	layoutInfo: registerEditorOption(new EditorLayoutInfoComputer(EditorOption.layoutInfo, 'layoutInfo', undefined, [EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding, EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers])),
 	wrappingInfo: registerEditorOption(new EditorWrappingInfoComputer(EditorOption.wrappingInfo, 'wrappingInfo', undefined, [EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified, EditorOption.layoutInfo, EditorOption.accessibilitySupport])),
 };
-
-// const tmp: { [key: string]: IEditorOption<any, any>; } = EditorOptions;
-// for (const key of Object.keys(tmp)) {
-// 	const option = tmp[key];
-// 	if (key !== option.name) {
-// 		throw new Error(`mismatch - ${key} - ${option.name}`);
-// 	}
-// }
 
 export type EditorOptionsType = typeof EditorOptions;
 export type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];

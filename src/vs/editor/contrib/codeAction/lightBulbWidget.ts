@@ -79,7 +79,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);
-			const { lineHeight } = this._editor.getConfiguration();
+			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 
 			let pad = Math.floor(lineHeight / 3);
 			if (this._state.widgetPosition.position !== null && this._state.widgetPosition.position.lineNumber < this._state.editorPosition.lineNumber) {

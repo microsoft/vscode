@@ -13,6 +13,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
 
@@ -68,7 +69,7 @@ export class RenameInputField implements IContentWidget, IDisposable {
 			this._inputField.type = 'text';
 			this._inputField.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
 			this._domNode = document.createElement('div');
-			this._domNode.style.height = `${this._editor.getConfiguration().lineHeight}px`;
+			this._domNode.style.height = `${this._editor.getOption(EditorOption.lineHeight)}px`;
 			this._domNode.className = 'monaco-editor rename-box';
 			this._domNode.appendChild(this._inputField);
 

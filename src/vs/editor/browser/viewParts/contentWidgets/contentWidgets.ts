@@ -215,7 +215,7 @@ class Widget {
 		this._fixedOverflowWidgets = options.get(EditorOption.fixedOverflowWidgets);
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentLeft = layoutInfo.contentLeft;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 
 		this._position = null;
 		this._range = null;
@@ -235,11 +235,9 @@ class Widget {
 	}
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
+		const options = this._context.configuration.options;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const options = this._context.configuration.options;
 			const layoutInfo = options.get(EditorOption.layoutInfo);
 			this._contentLeft = layoutInfo.contentLeft;
 			this._contentWidth = layoutInfo.contentWidth;

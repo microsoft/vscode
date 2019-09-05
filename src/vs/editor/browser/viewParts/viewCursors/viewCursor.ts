@@ -54,7 +54,7 @@ export class ViewCursor {
 		const options = this._context.configuration.options;
 
 		this._cursorStyle = options.get(EditorOption.cursorStyle);
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
 
@@ -101,7 +101,7 @@ export class ViewCursor {
 		const options = this._context.configuration.options;
 
 		this._cursorStyle = options.get(EditorOption.cursorStyle);
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
 		Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);

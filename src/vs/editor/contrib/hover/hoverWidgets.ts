@@ -8,15 +8,15 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
-export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
+export class ContentHoverWidget extends Widget implements IContentWidget {
 
 	private readonly _id: string;
-	protected _editor: editorBrowser.ICodeEditor;
+	protected _editor: ICodeEditor;
 	private _isVisible: boolean;
 	private readonly _containerDomNode: HTMLElement;
 	private readonly _domNode: HTMLElement;
@@ -37,7 +37,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		toggleClass(this._containerDomNode, 'hidden', !this._isVisible);
 	}
 
-	constructor(id: string, editor: editorBrowser.ICodeEditor) {
+	constructor(id: string, editor: ICodeEditor) {
 		super();
 		this._id = id;
 		this._editor = editor;
@@ -113,14 +113,14 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		}
 	}
 
-	public getPosition(): editorBrowser.IContentWidgetPosition | null {
+	public getPosition(): IContentWidgetPosition | null {
 		if (this.isVisible) {
 			return {
 				position: this._showAtPosition,
 				range: this._showAtRange,
 				preference: [
-					editorBrowser.ContentWidgetPositionPreference.ABOVE,
-					editorBrowser.ContentWidgetPositionPreference.BELOW
+					ContentWidgetPositionPreference.ABOVE,
+					ContentWidgetPositionPreference.BELOW
 				]
 			};
 		}
@@ -161,15 +161,15 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	}
 }
 
-export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWidget {
+export class GlyphHoverWidget extends Widget implements IOverlayWidget {
 
 	private readonly _id: string;
-	protected _editor: editorBrowser.ICodeEditor;
+	protected _editor: ICodeEditor;
 	private _isVisible: boolean;
 	private readonly _domNode: HTMLElement;
 	protected _showAtLineNumber: number;
 
-	constructor(id: string, editor: editorBrowser.ICodeEditor) {
+	constructor(id: string, editor: ICodeEditor) {
 		super();
 		this._id = id;
 		this._editor = editor;
@@ -218,7 +218,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		const editorLayout = this._editor.getLayoutInfo();
 		const topForLineNumber = this._editor.getTopForLineNumber(this._showAtLineNumber);
 		const editorScrollTop = this._editor.getScrollTop();
-		const lineHeight = this._editor.getConfiguration().lineHeight;
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const nodeHeight = this._domNode.clientHeight;
 		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
 
@@ -233,7 +233,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		this.isVisible = false;
 	}
 
-	public getPosition(): editorBrowser.IOverlayWidgetPosition | null {
+	public getPosition(): IOverlayWidgetPosition | null {
 		return null;
 	}
 

@@ -35,14 +35,10 @@ export class ViewConfigurationChangedEvent {
 	public readonly type = ViewEventType.ViewConfigurationChanged;
 
 	public readonly _source: IConfigurationChangedEvent;
-	public readonly pixelRatio: boolean;
-	public readonly lineHeight: boolean;
 	public readonly fontInfo: boolean;
 
 	constructor(source: IConfigurationChangedEvent) {
 		this._source = source;
-		this.pixelRatio = source.pixelRatio;
-		this.lineHeight = source.lineHeight;
 		this.fontInfo = source.fontInfo;
 	}
 

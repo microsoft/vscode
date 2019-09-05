@@ -44,8 +44,8 @@ class Settings {
 
 	constructor(config: IConfiguration, theme: ITheme) {
 		const options = config.options;
-		this.lineHeight = config.editor.lineHeight;
-		this.pixelRatio = config.editor.pixelRatio;
+		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.pixelRatio = options.get(EditorOption.pixelRatio);
 		this.overviewRulerLanes = options.get(EditorOption.overviewRulerLanes);
 
 		this.renderBorder = options.get(EditorOption.overviewRulerBorder);
