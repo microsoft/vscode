@@ -114,8 +114,6 @@ steps:
     INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
     DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
-    DISPLAY=:10 yarn smoketest -- --build "$APP_ROOT"
-    DISPLAY=:10 yarn smoketest -- --remote --build "$APP_ROOT"
   displayName: Run integration tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
