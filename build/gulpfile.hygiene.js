@@ -153,6 +153,7 @@ const tslintCoreFilter = [
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'!extensions/**/*.ts',
+	'!test/automation/**',
 	'!test/smoke/**',
 	...tslintBaseFilter
 ];
@@ -161,6 +162,7 @@ const tslintExtensionsFilter = [
 	'extensions/**/*.ts',
 	'!src/**/*.ts',
 	'!test/**/*.ts',
+	'test/automation/**/*.ts',
 	...tslintBaseFilter
 ];
 
