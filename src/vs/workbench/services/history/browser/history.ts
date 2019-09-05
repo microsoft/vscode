@@ -120,8 +120,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private lastEditLocation: IStackEntry | undefined;
 
-	private history: Array<IEditorInput | IResourceInput> | undefined;
+	private history!: Array<IEditorInput | IResourceInput>;
 	private recentlyClosedFiles: IRecentlyClosedFile[];
+	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
 
 	private fileInputFactory: IFileInputFactory;
@@ -154,6 +155,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.lastIndex = -1;
 		this.stack = [];
 		this.recentlyClosedFiles = [];
+		this.loaded = false;
 		this.resourceFilter = this._register(instantiationService.createInstance(
 			ResourceGlobMatcher,
 			(root?: URI) => this.getExcludes(root),
@@ -487,17 +489,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return;
 		}
 
-		const history = this.ensureHistoryLoaded();
+		this.ensureHistoryLoaded();
 
 		const historyInput = this.preferResourceInput(input);
 
 		// Remove any existing entry and add to the beginning
 		this.removeFromHistory(input);
-		history.unshift(historyInput);
+		this.history.unshift(historyInput);
 
 		// Respect max entries setting
-		if (history.length > HistoryService.MAX_HISTORY_ITEMS) {
-			this.clearOnEditorDispose(history.pop()!, this.editorHistoryListeners);
+		if (this.history.length > HistoryService.MAX_HISTORY_ITEMS) {
+			this.clearOnEditorDispose(this.history.pop()!, this.editorHistoryListeners);
 		}
 
 		// Remove this from the history unless the history input is a resource
@@ -553,9 +555,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private removeExcludedFromHistory(): void {
-		const history = this.ensureHistoryLoaded();
+		this.ensureHistoryLoaded();
 
-		this.history = history.filter(e => {
+		this.history = this.history.filter(e => {
 			const include = this.include(e);
 
 			// Cleanup any listeners associated with the input when removing from history
@@ -568,9 +570,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private removeFromHistory(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
-		const history = this.ensureHistoryLoaded();
+		this.ensureHistoryLoaded();
 
-		this.history = history.filter(e => {
+		this.history = this.history.filter(e => {
 			const matches = this.matches(arg1, e);
 
 			// Cleanup any listeners associated with the input when removing from history
@@ -847,17 +849,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	getHistory(): Array<IEditorInput | IResourceInput> {
-		const history = this.ensureHistoryLoaded();
+		this.ensureHistoryLoaded();
 
-		return history.slice(0);
+		return this.history.slice(0);
 	}
 
-	private ensureHistoryLoaded(): Array<IEditorInput | IResourceInput> {
-		if (!this.history) {
-			this.history = this.loadHistory();
+	private ensureHistoryLoaded(): void {
+		if (!this.loaded) {
+			this.loadHistory();
 		}
 
-		return this.history;
+		this.loaded = true;
 	}
 
 	private saveState(): void {
@@ -891,7 +893,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
 
-	private loadHistory(): Array<IEditorInput | IResourceInput> {
+	private loadHistory(): void {
 		let entries: ISerializedEditorHistoryEntry[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
@@ -901,7 +903,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
-		return coalesce(entries.map(entry => {
+		this.history = coalesce(entries.map(entry => {
 			try {
 				return this.safeLoadHistoryEntry(registry, entry);
 			} catch (error) {

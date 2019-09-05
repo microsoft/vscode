@@ -5,11 +5,14 @@ pushd %~dp0\..
 
 set VSCODEUSERDATADIR=%TMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,5%
 
+:: Figure out which Electron to use for running tests
 if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
-	:: code.bat makes sure Test Extensions are compiled
+	:: Run out of sources: no need to compile as code.sh takes care of it
 	set INTEGRATION_TEST_ELECTRON_PATH=.\scripts\code.bat
+
+	echo "Running integration tests out of sources."
 ) else (
-	:: Compile Test Extensions
+	:: Run from a built: need to compile all test extensions
 	call yarn gulp compile-extension:vscode-api-tests
 	call yarn gulp compile-extension:vscode-colorize-tests
 	call yarn gulp compile-extension:markdown-language-features
@@ -18,7 +21,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call yarn gulp compile-extension:html-language-features-server
 	call yarn gulp compile-extension:json-language-features-server
 
-	echo "Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path"
+	echo "Running integration tests with '%INTEGRATION_TEST_ELECTRON_PATH%' as build."
 )
 
 :: Integration & performance tests in AMD

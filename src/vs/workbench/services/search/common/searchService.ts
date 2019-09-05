@@ -26,7 +26,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 	_serviceBrand: undefined;
 
-	protected diskSearch: ISearchResultProvider;
+	protected diskSearch: ISearchResultProvider | null = null;
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
 

@@ -22,7 +22,7 @@ const helpCategories = {
 
 export interface Option {
 	id: keyof ParsedArgs;
-	type: 'boolean' | 'string';
+	type: 'boolean' | 'string' | 'string[]';
 	alias?: string;
 	deprecates?: string; // old deprecated id
 	args?: string | string[];
@@ -42,23 +42,23 @@ export const options: Option[] = [
 	{ id: 'version', type: 'boolean', cat: 'o', alias: 'v', description: localize('version', "Print version.") },
 	{ id: 'help', type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
 	{ id: 'telemetry', type: 'boolean', cat: 'o', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
-	{ id: 'folder-uri', type: 'string', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
-	{ id: 'file-uri', type: 'string', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
+	{ id: 'folder-uri', type: 'string[]', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
+	{ id: 'file-uri', type: 'string[]', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
 
 	{ id: 'extensions-dir', type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	{ id: 'list-extensions', type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	{ id: 'show-versions', type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
 	{ id: 'category', type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extension.") },
-	{ id: 'install-extension', type: 'string', cat: 'e', args: 'extension-id | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
-	{ id: 'uninstall-extension', type: 'string', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
-	{ id: 'enable-proposed-api', type: 'string', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
+	{ id: 'install-extension', type: 'string[]', cat: 'e', args: 'extension-id | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
+	{ id: 'uninstall-extension', type: 'string[]', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
+	{ id: 'enable-proposed-api', type: 'string[]', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
 	{ id: 'verbose', type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
 	{ id: 'log', type: 'string', cat: 't', args: 'level', description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.") },
 	{ id: 'status', type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
 	{ id: 'prof-startup', type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup") },
 	{ id: 'disable-extensions', type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
-	{ id: 'disable-extension', type: 'string', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
+	{ id: 'disable-extension', type: 'string[]', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
 
 	{ id: 'inspect-extensions', type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
 	{ id: 'inspect-brk-extensions', type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
@@ -66,8 +66,8 @@ export const options: Option[] = [
 	{ id: 'max-memory', type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
 
 	{ id: 'remote', type: 'string' },
-	{ id: 'locate-extension', type: 'string' },
-	{ id: 'extensionDevelopmentPath', type: 'string' },
+	{ id: 'locate-extension', type: 'string[]' },
+	{ id: 'extensionDevelopmentPath', type: 'string[]' },
 	{ id: 'extensionTestsPath', type: 'string' },
 	{ id: 'extension-development-confirm-save', type: 'boolean' },
 	{ id: 'debugId', type: 'string' },
@@ -93,13 +93,23 @@ export const options: Option[] = [
 	{ id: 'force', type: 'boolean' },
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
-	{ id: '_', type: 'string' },
+	{ id: 'disable-inspect', type: 'boolean' },
 
 	{ id: 'js-flags', type: 'string' }, // chrome js flags
 	{ id: 'nolazy', type: 'boolean' }, // node inspect
 ];
 
-export function parseArgs(args: string[], isOptionSupported = (_: Option) => true): ParsedArgs {
+export interface ErrorReporter {
+	onUnknownOption(id: string): void;
+	onMultipleValues(id: string, usedValue: string): void;
+}
+
+const ignoringReporter: ErrorReporter = {
+	onUnknownOption: () => { },
+	onMultipleValues: () => { }
+};
+
+export function parseArgs(args: string[], isOptionSupported = (_: Option) => true, errorReporter: ErrorReporter = ignoringReporter): ParsedArgs {
 	const alias: { [key: string]: string } = {};
 	const string: string[] = [];
 	const boolean: string[] = [];
@@ -110,7 +120,7 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 			}
 		}
 
-		if (o.type === 'string') {
+		if (o.type === 'string' || o.type === 'string[]') {
 			string.push(o.id);
 			if (o.deprecates) {
 				string.push(o.deprecates);
@@ -124,20 +134,51 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 	}
 	// remote aliases to avoid confusion
 	const parsedArgs = minimist(args, { string, boolean, alias });
+
+	const cleanedArgs: any = {};
+
 	for (const o of options) {
 		if (o.alias) {
 			delete parsedArgs[o.alias];
 		}
-		if (o.deprecates && parsedArgs.hasOwnProperty(o.deprecates) && !parsedArgs[o.id]) {
-			parsedArgs[o.id] = parsedArgs[o.deprecates];
+
+		let val = parsedArgs[o.id];
+		if (o.deprecates && parsedArgs.hasOwnProperty(o.deprecates)) {
+			if (!val) {
+				val = parsedArgs[o.deprecates];
+			}
 			delete parsedArgs[o.deprecates];
 		}
+
+		if (val) {
+			if (isOptionSupported(o)) {
+				if (o.type === 'string[]') {
+					if (val && !Array.isArray(val)) {
+						val = [val];
+					}
+				} else if (o.type === 'string') {
+					if (Array.isArray(val)) {
+						val = val.pop(); // take the last
+						errorReporter.onMultipleValues(o.id, val);
+					}
+				}
+				cleanedArgs[o.id] = val;
+			} else {
+				errorReporter.onUnknownOption(o.id);
+			}
+		}
+		delete parsedArgs[o.id];
 	}
 
 	// https://github.com/microsoft/vscode/issues/58177
-	parsedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
+	cleanedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
+	delete parsedArgs._;
 
-	return parsedArgs;
+	for (let key in parsedArgs) {
+		errorReporter.onUnknownOption(key);
+	}
+
+	return cleanedArgs;
 }
 
 function formatUsage(option: Option) {
@@ -224,32 +265,6 @@ export function buildVersionMessage(version: string | undefined, commit: string 
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
 
-/**
- * Converts an argument into an array
- * @param arg a argument value. Can be undefined, an entry or an array
- */
-export function asArray(arg: string | string[] | undefined): string[] {
-	if (arg) {
-		if (Array.isArray(arg)) {
-			return arg;
-		}
-		return [arg];
-	}
-	return [];
-}
-
-/**
- * Returns whether an argument is present.
- */
-export function hasArgs(arg: string | string[] | undefined): boolean {
-	if (arg) {
-		if (Array.isArray(arg)) {
-			return !!arg.length;
-		}
-		return true;
-	}
-	return false;
-}
 
 export function addArg(argv: string[], ...args: string[]): string[] {
 	const endOfArgsMarkerIndex = argv.indexOf('--');

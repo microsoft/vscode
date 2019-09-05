@@ -128,7 +128,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/'] } : undefined,
+		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/', '-'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		referencesProvider: true,

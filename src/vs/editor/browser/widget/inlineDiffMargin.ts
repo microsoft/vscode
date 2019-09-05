@@ -122,15 +122,12 @@ export class InlineDiffMargin extends Disposable {
 			}));
 		}
 
-		this._register(dom.addStandardDisposableListener(this._diffActions, 'mousedown', e => {
-			const { top, height } = dom.getDomNodePagePosition(this._diffActions);
-			let pad = Math.floor(lineHeight / 3);
-			e.preventDefault();
+		const showContextMenu = (x: number, y: number) => {
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => {
 					return {
-						x: e.posx,
-						y: top + height + pad
+						x,
+						y
 					};
 				},
 				getActions: () => {
@@ -141,6 +138,15 @@ export class InlineDiffMargin extends Disposable {
 				},
 				autoSelectFirstItem: true
 			});
+		};
+
+		this._register(dom.addStandardDisposableListener(this._diffActions, 'mousedown', e => {
+			const { top, height } = dom.getDomNodePagePosition(this._diffActions);
+			let pad = Math.floor(lineHeight / 3);
+			e.preventDefault();
+
+			showContextMenu(e.posx, top + height + pad);
+
 		}));
 
 		this._register(editor.onMouseMove((e: editorBrowser.IEditorMouseEvent) => {
@@ -155,6 +161,22 @@ export class InlineDiffMargin extends Disposable {
 				}
 			} else {
 				this.visibility = false;
+			}
+		}));
+
+		this._register(editor.onMouseDown((e: editorBrowser.IEditorMouseEvent) => {
+			if (!e.event.rightButton) {
+				return;
+			}
+
+			if (e.target.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE) {
+				const viewZoneId = e.target.detail.viewZoneId;
+
+				if (viewZoneId === this._viewZoneId) {
+					e.event.preventDefault();
+					currentLineNumberOffset = this._updateLightBulbPosition(this._marginDomNode, e.event.browserEvent.y, lineHeight);
+					showContextMenu(e.event.posx, e.event.posy + lineHeight);
+				}
 			}
 		}));
 	}

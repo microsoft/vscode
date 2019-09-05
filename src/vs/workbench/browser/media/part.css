@@ -9,6 +9,7 @@
 
 .monaco-workbench .part {
 	box-sizing:	border-box;
+	overflow: hidden;
 }
 
 .monaco-workbench .part > .title {

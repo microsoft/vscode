@@ -309,8 +309,9 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	async openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		this.logService.trace('windowsService#openExtensionDevelopmentHostWindow ' + JSON.stringify(args));
 
-		if (args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, {
+		const extDevPaths = args.extensionDevelopmentPath;
+		if (extDevPaths) {
+			this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 				context: OpenContext.API,
 				cli: args,
 				userEnv: Object.keys(env).length > 0 ? env : undefined

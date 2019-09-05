@@ -88,7 +88,7 @@ export class EditorGroup extends Disposable {
 
 	//#endregion
 
-	private _id!: GroupIdentifier;
+	private _id: GroupIdentifier;
 	get id(): GroupIdentifier { return this._id; }
 
 	private editors: EditorInput[] = [];
@@ -109,7 +109,7 @@ export class EditorGroup extends Disposable {
 		super();
 
 		if (isSerializedEditorGroup(labelOrSerializedGroup)) {
-			this.deserialize(labelOrSerializedGroup);
+			this._id = this.deserialize(labelOrSerializedGroup);
 		} else {
 			this._id = EditorGroup.IDS++;
 		}
@@ -661,7 +661,7 @@ export class EditorGroup extends Disposable {
 		};
 	}
 
-	private deserialize(data: ISerializedEditorGroup): void {
+	private deserialize(data: ISerializedEditorGroup): number {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		if (typeof data.id === 'number') {
@@ -694,5 +694,7 @@ export class EditorGroup extends Disposable {
 		if (typeof data.preview === 'number') {
 			this.preview = this.editors[data.preview];
 		}
+
+		return this._id;
 	}
 }

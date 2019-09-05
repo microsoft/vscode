@@ -2349,3 +2349,21 @@ export enum ExtensionKind {
 	UI = 1,
 	Workspace = 2
 }
+
+export class Decoration {
+
+	static validate(d: Decoration): void {
+		if (d.letter && d.letter.length !== 1) {
+			throw new Error(`The 'letter'-property must be undefined or a single character`);
+		}
+		if (!d.bubble && !d.color && !d.letter && !d.priority && !d.title) {
+			throw new Error(`The decoration is empty`);
+		}
+	}
+
+	letter?: string;
+	title?: string;
+	color?: vscode.ThemeColor;
+	priority?: number;
+	bubble?: boolean;
+}

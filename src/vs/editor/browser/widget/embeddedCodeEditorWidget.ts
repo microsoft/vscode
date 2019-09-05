@@ -80,7 +80,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IClipboardService clipboardService: IClipboardService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, clipboardService);
+		super(domElement, parentEditor.getRawConfiguration(), clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
