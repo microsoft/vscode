@@ -25,9 +25,9 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterator } from 'vs/base/common/iterator';
-import { ITreeElement, ITreeNode, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeContextMenuEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree, TreeResourceNavigator2, IListService } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
@@ -44,6 +44,9 @@ import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { MementoObject } from 'vs/workbench/common/memento';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeElement>> {
 	const resourcesIt = Iterator.fromArray(model.resourceMarkers);
@@ -71,8 +74,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private readonly rangeHighlightDecorations: RangeHighlightDecorations;
 	private readonly filter: Filter;
 
-	private tree!: WorkbenchObjectTree<TreeElement, FilterData>;
-	private treeContainer!: HTMLElement;
+	private tree!: MarkersTree;
 	private messageBoxContainer!: HTMLElement;
 	private ariaLabelElement!: HTMLElement;
 
@@ -153,7 +155,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	public layout(dimension: dom.Dimension): void {
-		this.treeContainer.style.height = `${dimension.height}px`;
 		this.tree.layout(dimension.height, dimension.width);
 		if (this.filterInputActionViewItem) {
 			this.filterInputActionViewItem.toggleLayout(dimension.width < 1200);
@@ -252,7 +253,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			}
 
 			const { total, filtered } = this.getFilterStats();
-			dom.toggleClass(this.treeContainer, 'hidden', total === 0 || filtered === 0);
+			this.tree.toggleVisibility(total === 0 || filtered === 0);
 			this.renderMessage();
 			this._onDidFilter.fire();
 		}
@@ -269,7 +270,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this._onDidFilter.fire();
 
 		const { total, filtered } = this.getFilterStats();
-		dom.toggleClass(this.treeContainer, 'hidden', total === 0 || filtered === 0);
+		this.tree.toggleVisibility(total === 0 || filtered === 0);
 		this.renderMessage();
 	}
 
@@ -300,8 +301,6 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private createTree(parent: HTMLElement): void {
-		this.treeContainer = dom.append(parent, dom.$('.tree-container.show-file-icons'));
-
 		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
 
 		const treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
@@ -320,9 +319,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			}
 		};
 
-		this.tree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree,
+		this.tree = this._register(this.instantiationService.createInstance(MarkersTree,
 			'MarkersPanel',
-			this.treeContainer,
+			dom.append(parent, dom.$('.tree-container.show-file-icons')),
 			virtualDelegate,
 			renderers,
 			{
@@ -476,7 +475,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	private render(): void {
 		this.cachedFilterStats = undefined;
 		this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
-		dom.toggleClass(this.treeContainer, 'hidden', this.isEmpty());
+		this.tree.toggleVisibility(this.isEmpty());
 		this.renderMessage();
 	}
 
@@ -724,6 +723,35 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.panelState['multiline'] = this.markersViewModel.multiline;
 
 		super.saveState();
+	}
+
+}
+
+class MarkersTree extends WorkbenchObjectTree<TreeElement, FilterData> {
+
+	constructor(
+		user: string,
+		readonly container: HTMLElement,
+		delegate: IListVirtualDelegate<TreeElement>,
+		renderers: ITreeRenderer<TreeElement, FilterData, any>[],
+		options: IObjectTreeOptions<TreeElement, FilterData>,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
+	) {
+		super(user, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService);
+	}
+
+	layout(height: number, width: number): void {
+		this.container.style.height = `${height}px`;
+		super.layout(height, width);
+	}
+
+	toggleVisibility(hide: boolean): void {
+		dom.toggleClass(this.container, 'hidden', hide);
 	}
 
 }
