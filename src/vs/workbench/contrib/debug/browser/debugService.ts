@@ -709,7 +709,7 @@ export class DebugService implements IDebugService {
 
 			return this.dialogService.confirm({
 				checkbox: {
-					label: nls.localize('remember', "Remember my choice in settings"),
+					label: nls.localize('remember', "Remember my choice in user settings"),
 				},
 				message,
 				type: 'warning',
