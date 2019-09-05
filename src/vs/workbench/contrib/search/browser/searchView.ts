@@ -738,6 +738,9 @@ export class SearchView extends ViewletPanel {
 
 		// Reveal the newly selected element
 		if (next) {
+			if (next === selected) {
+				this.tree.setFocus([]);
+			}
 			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false));
 			this.tree.reveal(next);
 		}
@@ -777,6 +780,9 @@ export class SearchView extends ViewletPanel {
 
 		// Reveal the newly selected element
 		if (prev) {
+			if (prev === selected) {
+				this.tree.setFocus([]);
+			}
 			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false));
 			this.tree.reveal(prev);
 		}
