@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import { EDITOR_FONT_DEFAULTS, EditorOptions, ValidatedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, ValidatedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 
 /**
@@ -14,9 +14,8 @@ import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
 
 /**
- * Font settings maximum and minimum limits
+ * @internal
  */
-const MINIMUM_FONT_SIZE = 8;
 const MINIMUM_LINE_HEIGHT = 8;
 
 export class BareFontInfo {
@@ -50,12 +49,6 @@ export class BareFontInfo {
 	 * @internal
 	 */
 	private static _create(fontFamily: string, fontWeight: string, fontSize: number, lineHeight: number, letterSpacing: number, zoomLevel: number, ignoreEditorZoom: boolean): BareFontInfo {
-		if (fontSize === 0) {
-			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
-		} else if (fontSize < MINIMUM_FONT_SIZE) {
-			fontSize = MINIMUM_FONT_SIZE;
-		}
-
 		if (lineHeight === 0) {
 			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
 		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {

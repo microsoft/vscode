@@ -1556,7 +1556,25 @@ class EditorPixelRatio<K1 extends EditorOption, K2 extends PossibleKeyName<undef
 
 class EditorLineHeight<K1 extends EditorOption, K2 extends PossibleKeyName<number>> extends EditorIntOption<K1, K2> {
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+		// The lineHeight is computed from the fontSize if it is 0 and the result of that computation is in the env.fontInfo
 		return env.fontInfo.lineHeight;
+	}
+}
+
+//#endregion
+
+//#region fontSize
+
+class EditorFontSize<K1 extends EditorOption, K2 extends PossibleKeyName<number>> extends BaseEditorOption<K1, K2, number> {
+	public validate(input: number | undefined): number {
+		let r = _float(input, this.defaultValue);
+		if (r === 0) {
+			return EDITOR_FONT_DEFAULTS.fontSize;
+		}
+		return _clamp(r, 8, 100);
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+		return value;
 	}
 }
 
@@ -2414,7 +2432,7 @@ export const EditorOptions = {
 	fontFamily: registerEditorOption(new EditorStringOption(EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily)),
 	fontInfo: registerEditorOption(new EditorFontInfo(EditorOption.fontInfo, 'fontInfo', undefined)),
 	fontLigatures: registerEditorOption(new EditorBooleanOption(EditorOption.fontLigatures, 'fontLigatures', true)),
-	fontSize: registerEditorOption(new EditorFloatOption(EditorOption.fontSize, 'fontSize', EDITOR_FONT_DEFAULTS.fontSize, x => _clamp(x, 0, 100))),
+	fontSize: registerEditorOption(new EditorFontSize(EditorOption.fontSize, 'fontSize', EDITOR_FONT_DEFAULTS.fontSize)),
 	fontWeight: registerEditorOption(new EditorStringOption(EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight)),
 	formatOnPaste: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnPaste, 'formatOnPaste', false)),
 	formatOnType: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnType, 'formatOnType', false)),
