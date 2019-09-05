@@ -117,7 +117,7 @@ steps:
   displayName: Run integration tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-script: |
+- script: |
     APP_ROOT=$(agent.builddirectory)/VSCode-linux-x64
     DISPLAY=:10 yarn smoketest -- --build "$APP_ROOT"
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
