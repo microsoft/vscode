@@ -10,7 +10,12 @@ import { ParsedArgs } from '../common/environment';
 import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 
-function validate(args: ParsedArgs): ParsedArgs {
+function parseAndValidate(cmdLineArgs: string[]): ParsedArgs {
+	const onUnknownOption = (id: string) => {
+		throw new Error(localize('unknownOption', "Option '{0}' is unknown. Use --help for the list of supported options.", id));
+	};
+
+	const args = parseArgs(cmdLineArgs, undefined, onUnknownOption);
 	if (args.goto) {
 		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
 	}
@@ -42,7 +47,7 @@ export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
 		args = stripAppPath(args) || [];
 	}
 
-	return validate(parseArgs(args));
+	return parseAndValidate(args);
 }
 
 /**
@@ -54,6 +59,7 @@ export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
 	if (process.env['VSCODE_DEV']) {
 		args = stripAppPath(args) || [];
 	}
+	console.log(args.join(','));
 
-	return validate(parseArgs(args));
+	return parseAndValidate(args);
 }

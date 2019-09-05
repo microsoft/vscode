@@ -93,13 +93,12 @@ export const options: Option[] = [
 	{ id: 'force', type: 'boolean' },
 	{ id: 'trace-category-filter', type: 'string' },
 	{ id: 'trace-options', type: 'string' },
-	{ id: '_', type: 'string' },
 
 	{ id: 'js-flags', type: 'string' }, // chrome js flags
 	{ id: 'nolazy', type: 'boolean' }, // node inspect
 ];
 
-export function parseArgs(args: string[], isOptionSupported = (_: Option) => true): ParsedArgs {
+export function parseArgs(args: string[], isOptionSupported = (_: Option) => true, reportUnknownOption: (id: string) => void = () => { }): ParsedArgs {
 	const alias: { [key: string]: string } = {};
 	const string: string[] = [];
 	const boolean: string[] = [];
@@ -124,26 +123,47 @@ export function parseArgs(args: string[], isOptionSupported = (_: Option) => tru
 	}
 	// remote aliases to avoid confusion
 	const parsedArgs = minimist(args, { string, boolean, alias });
+
+	const cleanedArgs: any = {};
+
 	for (const o of options) {
 		if (o.alias) {
 			delete parsedArgs[o.alias];
 		}
-		if (o.deprecates && parsedArgs.hasOwnProperty(o.deprecates) && !parsedArgs[o.id]) {
-			parsedArgs[o.id] = parsedArgs[o.deprecates];
+
+		let val = parsedArgs[o.id];
+		if (o.deprecates && parsedArgs.hasOwnProperty(o.deprecates)) {
+			if (!val) {
+				val = parsedArgs[o.deprecates];
+			}
 			delete parsedArgs[o.deprecates];
 		}
-		if (o.type === 'string[]') {
-			const val = parsedArgs[o.id];
-			if (val && !Array.isArray(val)) {
-				parsedArgs[o.id] = [val];
+
+		if (val) {
+			if (isOptionSupported(o)) {
+				if (o.type === 'string[]') {
+					if (val && !Array.isArray(val)) {
+						val = [val];
+					}
+				}
+				cleanedArgs[o.id] = val;
+
+			} else {
+				reportUnknownOption(o.id);
 			}
 		}
+		delete parsedArgs[o.id];
 	}
 
 	// https://github.com/microsoft/vscode/issues/58177
-	parsedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
+	cleanedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
+	delete parsedArgs._;
 
-	return parsedArgs;
+	for (let key in parsedArgs) {
+		reportUnknownOption(key);
+	}
+
+	return cleanedArgs;
 }
 
 function formatUsage(option: Option) {
