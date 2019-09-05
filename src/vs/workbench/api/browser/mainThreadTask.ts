@@ -626,6 +626,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 						});
 					});
 				});
+			},
+			getDefaultShellAndArgs: (): Promise<{ shell: string, args: string[] | string | undefined }> => {
+				return Promise.resolve(this._proxy.$getDefaultShellAndArgs());
 			}
 		});
 	}

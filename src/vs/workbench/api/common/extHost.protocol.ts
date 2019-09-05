@@ -1185,6 +1185,7 @@ export interface ExtHostTaskShape {
 	$onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }, variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
+	$getDefaultShellAndArgs(): Thenable<{ shell: string, args: string[] | string | undefined }>;
 }
 
 export interface IBreakpointDto {
