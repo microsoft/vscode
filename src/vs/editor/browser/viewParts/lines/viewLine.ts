@@ -82,14 +82,15 @@ export class ViewLineOptions {
 	constructor(config: IConfiguration, themeType: ThemeType) {
 		this.themeType = themeType;
 		const options = config.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
 		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
 		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
-		this.spaceWidth = config.editor.fontInfo.spaceWidth;
+		this.spaceWidth = fontInfo.spaceWidth;
 		this.useMonospaceOptimizations = (
-			config.editor.fontInfo.isMonospace
+			fontInfo.isMonospace
 			&& !options.get(EditorOption.disableMonospaceOptimizations)
 		);
-		this.canUseHalfwidthRightwardsArrow = config.editor.fontInfo.canUseHalfwidthRightwardsArrow;
+		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 		this.fontLigatures = options.get(EditorOption.fontLigatures);

@@ -23,7 +23,7 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { IConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
@@ -176,7 +176,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._tryUpdateWidgetWidth();
 		this._findInput.inputBox.layout();
 
-		this._register(this._codeEditor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
+		this._register(this._codeEditor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.readOnly)) {
 				if (this._codeEditor.getOption(EditorOption.readOnly)) {
 					// Hide replace part if editor becomes read only

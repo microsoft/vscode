@@ -16,7 +16,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext, CompletionItem } from './suggest';
 import { CompletionModel } from './completionModel';
@@ -124,12 +124,12 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
-			const configuration = this.editor.getConfiguration();
 			const options = this.editor.getOptions();
-			const fontFamily = configuration.fontInfo.fontFamily;
-			const fontSize = options.get(EditorOption.suggestFontSize) || configuration.fontInfo.fontSize;
-			const lineHeight = options.get(EditorOption.suggestLineHeight) || configuration.fontInfo.lineHeight;
-			const fontWeight = configuration.fontInfo.fontWeight;
+			const fontInfo = options.get(EditorOption.fontInfo);
+			const fontFamily = fontInfo.fontFamily;
+			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
+			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
+			const fontWeight = fontInfo.fontWeight;
 			const fontSizePx = `${fontSize}px`;
 			const lineHeightPx = `${lineHeight}px`;
 
@@ -145,8 +145,8 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 
 		configureFont();
 
-		data.disposables.add(Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
-			.filter(e => e.fontInfo || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight))
+		data.disposables.add(Event.chain<ConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+			.filter(e => e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight))
 			.on(configureFont, null));
 
 		return data;
@@ -277,8 +277,8 @@ class SuggestionDetails {
 
 		this.configureFont();
 
-		Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
-			.filter(e => e.fontInfo)
+		Event.chain<ConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+			.filter(e => e.hasChanged(EditorOption.fontInfo))
 			.on(this.configureFont, this, this.disposables);
 
 		markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this, this.disposables);
@@ -390,12 +390,12 @@ class SuggestionDetails {
 	}
 
 	private configureFont() {
-		const configuration = this.editor.getConfiguration();
 		const options = this.editor.getOptions();
-		const fontFamily = configuration.fontInfo.fontFamily;
-		const fontSize = options.get(EditorOption.suggestFontSize) || configuration.fontInfo.fontSize;
-		const lineHeight = options.get(EditorOption.suggestLineHeight) || configuration.fontInfo.lineHeight;
-		const fontWeight = configuration.fontInfo.fontWeight;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		const fontFamily = fontInfo.fontFamily;
+		const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
+		const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
+		const fontWeight = fontInfo.fontWeight;
 		const fontSizePx = `${fontSize}px`;
 		const lineHeightPx = `${lineHeight}px`;
 
@@ -1071,7 +1071,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			return;
 		}
 
-		const lineHeight = this.editor.getConfiguration().fontInfo.lineHeight;
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
 		const cursorX = editorCoords.left + cursorCoords.left;
@@ -1138,9 +1138,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private get unfocusedHeight(): number {
-		const configuration = this.editor.getConfiguration();
 		const options = this.editor.getOptions();
-		return options.get(EditorOption.suggestLineHeight) || configuration.fontInfo.lineHeight;
+		return options.get(EditorOption.suggestLineHeight) || options.get(EditorOption.fontInfo).lineHeight;
 	}
 
 	// IDelegate

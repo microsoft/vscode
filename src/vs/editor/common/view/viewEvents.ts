@@ -6,7 +6,7 @@
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
-import { IConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -34,12 +34,10 @@ export class ViewConfigurationChangedEvent {
 
 	public readonly type = ViewEventType.ViewConfigurationChanged;
 
-	public readonly _source: IConfigurationChangedEvent;
-	public readonly fontInfo: boolean;
+	public readonly _source: ConfigurationChangedEvent;
 
-	constructor(source: IConfigurationChangedEvent) {
+	constructor(source: ConfigurationChangedEvent) {
 		this._source = source;
-		this.fontInfo = source.fontInfo;
 	}
 
 	public hasChanged(id: EditorOption): boolean {

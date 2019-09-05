@@ -32,12 +32,13 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		const options = this._context.configuration.options;
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
+		this._spaceWidth = fontInfo.spaceWidth;
 		this._enabled = options.get(EditorOption.renderIndentGuides);
 		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
-		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
+		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 
 		this._renderResult = null;
 
@@ -55,12 +56,13 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
+		this._spaceWidth = fontInfo.spaceWidth;
 		this._enabled = options.get(EditorOption.renderIndentGuides);
 		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
-		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
+		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		return true;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {

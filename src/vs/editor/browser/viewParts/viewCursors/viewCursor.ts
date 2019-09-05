@@ -52,10 +52,11 @@ export class ViewCursor {
 	constructor(context: ViewContext) {
 		this._context = context;
 		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._cursorStyle = options.get(EditorOption.cursorStyle);
 		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
 
 		this._isVisible = true;
@@ -66,7 +67,7 @@ export class ViewCursor {
 		this._domNode.setHeight(this._lineHeight);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
-		Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
+		Configuration.applyFontInfo(this._domNode, fontInfo);
 		this._domNode.setDisplay('none');
 
 		this._position = new Position(1, 1);
@@ -99,12 +100,13 @@ export class ViewCursor {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._cursorStyle = options.get(EditorOption.cursorStyle);
 		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
-		Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
+		Configuration.applyFontInfo(this._domNode, fontInfo);
 
 		return true;
 	}

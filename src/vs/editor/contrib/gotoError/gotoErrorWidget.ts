@@ -147,7 +147,7 @@ class MessageWidget {
 			}
 		}
 
-		const fontInfo = this._editor.getConfiguration().fontInfo;
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		const scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
 		const scrollHeight = fontInfo.lineHeight * this._lines;
 		this._scrollable.setScrollDimensions({ scrollWidth, scrollHeight });

@@ -94,10 +94,11 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		const conf = this._context.configuration;
 		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
 		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
@@ -107,7 +108,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName('view-lines');
-		Configuration.applyFontInfo(this.domNode, conf.editor.fontInfo);
+		Configuration.applyFontInfo(this.domNode, fontInfo);
 
 		// --- width & height
 		this._maxLineWidth = 0;
@@ -145,17 +146,17 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			this._maxLineWidth = 0;
 		}
 
-		const conf = this._context.configuration;
 		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
 		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
-		Configuration.applyFontInfo(this.domNode, conf.editor.fontInfo);
+		Configuration.applyFontInfo(this.domNode, fontInfo);
 
 		this._onOptionsMaybeChanged();
 

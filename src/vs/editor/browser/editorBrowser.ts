@@ -6,7 +6,7 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { OverviewRulerPosition, IConfigurationChangedEvent, EditorLayoutInfo, InternalEditorOptions, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -351,7 +351,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
 	 * @event
 	 */
-	onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
+	onDidChangeConfiguration(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the cursor position has changed.
 	 * @event
@@ -534,8 +534,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Returns the current editor's configuration
 	 */
-	getConfiguration(): InternalEditorOptions;
-
 	getOptions(): IComputedEditorOptions;
 
 	getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;

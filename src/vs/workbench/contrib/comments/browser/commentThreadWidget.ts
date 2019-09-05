@@ -129,7 +129,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._styleElement = dom.createStyleSheet(this.domNode);
 		this._globalToDispose.add(this.themeService.onThemeChange(this._applyTheme, this));
 		this._globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
-			if (e.fontInfo) {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._applyTheme(this.themeService.getTheme());
 			}
 		}));
@@ -855,7 +855,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { color: ${errorForeground}; }`);
 		}
 
-		const fontInfo = this.editor.getConfiguration().fontInfo;
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		content.push(`.monaco-editor .review-widget .body code {
 			font-family: ${fontInfo.fontFamily};
 			font-size: ${fontInfo.fontSize}px;

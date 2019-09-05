@@ -9,7 +9,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -61,8 +61,8 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 			}
 		});
 
-		this._register(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.fontInfo) {
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this.updateFont();
 			}
 		}));
@@ -152,7 +152,7 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 
 	private layout(): void {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
-		const { fontSize, lineHeight } = this._editor.getConfiguration().fontInfo;
+		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 
 		this._domNode.style.fontSize = `${fontSize}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
@@ -182,8 +182,8 @@ export class GlyphHoverWidget extends Widget implements IOverlayWidget {
 
 		this._showAtLineNumber = -1;
 
-		this._register(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.fontInfo) {
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this.updateFont();
 			}
 		}));

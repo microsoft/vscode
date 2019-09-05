@@ -63,7 +63,7 @@ export class ExceptionWidget extends ZoneWidget {
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('exception-widget');
 		// Set the font size and line height to the one from the editor configuration.
-		const fontInfo = this.editor.getConfiguration().fontInfo;
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		container.style.fontSize = `${fontInfo.fontSize}px`;
 		container.style.lineHeight = `${fontInfo.lineHeight}px`;
 

@@ -35,7 +35,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IConfigurationChangedEvent, IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
@@ -583,7 +583,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (activeCodeEditor) {
 
 			// Hook Listener for Configuration changes
-			this.activeEditorListeners.add(activeCodeEditor.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
+			this.activeEditorListeners.add(activeCodeEditor.onDidChangeConfiguration((event: ConfigurationChangedEvent) => {
 				if (event.hasChanged(EditorOption.accessibilitySupport)) {
 					this.onScreenReaderModeChange(activeCodeEditor);
 				}

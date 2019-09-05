@@ -700,7 +700,7 @@ export interface IEditorOptions {
 	/**
 	 * The font weight
 	 */
-	fontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter' | 'initial' | 'inherit' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+	fontWeight?: string;
 	/**
 	 * The font size
 	 */
@@ -728,6 +728,10 @@ export type IExtendedEditorOptions = IEditorOptions & {
 	 * Do not use, this is a computed option.
 	 */
 	pixelRatio?: undefined;
+	/**
+	 * Do not use, this is a computed option.
+	 */
+	fontInfo?: undefined;
 	/**
 	 * Do not use, this is a computed option.
 	 */
@@ -868,87 +872,41 @@ export enum TextEditorCursorStyle {
  */
 export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin' {
 	switch (cursorStyle) {
-		case TextEditorCursorStyle.Line:
-			return 'line';
-		case TextEditorCursorStyle.Block:
-			return 'block';
-		case TextEditorCursorStyle.Underline:
-			return 'underline';
-		case TextEditorCursorStyle.LineThin:
-			return 'line-thin';
-		case TextEditorCursorStyle.BlockOutline:
-			return 'block-outline';
-		case TextEditorCursorStyle.UnderlineThin:
-			return 'underline-thin';
+		case TextEditorCursorStyle.Line: return 'line';
+		case TextEditorCursorStyle.Block: return 'block';
+		case TextEditorCursorStyle.Underline: return 'underline';
+		case TextEditorCursorStyle.LineThin: return 'line-thin';
+		case TextEditorCursorStyle.BlockOutline: return 'block-outline';
+		case TextEditorCursorStyle.UnderlineThin: return 'underline-thin';
 	}
 }
 
 function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin'): TextEditorCursorStyle {
 	switch (cursorStyle) {
-		case 'line':
-			return TextEditorCursorStyle.Line;
-		case 'block':
-			return TextEditorCursorStyle.Block;
-		case 'underline':
-			return TextEditorCursorStyle.Underline;
-		case 'line-thin':
-			return TextEditorCursorStyle.LineThin;
-		case 'block-outline':
-			return TextEditorCursorStyle.BlockOutline;
-		case 'underline-thin':
-			return TextEditorCursorStyle.UnderlineThin;
-	}
-}
-
-/**
- * Internal configuration options (transformed or computed) for the editor.
- */
-export class InternalEditorOptions {
-	readonly _internalEditorOptionsBrand: void;
-
-	// ---- grouped options
-	readonly fontInfo: FontInfo;
-
-	/**
-	 * @internal
-	 */
-	constructor(source: {
-		fontInfo: FontInfo;
-	}) {
-		this.fontInfo = source.fontInfo;
-	}
-
-	/**
-	 * @internal
-	 */
-	public equals(other: InternalEditorOptions): boolean {
-		return (
-			this.fontInfo.equals(other.fontInfo)
-		);
-	}
-
-	/**
-	 * @internal
-	 */
-	public createChangeEvent(newOpts: InternalEditorOptions, changeEvent: ChangedEditorOptions | null): IConfigurationChangedEvent {
-		return {
-			hasChanged: (id: EditorOption) => {
-				if (!changeEvent) {
-					return false;
-				}
-				return changeEvent.get(id);
-			},
-			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
-		};
+		case 'line': return TextEditorCursorStyle.Line;
+		case 'block': return TextEditorCursorStyle.Block;
+		case 'underline': return TextEditorCursorStyle.Underline;
+		case 'line-thin': return TextEditorCursorStyle.LineThin;
+		case 'block-outline': return TextEditorCursorStyle.BlockOutline;
+		case 'underline-thin': return TextEditorCursorStyle.UnderlineThin;
 	}
 }
 
 /**
  * An event describing that the configuration of the editor has changed.
  */
-export interface IConfigurationChangedEvent {
-	hasChanged(id: EditorOption): boolean;
-	readonly fontInfo: boolean;
+export class ConfigurationChangedEvent {
+	private readonly _values: boolean[];
+	/**
+	 * @internal
+	 */
+	constructor(values: boolean[]) {
+		this._values = values;
+	}
+
+	public hasChanged(id: EditorOption): boolean {
+		return this._values[id];
+	}
 }
 
 export interface IEnvironmentalOptions {
@@ -992,6 +950,16 @@ function _stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: T[]
 	return value;
 }
 
+function _clamp(n: number, min: number, max: number): number {
+	if (n < min) {
+		return min;
+	}
+	if (n > max) {
+		return max;
+	}
+	return n;
+}
+
 function _clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
 	let r: number;
 	if (typeof value === 'undefined') {
@@ -1008,11 +976,14 @@ function _clampedInt(value: any, defaultValue: number, minimum: number, maximum:
 }
 
 function _float(value: any, defaultValue: number): number {
-	let r = parseFloat(value);
-	if (isNaN(r)) {
-		r = defaultValue;
+	if (typeof value === 'number') {
+		return value;
 	}
-	return r;
+	if (typeof value === 'undefined') {
+		return defaultValue;
+	}
+	const r = parseFloat(value);
+	return (isNaN(r) ? defaultValue : r);
 }
 
 function _wrappingIndentFromString(wrappingIndent: 'none' | 'same' | 'indent' | 'deepIndent'): WrappingIndent {
@@ -1026,16 +997,11 @@ function _wrappingIndentFromString(wrappingIndent: 'none' | 'same' | 'indent' | 
 
 function _cursorBlinkingStyleFromString(cursorBlinkingStyle: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid'): TextEditorCursorBlinkingStyle {
 	switch (cursorBlinkingStyle) {
-		case 'blink':
-			return TextEditorCursorBlinkingStyle.Blink;
-		case 'smooth':
-			return TextEditorCursorBlinkingStyle.Smooth;
-		case 'phase':
-			return TextEditorCursorBlinkingStyle.Phase;
-		case 'expand':
-			return TextEditorCursorBlinkingStyle.Expand;
-		case 'solid':
-			return TextEditorCursorBlinkingStyle.Solid;
+		case 'blink': return TextEditorCursorBlinkingStyle.Blink;
+		case 'smooth': return TextEditorCursorBlinkingStyle.Smooth;
+		case 'phase': return TextEditorCursorBlinkingStyle.Phase;
+		case 'expand': return TextEditorCursorBlinkingStyle.Expand;
+		case 'solid': return TextEditorCursorBlinkingStyle.Solid;
 	}
 }
 
@@ -1044,24 +1010,9 @@ function _scrollbarVisibilityFromString(visibility: string | undefined, defaultV
 		return defaultValue;
 	}
 	switch (visibility) {
-		case 'hidden':
-			return ScrollbarVisibility.Hidden;
-		case 'visible':
-			return ScrollbarVisibility.Visible;
-		default:
-			return ScrollbarVisibility.Auto;
-	}
-}
-
-/**
- * @internal
- */
-export class InternalEditorOptionsFactory {
-
-	public static createInternalEditorOptions(env: IEnvironmentalOptions) {
-		return new InternalEditorOptions({
-			fontInfo: env.fontInfo,
-		});
+		case 'hidden': return ScrollbarVisibility.Hidden;
+		case 'visible': return ScrollbarVisibility.Visible;
+		default: return ScrollbarVisibility.Auto;
 	}
 }
 
@@ -1137,19 +1088,6 @@ export interface IRawEditorOptionsBag extends IExtendedEditorOptions {
 /**
  * @internal
  */
-export class RawEditorOptions {
-	private readonly _values: any[] = [];
-	public _read<T>(id: EditorOption): T | undefined {
-		return this._values[id];
-	}
-	public _write<T>(id: EditorOption, value: T | undefined): void {
-		this._values[id] = value;
-	}
-}
-
-/**
- * @internal
- */
 export class ValidatedEditorOptions {
 	private readonly _values: any[] = [];
 	public _read<T>(option: EditorOption): T {
@@ -1183,19 +1121,6 @@ export class ComputedEditorOptions implements IComputedEditorOptions {
 	}
 }
 
-/**
- * @internal
- */
-export class ChangedEditorOptions {
-	private readonly _values: boolean[] = [];
-	public get(id: EditorOption): boolean {
-		return this._values[id];
-	}
-	public _write(id: EditorOption, value: boolean): void {
-		this._values[id] = value;
-	}
-}
-
 //#region IEditorOption
 
 /**
@@ -1211,14 +1136,6 @@ export interface IEditorOption<K1 extends EditorOption, K2 extends keyof IExtend
 	readonly id: K1;
 	readonly name: K2;
 	readonly defaultValue: T2;
-	/**
-	 * @internal
-	 */
-	read(options: IRawEditorOptionsBag): IExtendedEditorOptions[K2] | undefined;
-	/**
-	 * @internal
-	 */
-	mix(a: IExtendedEditorOptions[K2] | undefined, b: IExtendedEditorOptions[K2] | undefined): IExtendedEditorOptions[K2] | undefined;
 	/**
 	 * @internal
 	 */
@@ -1248,21 +1165,6 @@ abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IExten
 		this.defaultValue = defaultValue;
 		for (const dep of deps) {
 			assert.ok(dep < id);
-		}
-	}
-	public read(options: IRawEditorOptionsBag): IExtendedEditorOptions[K2] | undefined {
-		return options[<any>this.name];
-	}
-	public mix(a: IExtendedEditorOptions[K2] | undefined, b: IExtendedEditorOptions[K2] | undefined): IExtendedEditorOptions[K2] | undefined {
-		switch (typeof b) {
-			case 'bigint': return b;
-			case 'boolean': return b;
-			case 'function': return b;
-			case 'number': return b;
-			case 'object': return (Array.isArray(b) || typeof a !== 'object' ? b : objects.mixin(objects.mixin({}, a), b));
-			case 'string': return b;
-			default:
-				return a;
 		}
 	}
 	public abstract validate(input: IExtendedEditorOptions[K2] | undefined): T2;
@@ -1652,12 +1554,25 @@ class EditorPixelRatio<K1 extends EditorOption, K2 extends PossibleKeyName<undef
 
 //#region lineHeight
 
-class EditorLineHeight<K1 extends EditorOption, K2 extends PossibleKeyName<number>> extends BaseEditorOption<K1, K2, number> {
-	public validate(input: number | undefined): number {
-		return this.defaultValue;
-	}
+class EditorLineHeight<K1 extends EditorOption, K2 extends PossibleKeyName<number>> extends EditorIntOption<K1, K2> {
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		return env.fontInfo.lineHeight;
+	}
+}
+
+//#endregion
+
+//#region fontInfo
+
+class EditorFontInfo<K1 extends EditorOption, K2 extends PossibleKeyName<undefined>> extends BaseEditorOption<K1, K2, undefined, FontInfo> {
+	public validate(input: number | undefined): undefined {
+		return undefined;
+	}
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: undefined): FontInfo {
+		return env.fontInfo;
+	}
+	public equals(a: FontInfo, b: FontInfo): boolean {
+		return a.equals(b);
 	}
 }
 
@@ -2265,9 +2180,6 @@ export interface EditorWrappingInfo {
 }
 
 class EditorWrappingInfoComputer<K1 extends EditorOption, K2 extends PossibleKeyName<undefined>> extends BaseEditorOption<K1, K2, undefined, EditorWrappingInfo> {
-	public mix(a: undefined, b: undefined): undefined {
-		return undefined;
-	}
 	public validate(input: undefined): undefined {
 		return undefined;
 	}
@@ -2388,7 +2300,11 @@ export const enum EditorOption {
 	fixedOverflowWidgets,
 	folding,
 	foldingStrategy,
+	fontFamily,
+	fontInfo,
 	fontLigatures,
+	fontSize,
+	fontWeight,
 	formatOnPaste,
 	formatOnType,
 	glyphMargin,
@@ -2397,6 +2313,7 @@ export const enum EditorOption {
 	highlightActiveIndentGuide,
 	hover,
 	inDiffEditor,
+	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
 	lineHeight,
@@ -2494,7 +2411,11 @@ export const EditorOptions = {
 	fixedOverflowWidgets: registerEditorOption(new EditorBooleanOption(EditorOption.fixedOverflowWidgets, 'fixedOverflowWidgets', false)),
 	folding: registerEditorOption(new EditorBooleanOption(EditorOption.folding, 'folding', true)),
 	foldingStrategy: registerEditorOption(new EditorEnumOption(EditorOption.foldingStrategy, 'foldingStrategy', 'auto', ['auto', 'indentation'], (x: 'auto' | 'indentation') => x)),
+	fontFamily: registerEditorOption(new EditorStringOption(EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily)),
+	fontInfo: registerEditorOption(new EditorFontInfo(EditorOption.fontInfo, 'fontInfo', undefined)),
 	fontLigatures: registerEditorOption(new EditorBooleanOption(EditorOption.fontLigatures, 'fontLigatures', true)),
+	fontSize: registerEditorOption(new EditorFloatOption(EditorOption.fontSize, 'fontSize', EDITOR_FONT_DEFAULTS.fontSize, x => _clamp(x, 0, 100))),
+	fontWeight: registerEditorOption(new EditorStringOption(EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight)),
 	formatOnPaste: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnPaste, 'formatOnPaste', false)),
 	formatOnType: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnType, 'formatOnType', false)),
 	glyphMargin: registerEditorOption(new EditorBooleanOption(EditorOption.glyphMargin, 'glyphMargin', true)),
@@ -2509,11 +2430,12 @@ export const EditorOptions = {
 		sticky: true
 	})),
 	inDiffEditor: registerEditorOption(new EditorBooleanOption(EditorOption.inDiffEditor, 'inDiffEditor', false)),
+	letterSpacing: registerEditorOption(new EditorFloatOption(EditorOption.letterSpacing, 'letterSpacing', EDITOR_FONT_DEFAULTS.letterSpacing, x => _clamp(x, -5, 20))),
 	lightbulb: registerEditorOption(new EditorLightbulb(EditorOption.lightbulb, 'lightbulb', {
 		enabled: true
 	})),
 	lineDecorationsWidth: registerEditorOption(new EditorPassthroughOption(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10)),
-	lineHeight: registerEditorOption(new EditorLineHeight(EditorOption.lineHeight, 'lineHeight', EDITOR_FONT_DEFAULTS.lineHeight)),
+	lineHeight: registerEditorOption(new EditorLineHeight(EditorOption.lineHeight, 'lineHeight', EDITOR_FONT_DEFAULTS.lineHeight, 0, 150)),
 	lineNumbers: registerEditorOption(new EditorRenderLineNumbersOption(EditorOption.lineNumbers, 'lineNumbers', { renderType: RenderLineNumbersType.On, renderFn: null })),
 	lineNumbersMinChars: registerEditorOption(new EditorIntOption(EditorOption.lineNumbersMinChars, 'lineNumbersMinChars', 5, 1, 10)),
 	links: registerEditorOption(new EditorBooleanOption(EditorOption.links, 'links', true)),

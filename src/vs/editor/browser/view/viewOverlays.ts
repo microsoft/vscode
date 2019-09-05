@@ -257,12 +257,12 @@ export class MarginViewOverlays extends ViewOverlays {
 		this.domNode.setClassName('margin-view-overlays');
 		this.domNode.setWidth(1);
 
-		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+		Configuration.applyFontInfo(this.domNode, options.get(EditorOption.fontInfo));
 	}
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 		const options = this._context.configuration.options;
+		Configuration.applyFontInfo(this.domNode, options.get(EditorOption.fontInfo));
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._contentLeft = layoutInfo.contentLeft;
 		return super.onConfigurationChanged(e) || true;

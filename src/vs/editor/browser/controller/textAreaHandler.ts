@@ -121,7 +121,6 @@ export class TextAreaHandler extends ViewPart {
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
 
-		const conf = this._context.configuration.editor;
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
@@ -129,7 +128,7 @@ export class TextAreaHandler extends ViewPart {
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.contentHeight;
-		this._fontInfo = conf.fontInfo;
+		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
@@ -374,7 +373,6 @@ export class TextAreaHandler extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const conf = this._context.configuration.editor;
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
@@ -382,7 +380,7 @@ export class TextAreaHandler extends ViewPart {
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.contentHeight;
-		this._fontInfo = conf.fontInfo;
+		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);

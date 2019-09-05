@@ -82,7 +82,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	updateHeight(): void {
 		const options = this._editor.getOptions();
-		const { fontInfo } = this._editor.getConfiguration();
+		const fontInfo = options.get(EditorOption.fontInfo);
 		const lineHeight = options.get(EditorOption.lineHeight);
 		this._domNode.style.height = `${Math.round(lineHeight * 1.1)}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;

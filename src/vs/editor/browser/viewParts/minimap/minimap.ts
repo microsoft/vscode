@@ -110,7 +110,7 @@ class MinimapOptions {
 		const options = configuration.options;
 		const pixelRatio = options.get(EditorOption.pixelRatio);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const fontInfo = configuration.editor.fontInfo;
+		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
 		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);

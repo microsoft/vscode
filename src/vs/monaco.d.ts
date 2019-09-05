@@ -3093,7 +3093,7 @@ declare namespace monaco.editor {
 		/**
 		 * The font weight
 		 */
-		fontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter' | 'initial' | 'inherit' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+		fontWeight?: string;
 		/**
 		 * The font size
 		 */
@@ -3121,6 +3121,10 @@ declare namespace monaco.editor {
 		 * Do not use, this is a computed option.
 		 */
 		pixelRatio?: undefined;
+		/**
+		 * Do not use, this is a computed option.
+		 */
+		fontInfo?: undefined;
 		/**
 		 * Do not use, this is a computed option.
 		 */
@@ -3257,19 +3261,10 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Internal configuration options (transformed or computed) for the editor.
-	 */
-	export class InternalEditorOptions {
-		readonly _internalEditorOptionsBrand: void;
-		readonly fontInfo: FontInfo;
-	}
-
-	/**
 	 * An event describing that the configuration of the editor has changed.
 	 */
-	export interface IConfigurationChangedEvent {
+	export class ConfigurationChangedEvent {
 		hasChanged(id: EditorOption): boolean;
-		readonly fontInfo: boolean;
 	}
 
 	export interface IEnvironmentalOptions {
@@ -3517,76 +3512,81 @@ declare namespace monaco.editor {
 		fixedOverflowWidgets = 24,
 		folding = 25,
 		foldingStrategy = 26,
-		fontLigatures = 27,
-		formatOnPaste = 28,
-		formatOnType = 29,
-		glyphMargin = 30,
-		gotoLocation = 31,
-		hideCursorInOverviewRuler = 32,
-		highlightActiveIndentGuide = 33,
-		hover = 34,
-		inDiffEditor = 35,
-		lightbulb = 36,
-		lineDecorationsWidth = 37,
-		lineHeight = 38,
-		lineNumbers = 39,
-		lineNumbersMinChars = 40,
-		links = 41,
-		matchBrackets = 42,
-		minimap = 43,
-		mouseStyle = 44,
-		mouseWheelScrollSensitivity = 45,
-		mouseWheelZoom = 46,
-		multiCursorMergeOverlapping = 47,
-		multiCursorModifier = 48,
-		occurrencesHighlight = 49,
-		overviewRulerBorder = 50,
-		overviewRulerLanes = 51,
-		parameterHints = 52,
-		quickSuggestions = 53,
-		quickSuggestionsDelay = 54,
-		readOnly = 55,
-		renderControlCharacters = 56,
-		renderIndentGuides = 57,
-		renderFinalNewline = 58,
-		renderLineHighlight = 59,
-		renderWhitespace = 60,
-		revealHorizontalRightPadding = 61,
-		roundedSelection = 62,
-		rulers = 63,
-		scrollbar = 64,
-		scrollBeyondLastColumn = 65,
-		scrollBeyondLastLine = 66,
-		selectionClipboard = 67,
-		selectionHighlight = 68,
-		selectOnLineNumbers = 69,
-		showFoldingControls = 70,
-		showUnused = 71,
-		snippetSuggestions = 72,
-		smoothScrolling = 73,
-		stopRenderingLineAfter = 74,
-		suggestFontSize = 75,
-		suggestLineHeight = 76,
-		suggestOnTriggerCharacters = 77,
-		suggestSelection = 78,
-		tabCompletion = 79,
-		useTabStops = 80,
-		wordSeparators = 81,
-		wordWrap = 82,
-		wordWrapBreakAfterCharacters = 83,
-		wordWrapBreakBeforeCharacters = 84,
-		wordWrapBreakObtrusiveCharacters = 85,
-		wordWrapColumn = 86,
-		wordWrapMinified = 87,
-		wrappingIndent = 88,
-		ariaLabel = 89,
-		disableMonospaceOptimizations = 90,
-		editorClassName = 91,
-		pixelRatio = 92,
-		tabFocusMode = 93,
-		suggest = 94,
-		layoutInfo = 95,
-		wrappingInfo = 96
+		fontFamily = 27,
+		fontInfo = 28,
+		fontLigatures = 29,
+		fontSize = 30,
+		fontWeight = 31,
+		formatOnPaste = 32,
+		formatOnType = 33,
+		glyphMargin = 34,
+		gotoLocation = 35,
+		hideCursorInOverviewRuler = 36,
+		highlightActiveIndentGuide = 37,
+		hover = 38,
+		inDiffEditor = 39,
+		letterSpacing = 40,
+		lightbulb = 41,
+		lineDecorationsWidth = 42,
+		lineHeight = 43,
+		lineNumbers = 44,
+		lineNumbersMinChars = 45,
+		links = 46,
+		matchBrackets = 47,
+		minimap = 48,
+		mouseStyle = 49,
+		mouseWheelScrollSensitivity = 50,
+		mouseWheelZoom = 51,
+		multiCursorMergeOverlapping = 52,
+		multiCursorModifier = 53,
+		occurrencesHighlight = 54,
+		overviewRulerBorder = 55,
+		overviewRulerLanes = 56,
+		parameterHints = 57,
+		quickSuggestions = 58,
+		quickSuggestionsDelay = 59,
+		readOnly = 60,
+		renderControlCharacters = 61,
+		renderIndentGuides = 62,
+		renderFinalNewline = 63,
+		renderLineHighlight = 64,
+		renderWhitespace = 65,
+		revealHorizontalRightPadding = 66,
+		roundedSelection = 67,
+		rulers = 68,
+		scrollbar = 69,
+		scrollBeyondLastColumn = 70,
+		scrollBeyondLastLine = 71,
+		selectionClipboard = 72,
+		selectionHighlight = 73,
+		selectOnLineNumbers = 74,
+		showFoldingControls = 75,
+		showUnused = 76,
+		snippetSuggestions = 77,
+		smoothScrolling = 78,
+		stopRenderingLineAfter = 79,
+		suggestFontSize = 80,
+		suggestLineHeight = 81,
+		suggestOnTriggerCharacters = 82,
+		suggestSelection = 83,
+		tabCompletion = 84,
+		useTabStops = 85,
+		wordSeparators = 86,
+		wordWrap = 87,
+		wordWrapBreakAfterCharacters = 88,
+		wordWrapBreakBeforeCharacters = 89,
+		wordWrapBreakObtrusiveCharacters = 90,
+		wordWrapColumn = 91,
+		wordWrapMinified = 92,
+		wrappingIndent = 93,
+		ariaLabel = 94,
+		disableMonospaceOptimizations = 95,
+		editorClassName = 96,
+		pixelRatio = 97,
+		tabFocusMode = 98,
+		suggest = 99,
+		layoutInfo = 100,
+		wrappingInfo = 101
 	}
 
 	export const EditorOptions: {
@@ -3617,7 +3617,11 @@ declare namespace monaco.editor {
 		fixedOverflowWidgets: IEditorOption<EditorOption.fixedOverflowWidgets, "fixedOverflowWidgets", boolean, boolean>;
 		folding: IEditorOption<EditorOption.folding, "folding", boolean, boolean>;
 		foldingStrategy: IEditorOption<EditorOption.foldingStrategy, "foldingStrategy", "auto" | "indentation", "auto" | "indentation">;
+		fontFamily: IEditorOption<EditorOption.fontFamily, "fontFamily", string, string>;
+		fontInfo: IEditorOption<EditorOption.fontInfo, "fontInfo", undefined, any>;
 		fontLigatures: IEditorOption<EditorOption.fontLigatures, "fontLigatures", boolean, boolean>;
+		fontSize: IEditorOption<EditorOption.fontSize, "fontSize", number, number>;
+		fontWeight: IEditorOption<EditorOption.fontWeight, "fontWeight", string, string>;
 		formatOnPaste: IEditorOption<EditorOption.formatOnPaste, "formatOnPaste", boolean, boolean>;
 		formatOnType: IEditorOption<EditorOption.formatOnType, "formatOnType", boolean, boolean>;
 		glyphMargin: IEditorOption<EditorOption.glyphMargin, "glyphMargin", boolean, boolean>;
@@ -3626,6 +3630,7 @@ declare namespace monaco.editor {
 		highlightActiveIndentGuide: IEditorOption<EditorOption.highlightActiveIndentGuide, "highlightActiveIndentGuide", boolean, boolean>;
 		hover: IEditorOption<EditorOption.hover, "hover", InternalEditorHoverOptions, InternalEditorHoverOptions>;
 		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, "inDiffEditor", boolean, boolean>;
+		letterSpacing: IEditorOption<EditorOption.letterSpacing, "letterSpacing", number, number>;
 		lightbulb: IEditorOption<EditorOption.lightbulb, "lightbulb", any, any>;
 		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, "lineDecorationsWidth", string | number, string | number>;
 		lineHeight: IEditorOption<EditorOption.lineHeight, "lineHeight", number, number>;
@@ -4019,7 +4024,7 @@ declare namespace monaco.editor {
 		 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
 		 * @event
 		 */
-		onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
+		onDidChangeConfiguration(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
 		/**
 		 * An event emitted when the cursor position has changed.
 		 * @event
@@ -4147,7 +4152,6 @@ declare namespace monaco.editor {
 		/**
 		 * Returns the current editor's configuration
 		 */
-		getConfiguration(): InternalEditorOptions;
 		getOptions(): IComputedEditorOptions;
 		getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 		/**
@@ -4392,6 +4396,7 @@ declare namespace monaco.editor {
 		readonly spaceWidth: number;
 		readonly maxDigitWidth: number;
 	}
+
 	export class BareFontInfo {
 		readonly _bareFontInfoBrand: void;
 		readonly zoomLevel: number;

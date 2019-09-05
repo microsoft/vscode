@@ -205,7 +205,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}));
 		this._localToDispose.add(this._editor.onDidChangeConfiguration(e => {
-			if (e.fontInfo) {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				for (const lens of this._lenses) {
 					lens.updateHeight();
 				}

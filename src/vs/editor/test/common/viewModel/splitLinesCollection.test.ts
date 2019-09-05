@@ -92,6 +92,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: SplitLinesCollection) => void): void {
 		const config = new TestConfiguration({});
 		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
+		const fontInfo = config.options.get(EditorOption.fontInfo);
 		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wordWrapBreakObtrusiveCharacters = config.options.get(EditorOption.wordWrapBreakObtrusiveCharacters);
@@ -117,7 +118,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			hardWrappingLineMapperFactory,
 			model.getOptions().tabSize,
 			wrappingInfo.wrappingColumn,
-			config.editor.fontInfo.typicalFullwidthCharacterWidth / config.editor.fontInfo.typicalHalfwidthCharacterWidth,
+			fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 			wrappingIndent
 		);
 
@@ -745,6 +746,7 @@ suite('SplitLinesCollection', () => {
 			wrappingIndent: 'indent'
 		});
 		const wrappingInfo = configuration.options.get(EditorOption.wrappingInfo);
+		const fontInfo = configuration.options.get(EditorOption.fontInfo);
 		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wordWrapBreakObtrusiveCharacters = configuration.options.get(EditorOption.wordWrapBreakObtrusiveCharacters);
@@ -761,7 +763,7 @@ suite('SplitLinesCollection', () => {
 			factory,
 			model.getOptions().tabSize,
 			wrappingInfo.wrappingColumn,
-			configuration.editor.fontInfo.typicalFullwidthCharacterWidth / configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
+			fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 			wrappingIndent
 		);
 

@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -110,7 +110,7 @@ export class CursorConfiguration {
 	private readonly _languageIdentifier: LanguageIdentifier;
 	private _electricChars: { [key: string]: boolean; } | null;
 
-	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
+	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
 		return (
 			e.hasChanged(EditorOption.layoutInfo)
 			|| e.hasChanged(EditorOption.wordSeparators)

@@ -41,7 +41,7 @@ export class RenameInputField implements IContentWidget, IDisposable {
 		this._editor.addContentWidget(this);
 
 		this._disposables.add(editor.onDidChangeConfiguration(e => {
-			if (e.fontInfo) {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this.updateFont();
 			}
 		}));
@@ -104,7 +104,7 @@ export class RenameInputField implements IContentWidget, IDisposable {
 			return;
 		}
 
-		const fontInfo = this._editor.getConfiguration().fontInfo;
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		this._inputField.style.fontFamily = fontInfo.fontFamily;
 		this._inputField.style.fontWeight = fontInfo.fontWeight;
 		this._inputField.style.fontSize = `${fontInfo.fontSize}px`;

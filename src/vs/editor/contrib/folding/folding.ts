@@ -18,7 +18,7 @@ import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStat
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { FoldingRegions, FoldingRegion } from './foldingRanges';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IMarginData, IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
@@ -109,7 +109,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 		this._register(this.editor.onDidChangeModel(() => this.onModelChanged()));
 
-		this._register(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
+		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.folding) || e.hasChanged(EditorOption.showFoldingControls) || e.hasChanged(EditorOption.foldingStrategy)) {
 				let oldIsEnabled = this._isEnabled;
 				const options = this.editor.getOptions();

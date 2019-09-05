@@ -20,7 +20,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, InternalEditorOptions, IComputedEditorOptions, EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, IComputedEditorOptions, EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -480,7 +480,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}));
 
 		this._register(editor.onDidChangeConfiguration((e) => {
-			if (e.fontInfo && editor.getModel()) {
+			if (e.hasChanged(EditorOption.fontInfo) && editor.getModel()) {
 				this._onViewZonesChanged();
 			}
 		}));
@@ -1946,7 +1946,6 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 class InlineViewZonesComputer extends ViewZonesComputer {
 
 	private readonly originalModel: ITextModel;
-	private readonly modifiedEditorConfiguration: InternalEditorOptions;
 	private readonly modifiedEditorOptions: IComputedEditorOptions;
 	private readonly modifiedEditorTabSize: number;
 	private readonly renderIndicators: boolean;
@@ -1954,7 +1953,6 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean) {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
 		this.originalModel = originalEditor.getModel()!;
-		this.modifiedEditorConfiguration = modifiedEditor.getConfiguration();
 		this.modifiedEditorOptions = modifiedEditor.getOptions();
 		this.modifiedEditorTabSize = modifiedEditor.getModel()!.getOptions().tabSize;
 		this.renderIndicators = renderIndicators;
@@ -1996,14 +1994,15 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let sb = createStringBuilder(10000);
 		let marginHTML: string[] = [];
 		const layoutInfo = this.modifiedEditorOptions.get(EditorOption.layoutInfo);
+		const fontInfo = this.modifiedEditorOptions.get(EditorOption.fontInfo);
 		const lineDecorationsWidth = layoutInfo.decorationsWidth;
 
 		let lineHeight = this.modifiedEditorOptions.get(EditorOption.lineHeight);
-		const typicalHalfwidthCharacterWidth = this.modifiedEditorConfiguration.fontInfo.typicalHalfwidthCharacterWidth;
+		const typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		let maxCharsPerLine = 0;
 		const originalContent: string[] = [];
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-			maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorOptions, this.modifiedEditorTabSize, lineNumber, decorations, sb));
+			maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorOptions, this.modifiedEditorTabSize, lineNumber, decorations, sb));
 			originalContent.push(this.originalModel.getLineContent(lineNumber));
 
 			if (this.renderIndicators) {
@@ -2018,12 +2017,12 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let domNode = document.createElement('div');
 		domNode.className = 'view-lines line-delete';
 		domNode.innerHTML = sb.build();
-		Configuration.applyFontInfoSlow(domNode, this.modifiedEditorConfiguration.fontInfo);
+		Configuration.applyFontInfoSlow(domNode, fontInfo);
 
 		let marginDomNode = document.createElement('div');
 		marginDomNode.className = 'inline-deleted-margin-view-zone';
 		marginDomNode.innerHTML = marginHTML.join('');
-		Configuration.applyFontInfoSlow(marginDomNode, this.modifiedEditorConfiguration.fontInfo);
+		Configuration.applyFontInfoSlow(marginDomNode, fontInfo);
 
 		return {
 			shouldNotShrink: true,
@@ -2042,9 +2041,10 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	private _renderOriginalLine(count: number, originalModel: ITextModel, config: InternalEditorOptions, options: IComputedEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): number {
+	private _renderOriginalLine(count: number, originalModel: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): number {
 		const lineTokens = originalModel.getLineTokens(lineNumber);
 		const lineContent = lineTokens.getLineContent();
+		const fontInfo = options.get(EditorOption.fontInfo);
 
 		const actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
@@ -2060,8 +2060,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, originalModel.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, originalModel.mightContainRTL());
 		const output = renderViewLine(new RenderLineInput(
-			(config.fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations)),
-			config.fontInfo.canUseHalfwidthRightwardsArrow,
+			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations)),
+			fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
 			isBasicASCII,
@@ -2070,7 +2070,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			lineTokens,
 			actualDecorations,
 			tabSize,
-			config.fontInfo.spaceWidth,
+			fontInfo.spaceWidth,
 			options.get(EditorOption.stopRenderingLineAfter),
 			options.get(EditorOption.renderWhitespace),
 			options.get(EditorOption.renderControlCharacters),

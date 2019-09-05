@@ -23,7 +23,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/viewImpl';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
-import { IConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, InternalEditorOptions, IComputedEditorOptions, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { CursorColumns, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -125,8 +125,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidChangeModelDecorations: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>());
 	public readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeModelDecorations.event;
 
-	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangedEvent> = this._register(new Emitter<IConfigurationChangedEvent>());
-	public readonly onDidChangeConfiguration: Event<IConfigurationChangedEvent> = this._onDidChangeConfiguration.event;
+	private readonly _onDidChangeConfiguration: Emitter<ConfigurationChangedEvent> = this._register(new Emitter<ConfigurationChangedEvent>());
+	public readonly onDidChangeConfiguration: Event<ConfigurationChangedEvent> = this._onDidChangeConfiguration.event;
 
 	protected readonly _onDidChangeModel: Emitter<editorCommon.IModelChangedEvent> = this._register(new Emitter<editorCommon.IModelChangedEvent>());
 	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = this._onDidChangeModel.event;
@@ -366,10 +366,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public updateOptions(newOptions: IEditorOptions): void {
 		this._configuration.updateOptions(newOptions);
-	}
-
-	public getConfiguration(): InternalEditorOptions {
-		return this._configuration.editor;
 	}
 
 	public getOptions(): IComputedEditorOptions {
@@ -1308,7 +1304,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public applyFontInfo(target: HTMLElement): void {
-		Configuration.applyFontInfoSlow(target, this._configuration.editor.fontInfo);
+		Configuration.applyFontInfoSlow(target, this._configuration.options.get(EditorOption.fontInfo));
 	}
 
 	protected _attachModel(model: ITextModel | null): void {

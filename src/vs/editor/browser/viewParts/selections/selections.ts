@@ -87,7 +87,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		const options = this._context.configuration.options;
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._roundedSelection = options.get(EditorOption.roundedSelection);
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this._selections = [];
 		this._renderResult = null;
 		this._context.addEventHandler(this);
@@ -105,7 +105,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		const options = this._context.configuration.options;
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._roundedSelection = options.get(EditorOption.roundedSelection);
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		return true;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {

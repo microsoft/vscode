@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -58,7 +58,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e: IConfigurationChangedEvent): void {
+	public onConfigurationChanged(e: ConfigurationChangedEvent): void {
 		const options = this._configuration.options;
 		if (e.hasChanged(EditorOption.lineHeight)) {
 			this._linesLayout.setLineHeight(options.get(EditorOption.lineHeight));
@@ -150,7 +150,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		let isViewportWrapping = wrappingInfo.isViewportWrapping;
 		if (!isViewportWrapping) {
-			const extraHorizontalSpace = options.get(EditorOption.scrollBeyondLastColumn) * this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+			const extraHorizontalSpace = options.get(EditorOption.scrollBeyondLastColumn) * options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 			const whitespaceMinWidth = this._linesLayout.getWhitespaceMinWidth();
 			return Math.max(maxLineWidth + extraHorizontalSpace, viewportWidth, whitespaceMinWidth);
 		}
