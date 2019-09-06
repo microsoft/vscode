@@ -877,12 +877,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	private render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): void {
 		const children = node.children.map(c => asTreeElement(c, viewStateContext));
+		this.tree.setChildren(node === this.root ? null : node, children);
 
 		if (node !== this.root) {
 			this.tree.setCollapsible(node, node.hasChildren);
 		}
 
-		this.tree.setChildren(node === this.root ? null : node, children);
 		this._onDidRender.fire();
 	}
 

@@ -378,9 +378,15 @@ suite('AsyncDataTree', function () {
 		model.get('a').children = [{ id: 'aa' }];
 		await tree.updateChildren(model.get('a'), false);
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 1);
-
 		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
 		assert(hasClass(twistie, 'collapsible'));
 		assert(hasClass(twistie, 'collapsed'));
+
+		model.get('a').children = [];
+		await tree.updateChildren(model.get('a'), false);
+		assert.equal(container.querySelectorAll('.monaco-list-row').length, 1);
+		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
+		assert(!hasClass(twistie, 'collapsible'));
+		assert(!hasClass(twistie, 'collapsed'));
 	});
 });
