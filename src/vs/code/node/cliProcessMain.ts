@@ -147,7 +147,7 @@ export class Main {
 		if (installedExtensionsManifests.some(manifest => isLanguagePackExtension(manifest))) {
 			await this.updateLocalizationsCache();
 		}
-		return failed.length ? Promise.reject(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', '))) : Promise.resolve();
+		return failed.length ? (Promise.reject(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', '))), process.exit(1)) : Promise.resolve();
 	}
 
 	private async installExtension(extension: string, force: boolean): Promise<IExtensionManifest | null> {
