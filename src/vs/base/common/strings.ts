@@ -70,7 +70,7 @@ export function escape(html: string): string {
  * Escapes regular expression characters in a given string
  */
 export function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[\\\{\}\*\+\?\|\^\$\.\[\]\(\)\#]/g, '\\$&');
+	return value.replace(/[\\\{\}\*\+\?\|\^\$\.\[\]\(\)]/g, '\\$&');
 }
 
 /**
