@@ -47,6 +47,7 @@ const isSupportedForPipe = (opt: Option) => {
 		case 'reuse-window':
 		case 'new-window':
 		case 'status':
+		case 'gitCredential':
 			return true;
 		default:
 			return false;
