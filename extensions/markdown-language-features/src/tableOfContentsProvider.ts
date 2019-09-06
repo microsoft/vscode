@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { MarkdownEngine } from './markdownEngine';
 import { Slug, githubSlugifier } from './slugify';
+import { LineData, toLineData } from './lines';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -18,9 +19,7 @@ export interface TocEntry {
 export interface SkinnyTextDocument {
 	readonly uri: vscode.Uri;
 	readonly version: number;
-	readonly lineCount: number;
 	getText(): string;
-	lineAt(line: number): vscode.TextLine;
 }
 
 export class TableOfContentsProvider {
@@ -52,11 +51,12 @@ export class TableOfContentsProvider {
 		const toc: TocEntry[] = [];
 		const tokens = await this.engine.parse(document);
 
+		const lines = toLineData(document.getText());
 		const slugCount = new Map<string, number>();
 
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];
-			const line = document.lineAt(lineNumber);
+			const line: LineData = lines[lineNumber];
 
 			let slug = githubSlugifier.fromHeading(line.text);
 			if (slugCount.has(slug.value)) {
@@ -72,7 +72,9 @@ export class TableOfContentsProvider {
 				text: TableOfContentsProvider.getHeaderText(line.text),
 				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
 				line: lineNumber,
-				location: new vscode.Location(document.uri, line.range)
+				location: new vscode.Location(document.uri, new vscode.Range(
+					new vscode.Position(lineNumber, 0),
+					new vscode.Position(lineNumber, line.text.length)))
 			});
 		}
 
@@ -85,13 +87,13 @@ export class TableOfContentsProvider {
 					break;
 				}
 			}
-			const endLine = typeof end === 'number' ? end : document.lineCount - 1;
+			const endLine = typeof end === 'number' ? end : lines.length - 1;
 			return {
 				...entry,
 				location: new vscode.Location(document.uri,
 					new vscode.Range(
 						entry.location.range.start,
-						new vscode.Position(endLine, document.lineAt(endLine).range.end.character)))
+						new vscode.Position(endLine, lines[endLine].text.length)))
 			};
 		});
 	}

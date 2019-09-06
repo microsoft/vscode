@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+ import { StringDecoder } from 'string_decoder';
+
 import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
@@ -10,6 +12,7 @@ import { Lazy, lazy } from '../util/lazy';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { SkinnyTextDocument } from '../tableOfContentsProvider';
 import { flatten } from '../util/arrays';
+import { DocumentIndex } from '../docIndex';
 
 export interface WorkspaceMarkdownDocumentProvider {
 	getAllMarkdownDocuments(): Thenable<Iterable<SkinnyTextDocument>>;
@@ -26,6 +29,12 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	private readonly _onDidDeleteMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<vscode.Uri>());
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
+	private _docIndex: DocumentIndex;
+
+	constructor() {
+		super();
+		this._docIndex = this._register(new DocumentIndex());
+	}
 
 	async getAllMarkdownDocuments() {
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
@@ -81,8 +90,23 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	}
 
 	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		const doc = await vscode.workspace.openTextDocument(resource);
-		return doc && isMarkdownFile(doc) ? doc : undefined;
+		let result = this._docIndex.getByUri(resource);
+		if (result) {
+			return await vscode.workspace.openTextDocument(resource);
+		}
+
+		let bytes = await vscode.workspace.fs.readFile(resource);
+		// We assume that markdown is in UTF-8
+		let text = new StringDecoder('utf-8').write(Buffer.from(bytes));
+		return new Promise((resolve) => {
+			resolve({
+				uri: resource,
+				version: 0,
+				getText: () => {
+					return text;
+				}
+			});
+		});
 	}
 }
 
