@@ -165,7 +165,10 @@ class GrowSelectionAction extends AbstractSmartSelect {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow },
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow,
+					secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow],
+				},
 				weight: KeybindingWeight.EditorContrib
 			},
 			menubarOpts: {
@@ -191,7 +194,10 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow },
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow,
+					secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow],
+				},
 				weight: KeybindingWeight.EditorContrib
 			},
 			menubarOpts: {
