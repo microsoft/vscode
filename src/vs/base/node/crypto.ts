@@ -8,7 +8,7 @@ import * as crypto from 'crypto';
 import * as stream from 'stream';
 import { once } from 'vs/base/common/functional';
 
-export function checksum(path: string, sha1hash: string): Promise<void> {
+export function checksum(path: string, sha1hash: string | undefined): Promise<void> {
 	const promise = new Promise<string | undefined>((c, e) => {
 		const input = fs.createReadStream(path);
 		const hash = crypto.createHash('sha1');

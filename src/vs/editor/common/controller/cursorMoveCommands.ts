@@ -616,7 +616,29 @@ export namespace CursorMove {
 					* 'value': Number of units to move. Default is '1'.
 					* 'select': If 'true' makes the selection. Default is 'false'.
 				`,
-				constraint: isCursorMoveArgs
+				constraint: isCursorMoveArgs,
+				schema: {
+					'type': 'object',
+					'required': ['to'],
+					'properties': {
+						'to': {
+							'type': 'string',
+							'enum': ['left', 'right', 'up', 'down', 'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter', 'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside']
+						},
+						'by': {
+							'type': 'string',
+							'enum': ['line', 'wrappedLine', 'character', 'halfLine']
+						},
+						'value': {
+							'type': 'number',
+							'default': 1
+						},
+						'select': {
+							'type': 'boolean',
+							'default': false
+						}
+					}
+				}
 			}
 		]
 	};

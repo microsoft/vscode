@@ -17,7 +17,7 @@ export const IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenSe
 
 export interface IQuickOpenService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Asks the container to show the quick open control with the optional prefix set. If the optional parameter
@@ -26,7 +26,7 @@ export interface IQuickOpenService {
 	 *
 	 * The returned promise completes when quick open is closing.
 	 */
-	show(prefix?: string, options?: IShowOptions): Thenable<void>;
+	show(prefix?: string, options?: IShowOptions): Promise<void>;
 
 	/**
 	 * Allows to navigate from the outside in an opened picker.

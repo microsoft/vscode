@@ -10,8 +10,18 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
+export enum WillSaveStateReason {
+	NONE = 0,
+	SHUTDOWN = 1
+}
+
+export interface IWillSaveStateEvent {
+	reason: WillSaveStateReason;
+}
+
 export interface IStorageService {
-	_serviceBrand: any;
+
+	_serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -22,8 +32,16 @@ export interface IStorageService {
 	 * Emitted when the storage is about to persist. This is the right time
 	 * to persist data to ensure it is stored before the application shuts
 	 * down.
+	 *
+	 * The will save state event allows to optionally ask for the reason of
+	 * saving the state, e.g. to find out if the state is saved due to a
+	 * shutdown.
+	 *
+	 * Note: this event may be fired many times, not only on shutdown to prevent
+	 * loss of state in situations where the shutdown is not sufficient to
+	 * persist the data properly.
 	 */
-	readonly onWillSaveState: Event<void>;
+	readonly onWillSaveState: Event<IWillSaveStateEvent>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -54,17 +72,17 @@ export interface IStorageService {
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	getInteger<R extends number | undefined>(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger<R extends number | undefined>(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
+	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
 
 	/**
-	 * Store a string value under the given key to storage. The value will
-	 * be converted to a string.
+	 * Store a value under the given key to storage. The value will be converted to a string.
+	 * Storing either undefined or null will remove the entry under the key.
 	 *
 	 * The scope argument allows to define the scope of the storage
 	 * operation to either the current workspace only or all workspaces.
 	 */
-	store(key: string, value: any, scope: StorageScope): void;
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -73,6 +91,11 @@ export interface IStorageService {
 	 * operation to either the current workspace only or all workspaces.
 	 */
 	remove(key: string, scope: StorageScope): void;
+
+	/**
+	 * Log the contents of the storage to the console.
+	 */
+	logStorage(): void;
 }
 
 export const enum StorageScope {
@@ -93,11 +116,12 @@ export interface IWorkspaceStorageChangeEvent {
 	scope: StorageScope;
 }
 
-export const InMemoryStorageService: IStorageService = new class extends Disposable implements IStorageService {
-	_serviceBrand = undefined;
+export class InMemoryStorageService extends Disposable implements IStorageService {
 
-	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
+	_serviceBrand: undefined;
+
+	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;
 
 	readonly onWillSaveState = Event.None;
 
@@ -130,8 +154,8 @@ export const InMemoryStorageService: IStorageService = new class extends Disposa
 		return value === 'true';
 	}
 
-	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
+	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
 		const value = this.getCache(scope).get(key);
 
 		if (isUndefinedOrNull(value)) {
@@ -141,7 +165,7 @@ export const InMemoryStorageService: IStorageService = new class extends Disposa
 		return parseInt(value, 10);
 	}
 
-	store(key: string, value: any, scope: StorageScope): Promise<void> {
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): Promise<void> {
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {
@@ -177,4 +201,52 @@ export const InMemoryStorageService: IStorageService = new class extends Disposa
 
 		return Promise.resolve();
 	}
-};
+
+	logStorage(): void {
+		logStorage(this.globalCache, this.workspaceCache, 'inMemory', 'inMemory');
+	}
+}
+
+export async function logStorage(global: Map<string, string>, workspace: Map<string, string>, globalPath: string, workspacePath: string): Promise<void> {
+	const safeParse = (value: string) => {
+		try {
+			return JSON.parse(value);
+		} catch (error) {
+			return value;
+		}
+	};
+
+	const globalItems = new Map<string, string>();
+	const globalItemsParsed = new Map<string, string>();
+	global.forEach((value, key) => {
+		globalItems.set(key, value);
+		globalItemsParsed.set(key, safeParse(value));
+	});
+
+	const workspaceItems = new Map<string, string>();
+	const workspaceItemsParsed = new Map<string, string>();
+	workspace.forEach((value, key) => {
+		workspaceItems.set(key, value);
+		workspaceItemsParsed.set(key, safeParse(value));
+	});
+
+	console.group(`Storage: Global (path: ${globalPath})`);
+	let globalValues: { key: string, value: string }[] = [];
+	globalItems.forEach((value, key) => {
+		globalValues.push({ key, value });
+	});
+	console.table(globalValues);
+	console.groupEnd();
+
+	console.log(globalItemsParsed);
+
+	console.group(`Storage: Workspace (path: ${workspacePath})`);
+	let workspaceValues: { key: string, value: string }[] = [];
+	workspaceItems.forEach((value, key) => {
+		workspaceValues.push({ key, value });
+	});
+	console.table(workspaceValues);
+	console.groupEnd();
+
+	console.log(workspaceItemsParsed);
+}

@@ -31,25 +31,26 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 }
 
 export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
-	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
+	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
 	let compilerOptions: { [key: string]: any };
 	if (tsConfig.extends) {
 		compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
+		delete tsConfig.extends;
 	} else {
 		compilerOptions = tsConfig.compilerOptions;
 	}
 	tsConfig.compilerOptions = compilerOptions;
 
+	compilerOptions.noEmit = false;
 	compilerOptions.noUnusedLocals = false;
 	compilerOptions.preserveConstEnums = false;
 	compilerOptions.declaration = false;
 	compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
 
-	delete compilerOptions.types;
-	delete tsConfig.extends;
-	tsConfig.exclude = [];
 
 	options.compilerOptions = compilerOptions;
+
+	console.log(`Running with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
 
 	let result = tss.shake(options);
 	for (let fileName in result) {
@@ -139,8 +140,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 	};
 
 	const allFiles = walkDirRecursive(SRC_FOLDER);
-	for (let i = 0; i < allFiles.length; i++) {
-		const file = allFiles[i];
+	for (const file of allFiles) {
 
 		if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
 			continue;
@@ -244,7 +244,6 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 			let mode = 0;
 			for (let i = 0; i < lines.length; i++) {
 				const line = lines[i];
-
 				if (mode === 0) {
 					if (/\/\/ ESM-comment-begin/.test(line)) {
 						mode = 1;

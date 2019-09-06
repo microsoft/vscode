@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { IChange, ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
 
-function extractCharChangeRepresentation(change: ICharChange, expectedChange: ICharChange): ICharChange {
+function extractCharChangeRepresentation(change: ICharChange, expectedChange: ICharChange | null): ICharChange {
 	let hasOriginal = expectedChange && expectedChange.originalStartLineNumber > 0;
 	let hasModified = expectedChange && expectedChange.modifiedStartLineNumber > 0;
 	return {
@@ -23,9 +23,8 @@ function extractCharChangeRepresentation(change: ICharChange, expectedChange: IC
 }
 
 function extractLineChangeRepresentation(change: ILineChange, expectedChange: ILineChange): IChange | ILineChange {
-	let charChanges: ICharChange[];
 	if (change.charChanges) {
-		charChanges = [];
+		let charChanges: ICharChange[] = [];
 		for (let i = 0; i < change.charChanges.length; i++) {
 			charChanges.push(
 				extractCharChangeRepresentation(
@@ -34,13 +33,20 @@ function extractLineChangeRepresentation(change: ILineChange, expectedChange: IL
 				)
 			);
 		}
+		return {
+			originalStartLineNumber: change.originalStartLineNumber,
+			originalEndLineNumber: change.originalEndLineNumber,
+			modifiedStartLineNumber: change.modifiedStartLineNumber,
+			modifiedEndLineNumber: change.modifiedEndLineNumber,
+			charChanges: charChanges
+		};
 	}
 	return {
 		originalStartLineNumber: change.originalStartLineNumber,
 		originalEndLineNumber: change.originalEndLineNumber,
 		modifiedStartLineNumber: change.modifiedStartLineNumber,
 		modifiedEndLineNumber: change.modifiedEndLineNumber,
-		charChanges: charChanges
+		charChanges: undefined
 	};
 }
 

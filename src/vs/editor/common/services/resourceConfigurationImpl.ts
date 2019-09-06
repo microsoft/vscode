@@ -14,15 +14,15 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 
 export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
 	) {
 		super();
 		this._register(this.configurationService.onDidChangeConfiguration(e => this._onDidChangeConfiguration.fire(e)));
@@ -38,7 +38,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 	}
 
 	private _getValue<T>(resource: URI, position: IPosition | null, section: string | undefined): T {
-		const language = resource ? this.getLanguage(resource, position) : void 0;
+		const language = resource ? this.getLanguage(resource, position) : undefined;
 		if (typeof section === 'undefined') {
 			return this.configurationService.getValue<T>({ resource, overrideIdentifier: language });
 		}
@@ -50,7 +50,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		if (model) {
 			return position ? this.modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column))!.language : model.getLanguageIdentifier().language;
 		}
-		return this.modeService.getModeIdByFilepathOrFirstLine(resource.path);
+		return this.modeService.getModeIdByFilepathOrFirstLine(resource);
 
 	}
 }

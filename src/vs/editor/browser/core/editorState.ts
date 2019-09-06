@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ITextModel } from 'vs/editor/common/model';
+import { EditorKeybindingCancellationTokenSource } from 'vs/editor/browser/core/keybindingCancellation';
 
 export const enum CodeEditorStateFlag {
 	Value = 1,
@@ -29,18 +33,27 @@ export class EditorState {
 		this.flags = flags;
 
 		if ((this.flags & CodeEditorStateFlag.Value) !== 0) {
-			let model = editor.getModel();
+			const model = editor.getModel();
 			this.modelVersionId = model ? strings.format('{0}#{1}', model.uri.toString(), model.getVersionId()) : null;
+		} else {
+			this.modelVersionId = null;
 		}
 		if ((this.flags & CodeEditorStateFlag.Position) !== 0) {
 			this.position = editor.getPosition();
+		} else {
+			this.position = null;
 		}
 		if ((this.flags & CodeEditorStateFlag.Selection) !== 0) {
 			this.selection = editor.getSelection();
+		} else {
+			this.selection = null;
 		}
 		if ((this.flags & CodeEditorStateFlag.Scroll) !== 0) {
 			this.scrollLeft = editor.getScrollLeft();
 			this.scrollTop = editor.getScrollTop();
+		} else {
+			this.scrollLeft = -1;
+			this.scrollTop = -1;
 		}
 	}
 
@@ -49,7 +62,7 @@ export class EditorState {
 		if (!(other instanceof EditorState)) {
 			return false;
 		}
-		let state = <EditorState>other;
+		const state = <EditorState>other;
 
 		if (this.modelVersionId !== state.modelVersionId) {
 			return false;
@@ -68,6 +81,56 @@ export class EditorState {
 
 	public validate(editor: ICodeEditor): boolean {
 		return this._equals(new EditorState(editor, this.flags));
+	}
+}
+
+/**
+ * A cancellation token source that cancels when the editor changes as expressed
+ * by the provided flags
+ */
+export class EditorStateCancellationTokenSource extends EditorKeybindingCancellationTokenSource implements IDisposable {
+
+	private readonly _listener = new DisposableStore();
+
+	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag, parent?: CancellationToken) {
+		super(editor, parent);
+
+		if (flags & CodeEditorStateFlag.Position) {
+			this._listener.add(editor.onDidChangeCursorPosition(_ => this.cancel()));
+		}
+		if (flags & CodeEditorStateFlag.Selection) {
+			this._listener.add(editor.onDidChangeCursorSelection(_ => this.cancel()));
+		}
+		if (flags & CodeEditorStateFlag.Scroll) {
+			this._listener.add(editor.onDidScrollChange(_ => this.cancel()));
+		}
+		if (flags & CodeEditorStateFlag.Value) {
+			this._listener.add(editor.onDidChangeModel(_ => this.cancel()));
+			this._listener.add(editor.onDidChangeModelContent(_ => this.cancel()));
+		}
+	}
+
+	dispose() {
+		this._listener.dispose();
+		super.dispose();
+	}
+}
+
+/**
+ * A cancellation token source that cancels when the provided model changes
+ */
+export class TextModelCancellationTokenSource extends CancellationTokenSource implements IDisposable {
+
+	private _listener: IDisposable;
+
+	constructor(model: ITextModel, parent?: CancellationToken) {
+		super(parent);
+		this._listener = model.onDidChangeContent(() => this.cancel());
+	}
+
+	dispose() {
+		this._listener.dispose();
+		super.dispose();
 	}
 }
 

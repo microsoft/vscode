@@ -9,7 +9,7 @@ import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 
 export class MockMode extends Disposable implements IMode {
-	private _languageIdentifier: LanguageIdentifier;
+	private readonly _languageIdentifier: LanguageIdentifier;
 
 	constructor(languageIdentifier: LanguageIdentifier) {
 		super();

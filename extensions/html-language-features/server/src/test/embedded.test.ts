@@ -89,7 +89,7 @@ suite('HTML Embedded Support', () => {
 		assertLanguageId('<script type="text/ecmascript">var| i = 0;</script>', 'javascript');
 		assertLanguageId('<script type="application/javascript">var| i = 0;</script>', 'javascript');
 		assertLanguageId('<script type="application/ecmascript">var| i = 0;</script>', 'javascript');
-		assertLanguageId('<script type="application/typescript">var| i = 0;</script>', void 0);
+		assertLanguageId('<script type="application/typescript">var| i = 0;</script>', undefined);
 		assertLanguageId('<script type=\'text/javascript\'>var| i = 0;</script>', 'javascript');
 	});
 

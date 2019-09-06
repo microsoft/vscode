@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
-import { MainThreadTextEditorsShape, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/common/extHostTypes';
+import { MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';
 import { timeout } from 'vs/base/common/async';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -25,15 +25,15 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	let documents: ExtHostDocuments;
 	let nullLogService = new NullLogService();
 	let nullExtensionDescription: IExtensionDescription = {
-		id: 'nullExtensionDescription',
+		identifier: new ExtensionIdentifier('nullExtensionDescription'),
 		name: 'Null Extension Description',
 		publisher: 'vscode',
 		enableProposedApi: false,
-		engines: undefined,
-		extensionLocation: undefined,
+		engines: undefined!,
+		extensionLocation: undefined!,
 		isBuiltin: false,
 		isUnderDevelopment: false,
-		version: undefined
+		version: undefined!
 	};
 
 	setup(() => {
@@ -85,7 +85,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
-			assert.throws(() => { event.document = null; });
+			assert.throws(() => { (event.document as any) = null!; });
 		});
 	});
 
@@ -212,7 +212,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				setTimeout(() => {
 					try {
 						assert.throws(() => event.waitUntil(timeout(10)));
-						resolve(void 0);
+						resolve(undefined);
 					} catch (e) {
 						reject(e);
 					}
@@ -262,9 +262,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, pushEdits sync', () => {
 
-		let dto: WorkspaceEditDto;
+		let dto: IWorkspaceEditDto;
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: WorkspaceEditDto) {
+			$tryApplyWorkspaceEdit(_edits: IWorkspaceEditDto) {
 				dto = _edits;
 				return Promise.resolve(true);
 			}
@@ -286,9 +286,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, concurrent change', () => {
 
-		let edits: WorkspaceEditDto;
+		let edits: IWorkspaceEditDto;
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: WorkspaceEditDto) {
+			$tryApplyWorkspaceEdit(_edits: IWorkspaceEditDto) {
 				edits = _edits;
 				return Promise.resolve(true);
 			}
@@ -300,11 +300,11 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			documents.$acceptModelChanged(resource, {
 				changes: [{
 					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-					rangeOffset: undefined,
-					rangeLength: undefined,
+					rangeOffset: undefined!,
+					rangeLength: undefined!,
 					text: 'bar'
 				}],
-				eol: undefined,
+				eol: undefined!,
 				versionId: 2
 			}, true);
 
@@ -323,7 +323,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, two listeners -> two document states', () => {
 
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(dto: WorkspaceEditDto) {
+			$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto) {
 
 				for (const edit of dto.edits) {
 					if (!isResourceTextEdit(edit)) {
@@ -336,11 +336,11 @@ suite('ExtHostDocumentSaveParticipant', () => {
 							changes: [{
 								range,
 								text,
-								rangeOffset: undefined,
-								rangeLength: undefined,
+								rangeOffset: undefined!,
+								rangeLength: undefined!,
 							}],
-							eol: undefined,
-							versionId: documents.getDocumentData(uri).version + 1
+							eol: undefined!,
+							versionId: documents.getDocumentData(uri)!.version + 1
 						}, true);
 					}
 				}
@@ -349,7 +349,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			}
 		});
 
-		const document = documents.getDocumentData(resource).document;
+		const document = documents.getDocument(resource);
 
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			// the document state we started with

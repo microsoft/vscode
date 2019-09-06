@@ -7,36 +7,36 @@ import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 
 suite('CursorMove', () => {
 
-	test('nextTabStop', () => {
-		assert.equal(CursorColumns.nextTabStop(0, 4), 4);
-		assert.equal(CursorColumns.nextTabStop(1, 4), 4);
-		assert.equal(CursorColumns.nextTabStop(2, 4), 4);
-		assert.equal(CursorColumns.nextTabStop(3, 4), 4);
-		assert.equal(CursorColumns.nextTabStop(4, 4), 8);
-		assert.equal(CursorColumns.nextTabStop(5, 4), 8);
-		assert.equal(CursorColumns.nextTabStop(6, 4), 8);
-		assert.equal(CursorColumns.nextTabStop(7, 4), 8);
-		assert.equal(CursorColumns.nextTabStop(8, 4), 12);
+	test('nextRenderTabStop', () => {
+		assert.equal(CursorColumns.nextRenderTabStop(0, 4), 4);
+		assert.equal(CursorColumns.nextRenderTabStop(1, 4), 4);
+		assert.equal(CursorColumns.nextRenderTabStop(2, 4), 4);
+		assert.equal(CursorColumns.nextRenderTabStop(3, 4), 4);
+		assert.equal(CursorColumns.nextRenderTabStop(4, 4), 8);
+		assert.equal(CursorColumns.nextRenderTabStop(5, 4), 8);
+		assert.equal(CursorColumns.nextRenderTabStop(6, 4), 8);
+		assert.equal(CursorColumns.nextRenderTabStop(7, 4), 8);
+		assert.equal(CursorColumns.nextRenderTabStop(8, 4), 12);
 
-		assert.equal(CursorColumns.nextTabStop(0, 2), 2);
-		assert.equal(CursorColumns.nextTabStop(1, 2), 2);
-		assert.equal(CursorColumns.nextTabStop(2, 2), 4);
-		assert.equal(CursorColumns.nextTabStop(3, 2), 4);
-		assert.equal(CursorColumns.nextTabStop(4, 2), 6);
-		assert.equal(CursorColumns.nextTabStop(5, 2), 6);
-		assert.equal(CursorColumns.nextTabStop(6, 2), 8);
-		assert.equal(CursorColumns.nextTabStop(7, 2), 8);
-		assert.equal(CursorColumns.nextTabStop(8, 2), 10);
+		assert.equal(CursorColumns.nextRenderTabStop(0, 2), 2);
+		assert.equal(CursorColumns.nextRenderTabStop(1, 2), 2);
+		assert.equal(CursorColumns.nextRenderTabStop(2, 2), 4);
+		assert.equal(CursorColumns.nextRenderTabStop(3, 2), 4);
+		assert.equal(CursorColumns.nextRenderTabStop(4, 2), 6);
+		assert.equal(CursorColumns.nextRenderTabStop(5, 2), 6);
+		assert.equal(CursorColumns.nextRenderTabStop(6, 2), 8);
+		assert.equal(CursorColumns.nextRenderTabStop(7, 2), 8);
+		assert.equal(CursorColumns.nextRenderTabStop(8, 2), 10);
 
-		assert.equal(CursorColumns.nextTabStop(0, 1), 1);
-		assert.equal(CursorColumns.nextTabStop(1, 1), 2);
-		assert.equal(CursorColumns.nextTabStop(2, 1), 3);
-		assert.equal(CursorColumns.nextTabStop(3, 1), 4);
-		assert.equal(CursorColumns.nextTabStop(4, 1), 5);
-		assert.equal(CursorColumns.nextTabStop(5, 1), 6);
-		assert.equal(CursorColumns.nextTabStop(6, 1), 7);
-		assert.equal(CursorColumns.nextTabStop(7, 1), 8);
-		assert.equal(CursorColumns.nextTabStop(8, 1), 9);
+		assert.equal(CursorColumns.nextRenderTabStop(0, 1), 1);
+		assert.equal(CursorColumns.nextRenderTabStop(1, 1), 2);
+		assert.equal(CursorColumns.nextRenderTabStop(2, 1), 3);
+		assert.equal(CursorColumns.nextRenderTabStop(3, 1), 4);
+		assert.equal(CursorColumns.nextRenderTabStop(4, 1), 5);
+		assert.equal(CursorColumns.nextRenderTabStop(5, 1), 6);
+		assert.equal(CursorColumns.nextRenderTabStop(6, 1), 7);
+		assert.equal(CursorColumns.nextRenderTabStop(7, 1), 8);
+		assert.equal(CursorColumns.nextRenderTabStop(8, 1), 9);
 	});
 
 	test('visibleColumnFromColumn', () => {

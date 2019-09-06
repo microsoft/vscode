@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/daaain/Handlebars/commit/790f2b0222098a3a236bd9e91bb9a039eeca4d8e",
+	"version": "https://github.com/daaain/Handlebars/commit/85a153a6f759df4e8da7533e1b3651f007867c51",
 	"name": "Handlebars",
 	"scopeName": "text.html.handlebars",
 	"patterns": [
@@ -653,7 +653,7 @@
 			]
 		},
 		"else_token": {
-			"begin": "(\\{\\{)(~?else)(@?\\s(if)\\s([-a-zA-Z0-9_\\./]+))?",
+			"begin": "(\\{\\{)(~?else)(@?\\s(if)\\s([-a-zA-Z0-9_\\.\\(\\s\\)/]+))?",
 			"end": "(~?\\}\\}\\}*)",
 			"name": "meta.function.inline.else.handlebars",
 			"beginCaptures": {

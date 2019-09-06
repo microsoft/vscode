@@ -7,14 +7,13 @@ import * as assert from 'assert';
 import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -106,7 +105,7 @@ function testLineStarts(str: string, pieceTable: PieceTreeBase) {
 	let prevMatchStartIndex = -1;
 	let prevMatchLength = 0;
 
-	let m: RegExpExecArray;
+	let m: RegExpExecArray | null;
 	do {
 		if (prevMatchStartIndex + prevMatchLength === str.length) {
 			// Reached the end of the line
@@ -154,8 +153,8 @@ function testLineStarts(str: string, pieceTable: PieceTreeBase) {
 
 function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTreeBase {
 	let bufferBuilder = new PieceTreeTextBufferBuilder();
-	for (let i = 0; i < val.length; i++) {
-		bufferBuilder.acceptChunk(val[i]);
+	for (const chunk of val) {
+		bufferBuilder.acceptChunk(chunk);
 	}
 	let factory = bufferBuilder.finish(normalizeEOL);
 	return (<PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF)).getPieceTree();

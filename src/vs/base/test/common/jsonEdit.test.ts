@@ -132,31 +132,31 @@ suite('JSON - edits', () => {
 
 	test('remove item in array with one item', () => {
 		let content = '[\n  1\n]';
-		let edits = setProperty(content, [0], void 0, formatterOptions);
+		let edits = setProperty(content, [0], undefined, formatterOptions);
 		assertEdit(content, edits, '[]');
 	});
 
 	test('remove item in the middle of the array', () => {
 		let content = '[\n  1,\n  2,\n  3\n]';
-		let edits = setProperty(content, [1], void 0, formatterOptions);
+		let edits = setProperty(content, [1], undefined, formatterOptions);
 		assertEdit(content, edits, '[\n  1,\n  3\n]');
 	});
 
 	test('remove last item in the array', () => {
 		let content = '[\n  1,\n  2,\n  "bar"\n]';
-		let edits = setProperty(content, [2], void 0, formatterOptions);
+		let edits = setProperty(content, [2], undefined, formatterOptions);
 		assertEdit(content, edits, '[\n  1,\n  2\n]');
 	});
 
 	test('remove last item in the array if ends with comma', () => {
 		let content = '[\n  1,\n  "foo",\n  "bar",\n]';
-		let edits = setProperty(content, [2], void 0, formatterOptions);
+		let edits = setProperty(content, [2], undefined, formatterOptions);
 		assertEdit(content, edits, '[\n  1,\n  "foo"\n]');
 	});
 
 	test('remove last item in the array if there is a comment in the beginning', () => {
 		let content = '// This is a comment\n[\n  1,\n  "foo",\n  "bar"\n]';
-		let edits = setProperty(content, [2], void 0, formatterOptions);
+		let edits = setProperty(content, [2], undefined, formatterOptions);
 		assertEdit(content, edits, '// This is a comment\n[\n  1,\n  "foo"\n]');
 	});
 

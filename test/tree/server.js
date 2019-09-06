@@ -17,7 +17,7 @@ async function getTree(fsPath, level) {
 	const element = path.basename(fsPath);
 	const stat = await fs.stat(fsPath);
 
-	if (!stat.isDirectory() || element === '.git' || element === '.build' || level >= 2) {
+	if (!stat.isDirectory() || element === '.git' || element === '.build' || level >= 4) {
 		return { element };
 	}
 
@@ -45,14 +45,6 @@ async function readdir(relativePath) {
 			result.push({ type: 'dir', name, path });
 		}
 	}
-
-	result.sort((a, b) => {
-		if (a.type === b.type) {
-			return a.name < b.name ? -1 : 1;
-		}
-
-		return a.type === 'dir' ? -1 : 1;
-	});
 
 	return result;
 }

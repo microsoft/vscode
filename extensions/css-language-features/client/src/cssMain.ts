@@ -9,8 +9,10 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString } from 'vscode';
+import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace, CompletionItemTag } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
+import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
+import { isArray } from 'util';
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -30,6 +32,11 @@ export function activate(context: ExtensionContext) {
 
 	let documentSelector = ['css', 'scss', 'less'];
 
+	let dataPaths = [
+		...getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders),
+		...getCustomDataPathsFromAllExtensions()
+	];
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
@@ -37,6 +44,33 @@ export function activate(context: ExtensionContext) {
 			configurationSection: ['css', 'scss', 'less']
 		},
 		initializationOptions: {
+			dataPaths
+		},
+		middleware: {
+			async provideCompletionItem(document, position, context, token, next) {
+				const result = await next(document, position, context, token);
+				if (result) {
+					if (isArray(result)) {
+						return result.map(r => {
+							return {
+								...r,
+								tags: (r as any).deprecated ? [CompletionItemTag.Deprecated] : undefined
+							};
+						});
+					} else {
+						return {
+							isIncomplete: result.isIncomplete,
+							items: result.items.map(r => {
+								return {
+									...r,
+									tags: (r as any).deprecated ? [CompletionItemTag.Deprecated] : undefined
+								};
+							})
+						};
+					}
+				}
+				return result;
+			}
 		}
 	};
 

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/editor/common/standalone/promise-polyfill/polyfill';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { KeyChord, KeyMod as ConstKeyMod } from 'vs/base/common/keyCodes';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -39,7 +39,6 @@ export function createMonacoBaseAPI(): typeof monaco {
 		SelectionDirection: standaloneEnums.SelectionDirection,
 		MarkerSeverity: standaloneEnums.MarkerSeverity,
 		MarkerTag: standaloneEnums.MarkerTag,
-		Promise: TPromise,
 		Uri: <any>URI,
 		Token: Token
 	};

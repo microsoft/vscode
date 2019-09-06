@@ -1,0 +1,238 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.quick-input-widget {
+	position: absolute;
+	width: 600px;
+	z-index: 2000;
+	padding-bottom: 6px;
+	left: 50%;
+	margin-left: -300px;
+}
+
+.quick-input-titlebar {
+	display: flex;
+}
+
+.quick-input-left-action-bar {
+	display: flex;
+	margin-left: 4px;
+	flex: 1;
+}
+
+.quick-input-left-action-bar.monaco-action-bar .actions-container {
+	justify-content: flex-start;
+}
+
+.quick-input-title {
+	padding: 3px 0px;
+	text-align: center;
+}
+
+.quick-input-right-action-bar {
+	display: flex;
+	margin-right: 4px;
+	flex: 1;
+}
+
+.quick-input-titlebar .monaco-action-bar .action-label.icon {
+	margin: 0;
+	width: 19px;
+	height: 100%;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.quick-input-header {
+	display: flex;
+	padding: 6px 6px 0px 6px;
+	margin-bottom: -2px;
+}
+
+.quick-input-and-message {
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	position: relative;
+}
+
+.quick-input-check-all {
+	align-self: center;
+	margin: 0;
+}
+
+.quick-input-filter {
+	flex-grow: 1;
+	display: flex;
+	position: relative;
+}
+
+.quick-input-box {
+	flex-grow: 1;
+}
+
+.quick-input-widget.show-checkboxes .quick-input-box,
+.quick-input-widget.show-checkboxes .quick-input-message {
+	margin-left: 5px;
+}
+
+.quick-input-visible-count {
+	position: absolute;
+	left: -10000px;
+}
+
+.quick-input-count {
+	align-self: center;
+	position: absolute;
+	right: 4px;
+}
+
+.quick-input-count .monaco-count-badge {
+	vertical-align: middle;
+}
+
+.quick-input-action {
+	margin-left: 6px;
+}
+
+.quick-input-action .monaco-text-button {
+	font-size: 85%;
+	padding: 7px 6px 5.5px 6px;
+	line-height: initial;
+}
+
+.quick-input-message {
+	margin-top: -1px;
+	padding: 5px 5px 2px 5px;
+}
+
+.quick-input-progress.monaco-progress-container {
+	position: relative;
+}
+
+.quick-input-progress.monaco-progress-container,
+.quick-input-progress.monaco-progress-container .progress-bit {
+	height: 2px;
+}
+
+.quick-input-list {
+	line-height: 22px;
+	margin-top: 6px;
+}
+
+.quick-input-list .monaco-list {
+	overflow: hidden;
+	max-height: calc(20 * 22px);
+}
+
+.quick-input-list .quick-input-list-entry {
+	box-sizing: border-box;
+	overflow: hidden;
+	display: flex;
+	height: 100%;
+	padding: 0 6px;
+}
+
+.quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
+	border-top-width: 1px;
+	border-top-style: solid;
+}
+
+.quick-input-list .monaco-list-row:first-child .quick-input-list-entry.quick-input-list-separator-border {
+	border-top-style: none;
+}
+
+.quick-input-list .quick-input-list-label {
+	overflow: hidden;
+	display: flex;
+	height: 100%;
+	flex: 1;
+}
+
+.quick-input-list .quick-input-list-checkbox {
+	align-self: center;
+	margin: 0;
+}
+
+.quick-input-list .quick-input-list-rows {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	flex: 1;
+	margin-left: 5px;
+}
+
+.quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-rows {
+	margin-left: 10px;
+}
+
+.quick-input-widget .quick-input-list .quick-input-list-checkbox {
+	display: none;
+}
+.quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-checkbox {
+	display: inline;
+}
+
+.quick-input-list .quick-input-list-rows > .quick-input-list-row {
+	display: flex;
+	align-items: center;
+}
+
+.quick-input-list .quick-input-list-rows .monaco-highlighted-label span {
+	opacity: 1;
+}
+
+.quick-input-list .quick-input-list-label-meta {
+	opacity: 0.7;
+	line-height: normal;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.quick-input-list .monaco-highlighted-label .highlight {
+	font-weight: bold;
+}
+
+.quick-input-list .quick-input-list-separator {
+	margin-right: 18px;
+}
+
+.quick-input-list .quick-input-list-entry.has-actions:hover .quick-input-list-separator,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry.has-actions .quick-input-list-separator {
+	margin-right: 0;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar {
+	display: none;
+	flex: 0;
+	overflow: visible;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar .action-label.icon {
+	margin: 0;
+	width: 19px;
+	height: 100%;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar {
+	margin-top: 1px;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar ul:first-child .action-label.icon {
+	margin-left: 2px;
+}
+
+.quick-input-list .quick-input-list-entry-action-bar ul:last-child .action-label.icon {
+	margin-right: 8px;
+}
+
+.quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar {
+	display: flex;
+}

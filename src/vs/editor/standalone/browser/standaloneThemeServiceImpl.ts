@@ -26,9 +26,9 @@ class StandaloneTheme implements IStandaloneTheme {
 	public readonly id: string;
 	public readonly themeName: string;
 
-	private themeData: IStandaloneThemeData;
-	private colors: { [colorId: string]: Color } | null;
-	private defaultColors: { [colorId: string]: Color | null; };
+	private readonly themeData: IStandaloneThemeData;
+	private colors: Map<string, Color> | null;
+	private readonly defaultColors: { [colorId: string]: Color | undefined; };
 	private _tokenTheme: TokenTheme | null;
 
 	constructor(name: string, standaloneThemeData: IStandaloneThemeData) {
@@ -57,19 +57,18 @@ class StandaloneTheme implements IStandaloneTheme {
 		}
 	}
 
-	private getColors(): { [colorId: string]: Color } {
+	private getColors(): Map<string, Color> {
 		if (!this.colors) {
-			let colors: { [colorId: string]: Color } = Object.create(null);
+			const colors = new Map<string, Color>();
 			for (let id in this.themeData.colors) {
-				colors[id] = Color.fromHex(this.themeData.colors[id]);
+				colors.set(id, Color.fromHex(this.themeData.colors[id]));
 			}
 			if (this.themeData.inherit) {
 				let baseData = getBuiltinRules(this.themeData.base);
 				for (let id in baseData.colors) {
-					if (!colors[id]) {
-						colors[id] = Color.fromHex(baseData.colors[id]);
+					if (!colors.has(id)) {
+						colors.set(id, Color.fromHex(baseData.colors[id]));
 					}
-
 				}
 			}
 			this.colors = colors;
@@ -77,18 +76,18 @@ class StandaloneTheme implements IStandaloneTheme {
 		return this.colors;
 	}
 
-	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | null {
-		const color = this.getColors()[colorId];
+	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
+		const color = this.getColors().get(colorId);
 		if (color) {
 			return color;
 		}
 		if (useDefault !== false) {
 			return this.getDefault(colorId);
 		}
-		return null;
+		return undefined;
 	}
 
-	private getDefault(colorId: ColorIdentifier): Color | null {
+	private getDefault(colorId: ColorIdentifier): Color | undefined {
 		let color = this.defaultColors[colorId];
 		if (color) {
 			return color;
@@ -157,14 +156,14 @@ function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 
 export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	private _knownThemes: Map<string, StandaloneTheme>;
-	private _styleElement: HTMLStyleElement;
-	private _theme: IStandaloneTheme;
+	private readonly _knownThemes: Map<string, StandaloneTheme>;
+	private readonly _styleElement: HTMLStyleElement;
+	private _theme!: IStandaloneTheme;
 	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
 	private readonly _onIconThemeChange: Emitter<IIconTheme>;
-	private environment: IEnvironmentService = Object.create(null);
+	private readonly environment: IEnvironmentService = Object.create(null);
 
 	constructor() {
 		this._onThemeChange = new Emitter<IStandaloneTheme>();
@@ -212,9 +211,9 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 	public setTheme(themeName: string): string {
 		let theme: StandaloneTheme;
 		if (this._knownThemes.has(themeName)) {
-			theme = this._knownThemes.get(themeName);
+			theme = this._knownThemes.get(themeName)!;
 		} else {
-			theme = this._knownThemes.get(VS_THEME_NAME);
+			theme = this._knownThemes.get(VS_THEME_NAME)!;
 		}
 		if (this._theme === theme) {
 			// Nothing to do

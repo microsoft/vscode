@@ -3,19 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IURLService = createDecorator<IURLService>('urlService');
 
 export interface IURLHandler {
-	handleURL(uri: URI): Thenable<boolean>;
+	handleURL(uri: URI): Promise<boolean>;
 }
 
 export interface IURLService {
-	_serviceBrand: any;
 
-	open(url: URI): Thenable<boolean>;
+	_serviceBrand: undefined;
+
+	/**
+	 * Create a URL that can be called to trigger IURLhandlers.
+	 * The URL that gets passed to the IURLHandlers carries over
+	 * any of the provided IURLCreateOption values.
+	 */
+	create(options?: Partial<UriComponents>): URI;
+
+	open(url: URI): Promise<boolean>;
+
 	registerHandler(handler: IURLHandler): IDisposable;
 }

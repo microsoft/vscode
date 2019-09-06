@@ -153,10 +153,10 @@ export default class MergeDecorator implements vscode.Disposable {
 	}
 
 	private applyDecorationsFromEvent(eventDocument: vscode.TextDocument) {
-		for (var i = 0; i < vscode.window.visibleTextEditors.length; i++) {
-			if (vscode.window.visibleTextEditors[i].document === eventDocument) {
+		for (const editor of vscode.window.visibleTextEditors) {
+			if (editor.document === eventDocument) {
 				// Attempt to apply
-				this.applyDecorations(vscode.window.visibleTextEditors[i]);
+				this.applyDecorations(editor);
 			}
 		}
 	}

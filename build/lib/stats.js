@@ -5,7 +5,8 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const es = require("event-stream");
-const util = require("gulp-util");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const appInsights = require("applicationinsights");
 class Entry {
     constructor(name, totalCount, totalSize) {
@@ -24,13 +25,13 @@ class Entry {
         }
         else {
             if (this.totalCount === 1) {
-                return `Stats for '${util.colors.grey(this.name)}': ${Math.round(this.totalSize / 1204)}KB`;
+                return `Stats for '${ansiColors.grey(this.name)}': ${Math.round(this.totalSize / 1204)}KB`;
             }
             else {
                 const count = this.totalCount < 100
-                    ? util.colors.green(this.totalCount.toString())
-                    : util.colors.red(this.totalCount.toString());
-                return `Stats for '${util.colors.grey(this.name)}': ${count} files, ${Math.round(this.totalSize / 1204)}KB`;
+                    ? ansiColors.green(this.totalCount.toString())
+                    : ansiColors.red(this.totalCount.toString());
+                return `Stats for '${ansiColors.grey(this.name)}': ${count} files, ${Math.round(this.totalSize / 1204)}KB`;
             }
         }
     }
@@ -57,13 +58,13 @@ function createStatsStream(group, log) {
     }, function () {
         if (log) {
             if (entry.totalCount === 1) {
-                util.log(`Stats for '${util.colors.grey(entry.name)}': ${Math.round(entry.totalSize / 1204)}KB`);
+                fancyLog(`Stats for '${ansiColors.grey(entry.name)}': ${Math.round(entry.totalSize / 1204)}KB`);
             }
             else {
                 const count = entry.totalCount < 100
-                    ? util.colors.green(entry.totalCount.toString())
-                    : util.colors.red(entry.totalCount.toString());
-                util.log(`Stats for '${util.colors.grey(entry.name)}': ${count} files, ${Math.round(entry.totalSize / 1204)}KB`);
+                    ? ansiColors.green(entry.totalCount.toString())
+                    : ansiColors.red(entry.totalCount.toString());
+                fancyLog(`Stats for '${ansiColors.grey(entry.name)}': ${count} files, ${Math.round(entry.totalSize / 1204)}KB`);
             }
         }
         this.emit('end');

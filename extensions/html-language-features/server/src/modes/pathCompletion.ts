@@ -7,7 +7,7 @@ import { TextDocument, CompletionItemKind, CompletionItem, TextEdit, Range, Posi
 import { WorkspaceFolder } from 'vscode-languageserver';
 import * as path from 'path';
 import * as fs from 'fs';
-import URI from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { ICompletionParticipant } from 'vscode-html-languageservice';
 import { startsWith } from '../utils/strings';
 import { contains } from '../utils/arrays';
@@ -108,11 +108,12 @@ function pathToSuggestion(p: string, valueBeforeCursor: string, fullValue: strin
 		// Find the last slash before cursor, and calculate the start of replace range from there
 		const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
 		const startPos = shiftPosition(range.end, -1 - valueAfterLastSlash.length);
-		// If whitespace exists, replace until it
-		const whiteSpaceIndex = valueAfterLastSlash.indexOf(' ');
+
+		// If whitespace exists, replace until there is no more
+		const whitespaceIndex = valueAfterLastSlash.indexOf(' ');
 		let endPos;
-		if (whiteSpaceIndex !== -1) {
-			endPos = shiftPosition(startPos, whiteSpaceIndex);
+		if (whitespaceIndex !== -1) {
+			endPos = shiftPosition(startPos, whitespaceIndex);
 		} else {
 			endPos = shiftPosition(range.end, -1);
 		}
@@ -139,9 +140,9 @@ function pathToSuggestion(p: string, valueBeforeCursor: string, fullValue: strin
 }
 
 function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {
-	for (let i = 0; i < workspaceFolders.length; i++) {
-		if (startsWith(activeDoc.uri, workspaceFolders[i].uri)) {
-			return path.resolve(URI.parse(workspaceFolders[i].uri).fsPath);
+	for (const folder of workspaceFolders) {
+		if (startsWith(activeDoc.uri, folder.uri)) {
+			return path.resolve(URI.parse(folder.uri).fsPath);
 		}
 	}
 	return undefined;
@@ -160,6 +161,7 @@ function shiftRange(range: Range, startOffset: number, endOffset: number): Range
 const PATH_TAG_AND_ATTR: { [tag: string]: string | string[] } = {
 	// HTML 4
 	a: 'href',
+	area: 'href',
 	body: 'background',
 	del: 'cite',
 	form: 'action',
@@ -176,7 +178,7 @@ const PATH_TAG_AND_ATTR: { [tag: string]: string | string[] } = {
 	command: 'icon',
 	embed: 'src',
 	html: 'manifest',
-	input: 'formaction',
+	input: ['src', 'formaction'],
 	source: 'src',
 	track: 'src',
 	video: ['src', 'poster']

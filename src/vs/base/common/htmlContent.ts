@@ -16,7 +16,6 @@ export class MarkdownString implements IMarkdownString {
 
 	value: string;
 	isTrusted?: boolean;
-	sanitize: boolean = true;
 
 	constructor(value: string = '') {
 		this.value = value;
@@ -43,7 +42,7 @@ export class MarkdownString implements IMarkdownString {
 	}
 }
 
-export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[]): boolean {
+export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[] | null | undefined): boolean {
 	if (isMarkdownString(oneOrMany)) {
 		return !oneOrMany.value;
 	} else if (Array.isArray(oneOrMany)) {
@@ -58,7 +57,7 @@ export function isMarkdownString(thing: any): thing is IMarkdownString {
 		return true;
 	} else if (thing && typeof thing === 'object') {
 		return typeof (<IMarkdownString>thing).value === 'string'
-			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === void 0);
+			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === undefined);
 	}
 	return false;
 }
@@ -92,4 +91,26 @@ export function removeMarkdownEscapes(text: string): string {
 		return text;
 	}
 	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
+}
+
+export function parseHrefAndDimensions(href: string): { href: string, dimensions: string[] } {
+	const dimensions: string[] = [];
+	const splitted = href.split('|').map(s => s.trim());
+	href = splitted[0];
+	const parameters = splitted[1];
+	if (parameters) {
+		const heightFromParams = /height=(\d+)/.exec(parameters);
+		const widthFromParams = /width=(\d+)/.exec(parameters);
+		const height = heightFromParams ? heightFromParams[1] : '';
+		const width = widthFromParams ? widthFromParams[1] : '';
+		const widthIsFinite = isFinite(parseInt(width));
+		const heightIsFinite = isFinite(parseInt(height));
+		if (widthIsFinite) {
+			dimensions.push(`width="${width}"`);
+		}
+		if (heightIsFinite) {
+			dimensions.push(`height="${height}"`);
+		}
+	}
+	return { href, dimensions };
 }

@@ -36,7 +36,12 @@ import 'vs/editor/contrib/rename/rename';
 import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/snippet/snippetController2';
 import 'vs/editor/contrib/suggest/suggestController';
+import 'vs/editor/contrib/tokenization/tokenization';
 import 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
 import 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/wordOperations';
 import 'vs/editor/contrib/wordPartOperations/wordPartOperations';
+
+// Load up these strings even in VSCode, even if they are not used
+// in order to get them translated
+import 'vs/editor/common/standaloneStrings';

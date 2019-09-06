@@ -14,12 +14,16 @@
 }
 
 .monaco-editor .margin-view-overlays .folding {
-	background-image: url('arrow-expand.svg');
+	background-image: url('tree-expanded-light.svg');
 }
 
 .monaco-editor.hc-black .margin-view-overlays .folding,
 .monaco-editor.vs-dark .margin-view-overlays .folding {
-	background-image: url('arrow-expand-dark.svg');
+	background-image: url('tree-expanded-dark.svg');
+}
+
+.monaco-editor.hc-black .margin-view-overlays .folding {
+	background-image: url('tree-expanded-hc.svg');
 }
 
 .monaco-editor .margin-view-overlays:hover .folding,
@@ -28,13 +32,16 @@
 }
 
 .monaco-editor .margin-view-overlays .folding.collapsed {
-	background-image: url('arrow-collapse.svg');
+	background-image: url('tree-collapsed-light.svg');
 	opacity: 1;
 }
 
-.monaco-editor.hc-black .margin-view-overlays .folding.collapsed,
 .monaco-editor.vs-dark .margin-view-overlays .folding.collapsed {
-	background-image: url('arrow-collapse-dark.svg');
+	background-image: url('tree-collapsed-dark.svg');
+}
+
+.monaco-editor.hc-black .margin-view-overlays .folding.collapsed {
+	background-image: url('tree-collapsed-hc.svg');
 }
 
 .monaco-editor .inline-folded:after {

@@ -3,31 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
-import { IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { isThenable } from 'vs/base/common/async';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
-export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
+export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRpcService {
 	return {
-		remoteAuthority: null,
+		_serviceBrand: undefined,
+		remoteAuthority: null!,
 		getProxy<T>(): T {
 			return thing;
 		},
 		set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
 			return value;
 		},
-		assertRegistered: undefined
+		assertRegistered: undefined!
 	};
 }
 
-export class TestRPCProtocol implements IExtHostContext {
+export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 
-	public remoteAuthority = null;
+	public _serviceBrand: undefined;
+	public remoteAuthority = null!;
 
 	private _callCountValue: number = 0;
-	private _idle: Promise<any>;
-	private _completeIdle: Function;
+	private _idle?: Promise<any>;
+	private _completeIdle?: Function;
 
 	private readonly _locals: { [id: string]: any; };
 	private readonly _proxies: { [id: string]: any; };
@@ -102,7 +105,7 @@ export class TestRPCProtocol implements IExtHostContext {
 			const instance = this._locals[proxyId];
 			// pretend the args went over the wire... (invoke .toJSON on objects...)
 			const wireArgs = simulateWireTransfer(args);
-			let p: Thenable<any>;
+			let p: Promise<any>;
 			try {
 				let result = (<Function>instance[path]).apply(instance, wireArgs);
 				p = isThenable(result) ? result : Promise.resolve(result);

@@ -95,12 +95,11 @@ export function getMappingForIncludedLanguages(): any {
 
 /**
 * Get the corresponding emmet mode for given vscode language mode
-* Eg: jsx for typescriptreact/javascriptreact or pug for jade
-* If the language is not supported by emmet or has been exlcuded via `exlcudeLanguages` setting,
+* E.g.: jsx for typescriptreact/javascriptreact or pug for jade
+* If the language is not supported by emmet or has been excluded via `excludeLanguages` setting,
 * then nothing is returned
 *
-* @param language
-* @param exlcudedLanguages Array of language ids that user has chosen to exlcude for emmet
+* @param excludedLanguages Array of language ids that user has chosen to exclude for emmet
 */
 export function getEmmetMode(language: string, excludedLanguages: string[]): string | undefined {
 	if (!language || excludedLanguages.indexOf(language) > -1) {
@@ -353,7 +352,6 @@ export function getHtmlNode(document: vscode.TextDocument, root: Node | undefine
 
 /**
  * Returns inner range of an html node.
- * @param currentNode
  */
 export function getInnerRange(currentNode: HtmlNode): vscode.Range | undefined {
 	if (!currentNode.close) {
@@ -364,7 +362,6 @@ export function getInnerRange(currentNode: HtmlNode): vscode.Range | undefined {
 
 /**
  * Returns the deepest non comment node under given node
- * @param node
  */
 export function getDeepestNode(node: Node | undefined): Node | undefined {
 	if (!node || !node.children || node.children.length === 0 || !node.children.find(x => x.type !== 'comment')) {
@@ -611,3 +608,18 @@ export function isStyleAttribute(currentNode: Node | null, position: vscode.Posi
 }
 
 
+export function trimQuotes(s: string) {
+	if (s.length <= 1) {
+		return s.replace(/['"]/, '');
+	}
+
+	if (s[0] === `'` || s[0] === `"`) {
+		s = s.slice(1);
+	}
+
+	if (s[s.length - 1] === `'` || s[s.length - 1] === `"`) {
+		s = s.slice(0, -1);
+	}
+
+	return s;
+}

@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDriver, DriverChannel, IElement, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver, IDriverOptions } from 'vs/platform/driver/node/driver';
+import { DriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IDriverOptions } from 'vs/platform/driver/node/driver';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
-import { Emitter, toPromise } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';
+import { IDriver, IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
 
 function isSilentKeyCode(keyCode: KeyCode) {
 	return keyCode < KeyCode.KEY_0;
@@ -24,7 +25,7 @@ function isSilentKeyCode(keyCode: KeyCode) {
 
 export class Driver implements IDriver, IWindowDriverRegistry {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private registeredWindowIds = new Set<number>();
 	private reloadingWindowIds = new Set<number>();
@@ -33,7 +34,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	constructor(
 		private windowServer: IPCServer,
 		private options: IDriverOptions,
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService private readonly windowsService: IWindowsMainService
 	) { }
 
 	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
@@ -57,9 +58,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await this.whenUnfrozen(windowId);
 
 		const window = this.windowsService.getWindowById(windowId);
+		if (!window) {
+			throw new Error('Invalid window');
+		}
 		const webContents = window.win.webContents;
 		const image = await new Promise<Electron.NativeImage>(c => webContents.capturePage(c));
-
 		return image.toPNG().toString('base64');
 	}
 
@@ -67,23 +70,24 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await this.whenUnfrozen(windowId);
 
 		const window = this.windowsService.getWindowById(windowId);
+		if (!window) {
+			throw new Error('Invalid window');
+		}
 		this.reloadingWindowIds.add(windowId);
 		this.windowsService.reload(window);
+	}
+
+	async exitApplication(): Promise<void> {
+		return this.windowsService.quit();
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
 		await this.whenUnfrozen(windowId);
 
-		const [first, second] = KeybindingParser.parseUserBinding(keybinding);
+		const parts = KeybindingParser.parseUserBinding(keybinding);
 
-		if (!first) {
-			return;
-		}
-
-		await this._dispatchKeybinding(windowId, first);
-
-		if (second) {
-			await this._dispatchKeybinding(windowId, second);
+		for (let part of parts) {
+			await this._dispatchKeybinding(windowId, part);
 		}
 	}
 
@@ -93,9 +97,12 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		}
 
 		const window = this.windowsService.getWindowById(windowId);
+		if (!window) {
+			throw new Error('Invalid window');
+		}
 		const webContents = window.win.webContents;
 		const noModifiedKeybinding = new SimpleKeybinding(false, false, false, false, keybinding.keyCode);
-		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding, OS);
+		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding.toChord(), OS);
 		const keyCode = resolvedKeybinding.getElectronAccelerator();
 
 		const modifiers: string[] = [];
@@ -157,6 +164,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return await windowDriver.getElements(selector, recursive);
 	}
 
+	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return await windowDriver.getElementXY(selector, xoffset, yoffset);
+	}
+
 	async typeInEditor(windowId: number, selector: string, text: string): Promise<void> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		await windowDriver.typeInEditor(selector, text);
@@ -183,7 +195,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	private async whenUnfrozen(windowId: number): Promise<void> {
 		while (this.reloadingWindowIds.has(windowId)) {
-			await toPromise(this.onDidReloadingChange.event);
+			await Event.toPromise(this.onDidReloadingChange.event);
 		}
 	}
 }
@@ -204,5 +216,5 @@ export async function serve(
 	const channel = new DriverChannel(driver);
 	server.registerChannel('driver', channel);
 
-	return combinedDisposable([server, windowServer]);
+	return combinedDisposable(server, windowServer);
 }

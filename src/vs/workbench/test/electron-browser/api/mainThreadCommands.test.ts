@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
+import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 
@@ -12,7 +12,7 @@ suite('MainThreadCommands', function () {
 
 	test('dispose on unregister', function () {
 
-		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined);
+		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!);
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
 
 		// register
@@ -26,7 +26,7 @@ suite('MainThreadCommands', function () {
 
 	test('unregister all on dispose', function () {
 
-		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined);
+		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!);
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
 
 		commands.$registerCommand('foo');

@@ -6,7 +6,7 @@
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -149,13 +149,13 @@ export interface ILineChange extends IChange {
  * @internal
  */
 export interface IConfiguration extends IDisposable {
-	onDidChange(listener: (e: editorOptions.IConfigurationChangedEvent) => void): IDisposable;
+	onDidChange(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
 
-	readonly editor: editorOptions.InternalEditorOptions;
+	readonly options: IComputedEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
-	updateOptions(newOptions: editorOptions.IEditorOptions): void;
-	getRawOptions(): editorOptions.IEditorOptions;
+	updateOptions(newOptions: IEditorOptions): void;
+	getRawOptions(): IEditorOptions;
 	observeReferenceElement(dimension?: IDimension): void;
 	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
@@ -221,8 +221,8 @@ export interface ICodeEditorViewState {
  * (Serializable) View state for the diff editor.
  */
 export interface IDiffEditorViewState {
-	original: ICodeEditorViewState;
-	modified: ICodeEditorViewState;
+	original: ICodeEditorViewState | null;
+	modified: ICodeEditorViewState | null;
 }
 /**
  * An editor view state.
@@ -263,7 +263,7 @@ export interface IEditor {
 	/**
 	 * Update the editor's options after the editor has been created.
 	 */
-	updateOptions(newOptions: editorOptions.IEditorOptions): void;
+	updateOptions(newOptions: IEditorOptions): void;
 
 	/**
 	 * Indicates that the editor becomes visible.
@@ -469,7 +469,7 @@ export interface IDiffEditor extends IEditor {
 	/**
 	 * Type the getModel() of IEditor.
 	 */
-	getModel(): IDiffEditorModel;
+	getModel(): IDiffEditorModel | null;
 
 	/**
 	 * Get the `original` editor.

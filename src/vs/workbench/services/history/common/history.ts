@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
@@ -12,7 +12,7 @@ export const IHistoryService = createDecorator<IHistoryService>('historyService'
 
 export interface IHistoryService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Re-opens the last closed editor if any.
@@ -63,7 +63,7 @@ export interface IHistoryService {
 	/**
 	 * Get the entire history of opened editors.
 	 */
-	getHistory(): (IEditorInput | IResourceInput)[];
+	getHistory(): Array<IEditorInput | IResourceInput>;
 
 	/**
 	 * Looking at the editor history, returns the workspace root of the last file that was
@@ -71,12 +71,12 @@ export interface IHistoryService {
 	 *
 	 * @param schemeFilter filter to restrict roots by scheme.
 	 */
-	getLastActiveWorkspaceRoot(schemeFilter?: string): URI;
+	getLastActiveWorkspaceRoot(schemeFilter?: string): URI | undefined;
 
 	/**
 	 * Looking at the editor history, returns the resource of the last file that was opened.
 	 *
 	 * @param schemeFilter filter to restrict roots by scheme.
 	 */
-	getLastActiveFile(schemeFilter: string): URI;
+	getLastActiveFile(schemeFilter: string): URI | undefined;
 }

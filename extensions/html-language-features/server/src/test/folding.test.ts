@@ -8,6 +8,7 @@ import * as assert from 'assert';
 import { TextDocument } from 'vscode-languageserver';
 import { getFoldingRanges } from '../modes/htmlFolding';
 import { getLanguageModes } from '../modes/languageModes';
+import { ClientCapabilities } from 'vscode-css-languageservice';
 
 interface ExpectedIndentRange {
 	startLine: number;
@@ -21,7 +22,7 @@ function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?
 		settings: {},
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
-	let languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
+	let languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
 	let actual = getFoldingRanges(languageModes, document, nRanges, null);
 
 	let actualRanges = [];
@@ -200,7 +201,7 @@ suite('HTML Folding', () => {
 			/*19*/' </span>',
 			/*20*/'</div>',
 		];
-		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'no limit', void 0);
+		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'no limit', undefined);
 		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'limit 8', 8);
 		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(13, 14), r(16, 17)], 'limit 7', 7);
 		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14), r(16, 17)], 'limit 6', 6);

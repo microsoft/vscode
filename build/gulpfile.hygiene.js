@@ -42,15 +42,16 @@ const indentationFilter = [
 
 	// except specific files
 	'!ThirdPartyNotices.txt',
-	'!LICENSE.txt',
+	'!LICENSE.{txt,rtf}',
+	'!LICENSES.chromium.html',
 	'!**/LICENSE',
 	'!src/vs/nls.js',
 	'!src/vs/nls.build.js',
 	'!src/vs/css.js',
 	'!src/vs/css.build.js',
 	'!src/vs/loader.js',
+	'!src/vs/base/common/insane/insane.js',
 	'!src/vs/base/common/marked/marked.js',
-	'!src/vs/base/common/winjs.base.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!test/assert.js',
@@ -82,11 +83,12 @@ const indentationFilter = [
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
 	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns}',
-	'!build/{lib,tslintRules}/**/*.js',
+	'!build/{lib,tslintRules,download}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',
 	'!build/azure-pipelines/**/*.config',
 	'!**/Dockerfile',
+	'!**/Dockerfile.*',
 	'!**/*.Dockerfile',
 	'!**/*.dockerfile',
 	'!extensions/markdown-language-features/media/*.js'
@@ -110,13 +112,16 @@ const copyrightFilter = [
 	'!**/*.opts',
 	'!**/*.disabled',
 	'!**/*.code-workspace',
+	'!**/promise-polyfill/polyfill.js',
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/linux/snap/electron-launch',
 	'!resources/win32/bin/code.js',
+	'!resources/completions/**',
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
-	'!extensions/*/server/bin/*'
+	'!extensions/*/server/bin/*',
+	'!src/vs/editor/test/node/classification/typescript-test.ts',
 ];
 
 const eslintFilter = [
@@ -127,23 +132,42 @@ const eslintFilter = [
 	'!src/vs/nls.js',
 	'!src/vs/css.build.js',
 	'!src/vs/nls.build.js',
-	'!src/**/winjs.base.js',
+	'!src/**/insane.js',
 	'!src/**/marked.js',
 	'!**/test/**'
 ];
 
-const tslintFilter = [
-	'src/**/*.ts',
-	'test/**/*.ts',
-	'extensions/**/*.ts',
+const tslintBaseFilter = [
 	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',
-	'!extensions/typescript/test/colorize-fixtures/**',
+	'!extensions/typescript-basics/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!extensions/**/*.test.ts',
 	'!extensions/html-language-features/server/lib/jquery.d.ts'
+];
+
+const tslintCoreFilter = [
+	'src/**/*.ts',
+	'test/**/*.ts',
+	'!extensions/**/*.ts',
+	'!test/smoke/**',
+	...tslintBaseFilter
+];
+
+const tslintExtensionsFilter = [
+	'extensions/**/*.ts',
+	'!src/**/*.ts',
+	'!test/**/*.ts',
+	...tslintBaseFilter
+];
+
+const tslintHygieneFilter = [
+	'src/**/*.ts',
+	'test/**/*.ts',
+	'extensions/**/*.ts',
+	...tslintBaseFilter
 ];
 
 const copyrightHeaderLines = [
@@ -162,16 +186,35 @@ gulp.task('eslint', () => {
 });
 
 gulp.task('tslint', () => {
-	const options = { emitError: true };
+	return es.merge([
 
-	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
-		.pipe(filter(tslintFilter))
-		.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
-		.pipe(gulptslint.default.report(options));
+		// Core: include type information (required by certain rules like no-nodejs-globals)
+		vfs.src(all, { base: '.', follow: true, allowEmpty: true })
+			.pipe(filter(tslintCoreFilter))
+			.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint', program: tslint.Linter.createProgram('src/tsconfig.json') }))
+			.pipe(gulptslint.default.report({ emitError: true })),
+
+		// Exenstions: do not include type information
+		vfs.src(all, { base: '.', follow: true, allowEmpty: true })
+			.pipe(filter(tslintExtensionsFilter))
+			.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
+			.pipe(gulptslint.default.report({ emitError: true }))
+	]).pipe(es.through());
 });
 
 function hygiene(some) {
 	let errorCount = 0;
+
+	const productJson = es.through(function (file) {
+		const product = JSON.parse(file.contents.toString('utf8'));
+
+		if (product.extensionsGallery) {
+			console.error('product.json: Contains "extensionsGallery"');
+			errorCount++;
+		}
+
+		this.emit('data', file);
+	});
 
 	const indentation = es.through(function (file) {
 		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
@@ -228,7 +271,7 @@ function hygiene(some) {
 			let formatted = result.dest.replace(/\r\n/gm, '\n');
 
 			if (original !== formatted) {
-				console.error('File not formatted:', file.relative);
+				console.error("File not formatted. Run the 'Format Document' command to fix it:", file.relative);
 				errorCount++;
 			}
 			cb(null, file);
@@ -256,17 +299,25 @@ function hygiene(some) {
 		input = some;
 	}
 
+	const productJsonFilter = filter('product.json', { restore: true });
+
 	const result = input
 		.pipe(filter(f => !f.stat.isDirectory()))
+		.pipe(productJsonFilter)
+		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
+		.pipe(productJsonFilter.restore)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
 		.pipe(filter(copyrightFilter))
 		.pipe(copyrights);
 
-	const typescript = result
-		.pipe(filter(tslintFilter))
-		.pipe(formatting)
-		.pipe(tsl);
+	let typescript = result
+		.pipe(filter(tslintHygieneFilter))
+		.pipe(formatting);
+
+	if (!process.argv.some(arg => arg === '--skip-tslint')) {
+		typescript = typescript.pipe(tsl);
+	}
 
 	const javascript = result
 		.pipe(filter(eslintFilter))

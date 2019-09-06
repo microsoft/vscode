@@ -60,8 +60,7 @@ export class MirrorTextModel {
 
 		// Update my lines
 		const changes = e.changes;
-		for (let i = 0, len = changes.length; i < len; i++) {
-			const change = changes[i];
+		for (const change of changes) {
 			this._acceptDeleteRange(change.range);
 			this._acceptInsertText(new Position(change.range.startLineNumber, change.range.startColumn), change.text);
 		}
