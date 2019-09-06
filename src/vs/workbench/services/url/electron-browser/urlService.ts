@@ -35,9 +35,9 @@ export class RelayURLService extends URLService implements IURLHandler {
 
 		let query = uri.query;
 		if (!query) {
-			query = `windowId=${this.windowService.windowId}`;
+			query = `windowId=${encodeURIComponent(this.windowService.windowId)}`;
 		} else {
-			query += `&windowId=${this.windowService.windowId}`;
+			query += `&windowId=${encodeURIComponent(this.windowService.windowId)}`;
 		}
 
 		return uri.with({ query });
