@@ -332,34 +332,13 @@ export enum CursorChangeReason {
 	Redo = 6
 }
 
-export enum RenderMinimap {
-	None = 0,
-	Small = 1,
-	Large = 2,
-	SmallBlocks = 3,
-	LargeBlocks = 4
-}
-
-/**
- * Describes how to indent wrapped lines.
- */
-export enum WrappingIndent {
+export enum AccessibilitySupport {
 	/**
-	 * No indentation => wrapped lines begin at column 1.
+	 * This should be the browser case where it is not known if a screen reader is attached or no.
 	 */
-	None = 0,
-	/**
-	 * Same => wrapped lines get the same indentation as the parent.
-	 */
-	Same = 1,
-	/**
-	 * Indent => wrapped lines get +1 indentation toward the parent.
-	 */
-	Indent = 2,
-	/**
-	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
-	 */
-	DeepIndent = 3
+	Unknown = 0,
+	Disabled = 1,
+	Enabled = 2
 }
 
 /**
@@ -422,12 +401,147 @@ export enum TextEditorCursorStyle {
 	UnderlineThin = 6
 }
 
+export enum RenderMinimap {
+	None = 0,
+	Small = 1,
+	Large = 2,
+	SmallBlocks = 3,
+	LargeBlocks = 4
+}
+
 export enum RenderLineNumbersType {
 	Off = 0,
 	On = 1,
 	Relative = 2,
 	Interval = 3,
 	Custom = 4
+}
+
+/**
+ * Describes how to indent wrapped lines.
+ */
+export enum WrappingIndent {
+	/**
+	 * No indentation => wrapped lines begin at column 1.
+	 */
+	None = 0,
+	/**
+	 * Same => wrapped lines get the same indentation as the parent.
+	 */
+	Same = 1,
+	/**
+	 * Indent => wrapped lines get +1 indentation toward the parent.
+	 */
+	Indent = 2,
+	/**
+	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
+	 */
+	DeepIndent = 3
+}
+
+export enum EditorOption {
+	acceptSuggestionOnCommitCharacter = 0,
+	acceptSuggestionOnEnter = 1,
+	accessibilitySupport = 2,
+	ariaLabel = 3,
+	autoClosingBrackets = 4,
+	autoClosingOvertype = 5,
+	autoClosingQuotes = 6,
+	autoIndent = 7,
+	automaticLayout = 8,
+	autoSurround = 9,
+	codeLens = 10,
+	colorDecorators = 11,
+	contextmenu = 12,
+	copyWithSyntaxHighlighting = 13,
+	cursorBlinking = 14,
+	cursorSmoothCaretAnimation = 15,
+	cursorStyle = 16,
+	cursorSurroundingLines = 17,
+	cursorWidth = 18,
+	disableLayerHinting = 19,
+	disableMonospaceOptimizations = 20,
+	dragAndDrop = 21,
+	emptySelectionClipboard = 22,
+	extraEditorClassName = 23,
+	fastScrollSensitivity = 24,
+	find = 25,
+	fixedOverflowWidgets = 26,
+	folding = 27,
+	foldingStrategy = 28,
+	fontFamily = 29,
+	fontInfo = 30,
+	fontLigatures = 31,
+	fontSize = 32,
+	fontWeight = 33,
+	formatOnPaste = 34,
+	formatOnType = 35,
+	glyphMargin = 36,
+	gotoLocation = 37,
+	hideCursorInOverviewRuler = 38,
+	highlightActiveIndentGuide = 39,
+	hover = 40,
+	inDiffEditor = 41,
+	letterSpacing = 42,
+	lightbulb = 43,
+	lineDecorationsWidth = 44,
+	lineHeight = 45,
+	lineNumbers = 46,
+	lineNumbersMinChars = 47,
+	links = 48,
+	matchBrackets = 49,
+	minimap = 50,
+	mouseStyle = 51,
+	mouseWheelScrollSensitivity = 52,
+	mouseWheelZoom = 53,
+	multiCursorMergeOverlapping = 54,
+	multiCursorModifier = 55,
+	occurrencesHighlight = 56,
+	overviewRulerBorder = 57,
+	overviewRulerLanes = 58,
+	parameterHints = 59,
+	quickSuggestions = 60,
+	quickSuggestionsDelay = 61,
+	readOnly = 62,
+	renderControlCharacters = 63,
+	renderIndentGuides = 64,
+	renderFinalNewline = 65,
+	renderLineHighlight = 66,
+	renderWhitespace = 67,
+	revealHorizontalRightPadding = 68,
+	roundedSelection = 69,
+	rulers = 70,
+	scrollbar = 71,
+	scrollBeyondLastColumn = 72,
+	scrollBeyondLastLine = 73,
+	selectionClipboard = 74,
+	selectionHighlight = 75,
+	selectOnLineNumbers = 76,
+	showFoldingControls = 77,
+	showUnused = 78,
+	snippetSuggestions = 79,
+	smoothScrolling = 80,
+	stopRenderingLineAfter = 81,
+	suggest = 82,
+	suggestFontSize = 83,
+	suggestLineHeight = 84,
+	suggestOnTriggerCharacters = 85,
+	suggestSelection = 86,
+	tabCompletion = 87,
+	useTabStops = 88,
+	wordSeparators = 89,
+	wordWrap = 90,
+	wordWrapBreakAfterCharacters = 91,
+	wordWrapBreakBeforeCharacters = 92,
+	wordWrapBreakObtrusiveCharacters = 93,
+	wordWrapColumn = 94,
+	wordWrapMinified = 95,
+	wrappingIndent = 96,
+	editorClassName = 97,
+	pixelRatio = 98,
+	tabFocusMode = 99,
+	layoutInfo = 100,
+	wrappingInfo = 101
 }
 
 /**

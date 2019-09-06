@@ -19,6 +19,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet } from './snippetsFile';
 import { SnippetCompletion } from './snippetCompletionProvider';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class TabCompletionController implements editorCommon.IEditorContribution {
 
@@ -42,7 +43,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	) {
 		this._hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
 		this._configListener = this._editor.onDidChangeConfiguration(e => {
-			if (e.contribInfo) {
+			if (e.hasChanged(EditorOption.tabCompletion)) {
 				this._update();
 			}
 		});
@@ -59,7 +60,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	}
 
 	private _update(): void {
-		const enabled = this._editor.getConfiguration().contribInfo.tabCompletion === 'onlySnippets';
+		const enabled = this._editor.getOption(EditorOption.tabCompletion) === 'onlySnippets';
 		if (this._enabled !== enabled) {
 			this._enabled = enabled;
 			if (!this._enabled) {
