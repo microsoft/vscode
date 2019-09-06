@@ -72,9 +72,6 @@ registerSingleton(IContextMenuService, ContextMenuService);
 
 //#region --- workbench contributions
 
-// Resource Service Worker
-import 'vs/workbench/contrib/resources/browser/resourceServiceWorkerClient';
-
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 
