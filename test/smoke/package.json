@@ -31,6 +31,7 @@
     "mocha-multi-reporters": "^1.1.7",
     "ncp": "^2.0.0",
     "portastic": "^1.0.1",
+    "puppeteer": "^1.19.0",
     "rimraf": "^2.6.1",
     "strip-json-comments": "^2.0.1",
     "tmp": "0.0.33",

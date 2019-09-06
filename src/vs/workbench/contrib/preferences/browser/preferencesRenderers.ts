@@ -57,7 +57,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	private editSettingActionRenderer: EditSettingRenderer;
 	private highlightMatchesRenderer: HighlightMatchesRenderer;
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
-	private associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
+	private associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 
 	private readonly _onFocusPreference = this._register(new Emitter<ISetting>());
 	readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
@@ -229,7 +229,7 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 
 export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
-	private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
+	private _associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 	private settingHighlighter: SettingHighlighter;
 	private settingsHeaderRenderer: DefaultSettingsHeaderRenderer;
 	private settingsGroupTitleRenderer: SettingsGroupTitleRenderer;
@@ -363,7 +363,7 @@ export interface HiddenAreasProvider {
 
 export class BracesHidingRenderer extends Disposable implements HiddenAreasProvider {
 	private _result: IFilterResult | undefined;
-	private _settingsGroups: ISettingsGroup[];
+	private _settingsGroups!: ISettingsGroup[];
 
 	constructor(private editor: ICodeEditor) {
 		super();
@@ -445,9 +445,9 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 	private readonly _onHiddenAreasChanged = this._register(new Emitter<void>());
 	readonly onHiddenAreasChanged: Event<void> = this._onHiddenAreasChanged.event;
 
-	private settingsGroups: ISettingsGroup[];
+	private settingsGroups!: ISettingsGroup[];
 	private hiddenGroups: ISettingsGroup[] = [];
-	private settingsGroupTitleWidgets: SettingsGroupTitleWidget[];
+	private settingsGroupTitleWidgets!: SettingsGroupTitleWidget[];
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(private editor: ICodeEditor,
@@ -649,7 +649,7 @@ class EditSettingRenderer extends Disposable {
 	private editPreferenceWidgetForMouseMove: EditPreferenceWidget<IIndexedSetting>;
 
 	private settingsGroups: ISettingsGroup[] = [];
-	associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
+	associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
 	private readonly _onUpdateSetting: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
@@ -916,7 +916,7 @@ class SettingHighlighter extends Disposable {
 
 	private fixedHighlighter: RangeHighlightDecorations;
 	private volatileHighlighter: RangeHighlightDecorations;
-	private highlightedSetting: ISetting;
+	private highlightedSetting!: ISetting;
 
 	constructor(private editor: ICodeEditor, private readonly focusEventEmitter: Emitter<ISetting>, private readonly clearFocusEventEmitter: Emitter<ISetting>,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -1091,7 +1091,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 class WorkspaceConfigurationRenderer extends Disposable {
 
 	private decorationIds: string[] = [];
-	private associatedSettingsEditorModel: IPreferencesEditorModel<ISetting>;
+	private associatedSettingsEditorModel!: IPreferencesEditorModel<ISetting>;
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,

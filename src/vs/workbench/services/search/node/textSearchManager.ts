@@ -199,7 +199,7 @@ export class TextSearchResultsCollector {
 	private _batchedCollector: BatchedCollector<IFileMatch>;
 
 	private _currentFolderIdx: number = -1;
-	private _currentUri: URI;
+	private _currentUri: URI | undefined;
 	private _currentFileMatch: IFileMatch | null = null;
 
 	constructor(private _onResult: (result: IFileMatch[]) => void) {
