@@ -282,6 +282,10 @@
 	background: url('stop-light.svg') center center no-repeat;
 }
 
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .debug-action.stop {
+	background: url('stop-white.svg') center center no-repeat;
+}
+
 .vs-dark .debug-viewlet .debug-call-stack .debug-action.stop {
 	background: url('stop-dark.svg') center center no-repeat;
 }
@@ -294,6 +298,9 @@
 	background: url('disconnect-dark.svg') center center no-repeat;
 }
 
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .debug-action.disconnect {
+	background: url('disconnect-white.svg') center center no-repeat;
+}
 
 .debug-viewlet .debug-call-stack .debug-action.restart {
 	background: url('restart-light.svg') center center no-repeat;
@@ -301,6 +308,10 @@
 
 .vs-dark .debug-viewlet .debug-call-stack .debug-action.restart {
 	background: url('restart-dark.svg') center center no-repeat;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .debug-action.restart {
+	background: url('restart-white.svg') center center no-repeat;
 }
 
 .debug-viewlet .debug-call-stack .debug-action.step-over {
@@ -311,12 +322,20 @@
 	background: url('step-over-dark.svg') center center no-repeat;
 }
 
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .debug-action.step-over {
+	background: url('step-over-white.svg') center center no-repeat;
+}
+
 .debug-viewlet .debug-call-stack .debug-action.step-into {
 	background: url('step-into-light.svg') center center no-repeat;
 }
 
 .vs-dark .debug-viewlet .debug-call-stack .debug-action.step-into {
 	background: url('step-into-dark.svg') center center no-repeat;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .debug-action.step-into {
+	background: url('step-into-white.svg') center center no-repeat;
 }
 
 .debug-viewlet .debug-call-stack .debug-action.step-out {
@@ -327,6 +346,10 @@
 	background: url('step-out-dark.svg') center center no-repeat;
 }
 
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .debug-action.step-out {
+	background: url('step-out-white.svg') center center no-repeat;
+}
+
 .debug-viewlet .debug-call-stack .debug-action.pause {
 	background: url('pause-light.svg') center center no-repeat;
 }
@@ -335,12 +358,20 @@
 	background: url('pause-dark.svg') center center no-repeat;
 }
 
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .debug-action.pause {
+	background: url('pause-white.svg') center center no-repeat;
+}
+
 .debug-viewlet .debug-call-stack .debug-action.continue {
 	background: url('continue-light.svg') center center no-repeat;
 }
 
 .vs-dark .debug-viewlet .debug-call-stack .debug-action.continue {
 	background: url('continue-dark.svg') center center no-repeat;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .debug-action.continue {
+	background: url('continue-white.svg') center center no-repeat;
 }
 
 /* Variables & Expression view */
