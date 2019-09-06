@@ -23,6 +23,11 @@ export interface IConfigurationResolverService {
 	resolveAny(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any;
 
 	/**
+	 * Like resolveAny, but also includes variable contributed by other parts of the system.
+	 */
+	resolveAnyIncludeContributed(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any>;
+
+	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.
 	 * If a "variables" dictionary (with names -> command ids) is given, command variables are first mapped through it before being resolved.
 	 *
@@ -36,6 +41,12 @@ export interface IConfigurationResolverService {
 	 * Keys in the map will be of the format input:variableName or command:variableName.
 	 */
 	resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined>;
+
+	/**
+	 * Contributes a variable that can be resolved later. Consumers that use resolveAnyIncludeContributed, resolveWithInteractionReplace,
+	 * and resolveWithInteractionReplace will have contributed variables resolved.
+	 */
+	contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void;
 }
 
 export interface PromptStringInputInfo {
