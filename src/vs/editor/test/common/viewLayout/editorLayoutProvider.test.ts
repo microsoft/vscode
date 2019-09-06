@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorLayoutInfo, EditorLayoutInfoComputer, RenderMinimap, EditorOption, InternalEditorMinimapOptions, InternalEditorScrollbarOptions, EditorOptions, RenderLineNumbersType, InternalEditorRenderLineNumbersOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorLayoutInfoComputer, RenderMinimap, EditorOption, EditorMinimapOptions, InternalEditorScrollbarOptions, EditorOptions, RenderLineNumbersType, InternalEditorRenderLineNumbersOptions } from 'vs/editor/common/config/editorOptions';
 import { ComputedEditorOptions } from 'vs/editor/common/config/commonEditorConfig';
 
 interface IEditorLayoutProviderOpts {
@@ -43,7 +43,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		options._write(EditorOption.lineNumbersMinChars, input.lineNumbersMinChars);
 		options._write(EditorOption.lineDecorationsWidth, input.lineDecorationsWidth);
 		options._write(EditorOption.folding, false);
-		const minimapOptions: InternalEditorMinimapOptions = {
+		const minimapOptions: EditorMinimapOptions = {
 			enabled: input.minimap,
 			side: input.minimapSide,
 			renderCharacters: input.minimapRenderCharacters,

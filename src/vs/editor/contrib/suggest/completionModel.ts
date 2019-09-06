@@ -60,7 +60,8 @@ export class CompletionModel {
 		column: number,
 		lineContext: LineContext,
 		wordDistance: WordDistance,
-		options: InternalSuggestOptions
+		options: InternalSuggestOptions,
+		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none'
 	) {
 		this._items = items;
 		this._column = column;
@@ -69,9 +70,9 @@ export class CompletionModel {
 		this._refilterKind = Refilter.All;
 		this._lineContext = lineContext;
 
-		if (options.snippets === 'top') {
+		if (snippetSuggestions === 'top') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
-		} else if (options.snippets === 'bottom') {
+		} else if (snippetSuggestions === 'bottom') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
 		}
 	}

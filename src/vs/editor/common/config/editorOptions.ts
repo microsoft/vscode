@@ -86,7 +86,7 @@ export interface IEditorFindOptions {
 	/**
 	 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 	 */
-	autoFindInSelection: boolean;
+	autoFindInSelection?: boolean;
 	/*
 	 * Controls whether the Find Widget should add extra lines on top of the editor.
 	 */
@@ -95,7 +95,7 @@ export interface IEditorFindOptions {
 	 * @internal
 	 * Controls if the Find Widget should read or modify the shared find clipboard on macOS
 	 */
-	globalFindClipboard: boolean;
+	globalFindClipboard?: boolean;
 }
 
 /**
@@ -780,22 +780,6 @@ export class ConfigurationChangedEvent {
 /**
  * @internal
  */
-export interface IEnvironmentalOptions {
-	readonly outerWidth: number;
-	readonly outerHeight: number;
-	readonly fontInfo: FontInfo;
-	readonly extraEditorClassName: string;
-	readonly isDominatedByLongLines: boolean;
-	readonly lineNumbersDigitCount: number;
-	readonly emptySelectionClipboard: boolean;
-	readonly pixelRatio: number;
-	readonly tabFocusMode: boolean;
-	readonly accessibilitySupport: AccessibilitySupport;
-}
-
-/**
- * @internal
- */
 export class ValidatedEditorOptions {
 	private readonly _values: any[] = [];
 	public _read<T>(option: EditorOption): T {
@@ -814,6 +798,22 @@ export interface IComputedEditorOptions {
 }
 
 //#region IEditorOption
+
+/**
+ * @internal
+ */
+export interface IEnvironmentalOptions {
+	readonly outerWidth: number;
+	readonly outerHeight: number;
+	readonly fontInfo: FontInfo;
+	readonly extraEditorClassName: string;
+	readonly isDominatedByLongLines: boolean;
+	readonly lineNumbersDigitCount: number;
+	readonly emptySelectionClipboard: boolean;
+	readonly pixelRatio: number;
+	readonly tabFocusMode: boolean;
+	readonly accessibilitySupport: AccessibilitySupport;
+}
 
 export interface IEditorOption<K1 extends EditorOption, V> {
 	readonly id: K1;
@@ -903,20 +903,21 @@ class SimpleEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1
 	}
 }
 
-function _boolean(value: any, defaultValue: boolean): boolean {
-	if (typeof value === 'undefined') {
-		return defaultValue;
-	}
-	if (value === 'false') {
-		// treat the string 'false' as false
-		return false;
-	}
-	return Boolean(value);
-}
-
 class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1, boolean> {
+
+	public static boolean(value: any, defaultValue: boolean): boolean {
+		if (typeof value === 'undefined') {
+			return defaultValue;
+		}
+		if (value === 'false') {
+			// treat the string 'false' as false
+			return false;
+		}
+		return Boolean(value);
+	}
+
 	public validate(input: any): boolean {
-		return _boolean(input, this.defaultValue);
+		return EditorBooleanOption.boolean(input, this.defaultValue);
 	}
 }
 
@@ -1185,7 +1186,7 @@ function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'l
 
 class EditorDisableMonospaceOptimizations<K1 extends EditorOption> extends SimpleEditorOption<K1, boolean> {
 	public validate(input: any): boolean {
-		return _boolean(input, this.defaultValue);
+		return EditorBooleanOption.boolean(input, this.defaultValue);
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
 		return (value || options.get(EditorOption.fontLigatures));
@@ -1231,27 +1232,19 @@ class EditorEmptySelectionClipboard<K1 extends EditorOption> extends EditorBoole
 
 //#region find
 
-export interface InternalEditorFindOptions {
-	readonly seedSearchStringFromSelection: boolean;
-	readonly autoFindInSelection: boolean;
-	readonly addExtraSpaceOnTop: boolean;
-	/**
-	 * @internal
-	 */
-	readonly globalFindClipboard: boolean;
-}
+export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
-class EditorFind<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorFindOptions>> extends BaseEditorOption<K1, K2, InternalEditorFindOptions> {
-	public validate(_input: any): InternalEditorFindOptions {
+class EditorFind<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorFindOptions>> extends BaseEditorOption<K1, K2, EditorFindOptions> {
+	public validate(_input: any): EditorFindOptions {
 		if (typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorFindOptions;
 		return {
-			seedSearchStringFromSelection: _boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
-			autoFindInSelection: _boolean(input.autoFindInSelection, this.defaultValue.autoFindInSelection),
-			globalFindClipboard: _boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
-			addExtraSpaceOnTop: _boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop)
+			seedSearchStringFromSelection: EditorBooleanOption.boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
+			autoFindInSelection: EditorBooleanOption.boolean(input.autoFindInSelection, this.defaultValue.autoFindInSelection),
+			globalFindClipboard: EditorBooleanOption.boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
+			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop)
 		};
 	}
 }
@@ -1289,12 +1282,10 @@ class EditorFontSize<K1 extends EditorOption> extends SimpleEditorOption<K1, num
 
 //#region gotoLocation
 
-export interface InternalGoToLocationOptions {
-	readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
-}
+export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
 
-class EditorGoToLocation<K1 extends EditorOption, K2 extends PossibleKeyName<IGotoLocationOptions>> extends BaseEditorOption<K1, K2, InternalGoToLocationOptions> {
-	public validate(_input: any): InternalGoToLocationOptions {
+class EditorGoToLocation<K1 extends EditorOption, K2 extends PossibleKeyName<IGotoLocationOptions>> extends BaseEditorOption<K1, K2, GoToLocationOptions> {
+	public validate(_input: any): GoToLocationOptions {
 		if (typeof _input !== 'object') {
 			return this.defaultValue;
 		}
@@ -1309,22 +1300,18 @@ class EditorGoToLocation<K1 extends EditorOption, K2 extends PossibleKeyName<IGo
 
 //#region hover
 
-export interface InternalEditorHoverOptions {
-	readonly enabled: boolean;
-	readonly delay: number;
-	readonly sticky: boolean;
-}
+export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
 
-class EditorHover<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorHoverOptions>> extends BaseEditorOption<K1, K2, InternalEditorHoverOptions> {
-	public validate(_input: any): InternalEditorHoverOptions {
+class EditorHover<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorHoverOptions>> extends BaseEditorOption<K1, K2, EditorHoverOptions> {
+	public validate(_input: any): EditorHoverOptions {
 		if (typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorHoverOptions;
 		return {
-			enabled: _boolean(input.enabled, this.defaultValue.enabled),
+			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
-			sticky: _boolean(input.sticky, this.defaultValue.sticky)
+			sticky: EditorBooleanOption.boolean(input.sticky, this.defaultValue.sticky)
 		};
 	}
 }
@@ -1646,16 +1633,16 @@ export class EditorLayoutInfoComputer<K1 extends EditorOption> extends ComputedE
 
 //#region lightbulb
 
-export type ValidEditorLightbulbOptions = Required<IEditorLightbulbOptions>;
+export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
 
-class EditorLightbulb<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorLightbulbOptions>> extends BaseEditorOption<K1, K2, ValidEditorLightbulbOptions> {
-	public validate(_input: any): ValidEditorLightbulbOptions {
+class EditorLightbulb<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorLightbulbOptions>> extends BaseEditorOption<K1, K2, EditorLightbulbOptions> {
+	public validate(_input: any): EditorLightbulbOptions {
 		if (typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorLightbulbOptions;
 		return {
-			enabled: _boolean(input.enabled, this.defaultValue.enabled)
+			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled)
 		};
 	}
 }
@@ -1677,25 +1664,19 @@ class EditorLineHeight<K1 extends EditorOption, K2 extends PossibleKeyName<numbe
 
 //#region minimap
 
-export interface InternalEditorMinimapOptions {
-	readonly enabled: boolean;
-	readonly side: 'right' | 'left';
-	readonly showSlider: 'always' | 'mouseover';
-	readonly renderCharacters: boolean;
-	readonly maxColumn: number;
-}
+export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
 
-class EditorMinimap<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorMinimapOptions>> extends BaseEditorOption<K1, K2, InternalEditorMinimapOptions> {
-	public validate(_input: any): InternalEditorMinimapOptions {
+class EditorMinimap<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorMinimapOptions>> extends BaseEditorOption<K1, K2, EditorMinimapOptions> {
+	public validate(_input: any): EditorMinimapOptions {
 		if (typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorMinimapOptions;
 		return {
-			enabled: _boolean(input.enabled, this.defaultValue.enabled),
+			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
 			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
-			renderCharacters: _boolean(input.renderCharacters, this.defaultValue.renderCharacters),
+			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 		};
 	}
@@ -1703,12 +1684,20 @@ class EditorMinimap<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorM
 
 //#endregion
 
+//#region multiCursorModifier
+
+function _multiCursorModifierFromString(multiCursorModifier: 'ctrlCmd' | 'alt'): 'altKey' | 'metaKey' | 'ctrlKey' {
+	if (multiCursorModifier === 'ctrlCmd') {
+		return (platform.isMacintosh ? 'metaKey' : 'ctrlKey');
+	}
+	return 'altKey';
+}
+
+//#endregion
+
 //#region parameterHints
 
-export interface InternalParameterHintOptions {
-	readonly enabled: boolean;
-	readonly cycle: boolean;
-}
+export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
 
 class EditorParameterHints<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorParameterHintOptions>> extends BaseEditorOption<K1, K2, InternalParameterHintOptions> {
 	public validate(_input: any): InternalParameterHintOptions {
@@ -1717,8 +1706,8 @@ class EditorParameterHints<K1 extends EditorOption, K2 extends PossibleKeyName<I
 		}
 		const input = _input as IEditorParameterHintOptions;
 		return {
-			enabled: _boolean(input.enabled, this.defaultValue.enabled),
-			cycle: _boolean(input.cycle, this.defaultValue.cycle)
+			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
+			cycle: EditorBooleanOption.boolean(input.cycle, this.defaultValue.cycle)
 		};
 	}
 }
@@ -1751,9 +1740,9 @@ class EditorQuickSuggestions<K1 extends EditorOption, K2 extends PossibleKeyName
 		if (typeof _input === 'object') {
 			const input = _input as IQuickSuggestionsOptions;
 			return {
-				other: _boolean(input.other, this.defaultValue.other),
-				comments: _boolean(input.comments, this.defaultValue.comments),
-				strings: _boolean(input.strings, this.defaultValue.strings),
+				other: EditorBooleanOption.boolean(input.other, this.defaultValue.other),
+				comments: EditorBooleanOption.boolean(input.comments, this.defaultValue.comments),
+				strings: EditorBooleanOption.boolean(input.strings, this.defaultValue.strings),
 			};
 		}
 		return this.defaultValue;
@@ -1865,10 +1854,10 @@ class EditorScrollbar<K1 extends EditorOption, K2 extends PossibleKeyName<IEdito
 			arrowSize: EditorIntOption.clampedInt(input.arrowSize, this.defaultValue.arrowSize, 0, 1000),
 			vertical: _scrollbarVisibilityFromString(input.vertical, this.defaultValue.vertical),
 			horizontal: _scrollbarVisibilityFromString(input.horizontal, this.defaultValue.horizontal),
-			useShadows: _boolean(input.useShadows, this.defaultValue.useShadows),
-			verticalHasArrows: _boolean(input.verticalHasArrows, this.defaultValue.verticalHasArrows),
-			horizontalHasArrows: _boolean(input.horizontalHasArrows, this.defaultValue.horizontalHasArrows),
-			handleMouseWheel: _boolean(input.handleMouseWheel, this.defaultValue.handleMouseWheel),
+			useShadows: EditorBooleanOption.boolean(input.useShadows, this.defaultValue.useShadows),
+			verticalHasArrows: EditorBooleanOption.boolean(input.verticalHasArrows, this.defaultValue.verticalHasArrows),
+			horizontalHasArrows: EditorBooleanOption.boolean(input.horizontalHasArrows, this.defaultValue.horizontalHasArrows),
+			handleMouseWheel: EditorBooleanOption.boolean(input.handleMouseWheel, this.defaultValue.handleMouseWheel),
 			horizontalScrollbarSize: horizontalScrollbarSize,
 			horizontalSliderSize: EditorIntOption.clampedInt(input.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
 			verticalScrollbarSize: verticalScrollbarSize,
@@ -1881,16 +1870,7 @@ class EditorScrollbar<K1 extends EditorOption, K2 extends PossibleKeyName<IEdito
 
 //#region suggest
 
-export interface InternalSuggestOptions {
-	readonly filterGraceful: boolean;
-	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
-	readonly snippetsPreventQuickSuggestions: boolean;
-	readonly localityBonus: boolean;
-	readonly shareSuggestSelections: boolean;
-	readonly showIcons: boolean;
-	readonly maxVisibleSuggestions: number;
-	readonly filteredTypes: Record<string, boolean>;
-}
+export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
 
 class EditorSuggest<K1 extends EditorOption, K2 extends PossibleKeyName<ISuggestOptions>> extends BaseEditorOption<K1, K2, InternalSuggestOptions> {
 	public validate(_input: any): InternalSuggestOptions {
@@ -1899,27 +1879,13 @@ class EditorSuggest<K1 extends EditorOption, K2 extends PossibleKeyName<ISuggest
 		}
 		const input = _input as ISuggestOptions;
 		return {
-			filterGraceful: _boolean(input.filterGraceful, this.defaultValue.filterGraceful),
-			snippets: EditorOptions.snippetSuggestions.defaultValue,
-			snippetsPreventQuickSuggestions: _boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
-			localityBonus: _boolean(input.localityBonus, this.defaultValue.localityBonus),
-			shareSuggestSelections: _boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
-			showIcons: _boolean(input.showIcons, this.defaultValue.showIcons),
+			filterGraceful: EditorBooleanOption.boolean(input.filterGraceful, this.defaultValue.filterGraceful),
+			snippetsPreventQuickSuggestions: EditorBooleanOption.boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
+			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
+			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
+			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
 			maxVisibleSuggestions: EditorIntOption.clampedInt(input.maxVisibleSuggestions, this.defaultValue.maxVisibleSuggestions, 1, 15),
 			filteredTypes: isObject(input.filteredTypes) ? input.filteredTypes : Object.create(null)
-		};
-	}
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: InternalSuggestOptions): InternalSuggestOptions {
-		const snippetSuggestions = options.get(EditorOption.snippetSuggestions);
-		return {
-			filterGraceful: value.filterGraceful,
-			snippets: snippetSuggestions,
-			snippetsPreventQuickSuggestions: value.snippetsPreventQuickSuggestions,
-			localityBonus: value.localityBonus,
-			shareSuggestSelections: value.shareSuggestSelections,
-			showIcons: value.showIcons,
-			maxVisibleSuggestions: value.maxVisibleSuggestions,
-			filteredTypes: value.filteredTypes,
 		};
 	}
 }
@@ -2046,13 +2012,6 @@ class EditorWrappingInfoComputer<K1 extends EditorOption> extends ComputedEditor
 
 //#endregion
 
-function _multiCursorModifierFromString(multiCursorModifier: 'ctrlCmd' | 'alt'): 'altKey' | 'metaKey' | 'ctrlKey' {
-	if (multiCursorModifier === 'ctrlCmd') {
-		return (platform.isMacintosh ? 'metaKey' : 'ctrlKey');
-	}
-	return 'altKey';
-}
-
 const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
 const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
 const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace, \'Droid Sans Fallback\'';
@@ -2175,6 +2134,7 @@ export const enum EditorOption {
 	snippetSuggestions,
 	smoothScrolling,
 	stopRenderingLineAfter,
+	suggest,
 	suggestFontSize,
 	suggestLineHeight,
 	suggestOnTriggerCharacters,
@@ -2196,7 +2156,6 @@ export const enum EditorOption {
 	editorClassName,
 	pixelRatio,
 	tabFocusMode,
-	suggest,
 	layoutInfo,
 	wrappingInfo,
 }
@@ -2320,6 +2279,15 @@ export const EditorOptions = {
 	snippetSuggestions: registerEditorOption(new EditorStringEnumOption(EditorOption.snippetSuggestions, 'snippetSuggestions', 'inline' as 'top' | 'bottom' | 'inline' | 'none', ['top', 'bottom', 'inline', 'none'] as const)),
 	smoothScrolling: registerEditorOption(new EditorBooleanOption(EditorOption.smoothScrolling, 'smoothScrolling', false)),
 	stopRenderingLineAfter: registerEditorOption(new EditorIntOption(EditorOption.stopRenderingLineAfter, 'stopRenderingLineAfter', 10000, -1, Constants.MAX_SAFE_SMALL_INTEGER)),
+	suggest: registerEditorOption(new EditorSuggest(EditorOption.suggest, 'suggest', {
+		filterGraceful: true,
+		snippetsPreventQuickSuggestions: true,
+		localityBonus: false,
+		shareSuggestSelections: false,
+		showIcons: true,
+		maxVisibleSuggestions: 12,
+		filteredTypes: Object.create(null)
+	})),
 	suggestFontSize: registerEditorOption(new EditorIntOption(EditorOption.suggestFontSize, 'suggestFontSize', 0, 0, 1000)),
 	suggestLineHeight: registerEditorOption(new EditorIntOption(EditorOption.suggestLineHeight, 'suggestLineHeight', 0, 0, 1000)),
 	suggestOnTriggerCharacters: registerEditorOption(new EditorBooleanOption(EditorOption.suggestOnTriggerCharacters, 'suggestOnTriggerCharacters', true)),
@@ -2341,16 +2309,7 @@ export const EditorOptions = {
 	editorClassName: registerEditorOption(new EditorClassName(EditorOption.editorClassName, [EditorOption.mouseStyle, EditorOption.fontLigatures, EditorOption.extraEditorClassName])),
 	pixelRatio: registerEditorOption(new EditorPixelRatio(EditorOption.pixelRatio)),
 	tabFocusMode: registerEditorOption(new EditorTabFocusMode(EditorOption.tabFocusMode, [EditorOption.readOnly])),
-	suggest: registerEditorOption(new EditorSuggest(EditorOption.suggest, 'suggest', {
-		filterGraceful: true,
-		snippets: 'inline',
-		snippetsPreventQuickSuggestions: true,
-		localityBonus: false,
-		shareSuggestSelections: false,
-		showIcons: true,
-		maxVisibleSuggestions: 12,
-		filteredTypes: Object.create(null)
-	}, [EditorOption.snippetSuggestions])),
+
 	layoutInfo: registerEditorOption(new EditorLayoutInfoComputer(EditorOption.layoutInfo, [EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding, EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers])),
 	wrappingInfo: registerEditorOption(new EditorWrappingInfoComputer(EditorOption.wrappingInfo, [EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified, EditorOption.layoutInfo, EditorOption.accessibilitySupport])),
 };

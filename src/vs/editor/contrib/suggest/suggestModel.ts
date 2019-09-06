@@ -389,9 +389,10 @@ export class SuggestModel implements IDisposable {
 
 		// kind filter and snippet sort rules
 		const suggestOptions = this._editor.getOption(EditorOption.suggest);
+		const snippetSuggestions = this._editor.getOption(EditorOption.snippetSuggestions);
 		let itemKindFilter = new Set<CompletionItemKind>();
 		let snippetSortOrder = SnippetSortOrder.Inline;
-		switch (suggestOptions.snippets) {
+		switch (snippetSuggestions) {
 			case 'top':
 				snippetSortOrder = SnippetSortOrder.Top;
 				break;
@@ -450,7 +451,8 @@ export class SuggestModel implements IDisposable {
 				characterCountDelta: ctx.column - this._context!.column
 			},
 				wordDistance,
-				this._editor.getOption(EditorOption.suggest)
+				this._editor.getOption(EditorOption.suggest),
+				this._editor.getOption(EditorOption.snippetSuggestions)
 			);
 
 			// store containers so that they can be disposed later

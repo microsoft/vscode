@@ -2489,7 +2489,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 		 */
-		autoFindInSelection: boolean;
+		autoFindInSelection?: boolean;
 		addExtraSpaceOnTop?: boolean;
 	}
 
@@ -3229,21 +3229,11 @@ declare namespace monaco.editor {
 		UnderlineThin = 6
 	}
 
-	export interface InternalEditorFindOptions {
-		readonly seedSearchStringFromSelection: boolean;
-		readonly autoFindInSelection: boolean;
-		readonly addExtraSpaceOnTop: boolean;
-	}
+	export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
-	export interface InternalGoToLocationOptions {
-		readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
-	}
+	export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
 
-	export interface InternalEditorHoverOptions {
-		readonly enabled: boolean;
-		readonly delay: number;
-		readonly sticky: boolean;
-	}
+	export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
 
 	/**
 	 * A description for the overview ruler position.
@@ -3365,20 +3355,11 @@ declare namespace monaco.editor {
 		readonly overviewRuler: OverviewRulerPosition;
 	}
 
-	export type ValidEditorLightbulbOptions = Required<IEditorLightbulbOptions>;
+	export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
 
-	export interface InternalEditorMinimapOptions {
-		readonly enabled: boolean;
-		readonly side: 'right' | 'left';
-		readonly showSlider: 'always' | 'mouseover';
-		readonly renderCharacters: boolean;
-		readonly maxColumn: number;
-	}
+	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
 
-	export interface InternalParameterHintOptions {
-		readonly enabled: boolean;
-		readonly cycle: boolean;
-	}
+	export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
 
 	export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
 
@@ -3411,16 +3392,7 @@ declare namespace monaco.editor {
 		readonly verticalSliderSize: number;
 	}
 
-	export interface InternalSuggestOptions {
-		readonly filterGraceful: boolean;
-		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
-		readonly snippetsPreventQuickSuggestions: boolean;
-		readonly localityBonus: boolean;
-		readonly shareSuggestSelections: boolean;
-		readonly showIcons: boolean;
-		readonly maxVisibleSuggestions: number;
-		readonly filteredTypes: Record<string, boolean>;
-	}
+	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
 
 	/**
 	 * Describes how to indent wrapped lines.
@@ -3532,26 +3504,26 @@ declare namespace monaco.editor {
 		snippetSuggestions = 77,
 		smoothScrolling = 78,
 		stopRenderingLineAfter = 79,
-		suggestFontSize = 80,
-		suggestLineHeight = 81,
-		suggestOnTriggerCharacters = 82,
-		suggestSelection = 83,
-		tabCompletion = 84,
-		useTabStops = 85,
-		wordSeparators = 86,
-		wordWrap = 87,
-		wordWrapBreakAfterCharacters = 88,
-		wordWrapBreakBeforeCharacters = 89,
-		wordWrapBreakObtrusiveCharacters = 90,
-		wordWrapColumn = 91,
-		wordWrapMinified = 92,
-		wrappingIndent = 93,
-		ariaLabel = 94,
-		disableMonospaceOptimizations = 95,
-		editorClassName = 96,
-		pixelRatio = 97,
-		tabFocusMode = 98,
-		suggest = 99,
+		suggest = 80,
+		suggestFontSize = 81,
+		suggestLineHeight = 82,
+		suggestOnTriggerCharacters = 83,
+		suggestSelection = 84,
+		tabCompletion = 85,
+		useTabStops = 86,
+		wordSeparators = 87,
+		wordWrap = 88,
+		wordWrapBreakAfterCharacters = 89,
+		wordWrapBreakBeforeCharacters = 90,
+		wordWrapBreakObtrusiveCharacters = 91,
+		wordWrapColumn = 92,
+		wordWrapMinified = 93,
+		wrappingIndent = 94,
+		ariaLabel = 95,
+		disableMonospaceOptimizations = 96,
+		editorClassName = 97,
+		pixelRatio = 98,
+		tabFocusMode = 99,
 		layoutInfo = 100,
 		wrappingInfo = 101
 	}
@@ -3580,7 +3552,7 @@ declare namespace monaco.editor {
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
-		find: IEditorOption<EditorOption.find, InternalEditorFindOptions>;
+		find: IEditorOption<EditorOption.find, any>;
 		fixedOverflowWidgets: IEditorOption<EditorOption.fixedOverflowWidgets, boolean>;
 		folding: IEditorOption<EditorOption.folding, boolean>;
 		foldingStrategy: IEditorOption<EditorOption.foldingStrategy, "auto" | "indentation">;
@@ -3592,10 +3564,10 @@ declare namespace monaco.editor {
 		formatOnPaste: IEditorOption<EditorOption.formatOnPaste, boolean>;
 		formatOnType: IEditorOption<EditorOption.formatOnType, boolean>;
 		glyphMargin: IEditorOption<EditorOption.glyphMargin, boolean>;
-		gotoLocation: IEditorOption<EditorOption.gotoLocation, InternalGoToLocationOptions>;
+		gotoLocation: IEditorOption<EditorOption.gotoLocation, any>;
 		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
 		highlightActiveIndentGuide: IEditorOption<EditorOption.highlightActiveIndentGuide, boolean>;
-		hover: IEditorOption<EditorOption.hover, InternalEditorHoverOptions>;
+		hover: IEditorOption<EditorOption.hover, any>;
 		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
 		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
 		lightbulb: IEditorOption<EditorOption.lightbulb, any>;
@@ -3605,7 +3577,7 @@ declare namespace monaco.editor {
 		lineNumbersMinChars: IEditorOption<EditorOption.lineNumbersMinChars, number>;
 		links: IEditorOption<EditorOption.links, boolean>;
 		matchBrackets: IEditorOption<EditorOption.matchBrackets, boolean>;
-		minimap: IEditorOption<EditorOption.minimap, InternalEditorMinimapOptions>;
+		minimap: IEditorOption<EditorOption.minimap, any>;
 		mouseStyle: IEditorOption<EditorOption.mouseStyle, "text" | "default" | "copy">;
 		mouseWheelScrollSensitivity: IEditorOption<EditorOption.mouseWheelScrollSensitivity, number>;
 		mouseWheelZoom: IEditorOption<EditorOption.mouseWheelZoom, boolean>;
@@ -3614,7 +3586,7 @@ declare namespace monaco.editor {
 		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
-		parameterHints: IEditorOption<EditorOption.parameterHints, InternalParameterHintOptions>;
+		parameterHints: IEditorOption<EditorOption.parameterHints, any>;
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, any>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
@@ -3637,6 +3609,7 @@ declare namespace monaco.editor {
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, "none" | "top" | "bottom" | "inline">;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
+		suggest: IEditorOption<EditorOption.suggest, any>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
@@ -3656,7 +3629,6 @@ declare namespace monaco.editor {
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
 		pixelRatio: IEditorOption<EditorOption.pixelRatio, number>;
 		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, boolean>;
-		suggest: IEditorOption<EditorOption.suggest, InternalSuggestOptions>;
 		layoutInfo: IEditorOption<EditorOption.layoutInfo, EditorLayoutInfo>;
 		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo>;
 	};
