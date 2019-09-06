@@ -2060,7 +2060,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, originalModel.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, originalModel.mightContainRTL());
 		const output = renderViewLine(new RenderLineInput(
-			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations)),
+			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations) && !options.get(EditorOption.fontLigatures)),
 			fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,

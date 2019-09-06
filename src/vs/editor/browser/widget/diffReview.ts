@@ -770,7 +770,7 @@ export class DiffReview extends Disposable {
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
-			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations)),
+			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations) && !options.get(EditorOption.fontLigatures)),
 			fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,

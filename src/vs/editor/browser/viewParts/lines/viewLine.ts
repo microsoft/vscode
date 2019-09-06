@@ -89,6 +89,7 @@ export class ViewLineOptions {
 		this.useMonospaceOptimizations = (
 			fontInfo.isMonospace
 			&& !options.get(EditorOption.disableMonospaceOptimizations)
+			&& !options.get(EditorOption.fontLigatures)
 		);
 		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
 		this.lineHeight = options.get(EditorOption.lineHeight);

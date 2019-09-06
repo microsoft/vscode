@@ -2418,82 +2418,6 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Configuration options for editor scrollbars
-	 */
-	export interface IEditorScrollbarOptions {
-		/**
-		 * The size of arrows (if displayed).
-		 * Defaults to 11.
-		 */
-		arrowSize?: number;
-		/**
-		 * Render vertical scrollbar.
-		 * Defaults to 'auto'.
-		 */
-		vertical?: 'auto' | 'visible' | 'hidden';
-		/**
-		 * Render horizontal scrollbar.
-		 * Defaults to 'auto'.
-		 */
-		horizontal?: 'auto' | 'visible' | 'hidden';
-		/**
-		 * Cast horizontal and vertical shadows when the content is scrolled.
-		 * Defaults to true.
-		 */
-		useShadows?: boolean;
-		/**
-		 * Render arrows at the top and bottom of the vertical scrollbar.
-		 * Defaults to false.
-		 */
-		verticalHasArrows?: boolean;
-		/**
-		 * Render arrows at the left and right of the horizontal scrollbar.
-		 * Defaults to false.
-		 */
-		horizontalHasArrows?: boolean;
-		/**
-		 * Listen to mouse wheel events and react to them by scrolling.
-		 * Defaults to true.
-		 */
-		handleMouseWheel?: boolean;
-		/**
-		 * Height in pixels for the horizontal scrollbar.
-		 * Defaults to 10 (px).
-		 */
-		horizontalScrollbarSize?: number;
-		/**
-		 * Width in pixels for the vertical scrollbar.
-		 * Defaults to 10 (px).
-		 */
-		verticalScrollbarSize?: number;
-		/**
-		 * Width in pixels for the vertical slider.
-		 * Defaults to `verticalScrollbarSize`.
-		 */
-		verticalSliderSize?: number;
-		/**
-		 * Height in pixels for the horizontal slider.
-		 * Defaults to `horizontalScrollbarSize`.
-		 */
-		horizontalSliderSize?: number;
-	}
-
-	/**
-	 * Configuration options for editor find widget
-	 */
-	export interface IEditorFindOptions {
-		/**
-		 * Controls if we seed search string in the Find Widget with editor selection.
-		 */
-		seedSearchStringFromSelection?: boolean;
-		/**
-		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
-		 */
-		autoFindInSelection?: boolean;
-		addExtraSpaceOnTop?: boolean;
-	}
-
-	/**
 	 * Configuration options for auto closing quotes and brackets
 	 */
 	export type EditorAutoClosingStrategy = 'always' | 'languageDefined' | 'beforeWhitespace' | 'never';
@@ -2507,138 +2431,6 @@ declare namespace monaco.editor {
 	 * Configuration options for typing over closing quotes or brackets
 	 */
 	export type EditorAutoClosingOvertypeStrategy = 'always' | 'auto' | 'never';
-
-	/**
-	 * Configuration options for editor minimap
-	 */
-	export interface IEditorMinimapOptions {
-		/**
-		 * Enable the rendering of the minimap.
-		 * Defaults to true.
-		 */
-		enabled?: boolean;
-		/**
-		 * Control the side of the minimap in editor.
-		 * Defaults to 'right'.
-		 */
-		side?: 'right' | 'left';
-		/**
-		 * Control the rendering of the minimap slider.
-		 * Defaults to 'mouseover'.
-		 */
-		showSlider?: 'always' | 'mouseover';
-		/**
-		 * Render the actual text on a line (as opposed to color blocks).
-		 * Defaults to true.
-		 */
-		renderCharacters?: boolean;
-		/**
-		 * Limit the width of the minimap to render at most a certain number of columns.
-		 * Defaults to 120.
-		 */
-		maxColumn?: number;
-	}
-
-	/**
-	 * Configuration options for editor lightbulb
-	 */
-	export interface IEditorLightbulbOptions {
-		/**
-		 * Enable the lightbulb code action.
-		 * Defaults to true.
-		 */
-		enabled?: boolean;
-	}
-
-	/**
-	 * Configuration options for editor hover
-	 */
-	export interface IEditorHoverOptions {
-		/**
-		 * Enable the hover.
-		 * Defaults to true.
-		 */
-		enabled?: boolean;
-		/**
-		 * Delay for showing the hover.
-		 * Defaults to 300.
-		 */
-		delay?: number;
-		/**
-		 * Is the hover sticky such that it can be clicked and its contents selected?
-		 * Defaults to true.
-		 */
-		sticky?: boolean;
-	}
-
-	/**
-	 * Configuration options for parameter hints
-	 */
-	export interface IEditorParameterHintOptions {
-		/**
-		 * Enable parameter hints.
-		 * Defaults to true.
-		 */
-		enabled?: boolean;
-		/**
-		 * Enable cycling of parameter hints.
-		 * Defaults to false.
-		 */
-		cycle?: boolean;
-	}
-
-	/**
-	 * Configuration options for editor suggest widget
-	 */
-	export interface ISuggestOptions {
-		/**
-		 * Enable graceful matching. Defaults to true.
-		 */
-		filterGraceful?: boolean;
-		/**
-		 * Prevent quick suggestions when a snippet is active. Defaults to true.
-		 */
-		snippetsPreventQuickSuggestions?: boolean;
-		/**
-		 * Favours words that appear close to the cursor.
-		 */
-		localityBonus?: boolean;
-		/**
-		 * Enable using global storage for remembering suggestions.
-		 */
-		shareSuggestSelections?: boolean;
-		/**
-		 * Enable or disable icons in suggestions. Defaults to true.
-		 */
-		showIcons?: boolean;
-		/**
-		 * Max suggestions to show in suggestions. Defaults to 12.
-		 */
-		maxVisibleSuggestions?: number;
-		/**
-		 * Names of suggestion types to filter.
-		 */
-		filteredTypes?: Record<string, boolean>;
-	}
-
-	/**
-	 * Configuration options for go to location
-	 */
-	export interface IGotoLocationOptions {
-		/**
-		 * Control how goto-command work when having multiple results.
-		 */
-		multiple?: 'peek' | 'gotoAndPeek' | 'goto';
-	}
-
-	/**
-	 * Configuration options for quick suggestions
-	 */
-	export interface IQuickSuggestionsOptions {
-		other: boolean;
-		comments: boolean;
-		strings: boolean;
-	}
 
 	/**
 	 * Configuration options for the editor.
@@ -3229,9 +3021,55 @@ declare namespace monaco.editor {
 		UnderlineThin = 6
 	}
 
+	/**
+	 * Configuration options for editor find widget
+	 */
+	export interface IEditorFindOptions {
+		/**
+		 * Controls if we seed search string in the Find Widget with editor selection.
+		 */
+		seedSearchStringFromSelection?: boolean;
+		/**
+		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
+		 */
+		autoFindInSelection?: boolean;
+		addExtraSpaceOnTop?: boolean;
+	}
+
 	export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
+	/**
+	 * Configuration options for go to location
+	 */
+	export interface IGotoLocationOptions {
+		/**
+		 * Control how goto-command work when having multiple results.
+		 */
+		multiple?: 'peek' | 'gotoAndPeek' | 'goto';
+	}
+
 	export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
+
+	/**
+	 * Configuration options for editor hover
+	 */
+	export interface IEditorHoverOptions {
+		/**
+		 * Enable the hover.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+		/**
+		 * Delay for showing the hover.
+		 * Defaults to 300.
+		 */
+		delay?: number;
+		/**
+		 * Is the hover sticky such that it can be clicked and its contents selected?
+		 * Defaults to true.
+		 */
+		sticky?: boolean;
+	}
 
 	export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
 
@@ -3355,11 +3193,78 @@ declare namespace monaco.editor {
 		readonly overviewRuler: OverviewRulerPosition;
 	}
 
+	/**
+	 * Configuration options for editor lightbulb
+	 */
+	export interface IEditorLightbulbOptions {
+		/**
+		 * Enable the lightbulb code action.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+	}
+
 	export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
+
+	/**
+	 * Configuration options for editor minimap
+	 */
+	export interface IEditorMinimapOptions {
+		/**
+		 * Enable the rendering of the minimap.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+		/**
+		 * Control the side of the minimap in editor.
+		 * Defaults to 'right'.
+		 */
+		side?: 'right' | 'left';
+		/**
+		 * Control the rendering of the minimap slider.
+		 * Defaults to 'mouseover'.
+		 */
+		showSlider?: 'always' | 'mouseover';
+		/**
+		 * Render the actual text on a line (as opposed to color blocks).
+		 * Defaults to true.
+		 */
+		renderCharacters?: boolean;
+		/**
+		 * Limit the width of the minimap to render at most a certain number of columns.
+		 * Defaults to 120.
+		 */
+		maxColumn?: number;
+	}
 
 	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
 
+	/**
+	 * Configuration options for parameter hints
+	 */
+	export interface IEditorParameterHintOptions {
+		/**
+		 * Enable parameter hints.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+		/**
+		 * Enable cycling of parameter hints.
+		 * Defaults to false.
+		 */
+		cycle?: boolean;
+	}
+
 	export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
+
+	/**
+	 * Configuration options for quick suggestions
+	 */
+	export interface IQuickSuggestionsOptions {
+		other: boolean;
+		comments: boolean;
+		strings: boolean;
+	}
 
 	export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
 
@@ -3378,6 +3283,67 @@ declare namespace monaco.editor {
 		readonly renderFn: ((lineNumber: number) => string) | null;
 	}
 
+	/**
+	 * Configuration options for editor scrollbars
+	 */
+	export interface IEditorScrollbarOptions {
+		/**
+		 * The size of arrows (if displayed).
+		 * Defaults to 11.
+		 */
+		arrowSize?: number;
+		/**
+		 * Render vertical scrollbar.
+		 * Defaults to 'auto'.
+		 */
+		vertical?: 'auto' | 'visible' | 'hidden';
+		/**
+		 * Render horizontal scrollbar.
+		 * Defaults to 'auto'.
+		 */
+		horizontal?: 'auto' | 'visible' | 'hidden';
+		/**
+		 * Cast horizontal and vertical shadows when the content is scrolled.
+		 * Defaults to true.
+		 */
+		useShadows?: boolean;
+		/**
+		 * Render arrows at the top and bottom of the vertical scrollbar.
+		 * Defaults to false.
+		 */
+		verticalHasArrows?: boolean;
+		/**
+		 * Render arrows at the left and right of the horizontal scrollbar.
+		 * Defaults to false.
+		 */
+		horizontalHasArrows?: boolean;
+		/**
+		 * Listen to mouse wheel events and react to them by scrolling.
+		 * Defaults to true.
+		 */
+		handleMouseWheel?: boolean;
+		/**
+		 * Height in pixels for the horizontal scrollbar.
+		 * Defaults to 10 (px).
+		 */
+		horizontalScrollbarSize?: number;
+		/**
+		 * Width in pixels for the vertical scrollbar.
+		 * Defaults to 10 (px).
+		 */
+		verticalScrollbarSize?: number;
+		/**
+		 * Width in pixels for the vertical slider.
+		 * Defaults to `verticalScrollbarSize`.
+		 */
+		verticalSliderSize?: number;
+		/**
+		 * Height in pixels for the horizontal slider.
+		 * Defaults to `horizontalScrollbarSize`.
+		 */
+		horizontalSliderSize?: number;
+	}
+
 	export interface InternalEditorScrollbarOptions {
 		readonly arrowSize: number;
 		readonly vertical: ScrollbarVisibility;
@@ -3390,6 +3356,40 @@ declare namespace monaco.editor {
 		readonly horizontalSliderSize: number;
 		readonly verticalScrollbarSize: number;
 		readonly verticalSliderSize: number;
+	}
+
+	/**
+	 * Configuration options for editor suggest widget
+	 */
+	export interface ISuggestOptions {
+		/**
+		 * Enable graceful matching. Defaults to true.
+		 */
+		filterGraceful?: boolean;
+		/**
+		 * Prevent quick suggestions when a snippet is active. Defaults to true.
+		 */
+		snippetsPreventQuickSuggestions?: boolean;
+		/**
+		 * Favours words that appear close to the cursor.
+		 */
+		localityBonus?: boolean;
+		/**
+		 * Enable using global storage for remembering suggestions.
+		 */
+		shareSuggestSelections?: boolean;
+		/**
+		 * Enable or disable icons in suggestions. Defaults to true.
+		 */
+		showIcons?: boolean;
+		/**
+		 * Max suggestions to show in suggestions. Defaults to 12.
+		 */
+		maxVisibleSuggestions?: number;
+		/**
+		 * Names of suggestion types to filter.
+		 */
+		filteredTypes?: Record<string, boolean>;
 	}
 
 	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -3427,100 +3427,100 @@ declare namespace monaco.editor {
 		acceptSuggestionOnCommitCharacter = 0,
 		acceptSuggestionOnEnter = 1,
 		accessibilitySupport = 2,
-		autoClosingBrackets = 3,
-		autoClosingOvertype = 4,
-		autoClosingQuotes = 5,
-		autoIndent = 6,
-		automaticLayout = 7,
-		autoSurround = 8,
-		codeLens = 9,
-		colorDecorators = 10,
-		contextmenu = 11,
-		copyWithSyntaxHighlighting = 12,
-		cursorBlinking = 13,
-		cursorSmoothCaretAnimation = 14,
-		cursorStyle = 15,
-		cursorSurroundingLines = 16,
-		cursorWidth = 17,
-		disableLayerHinting = 18,
-		dragAndDrop = 19,
-		emptySelectionClipboard = 20,
-		extraEditorClassName = 21,
-		fastScrollSensitivity = 22,
-		find = 23,
-		fixedOverflowWidgets = 24,
-		folding = 25,
-		foldingStrategy = 26,
-		fontFamily = 27,
-		fontInfo = 28,
-		fontLigatures = 29,
-		fontSize = 30,
-		fontWeight = 31,
-		formatOnPaste = 32,
-		formatOnType = 33,
-		glyphMargin = 34,
-		gotoLocation = 35,
-		hideCursorInOverviewRuler = 36,
-		highlightActiveIndentGuide = 37,
-		hover = 38,
-		inDiffEditor = 39,
-		letterSpacing = 40,
-		lightbulb = 41,
-		lineDecorationsWidth = 42,
-		lineHeight = 43,
-		lineNumbers = 44,
-		lineNumbersMinChars = 45,
-		links = 46,
-		matchBrackets = 47,
-		minimap = 48,
-		mouseStyle = 49,
-		mouseWheelScrollSensitivity = 50,
-		mouseWheelZoom = 51,
-		multiCursorMergeOverlapping = 52,
-		multiCursorModifier = 53,
-		occurrencesHighlight = 54,
-		overviewRulerBorder = 55,
-		overviewRulerLanes = 56,
-		parameterHints = 57,
-		quickSuggestions = 58,
-		quickSuggestionsDelay = 59,
-		readOnly = 60,
-		renderControlCharacters = 61,
-		renderIndentGuides = 62,
-		renderFinalNewline = 63,
-		renderLineHighlight = 64,
-		renderWhitespace = 65,
-		revealHorizontalRightPadding = 66,
-		roundedSelection = 67,
-		rulers = 68,
-		scrollbar = 69,
-		scrollBeyondLastColumn = 70,
-		scrollBeyondLastLine = 71,
-		selectionClipboard = 72,
-		selectionHighlight = 73,
-		selectOnLineNumbers = 74,
-		showFoldingControls = 75,
-		showUnused = 76,
-		snippetSuggestions = 77,
-		smoothScrolling = 78,
-		stopRenderingLineAfter = 79,
-		suggest = 80,
-		suggestFontSize = 81,
-		suggestLineHeight = 82,
-		suggestOnTriggerCharacters = 83,
-		suggestSelection = 84,
-		tabCompletion = 85,
-		useTabStops = 86,
-		wordSeparators = 87,
-		wordWrap = 88,
-		wordWrapBreakAfterCharacters = 89,
-		wordWrapBreakBeforeCharacters = 90,
-		wordWrapBreakObtrusiveCharacters = 91,
-		wordWrapColumn = 92,
-		wordWrapMinified = 93,
-		wrappingIndent = 94,
-		ariaLabel = 95,
-		disableMonospaceOptimizations = 96,
+		ariaLabel = 3,
+		autoClosingBrackets = 4,
+		autoClosingOvertype = 5,
+		autoClosingQuotes = 6,
+		autoIndent = 7,
+		automaticLayout = 8,
+		autoSurround = 9,
+		codeLens = 10,
+		colorDecorators = 11,
+		contextmenu = 12,
+		copyWithSyntaxHighlighting = 13,
+		cursorBlinking = 14,
+		cursorSmoothCaretAnimation = 15,
+		cursorStyle = 16,
+		cursorSurroundingLines = 17,
+		cursorWidth = 18,
+		disableLayerHinting = 19,
+		disableMonospaceOptimizations = 20,
+		dragAndDrop = 21,
+		emptySelectionClipboard = 22,
+		extraEditorClassName = 23,
+		fastScrollSensitivity = 24,
+		find = 25,
+		fixedOverflowWidgets = 26,
+		folding = 27,
+		foldingStrategy = 28,
+		fontFamily = 29,
+		fontInfo = 30,
+		fontLigatures = 31,
+		fontSize = 32,
+		fontWeight = 33,
+		formatOnPaste = 34,
+		formatOnType = 35,
+		glyphMargin = 36,
+		gotoLocation = 37,
+		hideCursorInOverviewRuler = 38,
+		highlightActiveIndentGuide = 39,
+		hover = 40,
+		inDiffEditor = 41,
+		letterSpacing = 42,
+		lightbulb = 43,
+		lineDecorationsWidth = 44,
+		lineHeight = 45,
+		lineNumbers = 46,
+		lineNumbersMinChars = 47,
+		links = 48,
+		matchBrackets = 49,
+		minimap = 50,
+		mouseStyle = 51,
+		mouseWheelScrollSensitivity = 52,
+		mouseWheelZoom = 53,
+		multiCursorMergeOverlapping = 54,
+		multiCursorModifier = 55,
+		occurrencesHighlight = 56,
+		overviewRulerBorder = 57,
+		overviewRulerLanes = 58,
+		parameterHints = 59,
+		quickSuggestions = 60,
+		quickSuggestionsDelay = 61,
+		readOnly = 62,
+		renderControlCharacters = 63,
+		renderIndentGuides = 64,
+		renderFinalNewline = 65,
+		renderLineHighlight = 66,
+		renderWhitespace = 67,
+		revealHorizontalRightPadding = 68,
+		roundedSelection = 69,
+		rulers = 70,
+		scrollbar = 71,
+		scrollBeyondLastColumn = 72,
+		scrollBeyondLastLine = 73,
+		selectionClipboard = 74,
+		selectionHighlight = 75,
+		selectOnLineNumbers = 76,
+		showFoldingControls = 77,
+		showUnused = 78,
+		snippetSuggestions = 79,
+		smoothScrolling = 80,
+		stopRenderingLineAfter = 81,
+		suggest = 82,
+		suggestFontSize = 83,
+		suggestLineHeight = 84,
+		suggestOnTriggerCharacters = 85,
+		suggestSelection = 86,
+		tabCompletion = 87,
+		useTabStops = 88,
+		wordSeparators = 89,
+		wordWrap = 90,
+		wordWrapBreakAfterCharacters = 91,
+		wordWrapBreakBeforeCharacters = 92,
+		wordWrapBreakObtrusiveCharacters = 93,
+		wordWrapColumn = 94,
+		wordWrapMinified = 95,
+		wrappingIndent = 96,
 		editorClassName = 97,
 		pixelRatio = 98,
 		tabFocusMode = 99,
@@ -3532,6 +3532,7 @@ declare namespace monaco.editor {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
 		acceptSuggestionOnEnter: IEditorOption<EditorOption.acceptSuggestionOnEnter, "on" | "off" | "smart">;
 		accessibilitySupport: IEditorOption<EditorOption.accessibilitySupport, any>;
+		ariaLabel: IEditorOption<EditorOption.ariaLabel, string>;
 		autoClosingBrackets: IEditorOption<EditorOption.autoClosingBrackets, EditorAutoClosingStrategy>;
 		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, EditorAutoClosingOvertypeStrategy>;
 		autoClosingQuotes: IEditorOption<EditorOption.autoClosingQuotes, EditorAutoClosingStrategy>;
@@ -3548,6 +3549,7 @@ declare namespace monaco.editor {
 		cursorSurroundingLines: IEditorOption<EditorOption.cursorSurroundingLines, number>;
 		cursorWidth: IEditorOption<EditorOption.cursorWidth, number>;
 		disableLayerHinting: IEditorOption<EditorOption.disableLayerHinting, boolean>;
+		disableMonospaceOptimizations: IEditorOption<EditorOption.disableMonospaceOptimizations, boolean>;
 		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, boolean>;
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
@@ -3624,8 +3626,6 @@ declare namespace monaco.editor {
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
 		wordWrapMinified: IEditorOption<EditorOption.wordWrapMinified, boolean>;
 		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
-		ariaLabel: IEditorOption<EditorOption.ariaLabel, string>;
-		disableMonospaceOptimizations: IEditorOption<EditorOption.disableMonospaceOptimizations, boolean>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
 		pixelRatio: IEditorOption<EditorOption.pixelRatio, number>;
 		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, boolean>;

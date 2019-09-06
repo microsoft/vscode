@@ -14,6 +14,7 @@ const global: any = self;
 (<any>EditorOptions.wrappingIndent).defaultValue = WrappingIndent.None;
 (<any>EditorOptions.glyphMargin).defaultValue = false;
 (<any>EditorOptions.autoIndent).defaultValue = false;
+(<any>EditorOptions.overviewRulerLanes).defaultValue = 2;
 
 const api = createMonacoBaseAPI();
 api.editor = createMonacoEditorAPI();
