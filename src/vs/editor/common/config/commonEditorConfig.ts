@@ -76,7 +76,7 @@ class EditorConfiguration2 {
 		const options: { [key: string]: any; } = _options;
 		const result = new RawEditorOptions();
 		for (const editorOption of editorOptionsRegistry) {
-			const value = options[editorOption.name];
+			const value = (editorOption.name === '_never_' ? undefined : options[editorOption.name]);
 			result._write(editorOption.id, value);
 		}
 		return result;
@@ -1023,7 +1023,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.cursorBlinking': {
 			'type': 'string',
 			'enum': ['blink', 'smooth', 'phase', 'expand', 'solid'],
-			'default': EditorOptions.cursorBlinking.defaultValue,
+			'default': 'blink',
 			'description': nls.localize('cursorBlinking', "Control the cursor animation style.")
 		},
 		'editor.mouseWheelZoom': {
@@ -1039,7 +1039,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.cursorStyle': {
 			'type': 'string',
 			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],
-			'default': EditorOptions.cursorStyle.defaultValue,
+			'default': 'line',
 			'description': nls.localize('cursorStyle', "Controls the cursor style.")
 		},
 		'editor.cursorWidth': {
@@ -1156,7 +1156,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader."),
 				nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
 			],
-			'default': EditorOptions.accessibilitySupport.defaultValue,
+			'default': 'auto',
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 		},
 		'editor.showUnused': {
