@@ -11,6 +11,8 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -27,12 +29,16 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		super();
 		this._context = context;
 		this._primaryLineNumber = 0;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-		this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
-		this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
-		const wrappingColumn = this._context.configuration.editor.wrappingInfo.wrappingColumn;
-		this._maxIndentLeft = wrappingColumn === -1 ? -1 : (wrappingColumn * this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
+
+		const options = this._context.configuration.options;
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
+
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._spaceWidth = fontInfo.spaceWidth;
+		this._enabled = options.get(EditorOption.renderIndentGuides);
+		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
+		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 
 		this._renderResult = null;
 
@@ -48,20 +54,15 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.fontInfo) {
-			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-		}
-		if (e.viewInfo) {
-			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
-			this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
-		}
-		if (e.wrappingInfo || e.fontInfo) {
-			const wrappingColumn = this._context.configuration.editor.wrappingInfo.wrappingColumn;
-			this._maxIndentLeft = wrappingColumn === -1 ? -1 : (wrappingColumn * this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
-		}
+		const options = this._context.configuration.options;
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
+
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._spaceWidth = fontInfo.spaceWidth;
+		this._enabled = options.get(EditorOption.renderIndentGuides);
+		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
+		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		return true;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {

@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -110,19 +110,19 @@ export class CursorConfiguration {
 	private readonly _languageIdentifier: LanguageIdentifier;
 	private _electricChars: { [key: string]: boolean; } | null;
 
-	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
+	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
 		return (
-			e.layoutInfo
-			|| e.wordSeparators
-			|| e.emptySelectionClipboard
-			|| e.multiCursorMergeOverlapping
-			|| e.autoClosingBrackets
-			|| e.autoClosingQuotes
-			|| e.autoClosingOvertype
-			|| e.autoSurround
-			|| e.useTabStops
-			|| e.lineHeight
-			|| e.readOnly
+			e.hasChanged(EditorOption.layoutInfo)
+			|| e.hasChanged(EditorOption.wordSeparators)
+			|| e.hasChanged(EditorOption.emptySelectionClipboard)
+			|| e.hasChanged(EditorOption.multiCursorMergeOverlapping)
+			|| e.hasChanged(EditorOption.autoClosingBrackets)
+			|| e.hasChanged(EditorOption.autoClosingQuotes)
+			|| e.hasChanged(EditorOption.autoClosingOvertype)
+			|| e.hasChanged(EditorOption.autoSurround)
+			|| e.hasChanged(EditorOption.useTabStops)
+			|| e.hasChanged(EditorOption.lineHeight)
+			|| e.hasChanged(EditorOption.readOnly)
 		);
 	}
 
@@ -133,24 +133,25 @@ export class CursorConfiguration {
 	) {
 		this._languageIdentifier = languageIdentifier;
 
-		let c = configuration.editor;
+		const options = configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this.readOnly = c.readOnly;
+		this.readOnly = options.get(EditorOption.readOnly);
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
-		this.pageSize = Math.max(1, Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2);
-		this.lineHeight = c.lineHeight;
-		this.useTabStops = c.useTabStops;
-		this.wordSeparators = c.wordSeparators;
-		this.emptySelectionClipboard = c.emptySelectionClipboard;
-		this.copyWithSyntaxHighlighting = c.copyWithSyntaxHighlighting;
-		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
-		this.autoClosingBrackets = c.autoClosingBrackets;
-		this.autoClosingQuotes = c.autoClosingQuotes;
-		this.autoClosingOvertype = c.autoClosingOvertype;
-		this.autoSurround = c.autoSurround;
-		this.autoIndent = c.autoIndent;
+		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
+		this.useTabStops = options.get(EditorOption.useTabStops);
+		this.wordSeparators = options.get(EditorOption.wordSeparators);
+		this.emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+		this.copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+		this.multiCursorMergeOverlapping = options.get(EditorOption.multiCursorMergeOverlapping);
+		this.autoClosingBrackets = options.get(EditorOption.autoClosingBrackets);
+		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
+		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
+		this.autoSurround = options.get(EditorOption.autoSurround);
+		this.autoIndent = options.get(EditorOption.autoIndent);
 
 		this.autoClosingPairsOpen2 = new Map<string, StandardAutoClosingPairConditional[]>();
 		this.autoClosingPairsClose2 = new Map<string, StandardAutoClosingPairConditional[]>();

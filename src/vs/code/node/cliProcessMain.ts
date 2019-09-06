@@ -83,23 +83,14 @@ export class Main {
 	async run(argv: ParsedArgs): Promise<void> {
 		if (argv['install-source']) {
 			await this.setInstallSource(argv['install-source']);
-
 		} else if (argv['list-extensions']) {
 			await this.listExtensions(!!argv['show-versions'], argv['category']);
-
 		} else if (argv['install-extension']) {
-			const arg = argv['install-extension'];
-			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.installExtensions(args, !!argv['force']);
-
+			await this.installExtensions(argv['install-extension'], !!argv['force']);
 		} else if (argv['uninstall-extension']) {
-			const arg = argv['uninstall-extension'];
-			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.uninstallExtension(ids);
+			await this.uninstallExtension(argv['uninstall-extension']);
 		} else if (argv['locate-extension']) {
-			const arg = argv['locate-extension'];
-			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.locateExtension(ids);
+			await this.locateExtension(argv['locate-extension']);
 		} else if (argv['telemetry']) {
 			console.log(buildTelemetryMessage(this.environmentService.appRoot, this.environmentService.extensionsPath ? this.environmentService.extensionsPath : undefined));
 		}

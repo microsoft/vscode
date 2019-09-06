@@ -520,18 +520,9 @@ export class SimpleWindowsService implements IWindowsService {
 
 		const f = args['folder-uri'];
 		if (f) {
-			let u: URI | undefined;
-			if (Array.isArray(f)) {
-				if (f.length > 0) {
-					u = URI.parse(f[0]);
-				}
-			} else {
-				u = URI.parse(f);
-			}
-			if (u) {
-				gotFolder = true;
-				addQueryParameter('folder', u.path);
-			}
+			const u = URI.parse(f[0]);
+			gotFolder = true;
+			addQueryParameter('folder', u.path);
 		}
 		if (!gotFolder) {
 			// request empty window
@@ -540,17 +531,8 @@ export class SimpleWindowsService implements IWindowsService {
 
 		const ep = args['extensionDevelopmentPath'];
 		if (ep) {
-			let u: string | undefined;
-			if (Array.isArray(ep)) {
-				if (ep.length > 0) {
-					u = ep[0];
-				}
-			} else {
-				u = ep;
-			}
-			if (u) {
-				addQueryParameter('edp', u);
-			}
+			let u = ep[0];
+			addQueryParameter('edp', u);
 		}
 
 		const di = args['debugId'];
