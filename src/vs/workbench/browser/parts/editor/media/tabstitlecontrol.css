@@ -268,7 +268,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	cursor: default;
 	flex: initial;
-	padding-left: 4px;
+	padding: 0 8px 0 4px;
 	height: 35px;
 }
 

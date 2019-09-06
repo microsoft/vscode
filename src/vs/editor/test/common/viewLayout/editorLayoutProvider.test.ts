@@ -83,7 +83,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		assert.deepEqual(actual, expected);
 	}
 
-	test.only('EditorLayoutProvider 1', () => {
+	test('EditorLayoutProvider 1', () => {
 		doTest({
 			outerWidth: 1000,
 			outerHeight: 800,
