@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./overlayWidgets';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 interface IWidgetData {
 	widget: IOverlayWidget;
-	preference: OverlayWidgetPositionPreference;
+	preference: OverlayWidgetPositionPreference | null;
 	domNode: FastDomNode<HTMLElement>;
 }
 
@@ -26,7 +26,7 @@ interface IWidgetMap {
 export class ViewOverlayWidgets extends ViewPart {
 
 	private _widgets: IWidgetMap;
-	private _domNode: FastDomNode<HTMLElement>;
+	private readonly _domNode: FastDomNode<HTMLElement>;
 
 	private _verticalScrollbarWidth: number;
 	private _minimapWidth: number;
@@ -37,12 +37,15 @@ export class ViewOverlayWidgets extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
 		this._widgets = {};
-		this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
-		this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
-		this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
-		this._editorHeight = this._context.configuration.editor.layoutInfo.height;
-		this._editorWidth = this._context.configuration.editor.layoutInfo.width;
+		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
+		this._minimapWidth = layoutInfo.minimapWidth;
+		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
+		this._editorHeight = layoutInfo.height;
+		this._editorWidth = layoutInfo.width;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._domNode, PartFingerprint.OverlayWidgets);
@@ -51,7 +54,7 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	public dispose(): void {
 		super.dispose();
-		this._widgets = null;
+		this._widgets = {};
 	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
@@ -61,15 +64,15 @@ export class ViewOverlayWidgets extends ViewPart {
 	// ---- begin view event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.layoutInfo) {
-			this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
-			this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
-			this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
-			this._editorHeight = this._context.configuration.editor.layoutInfo.height;
-			this._editorWidth = this._context.configuration.editor.layoutInfo.width;
-			return true;
-		}
-		return false;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
+		this._minimapWidth = layoutInfo.minimapWidth;
+		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
+		this._editorHeight = layoutInfo.height;
+		this._editorWidth = layoutInfo.width;
+		return true;
 	}
 
 	// ---- end view event handlers
@@ -91,8 +94,8 @@ export class ViewOverlayWidgets extends ViewPart {
 		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference): boolean {
-		let widgetData = this._widgets[widget.getId()];
+	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference | null): boolean {
+		const widgetData = this._widgets[widget.getId()];
 		if (widgetData.preference === preference) {
 			return false;
 		}
@@ -104,13 +107,13 @@ export class ViewOverlayWidgets extends ViewPart {
 	}
 
 	public removeWidget(widget: IOverlayWidget): void {
-		let widgetId = widget.getId();
+		const widgetId = widget.getId();
 		if (this._widgets.hasOwnProperty(widgetId)) {
 			const widgetData = this._widgets[widgetId];
 			const domNode = widgetData.domNode.domNode;
 			delete this._widgets[widgetId];
 
-			domNode.parentNode.removeChild(domNode);
+			domNode.parentNode!.removeChild(domNode);
 			this.setShouldRender();
 		}
 	}
@@ -127,7 +130,7 @@ export class ViewOverlayWidgets extends ViewPart {
 			domNode.setTop(0);
 			domNode.setRight((2 * this._verticalScrollbarWidth) + this._minimapWidth);
 		} else if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
-			let widgetHeight = domNode.domNode.clientHeight;
+			const widgetHeight = domNode.domNode.clientHeight;
 			domNode.setTop((this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
 			domNode.setRight((2 * this._verticalScrollbarWidth) + this._minimapWidth);
 		} else if (widgetData.preference === OverlayWidgetPositionPreference.TOP_CENTER) {
@@ -143,9 +146,9 @@ export class ViewOverlayWidgets extends ViewPart {
 	public render(ctx: RestrictedRenderingContext): void {
 		this._domNode.setWidth(this._editorWidth);
 
-		let keys = Object.keys(this._widgets);
+		const keys = Object.keys(this._widgets);
 		for (let i = 0, len = keys.length; i < len; i++) {
-			let widgetId = keys[i];
+			const widgetId = keys[i];
 			this._renderWidget(this._widgets[widgetId]);
 		}
 	}

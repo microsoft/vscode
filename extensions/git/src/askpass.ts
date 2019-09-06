@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Disposable, window, InputBoxOptions } from 'vscode';
 import { denodeify } from './util';
 import * as path from 'path';
@@ -67,7 +65,7 @@ export class Askpass implements Disposable {
 		return ipcHandlePath;
 	}
 
-	private onRequest(req: http.ServerRequest, res: http.ServerResponse): void {
+	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
 		const chunks: string[] = [];
 		req.setEncoding('utf8');
 		req.on('data', (d: string) => chunks.push(d));

@@ -3,26 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
+import { EditorOptions, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
 
-var global: any = self;
-
-// When missing, polyfill the native promise
-// with our winjs-based polyfill
-if (typeof global.Promise === 'undefined') {
-	global.Promise = PolyfillPromise;
-}
+const global: any = self;
 
 // Set defaults for standalone editor
-(<any>EDITOR_DEFAULTS).wrappingIndent = WrappingIndent.None;
-(<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
-(<any>EDITOR_DEFAULTS).autoIndent = false;
+(<any>EditorOptions.wrappingIndent).defaultValue = WrappingIndent.None;
+(<any>EditorOptions.glyphMargin).defaultValue = false;
+(<any>EditorOptions.autoIndent).defaultValue = false;
+(<any>EditorOptions.overviewRulerLanes).defaultValue = 2;
 
 const api = createMonacoBaseAPI();
 api.editor = createMonacoEditorAPI();
@@ -35,10 +27,8 @@ export const Position = api.Position;
 export const Range = api.Range;
 export const Selection = api.Selection;
 export const SelectionDirection = api.SelectionDirection;
-export const Severity = api.Severity;
 export const MarkerSeverity = api.MarkerSeverity;
 export const MarkerTag = api.MarkerTag;
-export const Promise = api.Promise;
 export const Uri = api.Uri;
 export const Token = api.Token;
 export const editor = api.editor;
@@ -56,7 +46,8 @@ if (typeof global.require !== 'undefined' && typeof global.require.config === 'f
 			'jsonc-parser',
 			'jsonc-parser/main',
 			'vscode-uri',
-			'vscode-uri/index'
+			'vscode-uri/index',
+			'vs/basic-languages/typescript/typescript'
 		]
 	});
 }

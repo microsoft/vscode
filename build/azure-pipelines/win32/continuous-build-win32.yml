@@ -1,0 +1,55 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.x"
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '2.x'
+    addToPath: true
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: '$(ArtifactFeed)'
+- powershell: |
+    yarn --frozen-lockfile
+  displayName: Install Dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+  inputs:
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: '$(ArtifactFeed)'
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- powershell: |
+    yarn gulp electron
+- script: |
+    yarn gulp hygiene --skip-tslint
+  displayName: Run Hygiene Checks
+- script: |
+    yarn gulp tslint
+  displayName: Run TSLint Checks
+- powershell: |
+    yarn monaco-compile-check
+  displayName: Run Monaco Editor Checks
+- powershell: |
+    yarn compile
+  displayName: Compile Sources
+- powershell: |
+    yarn download-builtin-extensions
+  displayName: Download Built-in Extensions
+- powershell: |
+    .\scripts\test.bat --tfs "Unit Tests"
+  displayName: Run Unit Tests
+- powershell: |
+    .\scripts\test-integration.bat --tfs "Integration Tests"
+  displayName: Run Integration Tests
+- task: PublishTestResults@2
+  displayName: Publish Tests Results
+  inputs:
+    testResultsFiles: '*-results.xml'
+    searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
+  condition: succeededOrFailed()

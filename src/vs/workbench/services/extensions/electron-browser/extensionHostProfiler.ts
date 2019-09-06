@@ -3,49 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { IExtensionService, IExtensionDescription, ProfileSession, IExtensionHostProfile, ProfileSegmentId } from 'vs/workbench/services/extensions/common/extensions';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { realpathSync } from 'vs/base/node/extfs';
 import { Profile, ProfileNode } from 'v8-inspect-profiler';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { realpathSync } from 'vs/base/node/extpath';
+import { IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { Schemas } from 'vs/base/common/network';
 
 export class ExtensionHostProfiler {
 
 	constructor(private readonly _port: number, @IExtensionService private readonly _extensionService: IExtensionService) {
 	}
 
-	public start(): TPromise<ProfileSession> {
-		return TPromise.wrap(import('v8-inspect-profiler')).then(profiler => {
-			return profiler.startProfiling({ port: this._port }).then(session => {
-				return {
-					stop: () => {
-						return TPromise.wrap(session.stop()).then(profile => {
-							return this._extensionService.getExtensions().then(extensions => {
-								return this.distill(profile.profile, extensions);
-							});
-						});
-					}
-				};
-			});
-		});
+	public async start(): Promise<ProfileSession> {
+		const profiler = await import('v8-inspect-profiler');
+		const session = await profiler.startProfiling({ port: this._port, checkForPaused: true });
+		return {
+			stop: async () => {
+				const profile = await session.stop();
+				const extensions = await this._extensionService.getExtensions();
+				return this.distill((profile as any).profile, extensions);
+			}
+		};
 	}
 
 	private distill(profile: Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
 		let searchTree = TernarySearchTree.forPaths<IExtensionDescription>();
 		for (let extension of extensions) {
-			searchTree.set(realpathSync(extension.extensionLocation.fsPath), extension);
+			if (extension.extensionLocation.scheme === Schemas.file) {
+				searchTree.set(realpathSync(extension.extensionLocation.fsPath), extension);
+			}
 		}
 
 		let nodes = profile.nodes;
 		let idsToNodes = new Map<number, ProfileNode>();
-		let idsToSegmentId = new Map<number, ProfileSegmentId>();
+		let idsToSegmentId = new Map<number, ProfileSegmentId | null>();
 		for (let node of nodes) {
 			idsToNodes.set(node.id, node);
 		}
 
-		function visit(node: ProfileNode, segmentId: ProfileSegmentId) {
+		function visit(node: ProfileNode, segmentId: ProfileSegmentId | null) {
 			if (!segmentId) {
 				switch (node.callFrame.functionName) {
 					case '(root)':
@@ -63,26 +61,29 @@ export class ExtensionHostProfiler {
 			} else if (segmentId === 'self' && node.callFrame.url) {
 				let extension = searchTree.findSubstr(node.callFrame.url);
 				if (extension) {
-					segmentId = extension.id;
+					segmentId = extension.identifier.value;
 				}
 			}
 			idsToSegmentId.set(node.id, segmentId);
 
 			if (node.children) {
-				for (let child of node.children) {
-					visit(idsToNodes.get(child), segmentId);
+				for (const child of node.children) {
+					const childNode = idsToNodes.get(child);
+					if (childNode) {
+						visit(childNode, segmentId);
+					}
 				}
 			}
 		}
 		visit(nodes[0], null);
 
-		let samples = profile.samples;
-		let timeDeltas = profile.timeDeltas;
+		const samples = profile.samples || [];
+		let timeDeltas = profile.timeDeltas || [];
 		let distilledDeltas: number[] = [];
 		let distilledIds: ProfileSegmentId[] = [];
 
 		let currSegmentTime = 0;
-		let currSegmentId: string = void 0;
+		let currSegmentId: string | undefined;
 		for (let i = 0; i < samples.length; i++) {
 			let id = samples[i];
 			let segmentId = idsToSegmentId.get(id);
@@ -91,7 +92,7 @@ export class ExtensionHostProfiler {
 					distilledIds.push(currSegmentId);
 					distilledDeltas.push(currSegmentTime);
 				}
-				currSegmentId = segmentId;
+				currSegmentId = withNullAsUndefined(segmentId);
 				currSegmentTime = 0;
 			}
 			currSegmentTime += timeDeltas[i];
@@ -100,9 +101,6 @@ export class ExtensionHostProfiler {
 			distilledIds.push(currSegmentId);
 			distilledDeltas.push(currSegmentTime);
 		}
-		idsToNodes = null;
-		idsToSegmentId = null;
-		searchTree = null;
 
 		return {
 			startTime: profile.startTime,

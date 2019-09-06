@@ -8,5 +8,12 @@ export interface ILocalizeInfo {
 	comment: string[];
 }
 
-export declare function localize(info: ILocalizeInfo, message: string, ...args: any[]): string;
-export declare function localize(key: string, message: string, ...args: any[]): string;
+/**
+ * Localize a message. `message` can contain `{n}` notation where it is replaced by the nth value in `...args`.
+ */
+export declare function localize(info: ILocalizeInfo, message: string, ...args: (string | number | boolean | undefined | null)[]): string;
+
+/**
+ * Localize a message. `message` can contain `{n}` notation where it is replaced by the nth value in `...args`.
+ */
+export declare function localize(key: string, message: string, ...args: (string | number | boolean | undefined | null)[]): string;

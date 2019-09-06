@@ -7,10 +7,9 @@ declare module "gulp-tsb" {
 	}
 
 	export interface IncrementalCompiler {
-		(token?:ICancellationToken): NodeJS.ReadWriteStream;
-		// program?: ts.Program;
+		(token?: ICancellationToken): NodeJS.ReadWriteStream;
+		src(): NodeJS.ReadStream;
 	}
-
-	export function create(configOrName: { [option: string]: string | number | boolean; } | string, verbose?: boolean, json?: boolean, onError?: (message: any) => void): IncrementalCompiler;
+	export function create(projectPath: string, existingOptions: any, verbose?: boolean, onError?: (message: any) => void): IncrementalCompiler;
 
 }

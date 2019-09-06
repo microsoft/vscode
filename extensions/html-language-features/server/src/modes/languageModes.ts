@@ -2,21 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { getLanguageService as getHTMLLanguageService, DocumentContext } from 'vscode-html-languageservice';
-import {
-	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
-	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation
-} from 'vscode-languageserver-types';
-import { ColorInformation, ColorPresentation, Color, WorkspaceFolder } from 'vscode-languageserver';
-import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
-
+import { getCSSLanguageService } from 'vscode-css-languageservice';
+import { ClientCapabilities, DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, SelectionRange } from 'vscode-html-languageservice';
+import { Color, ColorInformation, ColorPresentation, WorkspaceFolder } from 'vscode-languageserver';
+import { CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions, Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextDocument, TextEdit } from 'vscode-languageserver-types';
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
-import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getCSSMode } from './cssMode';
-import { getJavaScriptMode } from './javascriptMode';
+import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getHTMLMode } from './htmlMode';
+import { getJavaScriptMode } from './javascriptMode';
 
 export { ColorInformation, ColorPresentation, Color };
 
@@ -33,6 +28,7 @@ export interface Workspace {
 
 export interface LanguageMode {
 	getId(): string;
+	getSelectionRanges?: (document: TextDocument, positions: Position[]) => SelectionRange[];
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
@@ -47,7 +43,7 @@ export interface LanguageMode {
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
-	getFoldingRanges?: (document: TextDocument, range: Range) => FoldingRange[];
+	getFoldingRanges?: (document: TextDocument) => FoldingRange[];
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }
@@ -67,9 +63,10 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace): LanguageModes {
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, clientCapabilities: ClientCapabilities, customDataProviders?: IHTMLDataProvider[]): LanguageModes {
+	const htmlLanguageService = getHTMLLanguageService({ customDataProviders, clientCapabilities });
+	const cssLanguageService = getCSSLanguageService({ clientCapabilities });
 
-	var htmlLanguageService = getHTMLLanguageService();
 	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
 
 	let modelCaches: LanguageModelCache<any>[] = [];
@@ -78,10 +75,10 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	let modes = Object.create(null);
 	modes['html'] = getHTMLMode(htmlLanguageService, workspace);
 	if (supportedLanguages['css']) {
-		modes['css'] = getCSSMode(documentRegions, workspace);
+		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
 	}
 	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions, workspace);
+		modes['javascript'] = getJavaScriptMode(documentRegions);
 	}
 	return {
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {
@@ -89,7 +86,7 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 			if (languageId) {
 				return modes[languageId];
 			}
-			return void 0;
+			return undefined;
 		},
 		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
 			return documentRegions.get(document).getLanguageRanges(range).map(r => {

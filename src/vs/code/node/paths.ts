@@ -3,25 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
-import * as paths from 'vs/base/common/paths';
+import * as extpath from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { realpathSync } from 'vs/base/node/extfs';
 
 export function validatePaths(args: ParsedArgs): ParsedArgs {
+
 	// Track URLs if they're going to be used
 	if (args['open-url']) {
 		args._urls = args._;
 		args._ = [];
 	}
 
-	// Realpath/normalize paths and watch out for goto line mode
+	// Normalize paths and watch out for goto line mode
 	const paths = doValidatePaths(args._, args.goto);
 
 	// Update environment
@@ -36,7 +34,7 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 	const result = args.map(arg => {
 		let pathCandidate = String(arg);
 
-		let parsedPath: IPathWithLineAndColumn;
+		let parsedPath: IPathWithLineAndColumn | undefined = undefined;
 		if (gotoLineMode) {
 			parsedPath = parseLineAndColumnAware(pathCandidate);
 			pathCandidate = parsedPath.path;
@@ -46,30 +44,24 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 			pathCandidate = preparePath(cwd, pathCandidate);
 		}
 
-		let realPath: string;
-		try {
-			realPath = realpathSync(pathCandidate);
-		} catch (error) {
-			// in case of an error, assume the user wants to create this file
-			// if the path is relative, we join it to the cwd
-			realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
-		}
+		const sanitizedFilePath = extpath.sanitizeFilePath(pathCandidate, cwd);
 
-		const basename = path.basename(realPath);
-		if (basename /* can be empty if code is opened on root */ && !paths.isValidBasename(basename)) {
+		const basename = path.basename(sanitizedFilePath);
+		if (basename /* can be empty if code is opened on root */ && !extpath.isValidBasename(basename)) {
 			return null; // do not allow invalid file names
 		}
 
-		if (gotoLineMode) {
-			parsedPath.path = realPath;
+		if (gotoLineMode && parsedPath) {
+			parsedPath.path = sanitizedFilePath;
+
 			return toPath(parsedPath);
 		}
 
-		return realPath;
+		return sanitizedFilePath;
 	});
 
 	const caseInsensitive = platform.isWindows || platform.isMacintosh;
-	const distinct = arrays.distinct(result, e => e && caseInsensitive ? e.toLowerCase() : e);
+	const distinct = arrays.distinct(result, e => e && caseInsensitive ? e.toLowerCase() : (e || ''));
 
 	return arrays.coalesce(distinct);
 }
@@ -105,9 +97,9 @@ export interface IPathWithLineAndColumn {
 export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn {
 	const segments = rawPath.split(':'); // C:\file.txt:<line>:<column>
 
-	let path: string;
-	let line: number = null;
-	let column: number = null;
+	let path: string | null = null;
+	let line: number | null = null;
+	let column: number | null = null;
 
 	segments.forEach(segment => {
 		const segmentAsNumber = Number(segment);
@@ -126,8 +118,8 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 
 	return {
 		path: path,
-		line: line !== null ? line : void 0,
-		column: column !== null ? column : line !== null ? 1 : void 0 // if we have a line, make sure column is also set
+		line: line !== null ? line : undefined,
+		column: column !== null ? column : line !== null ? 1 : undefined // if we have a line, make sure column is also set
 	};
 }
 

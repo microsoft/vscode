@@ -2,40 +2,40 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 
-export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
+export class TrimTrailingWhitespaceCommand implements ICommand {
 
-	private selection: Selection;
-	private selectionId: string;
-	private cursors: Position[];
+	private readonly _selection: Selection;
+	private _selectionId: string | null;
+	private readonly _cursors: Position[];
 
 	constructor(selection: Selection, cursors: Position[]) {
-		this.selection = selection;
-		this.cursors = cursors;
+		this._selection = selection;
+		this._cursors = cursors;
+		this._selectionId = null;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
-		let ops = trimTrailingWhitespace(model, this.cursors);
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		let ops = trimTrailingWhitespace(model, this._cursors);
 		for (let i = 0, len = ops.length; i < len; i++) {
 			let op = ops[i];
 
 			builder.addEditOperation(op.range, op.text);
 		}
 
-		this.selectionId = builder.trackSelection(this.selection);
+		this._selectionId = builder.trackSelection(this._selection);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId);
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		return helper.getTrackedSelection(this._selectionId!);
 	}
 }
 

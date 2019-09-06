@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import * as assert from 'assert';
+import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 export type IMouseWheelEvent = [number, number, number];
 

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from '../utils/typeConverters';
 import API from '../utils/api';
+import * as typeConverters from '../utils/typeConverters';
+
 
 class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 	public constructor(
@@ -19,31 +19,28 @@ class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 		options: vscode.ReferenceContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.Location[]> {
-		const filepath = this.client.toPath(document.uri);
+		const filepath = this.client.toOpenedFilePath(document);
 		if (!filepath) {
 			return [];
 		}
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-		try {
-			const msg = await this.client.execute('references', args, token);
-			if (!msg.body) {
-				return [];
-			}
-			const result: vscode.Location[] = [];
-			const has203Features = this.client.apiVersion.gte(API.v203);
-			for (const ref of msg.body.refs) {
-				if (!options.includeDeclaration && has203Features && ref.isDefinition) {
-					continue;
-				}
-				const url = this.client.toResource(ref.file);
-				const location = typeConverters.Location.fromTextSpan(url, ref);
-				result.push(location);
-			}
-			return result;
-		} catch {
+		const response = await this.client.execute('references', args, token);
+		if (response.type !== 'response' || !response.body) {
 			return [];
 		}
+
+		const result: vscode.Location[] = [];
+		const has203Features = this.client.apiVersion.gte(API.v203);
+		for (const ref of response.body.refs) {
+			if (!options.includeDeclaration && has203Features && ref.isDefinition) {
+				continue;
+			}
+			const url = this.client.toResource(ref.file);
+			const location = typeConverters.Location.fromTextSpan(url, ref);
+			result.push(location);
+		}
+		return result;
 	}
 }
 

@@ -6,7 +6,7 @@
 'use strict';
 
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -15,7 +15,7 @@ export class FocusOnHoverController implements IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.focusOnHover';
 
-	private _editorMouseMoveHandler?: IDisposable;
+	private _editorMouseMoveHandler: IDisposable | null;
 	private _didChangeConfigurationHandler: IDisposable;
 
 	static get(editor: ICodeEditor): FocusOnHoverController {
@@ -25,8 +25,8 @@ export class FocusOnHoverController implements IEditorContribution {
 	constructor(private readonly _editor: ICodeEditor) {
 		this._hookEvents();
 
-		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.contribInfo) {
+		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.focusOnHover)) {
 				this._unhookEvents();
 				this._hookEvents();
 			}
@@ -34,7 +34,7 @@ export class FocusOnHoverController implements IEditorContribution {
 	}
 
 	private _hookEvents(): void {
-		if (this._editor.getConfiguration().contribInfo.focusOnHover) {
+		if (this._editor.getOption(EditorOption.focusOnHover)) {
 			this._editorMouseMoveHandler = this._editor.onMouseMove(_ => this._onEditorMouseMove());
 		}
 	}

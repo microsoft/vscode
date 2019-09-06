@@ -1,27 +1,32 @@
 {
+	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
-		"module": "amd",
-		"moduleResolution": "classic",
-		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es5",
 		"sourceMap": false,
-		"experimentalDecorators": true,
-		"declaration": true,
-		"noImplicitReturns": true,
-		"noUnusedLocals": true,
-		"noImplicitThis": true,
-		"alwaysStrict": true,
-		"baseUrl": ".",
 		"outDir": "../out",
-		"typeRoots": [
-			"typings"
+		"target": "es2017",
+		"lib": [
+			"dom",
+			"es5",
+			"es2015.iterable"
+		],
+		"types": [
+			"keytar",
+			"mocha",
+			"semver",
+			"sinon",
+			"winreg"
 		]
 	},
+	"include": [
+		"./typings",
+		"./vs"
+	],
 	"exclude": [
-		"../out",
-		"../out-build",
-		"../out-vscode"
+		"./typings/require-monaco.d.ts",
+		"./typings/xterm.d.ts",
+		"./typings/xterm-addon-search.d.ts",
+		"./typings/xterm-addon-web-links.d.ts"
 	]
 }

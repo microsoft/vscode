@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { ILogService, LogLevel, AbstractLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, AbstractLogService, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
 
 interface ILog {
 	level: LogLevel;
@@ -26,9 +24,19 @@ function getLogFunction(logger: ILogService, level: LogLevel): Function {
 
 export class BufferLogService extends AbstractLogService implements ILogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	private buffer: ILog[] = [];
 	private _logger: ILogService | undefined = undefined;
+
+	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
+		super();
+		this.setLevel(logLevel);
+		this._register(this.onDidChangeLogLevel(level => {
+			if (this._logger) {
+				this._logger.setLevel(level);
+			}
+		}));
+	}
 
 	set logger(logger: ILogService) {
 		this._logger = logger;

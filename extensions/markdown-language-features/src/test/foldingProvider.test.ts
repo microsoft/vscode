@@ -11,7 +11,7 @@ import MarkdownFoldingProvider from '../features/foldingProvider';
 import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
 
-const testFileName = vscode.Uri.parse('test.md');
+const testFileName = vscode.Uri.file('test.md');
 
 suite('markdown.FoldingProvider', () => {
 	test('Should not return anything for empty document', async () => {
@@ -78,6 +78,103 @@ y`);
 		assert.strictEqual(firstFold.end, 2);
 	});
 
+	test('Should fold nested <!-- #region --> markers', async () => {
+		const folds = await getFoldsForDocument(`a
+<!-- #region -->
+b
+<!-- #region hello!-->
+b.a
+<!-- #endregion -->
+b
+<!-- #region: foo! -->
+b.b
+<!-- #endregion: foo -->
+b
+<!-- #endregion -->
+a`);
+		assert.strictEqual(folds.length, 3);
+		const [outer, first, second] = folds.sort((a, b) => a.start - b.start);
+
+		assert.strictEqual(outer.start, 1);
+		assert.strictEqual(outer.end, 11);
+		assert.strictEqual(first.start, 3);
+		assert.strictEqual(first.end, 5);
+		assert.strictEqual(second.start, 7);
+		assert.strictEqual(second.end, 9);
+	});
+
+	test('Should fold from list to end of document', async () => {
+		const folds = await getFoldsForDocument(`a
+- b
+c
+d`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 1);
+		assert.strictEqual(firstFold.end, 3);
+	});
+
+	test('lists folds should span multiple lines of content', async () => {
+		const folds = await getFoldsForDocument(`a
+- This list item\n  spans multiple\n  lines.`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 1);
+		assert.strictEqual(firstFold.end, 3);
+	});
+
+	test('List should leave single blankline before new element', async () => {
+		const folds = await getFoldsForDocument(`- a
+a
+
+
+b`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 0);
+		assert.strictEqual(firstFold.end, 3);
+	});
+
+	test('Should fold fenced code blocks', async () => {
+		const folds = await getFoldsForDocument(`~~~ts
+a
+~~~
+b`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 0);
+		assert.strictEqual(firstFold.end, 2);
+	});
+
+	test('Should fold fenced code blocks with yaml front matter', async () => {
+		const folds = await getFoldsForDocument(`---
+title: bla
+---
+
+~~~ts
+a
+~~~
+
+a
+a
+b
+a`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 4);
+		assert.strictEqual(firstFold.end, 6);
+	});
+
+	test('Should fold html blocks', async () => {
+		const folds = await getFoldsForDocument(`x
+<div>
+	fa
+</div>`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 1);
+		assert.strictEqual(firstFold.end, 3);
+	});
 });
 
 

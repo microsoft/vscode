@@ -3,37 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMatch } from 'vs/base/common/filters';
-import uri from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
-import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider, getBaseLabel } from 'vs/base/common/labels';
-import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
 	supportDescriptionHighlights?: boolean;
+	supportOcticons?: boolean;
 }
 
 export interface IIconLabelValueOptions {
 	title?: string;
 	descriptionTitle?: string;
+	hideIcon?: boolean;
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];
+	labelEscapeNewLines?: boolean;
 	descriptionMatches?: IMatch[];
 }
 
 class FastLabelNode {
-	private disposed: boolean;
-	private _textContent: string;
-	private _className: string;
-	private _title: string;
-	private _empty: boolean;
+	private disposed: boolean | undefined;
+	private _textContent: string | undefined;
+	private _className: string | undefined;
+	private _title: string | undefined;
+	private _empty: boolean | undefined;
 
 	constructor(private _element: HTMLElement) {
 	}
@@ -91,7 +89,7 @@ export class IconLabel extends Disposable {
 	private domNode: FastLabelNode;
 	private labelDescriptionContainer: FastLabelNode;
 	private labelNode: FastLabelNode | HighlightedLabel;
-	private descriptionNode: FastLabelNode | HighlightedLabel;
+	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
@@ -102,13 +100,13 @@ export class IconLabel extends Disposable {
 		this.labelDescriptionContainer = this._register(new FastLabelNode(dom.append(this.domNode.element, dom.$('.monaco-icon-label-description-container'))));
 
 		if (options && options.supportHighlights) {
-			this.labelNode = this._register(new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name'))));
+			this.labelNode = new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name')), !!options.supportOcticons);
 		} else {
 			this.labelNode = this._register(new FastLabelNode(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name'))));
 		}
 
 		if (options && options.supportDescriptionHighlights) {
-			this.descriptionNodeFactory = () => this._register(new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description'))));
+			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description')), !!options.supportOcticons);
 		} else {
 			this.descriptionNodeFactory = () => this._register(new FastLabelNode(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description'))));
 		}
@@ -118,13 +116,7 @@ export class IconLabel extends Disposable {
 		return this.domNode.element;
 	}
 
-	onClick(callback: (event: MouseEvent) => void): IDisposable {
-		return combinedDisposable([
-			dom.addDisposableListener(this.labelDescriptionContainer.element, dom.EventType.CLICK, (e: MouseEvent) => callback(e)),
-		]);
-	}
-
-	setValue(label?: string, description?: string, options?: IIconLabelValueOptions): void {
+	setLabel(label?: string, description?: string, options?: IIconLabelValueOptions): void {
 		const classes = ['monaco-icon-label'];
 		if (options) {
 			if (options.extraClasses) {
@@ -140,7 +132,7 @@ export class IconLabel extends Disposable {
 		this.domNode.title = options && options.title ? options.title : '';
 
 		if (this.labelNode instanceof HighlightedLabel) {
-			this.labelNode.set(label || '', options ? options.matches : void 0);
+			this.labelNode.set(label || '', options ? options.matches : undefined, options && options.title ? options.title : undefined, options && options.labelEscapeNewLines);
 		} else {
 			this.labelNode.textContent = label || '';
 		}
@@ -151,7 +143,7 @@ export class IconLabel extends Disposable {
 			}
 
 			if (this.descriptionNode instanceof HighlightedLabel) {
-				this.descriptionNode.set(description || '', options ? options.descriptionMatches : void 0);
+				this.descriptionNode.set(description || '', options ? options.descriptionMatches : undefined);
 				if (options && options.descriptionTitle) {
 					this.descriptionNode.element.title = options.descriptionTitle;
 				} else {
@@ -163,20 +155,5 @@ export class IconLabel extends Disposable {
 				this.descriptionNode.empty = !description;
 			}
 		}
-	}
-}
-
-export class FileLabel extends IconLabel {
-
-	constructor(container: HTMLElement, file: uri, provider: IWorkspaceFolderProvider, userHome?: IUserHomeProvider) {
-		super(container);
-
-		this.setFile(file, provider, userHome);
-	}
-
-	setFile(file: uri, provider: IWorkspaceFolderProvider, userHome: IUserHomeProvider): void {
-		const parent = paths.dirname(file.fsPath);
-
-		this.setValue(getBaseLabel(file), parent && parent !== '.' ? getPathLabel(parent, userHome, provider) : '', { title: file.fsPath });
 	}
 }

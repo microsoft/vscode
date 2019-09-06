@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as vscode from 'vscode';
 import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
 import { memoize } from './memoize';
 
-interface IPackageInfo {
+interface PackageInfo {
 	readonly name: string;
 	readonly version: string;
 	readonly aiKey: string;
 }
 
-export default class TelemetryReporter {
-	private _reporter: VsCodeTelemetryReporter | null = null;
+export default interface TelemetryReporter {
+	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
-	dispose() {
-		if (this._reporter) {
-			this._reporter.dispose();
-			this._reporter = null;
-		}
-	}
+	dispose(): void;
+}
+
+export class VSCodeTelemetryReporter implements TelemetryReporter {
+	private _reporter: VsCodeTelemetryReporter | null = null;
 
 	constructor(
 		private readonly clientVersionDelegate: () => string
@@ -45,6 +44,13 @@ export default class TelemetryReporter {
 		}
 	}
 
+	public dispose() {
+		if (this._reporter) {
+			this._reporter.dispose();
+			this._reporter = null;
+		}
+	}
+
 	@memoize
 	private get reporter(): VsCodeTelemetryReporter | null {
 		if (this.packageInfo && this.packageInfo.aiKey) {
@@ -58,14 +64,13 @@ export default class TelemetryReporter {
 	}
 
 	@memoize
-	private get packageInfo(): IPackageInfo | null {
-		const packagePath = path.join(__dirname, '..', '..', 'package.json');
-		const extensionPackage = require(packagePath);
-		if (extensionPackage) {
+	private get packageInfo(): PackageInfo | null {
+		const { packageJSON } = vscode.extensions.getExtension('vscode.typescript-language-features')!;
+		if (packageJSON) {
 			return {
-				name: extensionPackage.name,
-				version: extensionPackage.version,
-				aiKey: extensionPackage.aiKey
+				name: packageJSON.name,
+				version: packageJSON.version,
+				aiKey: packageJSON.aiKey
 			};
 		}
 		return null;

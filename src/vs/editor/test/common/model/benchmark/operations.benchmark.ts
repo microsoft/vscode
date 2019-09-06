@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextBufferBuilder, EndOfLinePreference } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference, ITextBufferBuilder } from 'vs/editor/common/model';
 import { BenchmarkSuite } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
 import { generateRandomChunkWithLF, generateRandomEdits, generateSequentialInserts, getRandomInt } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
-import { Range } from 'vs/editor/common/core/range';
 
 let fileSizes = [1, 1000, 64 * 1000, 32 * 1000 * 1000];
 let editTypes = [
@@ -53,8 +53,8 @@ for (let fileSize of fileSizes) {
 			},
 			fn: (textBuffer) => {
 				// for line model, this loop doesn't reflect the real situation.
-				for (let k = 0; k < edits.length; k++) {
-					textBuffer.applyEdits([edits[k]], false);
+				for (const edit of edits) {
+					textBuffer.applyEdits([edit], false);
 				}
 			}
 		});
@@ -66,8 +66,8 @@ for (let fileSize of fileSizes) {
 				return textBufferBuilder.finish();
 			},
 			preCycle: (textBuffer) => {
-				for (let k = 0; k < edits.length; k++) {
-					textBuffer.applyEdits([edits[k]], false);
+				for (const edit of edits) {
+					textBuffer.applyEdits([edit], false);
 				}
 				return textBuffer;
 			},
@@ -90,8 +90,8 @@ for (let fileSize of fileSizes) {
 				return textBufferBuilder.finish();
 			},
 			preCycle: (textBuffer) => {
-				for (let k = 0; k < edits.length; k++) {
-					textBuffer.applyEdits([edits[k]], false);
+				for (const edit of edits) {
+					textBuffer.applyEdits([edit], false);
 				}
 				return textBuffer;
 			},
@@ -120,8 +120,8 @@ for (let fileSize of fileSizes) {
 				return textBufferBuilder.finish();
 			},
 			preCycle: (textBuffer) => {
-				for (let k = 0; k < edits.length; k++) {
-					textBuffer.applyEdits([edits[k]], false);
+				for (const edit of edits) {
+					textBuffer.applyEdits([edit], false);
 				}
 				return textBuffer;
 			},

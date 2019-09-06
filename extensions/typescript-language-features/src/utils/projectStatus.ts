@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
-import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './tsconfig';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import TelemetryReporter from './telemetry';
+import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './tsconfig';
 
 const localize = loadMessageBundle();
 
@@ -23,7 +23,12 @@ class ExcludeHintItem {
 	constructor(
 		private readonly telemetryReporter: TelemetryReporter
 	) {
-		this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98 /* to the right of typescript version status (99) */);
+		this._item = vscode.window.createStatusBarItem({
+			id: 'status.typescript.exclude',
+			name: localize('statusExclude', "TypeScript: Configure Excludes"),
+			alignment: vscode.StatusBarAlignment.Right,
+			priority: 98 /* to the right of typescript version status (99) */
+		});
 		this._item.command = 'js.projectStatus.command';
 	}
 

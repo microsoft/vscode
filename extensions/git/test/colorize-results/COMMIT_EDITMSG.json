@@ -25,9 +25,9 @@
 		"c": "#",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -36,9 +36,9 @@
 		"c": " Please enter the commit message for your changes. Lines starting",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -47,9 +47,9 @@
 		"c": "#",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -58,9 +58,9 @@
 		"c": " with '#' will be ignored, and an empty message aborts the commit.",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -69,9 +69,9 @@
 		"c": "#",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -80,9 +80,9 @@
 		"c": " On branch master",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -91,9 +91,9 @@
 		"c": "#",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -102,9 +102,9 @@
 		"c": " Your branch is up-to-date with 'origin/master'.",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -113,9 +113,9 @@
 		"c": "#",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -124,9 +124,9 @@
 		"c": "#",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -135,9 +135,9 @@
 		"c": " Changes to be committed:",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -146,9 +146,9 @@
 		"c": "#",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -157,9 +157,9 @@
 		"c": "\t",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -179,9 +179,9 @@
 		"c": "#",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -190,9 +190,9 @@
 		"c": "\t",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -212,9 +212,9 @@
 		"c": "#",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -223,9 +223,9 @@
 		"c": "\t",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -245,9 +245,9 @@
 		"c": "#",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}

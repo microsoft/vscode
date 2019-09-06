@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
@@ -20,7 +18,7 @@ let markers: FoldingMarkers = {
 suite('FoldingRanges', () => {
 
 	test('test max folding regions', () => {
-		let lines = [];
+		let lines: string[] = [];
 		let nRegions = MAX_FOLDING_REGIONS;
 		for (let i = 0; i < nRegions; i++) {
 			lines.push('#region');
@@ -85,7 +83,7 @@ suite('FoldingRanges', () => {
 	});
 
 	test('setCollapsed', () => {
-		let lines = [];
+		let lines: string[] = [];
 		let nRegions = 500;
 		for (let i = 0; i < nRegions; i++) {
 			lines.push('#region');

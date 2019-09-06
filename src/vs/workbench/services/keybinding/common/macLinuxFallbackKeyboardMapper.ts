@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
+import { ChordKeybinding, KeyCode, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { ResolvedKeybinding, SimpleKeybinding, Keybinding, KeyCode, ChordKeybinding } from 'vs/base/common/keyCodes';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ScanCodeBinding, ScanCode, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/scanCode';
+import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 /**
  * A keyboard mapper to be used when reading the keymap from the OS fails.
@@ -42,7 +41,7 @@ export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		return new USLayoutResolvedKeybinding(keybinding, this._OS);
+		return new USLayoutResolvedKeybinding(keybinding.toChord(), this._OS);
 	}
 
 	private _scanCodeToKeyCode(scanCode: ScanCode): KeyCode {
@@ -105,7 +104,7 @@ export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 		return KeyCode.Unknown;
 	}
 
-	private _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding): SimpleKeybinding {
+	private _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding | null): SimpleKeybinding | null {
 		if (!binding) {
 			return null;
 		}
@@ -119,14 +118,10 @@ export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 		return new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, keyCode);
 	}
 
-	public resolveUserBinding(firstPart: SimpleKeybinding | ScanCodeBinding, chordPart: SimpleKeybinding | ScanCodeBinding): ResolvedKeybinding[] {
-		const _firstPart = this._resolveSimpleUserBinding(firstPart);
-		const _chordPart = this._resolveSimpleUserBinding(chordPart);
-		if (_firstPart && _chordPart) {
-			return [new USLayoutResolvedKeybinding(new ChordKeybinding(_firstPart, _chordPart), this._OS)];
-		}
-		if (_firstPart) {
-			return [new USLayoutResolvedKeybinding(_firstPart, this._OS)];
+	public resolveUserBinding(input: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] {
+		const parts: SimpleKeybinding[] = removeElementsAfterNulls(input.map(keybinding => this._resolveSimpleUserBinding(keybinding)));
+		if (parts.length > 0) {
+			return [new USLayoutResolvedKeybinding(new ChordKeybinding(parts), this._OS)];
 		}
 		return [];
 	}

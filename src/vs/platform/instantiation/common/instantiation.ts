@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ServiceCollection } from './serviceCollection';
 import * as descriptors from './descriptors';
@@ -24,86 +23,51 @@ export namespace _util {
 // --- interfaces ------
 
 export interface IConstructorSignature0<T> {
-	new(...services: { _serviceBrand: any; }[]): T;
+	new(...services: { _serviceBrand: undefined; }[]): T;
 }
 
 export interface IConstructorSignature1<A1, T> {
-	new(first: A1, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, ...services: { _serviceBrand: undefined; }[]): T;
 }
 
 export interface IConstructorSignature2<A1, A2, T> {
-	new(first: A1, second: A2, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, ...services: { _serviceBrand: undefined; }[]): T;
 }
 
 export interface IConstructorSignature3<A1, A2, A3, T> {
-	new(first: A1, second: A2, third: A3, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, ...services: { _serviceBrand: undefined; }[]): T;
 }
 
 export interface IConstructorSignature4<A1, A2, A3, A4, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, ...services: { _serviceBrand: undefined; }[]): T;
 }
 
 export interface IConstructorSignature5<A1, A2, A3, A4, A5, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, ...services: { _serviceBrand: undefined; }[]): T;
 }
 
 export interface IConstructorSignature6<A1, A2, A3, A4, A5, A6, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, ...services: { _serviceBrand: undefined; }[]): T;
 }
 
 export interface IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, ...services: { _serviceBrand: undefined; }[]): T;
 }
 
 export interface IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
-	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...services: { _serviceBrand: any; }[]): T;
+	new(first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...services: { _serviceBrand: undefined; }[]): T;
 }
 
 export interface ServicesAccessor {
-	get<T>(id: ServiceIdentifier<T>, isOptional?: typeof optional): T;
-}
-
-export interface IFunctionSignature0<R> {
-	(accessor: ServicesAccessor): R;
-}
-
-export interface IFunctionSignature1<A1, R> {
-	(accessor: ServicesAccessor, first: A1): R;
-}
-
-export interface IFunctionSignature2<A1, A2, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2): R;
-}
-
-export interface IFunctionSignature3<A1, A2, A3, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3): R;
-}
-
-export interface IFunctionSignature4<A1, A2, A3, A4, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4): R;
-}
-
-export interface IFunctionSignature5<A1, A2, A3, A4, A5, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): R;
-}
-
-export interface IFunctionSignature6<A1, A2, A3, A4, A5, A6, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): R;
-}
-
-export interface IFunctionSignature7<A1, A2, A3, A4, A5, A6, A7, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): R;
-}
-
-export interface IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
+	get<T>(id: ServiceIdentifier<T>): T;
+	get<T>(id: ServiceIdentifier<T>, isOptional: typeof optional): T | undefined;
 }
 
 export const IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
 
 export interface IInstantiationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Synchronously creates an instance that is denoted by
@@ -132,15 +96,7 @@ export interface IInstantiationService {
 	/**
 	 *
 	 */
-	invokeFunction<R>(ctor: IFunctionSignature0<R>): R;
-	invokeFunction<A1, R>(ctor: IFunctionSignature1<A1, R>, first: A1): R;
-	invokeFunction<A1, A2, R>(ctor: IFunctionSignature2<A1, A2, R>, first: A1, second: A2): R;
-	invokeFunction<A1, A2, A3, R>(ctor: IFunctionSignature3<A1, A2, A3, R>, first: A1, second: A2, third: A3): R;
-	invokeFunction<A1, A2, A3, A4, R>(ctor: IFunctionSignature4<A1, A2, A3, A4, R>, first: A1, second: A2, third: A3, fourth: A4): R;
-	invokeFunction<A1, A2, A3, A4, A5, R>(ctor: IFunctionSignature5<A1, A2, A3, A4, A5, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): R;
-	invokeFunction<A1, A2, A3, A4, A5, A6, R>(ctor: IFunctionSignature6<A1, A2, A3, A4, A5, A6, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): R;
-	invokeFunction<A1, A2, A3, A4, A5, A6, A7, R>(ctor: IFunctionSignature7<A1, A2, A3, A4, A5, A6, A7, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): R;
-	invokeFunction<A1, A2, A3, A4, A5, A6, A7, A8, R>(ctor: IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
+	invokeFunction<R, TS extends any[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R;
 
 	/**
 	 * Creates a child of this service which inherts all current services
@@ -159,21 +115,21 @@ export interface ServiceIdentifier<T> {
 }
 
 function storeServiceDependency(id: Function, target: Function, index: number, optional: boolean): void {
-	if (target[_util.DI_TARGET] === target) {
-		target[_util.DI_DEPENDENCIES].push({ id, index, optional });
+	if ((target as any)[_util.DI_TARGET] === target) {
+		(target as any)[_util.DI_DEPENDENCIES].push({ id, index, optional });
 	} else {
-		target[_util.DI_DEPENDENCIES] = [{ id, index, optional }];
-		target[_util.DI_TARGET] = target;
+		(target as any)[_util.DI_DEPENDENCIES] = [{ id, index, optional }];
+		(target as any)[_util.DI_TARGET] = target;
 	}
 }
 
 /**
  * A *only* valid way to create a {{ServiceIdentifier}}.
  */
-export function createDecorator<T>(serviceId: string): { (...args: any[]): void; type: T; } {
+export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 
 	if (_util.serviceIds.has(serviceId)) {
-		return _util.serviceIds.get(serviceId);
+		return _util.serviceIds.get(serviceId)!;
 	}
 
 	const id = <any>function (target: Function, key: string, index: number): any {

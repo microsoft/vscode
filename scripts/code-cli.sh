@@ -24,6 +24,16 @@ function code() {
 	# Get electron
 	node build/lib/electron.js || ./node_modules/.bin/gulp electron
 
+
+	# Manage built-in extensions
+	if [[ "$1" == "--builtin" ]]; then
+		exec "$CODE" build/builtin
+		return
+	fi
+
+	# Sync built-in extensions
+	node build/lib/builtInExtensions.js
+
 	# Build
 	test -d out || ./node_modules/.bin/gulp compile
 
@@ -32,7 +42,7 @@ function code() {
 	VSCODE_DEV=1 \
 	ELECTRON_ENABLE_LOGGING=1 \
 	ELECTRON_ENABLE_STACK_DUMPING=1 \
-	"$CODE" --debug=5874 "$ROOT/out/cli.js" . "$@"
+	"$CODE" --inspect=5874 "$ROOT/out/cli.js" . "$@"
 }
 
 code "$@"

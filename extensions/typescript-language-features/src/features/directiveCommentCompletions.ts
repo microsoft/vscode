@@ -6,14 +6,14 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import API from '../utils/api';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 
 const localize = nls.loadMessageBundle();
 
 interface Directive {
-	value: string;
-	description: string;
+	readonly value: string;
+	readonly description: string;
 }
 
 const directives: Directive[] = [
@@ -21,21 +21,23 @@ const directives: Directive[] = [
 		value: '@ts-check',
 		description: localize(
 			'ts-check',
-			'Enables semantic checking in a JavaScript file. Must be at the top of a file.')
+			"Enables semantic checking in a JavaScript file. Must be at the top of a file.")
 	}, {
 		value: '@ts-nocheck',
 		description: localize(
 			'ts-nocheck',
-			'Disables semantic checking in a JavaScript file. Must be at the top of a file.')
+			"Disables semantic checking in a JavaScript file. Must be at the top of a file.")
 	}, {
 		value: '@ts-ignore',
 		description: localize(
 			'ts-ignore',
-			'Suppresses @ts-check errors on the next line of a file.')
+			"Suppresses @ts-check errors on the next line of a file.")
 	}
 ];
 
 class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvider {
+	public static readonly minVersion = API.v230;
+
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 	) { }
@@ -45,7 +47,7 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 		position: vscode.Position,
 		_token: vscode.CancellationToken
 	): vscode.CompletionItem[] {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
 		}
@@ -63,20 +65,13 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 		}
 		return [];
 	}
-
-	public resolveCompletionItem(
-		item: vscode.CompletionItem,
-		_token: vscode.CancellationToken
-	) {
-		return item;
-	}
 }
 
 export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return new VersionDependentRegistration(client, API.v230, () => {
+	return new VersionDependentRegistration(client, DirectiveCommentCompletionProvider.minVersion, () => {
 		return vscode.languages.registerCompletionItemProvider(selector,
 			new DirectiveCommentCompletionProvider(client),
 			'@');

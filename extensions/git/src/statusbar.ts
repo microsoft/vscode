@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { Disposable, Command, EventEmitter, Event } from 'vscode';
-import { Branch } from './git';
+import { Disposable, Command, EventEmitter, Event, workspace, Uri } from 'vscode';
 import { Repository, Operation } from './repository';
-import { anyEvent, dispose } from './util';
+import { anyEvent, dispose, filterEvent } from './util';
 import * as nls from 'vscode-nls';
+import { Branch } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -29,7 +27,7 @@ class CheckoutStatusBar {
 
 		return {
 			command: 'git.checkout',
-			tooltip: localize('checkout', 'Checkout...'),
+			tooltip: `${this.repository.headLabel}`,
 			title,
 			arguments: [this.repository.sourceControl]
 		};
@@ -41,6 +39,7 @@ class CheckoutStatusBar {
 }
 
 interface SyncStatusBarState {
+	enabled: boolean;
 	isSyncRunning: boolean;
 	hasRemotes: boolean;
 	HEAD: Branch | undefined;
@@ -49,6 +48,7 @@ interface SyncStatusBarState {
 class SyncStatusBar {
 
 	private static StartState: SyncStatusBarState = {
+		enabled: true,
 		isSyncRunning: false,
 		hasRemotes: false,
 		HEAD: undefined
@@ -68,7 +68,18 @@ class SyncStatusBar {
 	constructor(private repository: Repository) {
 		repository.onDidRunGitStatus(this.onModelChange, this, this.disposables);
 		repository.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
+
+		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.enableStatusBarSync'));
+		onEnablementChange(this.updateEnablement, this, this.disposables);
+
 		this._onDidChange.fire();
+	}
+
+	private updateEnablement(): void {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const enabled = config.get<boolean>('enableStatusBarSync', true);
+
+		this.state = { ... this.state, enabled };
 	}
 
 	private onOperationsChange(): void {
@@ -88,7 +99,7 @@ class SyncStatusBar {
 	}
 
 	get command(): Command | undefined {
-		if (!this.state.hasRemotes) {
+		if (!this.state.enabled || !this.state.hasRemotes) {
 			return undefined;
 		}
 
@@ -103,7 +114,11 @@ class SyncStatusBar {
 				if (HEAD.ahead || HEAD.behind) {
 					text += this.repository.syncLabel;
 				}
-				command = 'git.sync';
+
+				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+				const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+
+				command = rebaseWhenSync ? 'git.syncRebase' : 'git.sync';
 				tooltip = localize('sync changes', "Synchronize Changes");
 			} else {
 				icon = '$(cloud-upload)';

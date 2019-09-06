@@ -6,20 +6,20 @@
 import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
-import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine } from './scroll-sync';
+import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElementForFragment } from './scroll-sync';
 import { getSettings, getData } from './settings';
 import throttle = require('lodash.throttle');
 
 declare var acquireVsCodeApi: any;
 
-var scrollDisabled = true;
+let scrollDisabled = true;
 const marker = new ActiveLineMarker();
 const settings = getSettings();
 
 const vscode = acquireVsCodeApi();
 
 // Set VS Code state
-const state = getData('data-state');
+let state = getData<{ line: number, fragment: string }>('data-state');
 vscode.setState(state);
 
 const messaging = createPosterForVsCode(vscode);
@@ -27,13 +27,26 @@ const messaging = createPosterForVsCode(vscode);
 window.cspAlerter.setPoster(messaging);
 window.styleLoadingMonitor.setPoster(messaging);
 
+window.onload = () => {
+	updateImageSizes();
+};
+
 onceDocumentLoaded(() => {
 	if (settings.scrollPreviewWithEditor) {
 		setTimeout(() => {
-			const initialLine = +settings.line;
-			if (!isNaN(initialLine)) {
-				scrollDisabled = true;
-				scrollToRevealSourceLine(initialLine);
+			// Try to scroll to fragment if available
+			if (state.fragment) {
+				const element = getLineElementForFragment(state.fragment);
+				if (element) {
+					scrollDisabled = true;
+					scrollToRevealSourceLine(element.line);
+				}
+			} else {
+				const initialLine = +settings.line;
+				if (!isNaN(initialLine)) {
+					scrollDisabled = true;
+					scrollToRevealSourceLine(initialLine);
+				}
 			}
 		}, 0);
 	}
@@ -53,8 +66,32 @@ const onUpdateView = (() => {
 	};
 })();
 
+let updateImageSizes = throttle(() => {
+	const imageInfo: { id: string, height: number, width: number }[] = [];
+	let images = document.getElementsByTagName('img');
+	if (images) {
+		let i;
+		for (i = 0; i < images.length; i++) {
+			const img = images[i];
+
+			if (img.classList.contains('loading')) {
+				img.classList.remove('loading');
+			}
+
+			imageInfo.push({
+				id: img.id,
+				height: img.height,
+				width: img.width
+			});
+		}
+
+		messaging.postMessage('cacheImageSizes', imageInfo);
+	}
+}, 50);
+
 window.addEventListener('resize', () => {
 	scrollDisabled = true;
+	updateImageSizes();
 }, true);
 
 window.addEventListener('message', event => {
@@ -103,9 +140,9 @@ document.addEventListener('click', event => {
 			if (node.getAttribute('href').startsWith('#')) {
 				break;
 			}
-			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:')) {
-				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').split('#');
-				messaging.postCommand('_markdown.openDocumentLink', [{ path, fragment }]);
+			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:') || node.href.startsWith(settings.webviewResourceRoot)) {
+				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').replace(new RegExp(`^${escapeRegExp(settings.webviewResourceRoot)}`)).split('#');
+				messaging.postMessage('clickLink', { path, fragment });
 				event.preventDefault();
 				event.stopPropagation();
 				break;
@@ -124,7 +161,13 @@ if (settings.scrollEditorWithPreview) {
 			const line = getEditorLineNumberForPageOffset(window.scrollY);
 			if (typeof line === 'number' && !isNaN(line)) {
 				messaging.postMessage('revealLine', { line });
+				state.line = line;
+				vscode.setState(state);
 			}
 		}
 	}, 50));
+}
+
+function escapeRegExp(text: string) {
+	return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 }

@@ -3,47 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import 'vs/css!./quickInput';
+import 'vs/css!./media/quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { localize } from 'vs/nls';
-import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme } from 'vs/platform/theme/common/themeService';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Severity from 'vs/base/common/severity';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = dom.$;
 
-const DEFAULT_INPUT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
-
-export class QuickInputBox {
+export class QuickInputBox extends Disposable {
 
 	private container: HTMLElement;
 	private inputBox: InputBox;
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		private parent: HTMLElement
 	) {
+		super();
 		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.inputBox = new InputBox(this.container, null, {
-			ariaLabel: DEFAULT_INPUT_ARIA_LABEL
-		});
-		this.disposables.push(this.inputBox);
-
-		// ARIA
-		const inputElement = this.inputBox.inputElement;
-		inputElement.setAttribute('role', 'combobox');
-		inputElement.setAttribute('aria-haspopup', 'false');
-		inputElement.setAttribute('aria-autocomplete', 'list');
+		this.inputBox = this._register(new InputBox(this.container, undefined));
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
 		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			handler(new StandardKeyboardEvent(e));
+		});
+	}
+
+	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable => {
+		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			handler(new StandardMouseEvent(e));
 		});
 	}
 
@@ -59,7 +52,7 @@ export class QuickInputBox {
 		this.inputBox.value = value;
 	}
 
-	select(range: IRange = null): void {
+	select(range: IRange | null = null): void {
 		this.inputBox.select(range);
 	}
 
@@ -68,7 +61,7 @@ export class QuickInputBox {
 	}
 
 	get placeholder() {
-		return this.inputBox.inputElement.getAttribute('placeholder');
+		return this.inputBox.inputElement.getAttribute('placeholder') || '';
 	}
 
 	set placeholder(placeholder: string) {
@@ -87,12 +80,28 @@ export class QuickInputBox {
 		this.inputBox.setEnabled(enabled);
 	}
 
+	hasFocus(): boolean {
+		return this.inputBox.hasFocus();
+	}
+
+	setAttribute(name: string, value: string) {
+		this.inputBox.inputElement.setAttribute(name, value);
+	}
+
+	removeAttribute(name: string) {
+		this.inputBox.inputElement.removeAttribute(name);
+	}
+
 	showDecoration(decoration: Severity): void {
 		if (decoration === Severity.Ignore) {
 			this.inputBox.hideMessage();
 		} else {
 			this.inputBox.showMessage({ type: decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR, content: '' });
 		}
+	}
+
+	stylesForType(decoration: Severity) {
+		return this.inputBox.stylesForType(decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR);
 	}
 
 	setFocus(): void {
@@ -109,15 +118,14 @@ export class QuickInputBox {
 			inputBackground: theme.getColor(inputBackground),
 			inputBorder: theme.getColor(inputBorder),
 			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
 			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
 			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
 			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		});
-	}
-
-	dispose() {
-		this.disposables = dispose(this.disposables);
 	}
 }

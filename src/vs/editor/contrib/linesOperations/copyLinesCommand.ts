@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -11,17 +10,21 @@ import { ITextModel } from 'vs/editor/common/model';
 
 export class CopyLinesCommand implements editorCommon.ICommand {
 
-	private _selection: Selection;
-	private _isCopyingDown: boolean;
+	private readonly _selection: Selection;
+	private readonly _isCopyingDown: boolean;
 
 	private _selectionDirection: SelectionDirection;
-	private _selectionId: string;
+	private _selectionId: string | null;
 	private _startLineNumberDelta: number;
 	private _endLineNumberDelta: number;
 
 	constructor(selection: Selection, isCopyingDown: boolean) {
 		this._selection = selection;
 		this._isCopyingDown = isCopyingDown;
+		this._selectionDirection = SelectionDirection.LTR;
+		this._selectionId = null;
+		this._startLineNumberDelta = 0;
+		this._endLineNumberDelta = 0;
 	}
 
 	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
@@ -59,7 +62,7 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId);
+		let result = helper.getTrackedSelection(this._selectionId!);
 
 		if (this._startLineNumberDelta !== 0 || this._endLineNumberDelta !== 0) {
 			let startLineNumber = result.startLineNumber;

@@ -27,23 +27,31 @@
 }
 
 .monaco-panel-view .panel > .panel-header {
-	background-image: url('arrow-collapse.svg');
+	background-image: url('tree-collapsed-light.svg');
 	background-position: 2px center;
 	background-repeat: no-repeat;
 }
 
 .monaco-panel-view .panel > .panel-header.expanded {
-	background-image: url('arrow-expand.svg');
+	background-image: url('tree-expanded-light.svg');
 	background-position: 2px center;
 	background-repeat: no-repeat;
 }
 
 .vs-dark .monaco-panel-view .panel > .panel-header {
-	background-image: url('arrow-collapse-dark.svg');
+	background-image: url('tree-collapsed-dark.svg');
 }
 
 .vs-dark .monaco-panel-view .panel > .panel-header.expanded {
-	background-image: url('arrow-expand-dark.svg');
+	background-image: url('tree-expanded-dark.svg');
+}
+
+.hc-black .monaco-panel-view .panel > .panel-header {
+	background-image: url('tree-collapsed-hc.svg');
+}
+
+.hc-black .monaco-panel-view .panel > .panel-header.expanded {
+	background-image: url('tree-expanded-hc.svg');
 }
 
 /* TODO: actions should be part of the panel, but they aren't yet */
@@ -60,7 +68,7 @@
 }
 
 /* TODO: actions should be part of the panel, but they aren't yet */
-.monaco-panel-view .panel > .panel-header > .actions .action-label {
+.monaco-panel-view .panel > .panel-header > .actions .action-label.icon {
 	width: 28px;
 	height: 22px;
 	background-size: 16px;
@@ -90,21 +98,13 @@
 
 .monaco-panel-view.animated .split-view-view {
 	transition-duration: 0.15s;
-	-webkit-transition-duration: 0.15s;
-	-moz-transition-duration: 0.15s;
 	transition-timing-function: ease-out;
-	-webkit-transition-timing-function: ease-out;
-	-moz-transition-timing-function: ease-out;
 }
 
 .monaco-panel-view.animated.vertical .split-view-view {
 	transition-property: height;
-	-webkit-transition-property: height;
-	-moz-transition-property: height;
 }
 
 .monaco-panel-view.animated.horizontal .split-view-view {
 	transition-property: width;
-	-webkit-transition-property: width;
-	-moz-transition-property: width;
 }

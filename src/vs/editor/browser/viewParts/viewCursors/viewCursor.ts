@@ -2,18 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import * as strings from 'vs/base/common/strings';
+import { Configuration } from 'vs/editor/browser/config/configuration';
+import { TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import * as dom from 'vs/base/browser/dom';
-import * as strings from 'vs/base/common/strings';
 
 export interface IViewCursorRenderData {
 	domNode: HTMLElement;
@@ -48,15 +47,17 @@ export class ViewCursor {
 	private _position: Position;
 
 	private _lastRenderedContent: string;
-	private _renderData: ViewCursorRenderData;
+	private _renderData: ViewCursorRenderData | null;
 
 	constructor(context: ViewContext) {
 		this._context = context;
+		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
-		this._lineCursorWidth = Math.min(this._context.configuration.editor.viewInfo.cursorWidth, this._typicalHalfwidthCharacterWidth);
+		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
+		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
 
 		this._isVisible = true;
 
@@ -66,10 +67,10 @@ export class ViewCursor {
 		this._domNode.setHeight(this._lineHeight);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
-		Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
+		Configuration.applyFontInfo(this._domNode, fontInfo);
 		this._domNode.setDisplay('none');
 
-		this.updatePosition(new Position(1, 1));
+		this._position = new Position(1, 1);
 
 		this._lastRenderedContent = '';
 		this._renderData = null;
@@ -98,27 +99,24 @@ export class ViewCursor {
 	}
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.fontInfo) {
-			Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
-			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
-		}
-		if (e.viewInfo) {
-			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-			this._lineCursorWidth = Math.min(this._context.configuration.editor.viewInfo.cursorWidth, this._typicalHalfwidthCharacterWidth);
-		}
+		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+
+		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
+		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
+		Configuration.applyFontInfo(this._domNode, fontInfo);
 
 		return true;
 	}
 
 	public onCursorPositionChanged(position: Position): boolean {
-		this.updatePosition(position);
+		this._position = position;
 		return true;
 	}
 
-	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData {
+	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData | null {
 		let textContent = '';
 		let textContentClassName = '';
 
@@ -138,8 +136,13 @@ export class ViewCursor {
 			} else {
 				width = dom.computeScreenAwareSize(1);
 			}
+			let left = visibleRange.left;
+			if (width >= 2 && left >= 1) {
+				// try to center cursor
+				left -= 1;
+			}
 			const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
-			return new ViewCursorRenderData(top, visibleRange.left, width, this._lineHeight, textContent, textContentClassName);
+			return new ViewCursorRenderData(top, left, width, this._lineHeight, textContent, textContentClassName);
 		}
 
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(this._position.lineNumber, this._position.column, this._position.lineNumber, this._position.column + 1), false);
@@ -178,7 +181,7 @@ export class ViewCursor {
 		this._renderData = this._prepareRender(ctx);
 	}
 
-	public render(ctx: RestrictedRenderingContext): IViewCursorRenderData {
+	public render(ctx: RestrictedRenderingContext): IViewCursorRenderData | null {
 		if (!this._renderData) {
 			this._domNode.setDisplay('none');
 			return null;
@@ -205,9 +208,5 @@ export class ViewCursor {
 			height: this._renderData.height,
 			width: 2
 		};
-	}
-
-	private updatePosition(newPosition: Position): void {
-		this._position = newPosition;
 	}
 }

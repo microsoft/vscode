@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { parseReplaceString, ReplacePattern, ReplacePiece } from 'vs/editor/contrib/find/replacePattern';
+import { ReplacePattern, ReplacePiece, parseReplaceString } from 'vs/editor/contrib/find/replacePattern';
+import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
 
 suite('Replace Pattern test', () => {
 
@@ -153,5 +153,69 @@ suite('Replace Pattern test', () => {
 		let matches = /a(z)?/.exec('abcd');
 		let actual = replacePattern.buildReplaceString(matches);
 		assert.equal(actual, 'a{}');
+	});
+
+	test('buildReplaceStringWithCasePreserved test', () => {
+		let replacePattern = 'Def';
+		let actual: string | string[] = 'abc';
+
+		assert.equal(buildReplaceStringWithCasePreserved([actual], replacePattern), 'def');
+		actual = 'Abc';
+		assert.equal(buildReplaceStringWithCasePreserved([actual], replacePattern), 'Def');
+		actual = 'ABC';
+		assert.equal(buildReplaceStringWithCasePreserved([actual], replacePattern), 'DEF');
+
+		actual = ['abc', 'Abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'def');
+		actual = ['Abc', 'abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
+		actual = ['ABC', 'abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'DEF');
+
+		actual = ['AbC'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
+		actual = ['aBC'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
+
+		actual = ['Foo-Bar'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar'), 'Newfoo-Newbar');
+		actual = ['Foo-Bar-Abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar-newabc'), 'Newfoo-Newbar-Newabc');
+		actual = ['Foo-Bar-abc'];
+		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar'), 'Newfoo-newbar');
+	});
+
+	test('preserve case', () => {
+		let replacePattern = parseReplaceString('Def');
+		let actual = replacePattern.buildReplaceString(['abc'], true);
+		assert.equal(actual, 'def');
+		actual = replacePattern.buildReplaceString(['Abc'], true);
+		assert.equal(actual, 'Def');
+		actual = replacePattern.buildReplaceString(['ABC'], true);
+		assert.equal(actual, 'DEF');
+
+		actual = replacePattern.buildReplaceString(['abc', 'Abc'], true);
+		assert.equal(actual, 'def');
+		actual = replacePattern.buildReplaceString(['Abc', 'abc'], true);
+		assert.equal(actual, 'Def');
+		actual = replacePattern.buildReplaceString(['ABC', 'abc'], true);
+		assert.equal(actual, 'DEF');
+
+		actual = replacePattern.buildReplaceString(['AbC'], true);
+		assert.equal(actual, 'Def');
+		actual = replacePattern.buildReplaceString(['aBC'], true);
+		assert.equal(actual, 'Def');
+
+		replacePattern = parseReplaceString('newfoo-newbar');
+		actual = replacePattern.buildReplaceString(['Foo-Bar'], true);
+		assert.equal(actual, 'Newfoo-Newbar');
+
+		replacePattern = parseReplaceString('newfoo-newbar-newabc');
+		actual = replacePattern.buildReplaceString(['Foo-Bar-Abc'], true);
+		assert.equal(actual, 'Newfoo-Newbar-Newabc');
+
+		replacePattern = parseReplaceString('newfoo-newbar');
+		actual = replacePattern.buildReplaceString(['Foo-Bar-abc'], true);
+		assert.equal(actual, 'Newfoo-newbar');
 	});
 });

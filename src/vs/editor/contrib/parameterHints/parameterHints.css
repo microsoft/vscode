@@ -22,9 +22,6 @@
 }
 
 .monaco-editor .parameter-hints-widget.visible {
-	-webkit-transition: left .05s ease-in-out;
-	-moz-transition: left .05s ease-in-out;
-	-o-transition: left .05s ease-in-out;
 	transition: left .05s ease-in-out;
 }
 
@@ -46,6 +43,10 @@
 .monaco-editor .parameter-hints-widget .docs {
 	padding: 0 10px 0 5px;
 	white-space: pre-wrap;
+}
+
+.monaco-editor .parameter-hints-widget .docs.empty {
+	display: none;
 }
 
 .monaco-editor .parameter-hints-widget .docs .markdown-docs {
@@ -105,10 +106,6 @@
 
 .monaco-editor .parameter-hints-widget.multiple .overloads {
 	display: block;
-}
-
-.monaco-editor .parameter-hints-widget .signature .parameter {
-	display: inline-block;
 }
 
 .monaco-editor .parameter-hints-widget .signature .parameter.active {

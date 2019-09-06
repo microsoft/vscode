@@ -14,9 +14,9 @@
 		"c": "--",
 		"t": "source.lua comment.line.double-dash.lua punctuation.definition.comment.lua",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -25,9 +25,9 @@
 		"c": " defines a factorial function",
 		"t": "source.lua comment.line.double-dash.lua",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -55,7 +55,18 @@
 		}
 	},
 	{
-		"c": " fact ",
+		"c": " ",
+		"t": "source.lua meta.function.lua",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "fact",
 		"t": "source.lua meta.function.lua entity.name.function.lua",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
@@ -66,8 +77,19 @@
 		}
 	},
 	{
-		"c": "(",
+		"c": " ",
 		"t": "source.lua meta.function.lua",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.lua meta.function.lua punctuation.definition.parameters.begin.lua",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -586,9 +608,9 @@
 		"c": "--",
 		"t": "source.lua comment.line.double-dash.lua punctuation.definition.comment.lua",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -597,9 +619,9 @@
 		"c": " read a number",
 		"t": "source.lua comment.line.double-dash.lua",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}

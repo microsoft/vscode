@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/notificationsList';
 import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -18,20 +16,19 @@ import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/br
 import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
 	private viewModel: INotificationViewItem[];
-	private isVisible: boolean;
+	private isVisible: boolean | undefined;
 
 	constructor(
 		private container: HTMLElement,
 		private options: IListOptions<INotificationViewItem>,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(themeService);
 
@@ -73,20 +70,29 @@ export class NotificationsList extends Themable {
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
 
 		// List
-		this.list = this._register(<WorkbenchList<INotificationViewItem>>this.instantiationService.createInstance(
+		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList,
+			'NotificationsList',
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
-			this.options
+			{
+				...this.options,
+				setRowLineHeight: false,
+				horizontalScrolling: false
+			}
 		));
 
 		// Context menu to copy message
 		const copyAction = this._register(this.instantiationService.createInstance(CopyNotificationMessageAction, CopyNotificationMessageAction.ID, CopyNotificationMessageAction.LABEL));
 		this._register((this.list.onContextMenu(e => {
+			if (!e.element) {
+				return;
+			}
+
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as([copyAction]),
+				getAnchor: () => e.anchor!,
+				getActions: () => [copyAction],
 				getActionsContext: () => e.element,
 				actionRunner
 			});
@@ -129,7 +135,7 @@ export class NotificationsList extends Themable {
 		const focusedIndex = this.list.getFocus()[0];
 		const focusedItem = this.viewModel[focusedIndex];
 
-		let focusRelativeTop: number;
+		let focusRelativeTop: number | null = null;
 		if (typeof focusedIndex === 'number') {
 			focusRelativeTop = this.list.getRelativeTop(focusedIndex);
 		}
@@ -214,7 +220,7 @@ export class NotificationsList extends Themable {
 			this.listContainer.style.background = background ? background.toString() : null;
 
 			const outlineColor = this.getColor(contrastBorder);
-			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : null;
+			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : '';
 		}
 	}
 

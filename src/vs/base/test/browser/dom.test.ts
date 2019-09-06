@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import * as dom from 'vs/base/browser/dom';
@@ -98,18 +97,19 @@ suite('dom', () => {
 			let div = $('div', { class: 'test' });
 			assert.equal(div.className, 'test');
 
-			div = $('div', null);
+			div = $('div', undefined);
 			assert.equal(div.className, '');
 		});
 
 		test('should build nodes with children', () => {
-			let div = $('div', null, $('span', { id: 'demospan' }));
+			let div = $('div', undefined, $('span', { id: 'demospan' }));
 			let firstChild = div.firstChild as HTMLElement;
 			assert.equal(firstChild.tagName, 'SPAN');
 			assert.equal(firstChild.id, 'demospan');
 
-			div = $('div', null, 'hello');
-			assert.equal(div.firstChild.textContent, 'hello');
+			div = $('div', undefined, 'hello');
+
+			assert.equal(div.firstChild && div.firstChild.textContent, 'hello');
 		});
 	});
 });

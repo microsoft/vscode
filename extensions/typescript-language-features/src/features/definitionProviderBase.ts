@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Position, CancellationToken, Location } from 'vscode';
-
-import * as Proto from '../protocol';
+import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
+
 
 export default class TypeScriptDefinitionProviderBase {
 	constructor(
@@ -16,23 +15,22 @@ export default class TypeScriptDefinitionProviderBase {
 
 	protected async getSymbolLocations(
 		definitionType: 'definition' | 'implementation' | 'typeDefinition',
-		document: TextDocument,
-		position: Position,
-		token: CancellationToken | boolean
-	): Promise<Location[] | undefined> {
-		const filepath = this.client.toPath(document.uri);
-		if (!filepath) {
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<vscode.Location[] | undefined> {
+		const file = this.client.toOpenedFilePath(document);
+		if (!file) {
 			return undefined;
 		}
 
-		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-		try {
-			const response = await this.client.execute(definitionType, args, token);
-			const locations: Proto.FileSpan[] = (response && response.body) || [];
-			return locations.map(location =>
-				typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location));
-		} catch {
-			return [];
+		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
+		const response = await this.client.execute(definitionType, args, token);
+		if (response.type !== 'response' || !response.body) {
+			return undefined;
 		}
+
+		return response.body.map(location =>
+			typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location));
 	}
 }

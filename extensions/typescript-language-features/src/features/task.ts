@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
+import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as vscode from 'vscode';
-
-import * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
-import { isImplicitProjectConfigFile } from '../utils/tsconfig';
-
 import * as nls from 'vscode-nls';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { isTsConfigFileName } from '../utils/languageDescription';
 import { Lazy } from '../utils/lazy';
+import { isImplicitProjectConfigFile } from '../utils/tsconfig';
+import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
+
 const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off' | 'build' | 'watch';
@@ -37,7 +35,7 @@ interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
 /**
  * Provides tasks for building `tsconfig.json` files in a project.
  */
-class TscTaskProvider implements vscode.TaskProvider {
+export default class TscTaskProvider implements vscode.TaskProvider {
 	private autoDetect: AutoDetect = 'on';
 	private readonly tsconfigProvider: TsConfigProvider;
 	private readonly disposables: vscode.Disposable[] = [];
@@ -57,7 +55,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	public async provideTasks(token: vscode.CancellationToken): Promise<vscode.Task[]> {
 		const folders = vscode.workspace.workspaceFolders;
-		if (!folders || !folders.length) {
+		if ((this.autoDetect === 'off') || !folders || !folders.length) {
 			return [];
 		}
 
@@ -72,13 +70,39 @@ class TscTaskProvider implements vscode.TaskProvider {
 		return tasks;
 	}
 
-	public resolveTask(_task: vscode.Task): vscode.Task | undefined {
+	public async resolveTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
+		const definition = <TypeScriptTaskDefinition>_task.definition;
+		const badTsconfig = /\\tsconfig.*\.json/;
+		if (badTsconfig.exec(definition.tsconfig) !== null) {
+			// Warn that the task has the wrong slash type
+			vscode.window.showWarningMessage(localize('badTsConfig', "Typescript Task in tasks.json contains \"\\\\\". Typescript tasks tsconfig must use \"/\""));
+			return undefined;
+		}
+
+		const typescriptTask = (<any>_task.definition).tsconfig;
+		if (typescriptTask) {
+			if (_task.scope === undefined || _task.scope === vscode.TaskScope.Global || _task.scope === vscode.TaskScope.Workspace) {
+				// scope is required to be a WorkspaceFolder for resolveTask
+				return undefined;
+			}
+			const kind: TypeScriptTaskDefinition = (<any>_task.definition);
+			const tsconfigUri: vscode.Uri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.tsconfig });
+			const tsconfig: TSConfig = {
+				path: tsconfigUri.fsPath,
+				posixPath: tsconfigUri.path,
+				workspaceFolder: _task.scope
+			};
+			return this.getTasksForProjectAndDefinition(tsconfig, kind);
+		}
 		return undefined;
 	}
 
 	private async getAllTsConfigs(token: vscode.CancellationToken): Promise<TSConfig[]> {
 		const out = new Set<TSConfig>();
-		const configs = (await this.getTsConfigForActiveFile(token)).concat(await this.getTsConfigsInWorkspace());
+		const configs = [
+			...await this.getTsConfigForActiveFile(token),
+			...await this.getTsConfigsInWorkspace()
+		];
 		for (const config of configs) {
 			if (await exists(config.path)) {
 				out.add(config);
@@ -90,10 +114,11 @@ class TscTaskProvider implements vscode.TaskProvider {
 	private async getTsConfigForActiveFile(token: vscode.CancellationToken): Promise<TSConfig[]> {
 		const editor = vscode.window.activeTextEditor;
 		if (editor) {
-			if (path.basename(editor.document.fileName).match(/^tsconfig\.(.\.)?json$/)) {
+			if (isTsConfigFileName(editor.document.fileName)) {
 				const uri = editor.document.uri;
 				return [{
 					path: uri.fsPath,
+					posixPath: uri.path,
 					workspaceFolder: vscode.workspace.getWorkspaceFolder(uri)
 				}];
 			}
@@ -104,29 +129,26 @@ class TscTaskProvider implements vscode.TaskProvider {
 			return [];
 		}
 
-		try {
-			const res: Proto.ProjectInfoResponse = await this.client.value.execute(
-				'projectInfo',
-				{ file, needFileNameList: false },
-				token);
-
-			if (!res || !res.body) {
-				return [];
-			}
-
-			const { configFileName } = res.body;
-			if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
-				const normalizedConfigPath = path.normalize(configFileName);
-				const uri = vscode.Uri.file(normalizedConfigPath);
-				const folder = vscode.workspace.getWorkspaceFolder(uri);
-				return [{
-					path: normalizedConfigPath,
-					workspaceFolder: folder
-				}];
-			}
-		} catch (e) {
-			// noop
+		const response = await this.client.value.execute(
+			'projectInfo',
+			{ file, needFileNameList: false },
+			token);
+		if (response.type !== 'response' || !response.body) {
+			return [];
 		}
+
+		const { configFileName } = response.body;
+		if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
+			const normalizedConfigPath = path.normalize(configFileName);
+			const uri = vscode.Uri.file(normalizedConfigPath);
+			const folder = vscode.workspace.getWorkspaceFolder(uri);
+			return [{
+				path: normalizedConfigPath,
+				posixPath: uri.path,
+				workspaceFolder: folder
+			}];
+		}
+
 		return [];
 	}
 
@@ -162,7 +184,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		return undefined;
 	}
 
-	private getActiveTypeScriptFile(): string | null {
+	private getActiveTypeScriptFile(): string | undefined {
 		const editor = vscode.window.activeTextEditor;
 		if (editor) {
 			const document = editor.document;
@@ -170,100 +192,102 @@ class TscTaskProvider implements vscode.TaskProvider {
 				return this.client.value.toPath(document.uri);
 			}
 		}
-		return null;
+		return undefined;
+	}
+
+	private getBuildTask(workspaceFolder: vscode.WorkspaceFolder | undefined, label: string, command: string, args: string[], buildTaskidentifier: TypeScriptTaskDefinition): vscode.Task {
+		const buildTask = new vscode.Task(
+			buildTaskidentifier,
+			workspaceFolder || vscode.TaskScope.Workspace,
+			localize('buildTscLabel', 'build - {0}', label),
+			'tsc',
+			new vscode.ShellExecution(command, args),
+			'$tsc');
+		buildTask.group = vscode.TaskGroup.Build;
+		buildTask.isBackground = false;
+		return buildTask;
+	}
+
+	private getWatchTask(workspaceFolder: vscode.WorkspaceFolder | undefined, label: string, command: string, args: string[], watchTaskidentifier: TypeScriptTaskDefinition) {
+		const watchTask = new vscode.Task(
+			watchTaskidentifier,
+			workspaceFolder || vscode.TaskScope.Workspace,
+			localize('buildAndWatchTscLabel', 'watch - {0}', label),
+			'tsc',
+			new vscode.ShellExecution(command, [...args, '--watch']),
+			'$tsc-watch');
+		watchTask.group = vscode.TaskGroup.Build;
+		watchTask.isBackground = true;
+		return watchTask;
 	}
 
 	private async getTasksForProject(project: TSConfig): Promise<vscode.Task[]> {
 		const command = await TscTaskProvider.getCommand(project);
+		const args = await this.getBuildShellArgs(project);
 		const label = this.getLabelForTasks(project);
 
 		const tasks: vscode.Task[] = [];
 
 		if (this.autoDetect === 'build' || this.autoDetect === 'on') {
-			const buildTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label };
-			const buildTask = new vscode.Task(
-				buildTaskidentifier,
-				project.workspaceFolder || vscode.TaskScope.Workspace,
-				localize('buildTscLabel', 'build - {0}', label),
-				'tsc',
-				new vscode.ShellExecution(command, ['-p', project.path]),
-				'$tsc');
-			buildTask.group = vscode.TaskGroup.Build;
-			buildTask.isBackground = false;
-			tasks.push(buildTask);
+			tasks.push(this.getBuildTask(project.workspaceFolder, label, command, args, { type: 'typescript', tsconfig: label }));
 		}
 
 		if (this.autoDetect === 'watch' || this.autoDetect === 'on') {
-			const watchTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label, option: 'watch' };
-			const watchTask = new vscode.Task(
-				watchTaskidentifier,
-				project.workspaceFolder || vscode.TaskScope.Workspace,
-				localize('buildAndWatchTscLabel', 'watch - {0}', label),
-				'tsc',
-				new vscode.ShellExecution(command, ['--watch', '-p', project.path]),
-				'$tsc-watch');
-			watchTask.group = vscode.TaskGroup.Build;
-			watchTask.isBackground = true;
-			tasks.push(watchTask);
+
+			tasks.push(this.getWatchTask(project.workspaceFolder, label, command, args, { type: 'typescript', tsconfig: label, option: 'watch' }));
 		}
 
 		return tasks;
 	}
 
+	private async getTasksForProjectAndDefinition(project: TSConfig, definition: TypeScriptTaskDefinition): Promise<vscode.Task | undefined> {
+		const command = await TscTaskProvider.getCommand(project);
+		const args = await this.getBuildShellArgs(project);
+		const label = this.getLabelForTasks(project);
+
+		let task: vscode.Task | undefined;
+
+		if (definition.option === undefined) {
+			task = this.getBuildTask(project.workspaceFolder, label, command, args, definition);
+		} else if (definition.option === 'watch') {
+			task = this.getWatchTask(project.workspaceFolder, label, command, args, definition);
+		}
+
+		return task;
+	}
+
+	private getBuildShellArgs(project: TSConfig): Promise<Array<string>> {
+		const defaultArgs = ['-p', project.path];
+		return new Promise<Array<string>>((resolve) => {
+			fs.readFile(project.path, (error, result) => {
+				if (error) {
+					return resolve(defaultArgs);
+				}
+
+				try {
+					const tsconfig = jsonc.parse(result.toString());
+					if (tsconfig.references) {
+						return resolve(['-b', project.path]);
+					}
+				} catch {
+					// noop
+				}
+				return resolve(defaultArgs);
+			});
+		});
+	}
+
 	private getLabelForTasks(project: TSConfig): string {
 		if (project.workspaceFolder) {
-			const projectFolder = project.workspaceFolder;
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			const relativePath = path.relative(project.workspaceFolder.uri.fsPath, project.path);
-			if (workspaceFolders && workspaceFolders.length > 1) {
-				// Use absolute path when we have multiple folders with the same name
-				if (workspaceFolders.filter(x => x.name === projectFolder.name).length > 1) {
-					return path.join(project.workspaceFolder.uri.fsPath, relativePath);
-				} else {
-					return path.join(project.workspaceFolder.name, relativePath);
-				}
-			} else {
-				return relativePath;
-			}
+			const workspaceNormalizedUri = vscode.Uri.file(path.normalize(project.workspaceFolder.uri.fsPath)); // Make sure the drive letter is lowercase
+			return path.posix.relative(workspaceNormalizedUri.path, project.posixPath);
 		}
-		return project.path;
+
+		return project.posixPath;
 	}
 
 	private onConfigurationChanged(): void {
 		const type = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
 		this.autoDetect = typeof type === 'undefined' ? 'on' : type;
-	}
-}
-
-/**
- * Manages registrations of TypeScript task providers with VS Code.
- */
-export default class TypeScriptTaskProviderManager {
-	private taskProviderSub: vscode.Disposable | undefined = undefined;
-	private readonly disposables: vscode.Disposable[] = [];
-
-	constructor(
-		private readonly client: Lazy<ITypeScriptServiceClient>
-	) {
-		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this.disposables);
-		this.onConfigurationChanged();
-	}
-
-	dispose() {
-		if (this.taskProviderSub) {
-			this.taskProviderSub.dispose();
-			this.taskProviderSub = undefined;
-		}
-		this.disposables.forEach(x => x.dispose());
-	}
-
-	private onConfigurationChanged() {
-		const autoDetect = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
-		if (this.taskProviderSub && autoDetect === 'off') {
-			this.taskProviderSub.dispose();
-			this.taskProviderSub = undefined;
-		} else if (!this.taskProviderSub && autoDetect !== 'off') {
-			this.taskProviderSub = vscode.workspace.registerTaskProvider('typescript', new TscTaskProvider(this.client));
-		}
 	}
 }

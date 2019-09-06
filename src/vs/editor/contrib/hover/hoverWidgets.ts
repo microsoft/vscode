@@ -2,29 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { toggleClass } from 'vs/base/browser/dom';
-import { Position } from 'vs/editor/common/core/position';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { Widget } from 'vs/base/browser/ui/widget';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
-export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
+export class ContentHoverWidget extends Widget implements IContentWidget {
 
-	private _id: string;
-	protected _editor: editorBrowser.ICodeEditor;
+	private readonly _id: string;
+	protected _editor: ICodeEditor;
 	private _isVisible: boolean;
-	private _containerDomNode: HTMLElement;
-	private _domNode: HTMLElement;
-	protected _showAtPosition: Position;
+	private readonly _containerDomNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
+	protected _showAtPosition: Position | null;
+	protected _showAtRange: Range | null;
 	private _stoleFocus: boolean;
-	private scrollbar: DomScrollableElement;
-	private disposables: IDisposable[] = [];
+	private readonly scrollbar: DomScrollableElement;
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
@@ -38,11 +37,12 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		toggleClass(this._containerDomNode, 'hidden', !this._isVisible);
 	}
 
-	constructor(id: string, editor: editorBrowser.ICodeEditor) {
+	constructor(id: string, editor: ICodeEditor) {
 		super();
 		this._id = id;
 		this._editor = editor;
 		this._isVisible = false;
+		this._stoleFocus = false;
 
 		this._containerDomNode = document.createElement('div');
 		this._containerDomNode.className = 'monaco-editor-hover hidden';
@@ -52,7 +52,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._domNode.className = 'monaco-editor-hover-content';
 
 		this.scrollbar = new DomScrollableElement(this._domNode, {});
-		this.disposables.push(this.scrollbar);
+		this._register(this.scrollbar);
 		this._containerDomNode.appendChild(this.scrollbar.getDomNode());
 
 		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
@@ -61,17 +61,19 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 			}
 		});
 
-		this._register(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.fontInfo) {
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this.updateFont();
 			}
 		}));
 
-		this._editor.onDidLayoutChange(e => this.updateMaxHeight());
+		this._editor.onDidLayoutChange(e => this.layout());
 
-		this.updateMaxHeight();
+		this.layout();
 		this._editor.addContentWidget(this);
 		this._showAtPosition = null;
+		this._showAtRange = null;
+		this._stoleFocus = false;
 	}
 
 	public getId(): string {
@@ -82,9 +84,10 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		return this._containerDomNode;
 	}
 
-	public showAt(position: Position, focus: boolean): void {
+	public showAt(position: Position, range: Range | null, focus: boolean): void {
 		// Position has changed
-		this._showAtPosition = new Position(position.lineNumber, position.column);
+		this._showAtPosition = position;
+		this._showAtRange = range;
 		this.isVisible = true;
 
 		this._editor.layoutContentWidget(this);
@@ -110,13 +113,14 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		}
 	}
 
-	public getPosition(): editorBrowser.IContentWidgetPosition {
+	public getPosition(): IContentWidgetPosition | null {
 		if (this.isVisible) {
 			return {
 				position: this._showAtPosition,
+				range: this._showAtRange,
 				preference: [
-					editorBrowser.ContentWidgetPositionPreference.ABOVE,
-					editorBrowser.ContentWidgetPositionPreference.BELOW
+					ContentWidgetPositionPreference.ABOVE,
+					ContentWidgetPositionPreference.BELOW
 				]
 			};
 		}
@@ -125,7 +129,6 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 
 	public dispose(): void {
 		this._editor.removeContentWidget(this);
-		this.disposables = dispose(this.disposables);
 		super.dispose();
 	}
 
@@ -147,25 +150,26 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this.scrollbar.scanDomNode();
 	}
 
-	private updateMaxHeight(): void {
+	private layout(): void {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
-		const { fontSize, lineHeight } = this._editor.getConfiguration().fontInfo;
+		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 
 		this._domNode.style.fontSize = `${fontSize}px`;
 		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.style.maxHeight = `${height}px`;
+		this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}
 }
 
-export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWidget {
+export class GlyphHoverWidget extends Widget implements IOverlayWidget {
 
-	private _id: string;
-	protected _editor: editorBrowser.ICodeEditor;
+	private readonly _id: string;
+	protected _editor: ICodeEditor;
 	private _isVisible: boolean;
-	private _domNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
 	protected _showAtLineNumber: number;
 
-	constructor(id: string, editor: editorBrowser.ICodeEditor) {
+	constructor(id: string, editor: ICodeEditor) {
 		super();
 		this._id = id;
 		this._editor = editor;
@@ -178,8 +182,8 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 
 		this._showAtLineNumber = -1;
 
-		this._register(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.fontInfo) {
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this.updateFont();
 			}
 		}));
@@ -214,7 +218,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		const editorLayout = this._editor.getLayoutInfo();
 		const topForLineNumber = this._editor.getTopForLineNumber(this._showAtLineNumber);
 		const editorScrollTop = this._editor.getScrollTop();
-		const lineHeight = this._editor.getConfiguration().lineHeight;
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const nodeHeight = this._domNode.clientHeight;
 		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
 
@@ -229,7 +233,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		this.isVisible = false;
 	}
 
-	public getPosition(): editorBrowser.IOverlayWidgetPosition {
+	public getPosition(): IOverlayWidgetPosition | null {
 		return null;
 	}
 

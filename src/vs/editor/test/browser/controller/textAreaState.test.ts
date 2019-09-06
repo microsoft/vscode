@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { TextAreaState, ITextAreaWrapper, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
-import { Position } from 'vs/editor/common/core/position';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
@@ -124,7 +123,7 @@ suite('TextAreaState', () => {
 		textArea.dispose();
 	});
 
-	function testDeduceInput(prevState: TextAreaState, value: string, selectionStart: number, selectionEnd: number, couldBeEmojiInput: boolean, couldBeTypingAtOffset0: boolean, expected: string, expectedCharReplaceCnt: number): void {
+	function testDeduceInput(prevState: TextAreaState | null, value: string, selectionStart: number, selectionEnd: number, couldBeEmojiInput: boolean, couldBeTypingAtOffset0: boolean, expected: string, expectedCharReplaceCnt: number): void {
 		prevState = prevState || TextAreaState.EMPTY;
 
 		let textArea = new MockTextAreaWrapper();
@@ -515,6 +514,20 @@ suite('TextAreaState', () => {
 			'cab',
 			1, 1, true, true,
 			'c', 0
+		);
+	});
+
+	test('issue #49480: Double curly braces inserted', () => {
+		// Characters get doubled
+		testDeduceInput(
+			new TextAreaState(
+				'aa',
+				2, 2,
+				null, null
+			),
+			'aaa',
+			3, 3, true, true,
+			'a', 0
 		);
 	});
 

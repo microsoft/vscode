@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isFunction } from 'vs/base/common/types';
 import { ITree, IRenderer, IFilter, IDataSource, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { IModel } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -25,7 +24,7 @@ export class DataSource implements IDataSource {
 
 	getId(tree: ITree, element: any): string {
 		if (!element) {
-			return null;
+			return null!;
 		}
 
 		const model = this.modelProvider.getModel();
@@ -34,36 +33,59 @@ export class DataSource implements IDataSource {
 
 	hasChildren(tree: ITree, element: any): boolean {
 		const model = this.modelProvider.getModel();
-		return model && model === element && model.entries.length > 0;
+		return !!(model && model === element && model.entries.length > 0);
 	}
 
-	getChildren(tree: ITree, element: any): TPromise<any[]> {
+	getChildren(tree: ITree, element: any): Promise<any[]> {
 		const model = this.modelProvider.getModel();
-		return TPromise.as(model === element ? model.entries : []);
+		return Promise.resolve(model === element ? model.entries : []);
 	}
 
-	getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+	getParent(tree: ITree, element: any): Promise<any> {
+		return Promise.resolve(null);
 	}
 }
 
 export class AccessibilityProvider implements IAccessibilityProvider {
 	constructor(private modelProvider: IModelProvider) { }
 
-	getAriaLabel(tree: ITree, element: any): string {
+	getAriaLabel(tree: ITree, element: any): string | null {
 		const model = this.modelProvider.getModel();
 
-		return model.accessibilityProvider && model.accessibilityProvider.getAriaLabel(element);
+		return model.accessibilityProvider ? model.accessibilityProvider.getAriaLabel(element) : null;
 	}
 
 	getPosInSet(tree: ITree, element: any): string {
 		const model = this.modelProvider.getModel();
-		return String(model.entries.indexOf(element) + 1);
+		let i = 0;
+		if (model.filter) {
+			for (const entry of model.entries) {
+				if (model.filter.isVisible(entry)) {
+					i++;
+				}
+				if (entry === element) {
+					break;
+				}
+			}
+		} else {
+			i = model.entries.indexOf(element) + 1;
+		}
+		return String(i);
 	}
 
 	getSetSize(): string {
 		const model = this.modelProvider.getModel();
-		return String(model.entries.length);
+		let n = 0;
+		if (model.filter) {
+			for (const entry of model.entries) {
+				if (model.filter.isVisible(entry)) {
+					n++;
+				}
+			}
+		} else {
+			n = model.entries.length;
+		}
+		return String(n);
 	}
 }
 

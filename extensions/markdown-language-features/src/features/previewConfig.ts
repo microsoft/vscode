@@ -12,7 +12,6 @@ export class MarkdownPreviewConfiguration {
 
 	public readonly scrollBeyondLastLine: boolean;
 	public readonly wordWrap: boolean;
-	public readonly previewFrontMatter: string;
 	public readonly lineBreaks: boolean;
 	public readonly doubleClickToSwitchToEditor: boolean;
 	public readonly scrollEditorWithPreview: boolean;
@@ -36,7 +35,6 @@ export class MarkdownPreviewConfiguration {
 			this.wordWrap = markdownEditorConfig['editor.wordWrap'] !== 'off';
 		}
 
-		this.previewFrontMatter = markdownConfig.get<string>('previewFrontMatter', 'hide');
 		this.scrollPreviewWithEditor = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditor', true);
 		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
 		this.lineBreaks = !!markdownConfig.get<boolean>('preview.breaks', false);

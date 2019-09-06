@@ -3,17 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { compareFileNames, compareFileExtensions, setFileNameComparer } from 'vs/base/common/comparers';
+import { compareFileNames, compareFileExtensions } from 'vs/base/common/comparers';
 import * as assert from 'assert';
 
 suite('Comparers', () => {
 
 	test('compareFileNames', () => {
-
-		// Setup Intl
-		setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
 
 		assert(compareFileNames(null, null) === 0, 'null should be equal');
 		assert(compareFileNames(null, 'abc') < 0, 'null should be come before real values');
@@ -29,9 +24,6 @@ suite('Comparers', () => {
 	});
 
 	test('compareFileExtensions', () => {
-
-		// Setup Intl
-		setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
 
 		assert(compareFileExtensions(null, null) === 0, 'null should be equal');
 		assert(compareFileExtensions(null, '.abc') < 0, 'null should come before real files');

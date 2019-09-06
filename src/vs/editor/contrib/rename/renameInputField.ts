@@ -3,42 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./renameInputField';
-import { localize } from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { localize } from 'vs/nls';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-export default class RenameInputField implements IContentWidget, IDisposable {
+export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
+
+export class RenameInputField implements IContentWidget, IDisposable {
 
 	private _editor: ICodeEditor;
-	private _position: Position;
-	private _domNode: HTMLElement;
-	private _inputField: HTMLInputElement;
-	private _visible: boolean;
-	private _disposables: IDisposable[] = [];
+	private _position?: Position;
+	private _domNode?: HTMLElement;
+	private _inputField?: HTMLInputElement;
+	private _visible?: boolean;
+	private readonly _visibleContextKey: IContextKey<boolean>;
+	private readonly _disposables = new DisposableStore();
 
 	// Editor.IContentWidget.allowEditorOverflow
-	public allowEditorOverflow: boolean = true;
+	allowEditorOverflow: boolean = true;
 
-	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
+	constructor(
+		editor: ICodeEditor,
+		private readonly themeService: IThemeService,
+		contextKeyService: IContextKeyService,
+	) {
+		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
+
 		this._editor = editor;
 		this._editor.addContentWidget(this);
 
-		this._disposables.push(editor.onDidChangeConfiguration(e => {
-			if (e.fontInfo) {
+		this._disposables.add(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this.updateFont();
 			}
 		}));
 
-		this._disposables.push(themeService.onThemeChange(theme => this.onThemeChange(theme)));
+		this._disposables.add(themeService.onThemeChange(theme => this.onThemeChange(theme)));
 	}
 
 	private onThemeChange(theme: ITheme): void {
@@ -46,7 +54,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 	}
 
 	public dispose(): void {
-		this._disposables = dispose(this._disposables);
+		this._disposables.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
@@ -61,7 +69,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			this._inputField.type = 'text';
 			this._inputField.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
 			this._domNode = document.createElement('div');
-			this._domNode.style.height = `${this._editor.getConfiguration().lineHeight}px`;
+			this._domNode.style.height = `${this._editor.getOption(EditorOption.lineHeight)}px`;
 			this._domNode.className = 'monaco-editor rename-box';
 			this._domNode.appendChild(this._inputField);
 
@@ -88,7 +96,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		this._inputField.style.borderStyle = border ? 'solid' : 'none';
 		this._inputField.style.borderColor = border ? border.toString() : 'none';
 
-		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 2px 8px ${widgetShadowColor}` : null;
+		this._domNode!.style.boxShadow = widgetShadowColor ? ` 0 2px 8px ${widgetShadowColor}` : null;
 	}
 
 	private updateFont(): void {
@@ -96,20 +104,20 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			return;
 		}
 
-		const fontInfo = this._editor.getConfiguration().fontInfo;
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		this._inputField.style.fontFamily = fontInfo.fontFamily;
 		this._inputField.style.fontWeight = fontInfo.fontWeight;
 		this._inputField.style.fontSize = `${fontInfo.fontSize}px`;
 	}
 
-	public getPosition(): IContentWidgetPosition {
+	public getPosition(): IContentWidgetPosition | null {
 		return this._visible
-			? { position: this._position, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
+			? { position: this._position!, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
 			: null;
 	}
 
-	private _currentAcceptInput: () => void = null;
-	private _currentCancelInput: (focusEditor) => void = null;
+	private _currentAcceptInput: (() => void) | null = null;
+	private _currentCancelInput: ((focusEditor: boolean) => void) | null = null;
 
 	public acceptInput(): void {
 		if (this._currentAcceptInput) {
@@ -123,23 +131,21 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		}
 	}
 
-	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): TPromise<string | boolean> {
+	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): Promise<string | boolean> {
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
-		this._inputField.value = value;
-		this._inputField.setAttribute('selectionStart', selectionStart.toString());
-		this._inputField.setAttribute('selectionEnd', selectionEnd.toString());
-		this._inputField.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
+		this._inputField!.value = value;
+		this._inputField!.setAttribute('selectionStart', selectionStart.toString());
+		this._inputField!.setAttribute('selectionEnd', selectionEnd.toString());
+		this._inputField!.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
 
-		let disposeOnDone: IDisposable[] = [],
-			always: Function;
-
-		always = () => {
-			dispose(disposeOnDone);
+		const disposeOnDone = new DisposableStore();
+		const always = () => {
+			disposeOnDone.dispose();
 			this._hide();
 		};
 
-		return new TPromise<string>(resolve => {
+		return new Promise<string | boolean>(resolve => {
 
 			this._currentCancelInput = (focusEditor) => {
 				this._currentAcceptInput = null;
@@ -149,7 +155,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			};
 
 			this._currentAcceptInput = () => {
-				if (this._inputField.value.trim().length === 0 || this._inputField.value === value) {
+				if (this._inputField!.value.trim().length === 0 || this._inputField!.value === value) {
 					// empty or whitespace only or not changed
 					this.cancelInput(true);
 					return;
@@ -157,46 +163,47 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 
 				this._currentAcceptInput = null;
 				this._currentCancelInput = null;
-				resolve(this._inputField.value);
+				resolve(this._inputField!.value);
 			};
 
 			let onCursorChanged = () => {
-				if (!Range.containsPosition(where, this._editor.getPosition())) {
+				const editorPosition = this._editor.getPosition();
+				if (!editorPosition || !Range.containsPosition(where, editorPosition)) {
 					this.cancelInput(true);
 				}
 			};
 
-			disposeOnDone.push(this._editor.onDidChangeCursorSelection(onCursorChanged));
-			disposeOnDone.push(this._editor.onDidBlurEditorWidget(() => this.cancelInput(false)));
+			disposeOnDone.add(this._editor.onDidChangeCursorSelection(onCursorChanged));
+			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(false)));
 
 			this._show();
 
-		}, () => {
-			this._currentCancelInput(true);
 		}).then(newValue => {
 			always();
 			return newValue;
 		}, err => {
 			always();
-			return TPromise.wrapError<string>(err);
+			return Promise.reject(err);
 		});
 	}
 
 	private _show(): void {
-		this._editor.revealLineInCenterIfOutsideViewport(this._position.lineNumber, ScrollType.Smooth);
+		this._editor.revealLineInCenterIfOutsideViewport(this._position!.lineNumber, ScrollType.Smooth);
 		this._visible = true;
+		this._visibleContextKey.set(true);
 		this._editor.layoutContentWidget(this);
 
 		setTimeout(() => {
-			this._inputField.focus();
-			this._inputField.setSelectionRange(
-				parseInt(this._inputField.getAttribute('selectionStart')),
-				parseInt(this._inputField.getAttribute('selectionEnd')));
+			this._inputField!.focus();
+			this._inputField!.setSelectionRange(
+				parseInt(this._inputField!.getAttribute('selectionStart')!),
+				parseInt(this._inputField!.getAttribute('selectionEnd')!));
 		}, 100);
 	}
 
 	private _hide(): void {
 		this._visible = false;
+		this._visibleContextKey.reset();
 		this._editor.layoutContentWidget(this);
 	}
 }

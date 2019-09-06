@@ -3,57 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./currentLineHighlight';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
-	private _context: ViewContext;
+	private readonly _context: ViewContext;
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
+	private _contentWidth: number;
 	private _selectionIsEmpty: boolean;
 	private _primaryCursorLineNumber: number;
 	private _scrollWidth: number;
-	private _contentWidth: number;
 
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
+
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
+		this._contentWidth = layoutInfo.contentWidth;
 
 		this._selectionIsEmpty = true;
 		this._primaryCursorLineNumber = 1;
 		this._scrollWidth = 0;
-		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+
 
 		this._context.addEventHandler(this);
 	}
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		super.dispose();
 	}
 
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.viewInfo) {
-			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
-		}
-		if (e.layoutInfo) {
-			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-		}
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
+		this._contentWidth = layoutInfo.contentWidth;
 		return true;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
@@ -68,7 +69,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		const selectionIsEmpty = e.selections[0].isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {
 			this._selectionIsEmpty = selectionIsEmpty;
-			hasChanged = true;
 			return true;
 		}
 
@@ -131,12 +131,12 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let lineHighlight = theme.getColor(editorLineHighlight);
+	const lineHighlight = theme.getColor(editorLineHighlight);
 	if (lineHighlight) {
 		collector.addRule(`.monaco-editor .view-overlays .current-line { background-color: ${lineHighlight}; }`);
 	}
 	if (!lineHighlight || lineHighlight.isTransparent() || theme.defines(editorLineHighlightBorder)) {
-		let lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
+		const lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
 		if (lineHighlightBorder) {
 			collector.addRule(`.monaco-editor .view-overlays .current-line { border: 2px solid ${lineHighlightBorder}; }`);
 			if (theme.type === 'hc') {

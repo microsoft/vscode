@@ -25,10 +25,10 @@
 	"command.decrementNumberByTen": "Decrement by 10",
 	"emmetSyntaxProfiles": "Define profile for specified syntax or use your own profile with specific rules.",
 	"emmetExclude": "An array of languages where Emmet abbreviations should not be expanded.",
-	"emmetExtensionsPath": "Path to a folder containing Emmet profiles and snippets.'",
-	"emmetShowExpandedAbbreviation": "Shows expanded Emmet abbreviations as suggestions.\nThe option \"inMarkupAndStylesheetFilesOnly\" applies to html, haml, jade, slim, xml, xsl, css, scss, sass, less and stylus.\nThe option \"always\" applies to all parts of the file regardless of markup/css.",
-	"emmetShowAbbreviationSuggestions": "Shows possible Emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to \"never\".",
-	"emmetIncludeLanguages": "Enable Emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n E.g.: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
+	"emmetExtensionsPath": "Path to a folder containing Emmet profiles and snippets.",
+	"emmetShowExpandedAbbreviation": "Shows expanded Emmet abbreviations as suggestions.\nThe option `\"inMarkupAndStylesheetFilesOnly\"` applies to html, haml, jade, slim, xml, xsl, css, scss, sass, less and stylus.\nThe option `\"always\"` applies to all parts of the file regardless of markup/css.",
+	"emmetShowAbbreviationSuggestions": "Shows possible Emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to `\"never\"`.",
+	"emmetIncludeLanguages": "Enable Emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n E.g.: `{\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}`",
 	"emmetVariables": "Variables to be used in Emmet snippets",
 	"emmetTriggerExpansionOnTab": "When enabled, Emmet abbreviations are expanded when pressing TAB.",
 	"emmetPreferences": "Preferences used to modify behavior of some actions and resolvers of Emmet.",
@@ -40,7 +40,7 @@
 	"emmetPreferencesCssBetween": "Symbol to be placed at the between CSS property and value when expanding CSS abbreviations",
 	"emmetPreferencesSassBetween": "Symbol to be placed at the between CSS property and value when expanding CSS abbreviations in Sass files",
 	"emmetPreferencesStylusBetween": "Symbol to be placed at the between CSS property and value when expanding CSS abbreviations in Stylus files",
-	"emmetShowSuggestionsAsSnippets": "If true, then Emmet suggestions will show up as snippets allowing you to order them as per editor.snippetSuggestions setting.",
+	"emmetShowSuggestionsAsSnippets": "If `true`, then Emmet suggestions will show up as snippets allowing you to order them as per `#editor.snippetSuggestions#` setting.",
 	"emmetPreferencesBemElementSeparator": "Element separator used for classes when using the BEM filter",
 	"emmetPreferencesBemModifierSeparator": "Modifier separator used for classes when using the BEM filter",
 	"emmetPreferencesFilterCommentBefore": "A definition of comment that should be placed before matched element when comment filter is applied.",
@@ -54,5 +54,5 @@
 	"emmetPreferencesCssOProperties": "Comma separated CSS properties that get the 'o' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'o' prefix.",
 	"emmetPreferencesCssMsProperties": "Comma separated CSS properties that get the 'ms' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'ms' prefix.",
 	"emmetPreferencesCssFuzzySearchMinScore": "The minimum score (from 0 to 1) that fuzzy-matched abbreviation should achieve. Lower values may produce many false-positive matches, higher values may reduce possible matches.",
-	"emmetOptimizeStylesheetParsing": "When set to false, the whole file is parsed to determine if current position is valid for expanding Emmet abbreviations. When set to true, only the content around the current position in css/scss/less files is parsed."
+	"emmetOptimizeStylesheetParsing": "When set to `false`, the whole file is parsed to determine if current position is valid for expanding Emmet abbreviations. When set to `true`, only the content around the current position in css/scss/less files is parsed."
 }

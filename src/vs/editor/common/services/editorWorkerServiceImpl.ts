@@ -2,25 +2,26 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IntervalTimer, ShallowCancelThenPromise, wireCancellationToken } from 'vs/base/common/async';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
+import { IntervalTimer } from 'vs/base/common/async';
+import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import * as modes from 'vs/editor/common/modes';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { regExpFlags } from 'vs/base/common/strings';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { ILogService } from 'vs/platform/log/common/log';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -44,29 +45,33 @@ function canSyncModel(modelService: IModelService, resource: URI): boolean {
 }
 
 export class EditorWorkerServiceImpl extends Disposable implements IEditorWorkerService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _modelService: IModelService;
 	private readonly _workerManager: WorkerManager;
-
+	private readonly _logService: ILogService;
 	constructor(
 		@IModelService modelService: IModelService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ILogService logService: ILogService
 	) {
 		super();
 		this._modelService = modelService;
 		this._workerManager = this._register(new WorkerManager(this._modelService));
+		this._logService = logService;
 
 		// todo@joh make sure this happens only once
-		this._register(modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
+		this._register(modes.LinkProviderRegistry.register('*', {
 			provideLinks: (model, token) => {
 				if (!canSyncModel(this._modelService, model.uri)) {
-					return TPromise.as([]); // File too large
+					return Promise.resolve({ links: [] }); // File too large
 				}
-				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
+				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri)).then(links => {
+					return links && { links };
+				});
 			}
 		}));
-		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
+		this._register(modes.CompletionProviderRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
 	}
 
 	public dispose(): void {
@@ -77,7 +82,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
 	}
 
-	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {
+	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IDiffComputationResult | null> {
 		return this._workerManager.withWorker().then(client => client.computeDiff(original, modified, ignoreTrimWhitespace));
 	}
 
@@ -85,18 +90,22 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
 	}
 
-	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.IChange[]> {
+	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[] | null> {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): TPromise<modes.TextEdit[]> {
-		if (!Array.isArray(edits) || edits.length === 0) {
-			return TPromise.as(edits);
-		} else {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
+		if (isNonEmptyArray(edits)) {
 			if (!canSyncModel(this._modelService, resource)) {
-				return TPromise.as(edits); // File too large
+				return Promise.resolve(edits); // File too large
 			}
-			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
+			const sw = StopWatch.create(true);
+			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
+			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
+			return result;
+
+		} else {
+			return Promise.resolve(undefined);
 		}
 	}
 
@@ -104,16 +113,26 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return (canSyncModel(this._modelService, resource));
 	}
 
-	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<modes.IInplaceReplaceSupportResult | null> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
+	}
+
+	canComputeWordRanges(resource: URI): boolean {
+		return canSyncModel(this._modelService, resource);
+	}
+
+	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
+		return this._workerManager.withWorker().then(client => client.computeWordRanges(resource, range));
 	}
 }
 
-class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
+class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 
 	private readonly _workerManager: WorkerManager;
 	private readonly _configurationService: ITextResourceConfigurationService;
 	private readonly _modelService: IModelService;
+
+	readonly _debugDisplayName = 'wordbasedCompletions';
 
 	constructor(
 		workerManager: WorkerManager,
@@ -125,8 +144,8 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 		this._modelService = modelService;
 	}
 
-	provideCompletionItems(model: ITextModel, position: Position): TPromise<modes.ISuggestResult> {
-		const { wordBasedSuggestions } = this._configurationService.getValue<IEditorOptions>(model.uri, position, 'editor');
+	provideCompletionItems(model: ITextModel, position: Position): Promise<modes.CompletionList | null> | undefined {
+		const { wordBasedSuggestions } = this._configurationService.getValue<{ wordBasedSuggestions?: boolean }>(model.uri, position, 'editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
 		}
@@ -139,14 +158,15 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 class WorkerManager extends Disposable {
 
-	private _modelService: IModelService;
-	private _editorWorkerClient: EditorWorkerClient;
+	private readonly _modelService: IModelService;
+	private _editorWorkerClient: EditorWorkerClient | null;
 	private _lastWorkerUsedTime: number;
 
 	constructor(modelService: IModelService) {
 		super();
 		this._modelService = modelService;
 		this._editorWorkerClient = null;
+		this._lastWorkerUsedTime = (new Date()).getTime();
 
 		let stopWorkerInterval = this._register(new IntervalTimer());
 		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2));
@@ -193,23 +213,23 @@ class WorkerManager extends Disposable {
 		}
 	}
 
-	public withWorker(): TPromise<EditorWorkerClient> {
+	public withWorker(): Promise<EditorWorkerClient> {
 		this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
 			this._editorWorkerClient = new EditorWorkerClient(this._modelService, 'editorWorkerService');
 		}
-		return TPromise.as(this._editorWorkerClient);
+		return Promise.resolve(this._editorWorkerClient);
 	}
 }
 
 class EditorModelManager extends Disposable {
 
-	private _proxy: EditorSimpleWorkerImpl;
-	private _modelService: IModelService;
-	private _syncedModels: { [modelUrl: string]: IDisposable[]; } = Object.create(null);
+	private readonly _proxy: EditorSimpleWorker;
+	private readonly _modelService: IModelService;
+	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
 
-	constructor(proxy: EditorSimpleWorkerImpl, modelService: IModelService, keepIdleModels: boolean) {
+	constructor(proxy: EditorSimpleWorker, modelService: IModelService, keepIdleModels: boolean) {
 		super();
 		this._proxy = proxy;
 		this._modelService = modelService;
@@ -230,9 +250,8 @@ class EditorModelManager extends Disposable {
 		super.dispose();
 	}
 
-	public esureSyncedResources(resources: URI[]): void {
-		for (let i = 0; i < resources.length; i++) {
-			let resource = resources[i];
+	public ensureSyncedResources(resources: URI[]): void {
+		for (const resource of resources) {
 			let resourceStr = resource.toString();
 
 			if (!this._syncedModels[resourceStr]) {
@@ -255,8 +274,8 @@ class EditorModelManager extends Disposable {
 			}
 		}
 
-		for (let i = 0; i < toRemove.length; i++) {
-			this._stopModelSync(toRemove[i]);
+		for (const e of toRemove) {
+			this._stopModelSync(e);
 		}
 	}
 
@@ -278,18 +297,16 @@ class EditorModelManager extends Disposable {
 			versionId: model.getVersionId()
 		});
 
-		let toDispose: IDisposable[] = [];
-		toDispose.push(model.onDidChangeContent((e) => {
+		const toDispose = new DisposableStore();
+		toDispose.add(model.onDidChangeContent((e) => {
 			this._proxy.acceptModelChanged(modelUrl.toString(), e);
 		}));
-		toDispose.push(model.onWillDispose(() => {
+		toDispose.add(model.onWillDispose(() => {
 			this._stopModelSync(modelUrl);
 		}));
-		toDispose.push({
-			dispose: () => {
-				this._proxy.acceptRemovedModel(modelUrl);
-			}
-		});
+		toDispose.add(toDisposable(() => {
+			this._proxy.acceptRemovedModel(modelUrl);
+		}));
 
 		this._syncedModels[modelUrl] = toDispose;
 	}
@@ -302,39 +319,46 @@ class EditorModelManager extends Disposable {
 	}
 }
 
-interface IWorkerClient<T> {
-	getProxyObject(): TPromise<T>;
-	dispose(): void;
-}
-
 class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
-	private _instance: T;
-	private _proxyObj: TPromise<T>;
+	private readonly _instance: T;
+	private readonly _proxyObj: Promise<T>;
 
 	constructor(instance: T) {
 		this._instance = instance;
-		this._proxyObj = TPromise.as(this._instance);
+		this._proxyObj = Promise.resolve(this._instance);
 	}
 
 	public dispose(): void {
 		this._instance.dispose();
-		this._instance = null;
-		this._proxyObj = null;
 	}
 
-	public getProxyObject(): TPromise<T> {
-		return new ShallowCancelThenPromise(this._proxyObj);
+	public getProxyObject(): Promise<T> {
+		return this._proxyObj;
+	}
+}
+
+export class EditorWorkerHost {
+
+	private readonly _workerClient: EditorWorkerClient;
+
+	constructor(workerClient: EditorWorkerClient) {
+		this._workerClient = workerClient;
+	}
+
+	// foreign host request
+	public fhr(method: string, args: any[]): Promise<any> {
+		return this._workerClient.fhr(method, args);
 	}
 }
 
 export class EditorWorkerClient extends Disposable {
 
-	private _modelService: IModelService;
-	private _worker: IWorkerClient<EditorSimpleWorkerImpl>;
-	private _workerFactory: DefaultWorkerFactory;
-	private _modelManager: EditorModelManager;
+	private readonly _modelService: IModelService;
+	private _worker: IWorkerClient<EditorSimpleWorker> | null;
+	private readonly _workerFactory: DefaultWorkerFactory;
+	private _modelManager: EditorModelManager | null;
 
-	constructor(modelService: IModelService, label: string) {
+	constructor(modelService: IModelService, label: string | undefined) {
 		super();
 		this._modelService = modelService;
 		this._workerFactory = new DefaultWorkerFactory(label);
@@ -342,68 +366,74 @@ export class EditorWorkerClient extends Disposable {
 		this._modelManager = null;
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorkerImpl> {
+	// foreign host request
+	public fhr(method: string, args: any[]): Promise<any> {
+		throw new Error(`Not implemented!`);
+	}
+
+	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorkerImpl>(
+				this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker, EditorWorkerHost>(
 					this._workerFactory,
-					'vs/editor/common/services/editorSimpleWorker'
+					'vs/editor/common/services/editorSimpleWorker',
+					new EditorWorkerHost(this)
 				));
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
-				this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
+				this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
 			}
 		}
 		return this._worker;
 	}
 
-	protected _getProxy(): TPromise<EditorSimpleWorkerImpl> {
-		return new ShallowCancelThenPromise(this._getOrCreateWorker().getProxyObject().then(null, (err) => {
+	protected _getProxy(): Promise<EditorSimpleWorker> {
+		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
 			logOnceWebWorkerWarning(err);
-			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
+			this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
 			return this._getOrCreateWorker().getProxyObject();
-		}));
+		});
 	}
 
-	private _getOrCreateModelManager(proxy: EditorSimpleWorkerImpl): EditorModelManager {
+	private _getOrCreateModelManager(proxy: EditorSimpleWorker): EditorModelManager {
 		if (!this._modelManager) {
 			this._modelManager = this._register(new EditorModelManager(proxy, this._modelService, false));
 		}
 		return this._modelManager;
 	}
 
-	protected _withSyncedResources(resources: URI[]): TPromise<EditorSimpleWorkerImpl> {
+	protected _withSyncedResources(resources: URI[]): Promise<EditorSimpleWorker> {
 		return this._getProxy().then((proxy) => {
-			this._getOrCreateModelManager(proxy).esureSyncedResources(resources);
+			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
 			return proxy;
 		});
 	}
 
-	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {
+	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IDiffComputationResult | null> {
 		return this._withSyncedResources([original, modified]).then(proxy => {
 			return proxy.computeDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
 		});
 	}
 
-	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.IChange[]> {
+	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[] | null> {
 		return this._withSyncedResources([original, modified]).then(proxy => {
 			return proxy.computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
 		});
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): Promise<modes.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeMoreMinimalEdits(resource.toString(), edits);
 		});
 	}
 
-	public computeLinks(resource: URI): TPromise<modes.ILink[]> {
+	public computeLinks(resource: URI): Promise<modes.ILink[] | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeLinks(resource.toString());
 		});
 	}
 
-	public textualSuggest(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
+	public textualSuggest(resource: URI, position: IPosition): Promise<modes.CompletionList | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
@@ -411,12 +441,25 @@ export class EditorWorkerClient extends Disposable {
 			}
 			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			let wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
 		});
 	}
 
-	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
+	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
+		return this._withSyncedResources([resource]).then(proxy => {
+			let model = this._modelService.getModel(resource);
+			if (!model) {
+				return Promise.resolve(null);
+			}
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+			let wordDef = wordDefRegExp.source;
+			let wordDefFlags = regExpFlags(wordDefRegExp);
+			return proxy.computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
+		});
+	}
+
+	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<modes.IInplaceReplaceSupportResult | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
@@ -424,7 +467,7 @@ export class EditorWorkerClient extends Disposable {
 			}
 			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			let wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
 		});
 	}

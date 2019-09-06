@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'mocha';
 import * as assert from 'assert';
 import { join } from 'path';
@@ -41,20 +39,18 @@ suite('commands namespace tests', () => {
 		}, done);
 	});
 
-	test('command with args', function () {
+	test('command with args', async function () {
 
 		let args: IArguments;
 		let registration = commands.registerCommand('t1', function () {
 			args = arguments;
 		});
 
-		return commands.executeCommand('t1', 'start').then(() => {
-			registration.dispose();
-
-			assert.ok(args);
-			assert.equal(args.length, 1);
-			assert.equal(args[0], 'start');
-		});
+		await commands.executeCommand('t1', 'start');
+		registration.dispose();
+		assert.ok(args!);
+		assert.equal(args!.length, 1);
+		assert.equal(args![0], 'start');
 	});
 
 	test('editorCommand with extra args', function () {
@@ -65,7 +61,7 @@ suite('commands namespace tests', () => {
 		});
 
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
-			return window.showTextDocument(doc).then(editor => {
+			return window.showTextDocument(doc).then(_editor => {
 				return commands.executeCommand('t1', 12345, commands);
 			}).then(() => {
 				assert.ok(args);
@@ -74,24 +70,6 @@ suite('commands namespace tests', () => {
 				assert.ok(args[3] === commands);
 				registration.dispose();
 			});
-		});
-
-	});
-
-	test('api-command: vscode.previewHtm', function () {
-
-		let registration = workspace.registerTextDocumentContentProvider('speciale', {
-			provideTextDocumentContent(uri) {
-				return `content of URI <b>${uri.toString()}</b>`;
-			}
-		});
-
-		let virtualDocumentUri = Uri.parse('speciale://authority/path');
-		let title = 'A title';
-
-		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri, ViewColumn.Three, title).then(success => {
-			assert.ok(success);
-			registration.dispose();
 		});
 
 	});
@@ -106,17 +84,17 @@ suite('commands namespace tests', () => {
 
 
 		let a = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'DIFF').then(value => {
-			assert.ok(value === void 0);
+			assert.ok(value === undefined);
 			registration.dispose();
 		});
 
 		let b = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b')).then(value => {
-			assert.ok(value === void 0);
+			assert.ok(value === undefined);
 			registration.dispose();
 		});
 
 		let c = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'Title', { selection: new Range(new Position(1, 1), new Position(1, 2)) }).then(value => {
-			assert.ok(value === void 0);
+			assert.ok(value === undefined);
 			registration.dispose();
 		});
 
@@ -127,7 +105,7 @@ suite('commands namespace tests', () => {
 	});
 
 	test('api-command: vscode.open', function () {
-		let uri = Uri.file(join(workspace.rootPath || '', './image.png'));
+		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/image.png');
 		let a = commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
 		let b = commands.executeCommand('vscode.open', uri, ViewColumn.Two).then(() => assert.ok(true), () => assert.ok(false));
 		let c = commands.executeCommand('vscode.open').then(() => assert.ok(false), () => assert.ok(true));

@@ -1,0 +1,60 @@
+steps:
+- script: |
+    set -e
+    sudo apt-get update
+    sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0
+    sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+    sudo chmod +x /etc/init.d/xvfb
+    sudo update-rc.d xvfb defaults
+    sudo service xvfb start
+- task: NodeTool@0
+  inputs:
+    versionSpec: "10.15.1"
+- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+  inputs:
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: '$(ArtifactFeed)'
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.x"
+- script: |
+    yarn --frozen-lockfile
+  displayName: Install Dependencies
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
+  inputs:
+    keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
+    vstsFeed: '$(ArtifactFeed)'
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- script: |
+    yarn gulp electron-x64
+  displayName: Download Electron
+- script: |
+    yarn gulp hygiene --skip-tslint
+  displayName: Run Hygiene Checks
+- script: |
+    yarn gulp tslint
+  displayName: Run TSLint Checks
+- script: |
+    yarn monaco-compile-check
+  displayName: Run Monaco Editor Checks
+- script: |
+    yarn compile
+  displayName: Compile Sources
+- script: |
+    yarn download-builtin-extensions
+  displayName: Download Built-in Extensions
+- script: |
+    DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
+  displayName: Run Unit Tests
+- script: |
+    DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
+  displayName: Run Integration Tests
+- task: PublishTestResults@2
+  displayName: Publish Tests Results
+  inputs:
+    testResultsFiles: '*-results.xml'
+    searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
+  condition: succeededOrFailed()

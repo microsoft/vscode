@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 export interface IJSONSchema {
 	id?: string;
@@ -46,6 +45,12 @@ export interface IJSONSchema {
 	contains?: IJSONSchema;
 	propertyNames?: IJSONSchema;
 
+	// schema draft 07
+	$comment?: string;
+	if?: IJSONSchema;
+	then?: IJSONSchema;
+	else?: IJSONSchema;
+
 	// VSCode extensions
 	defaultSnippets?: IJSONSchemaSnippet[]; // VSCode extension
 	errorMessage?: string; // VSCode extension
@@ -56,6 +61,7 @@ export interface IJSONSchema {
 	markdownDescription?: string; // VSCode extension
 	doNotSuggest?: boolean; // VSCode extension
 	allowComments?: boolean; // VSCode extension
+	allowsTrailingCommas?: boolean; // VSCode extension
 }
 
 export interface IJSONSchemaMap {

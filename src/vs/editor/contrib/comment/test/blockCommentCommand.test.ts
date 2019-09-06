@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import { Selection } from 'vs/editor/common/core/selection';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
@@ -59,7 +57,7 @@ suite('Editor Contrib - Block Comment Command', () => {
 		);
 	});
 
-	test('bug9511', function () {
+	test('bug9511', () => {
 		testBlockCommentCommand(
 			[
 				'first',

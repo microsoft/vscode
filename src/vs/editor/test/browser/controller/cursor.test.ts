@@ -2,29 +2,29 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Handler, ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { LanguageIdentifier, ITokenizationSupport, IState, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { createTextModel, IRelaxedTextModelCreationOptions } from 'vs/editor/test/common/editorTestUtils';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 
 const H = Handler;
 
@@ -151,8 +151,8 @@ suite('Editor Controller - Cursor', () => {
 			LINE5;
 
 		thisModel = createTextModel(text);
-		thisConfiguration = new TestConfiguration(null);
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null);
+		thisConfiguration = new TestConfiguration({});
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null!);
 
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
@@ -710,7 +710,8 @@ suite('Editor Controller - Cursor', () => {
 			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 				position: new Position(4, 4),
 				viewPosition: new Position(4, 4),
-				mouseColumn: 15
+				mouseColumn: 15,
+				setAnchorIfNotSet: false
 			});
 
 			let expectedSelections = [
@@ -735,8 +736,8 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -745,7 +746,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(4, 1),
 			viewPosition: new Position(4, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 
 		assertCursor(cursor, [
@@ -774,8 +776,8 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -784,7 +786,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -802,7 +805,8 @@ suite('Editor Controller - Cursor', () => {
 		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
-			mouseColumn: 1
+			mouseColumn: 1,
+			setAnchorIfNotSet: false
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -836,8 +840,8 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -885,8 +889,8 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model, null);
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -1105,14 +1109,13 @@ class SurroundingMode extends MockMode {
 class OnEnterMode extends MockMode {
 	private static readonly _id = new LanguageIdentifier('onEnterMode', 3);
 
-	constructor(indentAction: IndentAction, outdentCurrentLine?: boolean) {
+	constructor(indentAction: IndentAction) {
 		super(OnEnterMode._id);
 		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
 			onEnterRules: [{
 				beforeText: /.*/,
 				action: {
-					indentAction: indentAction,
-					outdentCurrentLine: outdentCurrentLine
+					indentAction: indentAction
 				}
 			}]
 		}));
@@ -1396,7 +1399,7 @@ suite('Editor Controller - Regression tests', () => {
 			'asdasd',
 			'qwerty'
 		], {}, (editor, cursor) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 
 			moveTo(cursor, 2, 1, false);
 			assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1412,7 +1415,7 @@ suite('Editor Controller - Regression tests', () => {
 			'asdasd',
 			''
 		], {}, (editor, cursor) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 
 			moveTo(cursor, 2, 1, false);
 			assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1869,7 +1872,7 @@ suite('Editor Controller - Regression tests', () => {
 		this.timeout(10000);
 		const LINE_CNT = 2000;
 
-		let text = [];
+		let text: string[] = [];
 		for (let i = 0; i < LINE_CNT; i++) {
 			text[i] = 'asd';
 		}
@@ -1982,7 +1985,7 @@ suite('Editor Controller - Regression tests', () => {
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 100
 		});
-		const viewModel = new ViewModel(0, config, model, null);
+		const viewModel = new ViewModel(0, config, model, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 43, false);
@@ -2051,9 +2054,9 @@ suite('Editor Controller - Regression tests', () => {
 
 		const tokenizationSupport: ITokenizationSupport = {
 			getInitialState: () => NULL_STATE,
-			tokenize: undefined,
+			tokenize: undefined!,
 			tokenize2: (line: string, state: IState): TokenizationResult2 => {
-				return new TokenizationResult2(null, state);
+				return new TokenizationResult2(new Uint32Array(0), state);
 			}
 		};
 
@@ -2213,6 +2216,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n'),
 			{
 				tabSize: 13,
+				indentSize: 13,
 			}
 		);
 
@@ -2385,7 +2389,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 			class TestCommand implements ICommand {
 
-				private _selectionId: string = null;
+				private _selectionId: string | null = null;
 
 				public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 					builder.addEditOperation(new Range(1, 13, 1, 14), '');
@@ -2393,7 +2397,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				}
 
 				public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-					return helper.getTrackedSelection(this._selectionId);
+					return helper.getTrackedSelection(this._selectionId!);
 				}
 
 			}
@@ -3123,7 +3127,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { tabSize: 2 }
+			modelOpts: {
+				tabSize: 2,
+				indentSize: 2
+			}
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -3517,31 +3524,7 @@ suite('Editor Controller - Indentation Rules', () => {
 						// ^.*\{[^}"']*$
 						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
 					},
-					onEnterRules: [
-						{
-							// e.g. /** | */
-							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-							afterText: /^\s*\*\/$/,
-							action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-						}, {
-							// e.g. /** ...|
-							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-							action: { indentAction: IndentAction.None, appendText: ' * ' }
-						}, {
-							// e.g.  * ...|
-							beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
-							action: { indentAction: IndentAction.None, appendText: '* ' }
-						}, {
-							// e.g.  */|
-							beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-							action: { indentAction: IndentAction.None, removeText: 1 }
-						},
-						{
-							// e.g.  *-----*/|
-							beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
-							action: { indentAction: IndentAction.None, removeText: 1 }
-						}
-					]
+					onEnterRules: javascriptOnEnterRules
 				}));
 			}
 		}
@@ -3619,7 +3602,10 @@ suite('Editor Controller - Indentation Rules', () => {
 				'',
 				')',
 			].join('\n'),
-			{ tabSize: 2 },
+			{
+				tabSize: 2,
+				indentSize: 2
+			},
 			mode.getLanguageIdentifier()
 		);
 
@@ -3647,11 +3633,80 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
+	test('', () => {
+		class JSONMode extends MockMode {
+			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
+			constructor() {
+				super(JSONMode._id);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					brackets: [
+						['{', '}'],
+						['[', ']'],
+						['(', ')']
+					],
+					indentationRules: {
+						increaseIndentPattern: new RegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$'),
+						decreaseIndentPattern: new RegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$'),
+					}
+				}));
+			}
+		}
+
+		let mode = new JSONMode();
+		let model = createTextModel(
+			[
+				'{',
+				'  "scripts: {"',
+				'    "watch": "a {"',
+				'    "build{": "b"',
+				'    "tasks": []',
+				'    "tasks": ["a"]',
+				'  "}"',
+				'"}"'
+			].join('\n'),
+			{
+				tabSize: 2,
+				indentSize: 2
+			},
+			mode.getLanguageIdentifier()
+		);
+
+		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+			moveTo(cursor, 3, 19, false);
+			assertCursor(cursor, new Selection(3, 19, 3, 19));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(4), '    ');
+
+			moveTo(cursor, 5, 18, false);
+			assertCursor(cursor, new Selection(5, 18, 5, 18));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(6), '    ');
+
+			moveTo(cursor, 7, 15, false);
+			assertCursor(cursor, new Selection(7, 15, 7, 15));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(8), '      ');
+			assert.deepEqual(model.getLineContent(9), '    ]');
+
+			moveTo(cursor, 10, 18, false);
+			assertCursor(cursor, new Selection(10, 18, 10, 18));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.deepEqual(model.getLineContent(11), '    ]');
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
 });
 
 interface ICursorOpts {
 	text: string[];
-	languageIdentifier?: LanguageIdentifier;
+	languageIdentifier?: LanguageIdentifier | null;
 	modelOpts?: IRelaxedTextModelCreationOptions;
 	editorOpts?: IEditorOptions;
 }
@@ -3659,8 +3714,8 @@ interface ICursorOpts {
 function usingCursor(opts: ICursorOpts, callback: (model: TextModel, cursor: Cursor) => void): void {
 	let model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	model.forceTokenization(model.getLineCount());
-	let config = new TestConfiguration(opts.editorOpts);
-	let viewModel = new ViewModel(0, config, model, null);
+	let config = new TestConfiguration(opts.editorOpts || {});
+	let viewModel = new ViewModel(0, config, model, null!);
 	let cursor = new Cursor(config, model, viewModel);
 
 	callback(model, cursor);
@@ -3849,7 +3904,7 @@ suite('ElectricCharacter', () => {
 			languageIdentifier: mode.getLanguageIdentifier()
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 5);
-			let changeText: string = null;
+			let changeText: string | null = null;
 			model.onDidChangeContent(e => {
 				changeText = e.changes[0].text;
 			});
@@ -3943,6 +3998,25 @@ suite('autoClosingPairs', () => {
 					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
 					{ open: '\"', close: '\"', notIn: ['string'] },
 					{ open: '`', close: '`', notIn: ['string', 'comment'] },
+					{ open: '/**', close: ' */', notIn: ['string'] },
+					{ open: 'begin', close: 'end', notIn: ['string'] }
+				],
+				__electricCharacterSupport: {
+					docComment: { open: '/**', close: ' */' }
+				}
+			}));
+		}
+
+		public setAutocloseEnabledSet(chars: string) {
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				autoCloseBefore: chars,
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '\"', close: '\"', notIn: ['string'] },
+					{ open: '`', close: '`', notIn: ['string', 'comment'] },
 					{ open: '/**', close: ' */', notIn: ['string'] }
 				],
 			}));
@@ -3982,7 +4056,7 @@ suite('autoClosingPairs', () => {
 		cursorCommand(cursor, H.Undo);
 	}
 
-	test('open parens', () => {
+	test('open parens: default', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
 			text: [
@@ -3996,6 +4070,52 @@ suite('autoClosingPairs', () => {
 				'var h = { a: \'value\' };',
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var| a| |=| [|]|;|',
+				'var| b| |=| `asd`|;|',
+				'var| c| |=| \'asd\'|;|',
+				'var| d| |=| "asd"|;|',
+				'var| e| |=| /*3*/|	3|;|',
+				'var| f| |=| /**| 3| */3|;|',
+				'var| g| |=| (3+5|)|;|',
+				'var| h| |=| {| a|:| \'value\'| |}|;|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('open parens: whitespace', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: 'beforeWhitespace'
+			}
 		}, (model, cursor) => {
 
 			let autoClosePositions = [
@@ -4025,6 +4145,259 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('open parens disabled/enabled open quotes enabled/disabled', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: 'beforeWhitespace',
+				autoClosingQuotes: 'never'
+			}
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var| a| =| [|];|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+					assertType(model, cursor, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+				}
+			}
+		});
+
+		usingCursor({
+			text: [
+				'var b = [];',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: 'never',
+				autoClosingQuotes: 'beforeWhitespace'
+			}
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var b =| [|];|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+					assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('configurable open parens', () => {
+		let mode = new AutoClosingMode();
+		mode.setAutocloseEnabledSet('abc');
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: 'languageDefined'
+			}
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'v|ar |a = [|];|',
+				'v|ar |b = `|asd`;|',
+				'v|ar |c = \'|asd\';|',
+				'v|ar d = "|asd";|',
+				'v|ar e = /*3*/	3;|',
+				'v|ar f = /** 3 */3;|',
+				'v|ar g = (3+5|);|',
+				'v|ar h = { |a: \'v|alue\' |};|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('auto-pairing can be disabled', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: 'never',
+				autoClosingQuotes: 'never'
+			}
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, cursor, lineNumber, column, '"', '""', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, cursor, lineNumber, column, '"', '"', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('auto wrapping is configurable', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+				new Selection(1, 9, 1, 12),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+
+			assert.equal(model.getValue(), '`var` a = `asd`');
+
+			// type a (
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+
+			assert.equal(model.getValue(), '`(var)` a = `(asd)`');
+		});
+
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoSurround: 'never'
+			}
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+
+			assert.equal(model.getValue(), '` a = asd');
+		});
+
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoSurround: 'quotes'
+			}
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+			assert.equal(model.getValue(), '`var` a = asd');
+
+			// type a (
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.equal(model.getValue(), '`(` a = asd');
+		});
+
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoSurround: 'brackets'
+			}
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			// type a (
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.equal(model.getValue(), '(var) a = asd');
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+			assert.equal(model.getValue(), '(`) a = asd');
+		});
+		mode.dispose();
+	});
+
 	test('quote', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -4042,14 +4415,14 @@ suite('autoClosingPairs', () => {
 		}, (model, cursor) => {
 
 			let autoClosePositions = [
-				'var a =| [|];|',
-				'var b =| |`asd`;|',
-				'var c =| |\'asd!\';|',
-				'var d =| |"asd";|',
-				'var e =| /*3*/|	3;|',
-				'var f =| /**| 3 */3;|',
-				'var g =| (3+5);|',
-				'var h =| {| a:| |\'value!\'| |};|',
+				'var a |=| [|]|;|',
+				'var b |=| |`asd`|;|',
+				'var c |=| |\'asd\'|;|',
+				'var d |=| |"asd"|;|',
+				'var e |=| /*3*/|	3;|',
+				'var f |=| /**| 3 */3;|',
+				'var g |=| (3+5)|;|',
+				'var h |=| {| a:| |\'value\'| |}|;|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -4066,6 +4439,73 @@ suite('autoClosingPairs', () => {
 					}
 				}
 			}
+		});
+		mode.dispose();
+	});
+
+	test('multi-character autoclose', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			model.setValue('begi');
+			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			cursorCommand(cursor, H.Type, { text: 'n' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'beginend');
+
+			model.setValue('/*');
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '/** */');
+		});
+		mode.dispose();
+	});
+
+	test('issue #55314: Do not auto-close when ending with open', () => {
+		const languageId = new LanguageIdentifier('myElectricMode', 5);
+		class ElectricMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '{', close: '}' },
+						{ open: '[', close: ']' },
+						{ open: '(', close: ')' },
+						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: '\"', close: '\"', notIn: ['string'] },
+						{ open: 'B\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: '`', close: '`', notIn: ['string', 'comment'] },
+						{ open: '/**', close: ' */', notIn: ['string'] }
+					],
+				}));
+			}
+		}
+
+		const mode = new ElectricMode();
+
+		usingCursor({
+			text: [
+				'little goat',
+				'little LAMB',
+				'little sheep',
+				'Big LAMB'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 1, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 2, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 3, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 4, 2, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 4, 3, '"', '"', `does not double quote when ending with open`);
 		});
 		mode.dispose();
 	});
@@ -4149,6 +4589,188 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #37315 - overtypes only those characters that it inserted', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: 'asd' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
+
+			// overtype!
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
+
+			// do not overtype!
+			cursor.setSelections('test', [new Selection(2, 4, 2, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(2), 'y=());');
+
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - stops overtyping once cursor leaves area', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=())');
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - it overtypes only once', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=())');
+		});
+		mode.dispose();
+	});
+
+	test('issue #37315 - it can remember multiple auto-closed instances', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(())');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(())');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(())');
+		});
+		mode.dispose();
+	});
+
+	test('issue #78527 - does not close quote on odd count', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'std::cout << \'"\' << entryMap'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 29, 1, 29)]);
+
+			cursorCommand(cursor, H.Type, { text: '[' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap[]');
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap[""]');
+
+			cursorCommand(cursor, H.Type, { text: 'a' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+
+			cursorCommand(cursor, H.Type, { text: ']' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
+		});
+		mode.dispose();
+	});
+
+	test('issue #78975 - Parentheses swallowing does not work when parentheses are inserted by autocomplete', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'<div id'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 8, 1, 8)]);
+
+			cursor.executeEdits('snippet', [{ range: new Range(1, 6, 1, 8), text: 'id=""' }], () => [new Selection(1, 10, 1, 10)]);
+			assert.strictEqual(model.getLineContent(1), '<div id=""');
+
+			cursorCommand(cursor, H.Type, { text: 'a' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '<div id="a"');
+
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '<div id="a"');
+		});
+		mode.dispose();
+	});
+
+	test('issue #78833 - Add config to use old brackets/quotes overtyping', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingOvertype: 'always'
+			}
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'x=(' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			cursor.setSelections('test', [new Selection(2, 4, 2, 4)]);
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.strictEqual(model.getLineContent(2), 'y=();');
+		});
+		mode.dispose();
+	});
+
 	test('issue #15825: accents on mac US intl keyboard', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -4207,31 +4829,18 @@ suite('autoClosingPairs', () => {
 
 			// on the mac US intl kb layout
 
-			// Typing ` + space
+			// Typing ' + space
 			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
 			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
 			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
-
 			assert.equal(model.getValue(), '\'\'');
 
-			// Typing " + space within string
-			cursor.setSelections('test', [new Selection(1, 2, 1, 2)]);
-			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
-			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
-			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '"' }, 'keyboard');
-			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
-
-			assert.equal(model.getValue(), '\'""\'');
-
-			// Typing ' + space after '
-			model.setValue('\'');
-			cursor.setSelections('test', [new Selection(1, 2, 1, 2)]);
+			// Typing one more ' + space
 			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
 			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
 			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
-
 			assert.equal(model.getValue(), '\'\'');
 
 			// Typing ' as a closing tag

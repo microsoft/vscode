@@ -26,9 +26,11 @@
 		"editorGroup.dropBackground": "#25375daa",
 		"peekViewResult.background": "#001c40",
 		"tab.inactiveBackground": "#001c40",
+		"tab.modifiedBorder": "#FFEEAD",
 		"debugToolBar.background": "#001c40",
 		"titleBar.activeBackground": "#001126",
 		"statusBar.background": "#001126",
+		"statusBarItem.remoteBackground": "#0e639c",
 		"statusBar.noFolderBackground": "#001126",
 		"statusBar.debuggingBackground": "#001126",
 		"activityBar.background": "#001733",
@@ -99,7 +101,7 @@
 		},
 		{
 			"name": "Class, Support",
-			"scope": "entity.name.class, entity.name.type, support.type, support.class",
+			"scope": "entity.name.class, entity.name.type, entity.name.namespace, entity.name.scope-resolution, support.type, support.class",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#FFEEAD"

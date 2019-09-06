@@ -3,78 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import { join } from 'vs/base/common/path';
+import { URI } from 'vs/base/common/uri';
+import { canceled } from 'vs/base/common/errors';
+import { isWindows } from 'vs/base/common/platform';
 
-import * as errors from 'vs/base/common/errors';
-import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
-import { PPromise, TProgressCallback, TPromise, TValueCallback } from 'vs/base/common/winjs.base';
+export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
-export class DeferredTPromise<T> extends TPromise<T> {
+export class DeferredPromise<T> {
 
-	public canceled: boolean;
+	private completeCallback!: ValueCallback<T>;
+	private errorCallback!: (err: any) => void;
 
-	private completeCallback: TValueCallback<T>;
-	private errorCallback: (err: any) => void;
+	public p: Promise<any>;
 
 	constructor() {
-		let captured: any;
-		super((c, e) => {
-			captured = { c, e };
-		}, () => this.oncancel());
-		this.canceled = false;
-		this.completeCallback = captured.c;
-		this.errorCallback = captured.e;
+		this.p = new Promise<any>((c, e) => {
+			this.completeCallback = c;
+			this.errorCallback = e;
+		});
 	}
 
 	public complete(value: T) {
-		this.completeCallback(value);
+		return new Promise(resolve => {
+			process.nextTick(() => {
+				this.completeCallback(value);
+				resolve();
+			});
+		});
 	}
 
 	public error(err: any) {
-		this.errorCallback(err);
+		return new Promise(resolve => {
+			process.nextTick(() => {
+				this.errorCallback(err);
+				resolve();
+			});
+		});
 	}
 
-	private oncancel(): void {
-		this.canceled = true;
-	}
-}
-
-export class DeferredPPromise<C, P> extends PPromise<C, P> {
-
-	private completeCallback: TValueCallback<C>;
-	private errorCallback: (err: any) => void;
-	private progressCallback: TProgressCallback<P>;
-
-	constructor(init: (complete: TValueCallback<C>, error: (err: any) => void, progress: TProgressCallback<P>) => void = (c, e, p) => { }, oncancel?: any) {
-		let captured: any;
-		super((c, e, p) => {
-			captured = { c, e, p };
-		}, oncancel ? oncancel : () => this.oncancel);
-		this.completeCallback = captured.c;
-		this.errorCallback = captured.e;
-		this.progressCallback = captured.p;
-	}
-
-	private oncancel(): void {
-		this.errorCallback(errors.canceled());
-	}
-
-	public complete(c: C) {
-		this.completeCallback(c);
-	}
-
-	public progress(p: P) {
-		this.progressCallback(p);
-	}
-
-	public error(e: any) {
-		this.errorCallback(e);
+	public cancel() {
+		process.nextTick(() => {
+			this.errorCallback(canceled());
+		});
 	}
 }
 
 export function toResource(this: any, path: string) {
-	return URI.file(paths.join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+	if (isWindows) {
+		return URI.file(join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+	}
+
+	return URI.file(join('/', Buffer.from(this.test.fullTitle()).toString('base64'), path));
 }
 
 export function suiteRepeat(n: number, description: string, callback: (this: any) => void): void {
@@ -87,4 +67,8 @@ export function testRepeat(n: number, description: string, callback: (this: any,
 	for (let i = 0; i < n; i++) {
 		test(`${description} (iteration ${i})`, callback);
 	}
+}
+
+export function testRepeatOnly(n: number, description: string, callback: (this: any, done: MochaDone) => any): void {
+	suite.only('repeat', () => testRepeat(n, description, callback));
 }

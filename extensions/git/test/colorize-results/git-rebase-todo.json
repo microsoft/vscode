@@ -388,9 +388,9 @@
 		"c": "#",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -399,9 +399,9 @@
 		"c": " Commands:",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -410,9 +410,9 @@
 		"c": "#",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -421,9 +421,9 @@
 		"c": "  p, pick = use commit",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -432,9 +432,9 @@
 		"c": "#",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -443,9 +443,9 @@
 		"c": "  r, reword = use commit, but edit the commit message",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -454,9 +454,9 @@
 		"c": "#",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -465,9 +465,9 @@
 		"c": "  e, edit = use commit, but stop for amending",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -476,9 +476,9 @@
 		"c": "#",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -487,9 +487,9 @@
 		"c": "  s, squash = use commit, but meld into previous commit",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -498,9 +498,9 @@
 		"c": "#",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -509,9 +509,9 @@
 		"c": "  f, fixup = like \"squash\", but discard this commit's log message",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -520,9 +520,9 @@
 		"c": "#",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase punctuation.definition.comment.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -531,9 +531,9 @@
 		"c": "  x, exec = run command (the rest of the line) using shell",
 		"t": "text.git-rebase comment.line.number-sign.git-rebase",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}

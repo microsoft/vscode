@@ -11,7 +11,7 @@ export interface IMergeRegion {
 	decoratorContent: vscode.Range;
 }
 
-export enum CommitType {
+export const enum CommitType {
 	Current,
 	Incoming,
 	Both
@@ -25,7 +25,7 @@ export interface IExtensionConfiguration {
 
 export interface IDocumentMergeConflict extends IDocumentMergeConflictDescriptor {
 	commitEdit(type: CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): Thenable<boolean>;
-	applyEdit(type: CommitType, editor: vscode.TextEditor, edit: vscode.TextEditorEdit): void;
+	applyEdit(type: CommitType, document: vscode.TextDocument, edit: { replace(range: vscode.Range, newText: string): void; }): void;
 }
 
 export interface IDocumentMergeConflictDescriptor {
