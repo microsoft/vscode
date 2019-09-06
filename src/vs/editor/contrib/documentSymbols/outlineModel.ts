@@ -386,6 +386,9 @@ export class OutlineModel extends TreeElement {
 
 	protected constructor(readonly textModel: ITextModel) {
 		super();
+
+		this.id = 'root';
+		this.parent = undefined;
 	}
 
 	adopt(): OutlineModel {
