@@ -560,7 +560,9 @@ export class ConfigurationChangedEvent {
 	constructor(values: boolean[]) {
 		this._values = values;
 	}
-
+	/**
+	 * @internal
+	 */
 	public hasChanged(id: EditorOption): boolean {
 		return this._values[id];
 	}
@@ -582,6 +584,9 @@ export class ValidatedEditorOptions {
 	}
 }
 
+/**
+ * @internal
+ */
 export interface IComputedEditorOptions {
 	get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 }
@@ -604,6 +609,9 @@ export interface IEnvironmentalOptions {
 	readonly accessibilitySupport: AccessibilitySupport;
 }
 
+/**
+ * @internal
+ */
 export interface IEditorOption<K1 extends EditorOption, V> {
 	readonly id: K1;
 	readonly name: string;
@@ -2607,6 +2615,9 @@ function register<K1 extends EditorOption, V>(option: IEditorOption<K1, V>): IEd
 	return option;
 }
 
+/**
+ * @internal
+ */
 export const enum EditorOption {
 	acceptSuggestionOnCommitCharacter,
 	acceptSuggestionOnEnter,
@@ -2715,6 +2726,9 @@ export const enum EditorOption {
 	wrappingInfo,
 }
 
+/**
+ * @internal
+ */
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(
 		EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true,
@@ -3240,7 +3254,19 @@ export const EditorOptions = {
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 };
 
+/**
+ * @internal
+ */
 type EditorOptionsType = typeof EditorOptions;
+/**
+ * @internal
+ */
 type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];
+/**
+ * @internal
+ */
 type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
+/**
+ * @internal
+ */
 export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;

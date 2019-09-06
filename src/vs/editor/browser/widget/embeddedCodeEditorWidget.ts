@@ -36,7 +36,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
+		super(domElement, parentEditor.getRawOptions(), {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
@@ -52,7 +52,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 	}
 
 	private _onParentConfigurationChanged(e: ConfigurationChangedEvent): void {
-		super.updateOptions(this._parentEditor.getRawConfiguration());
+		super.updateOptions(this._parentEditor.getRawOptions());
 		super.updateOptions(this._overwriteOptions);
 	}
 
@@ -80,7 +80,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IClipboardService clipboardService: IClipboardService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService);
+		super(domElement, parentEditor.getRawOptions(), clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
@@ -96,7 +96,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 	}
 
 	private _onParentConfigurationChanged(e: ConfigurationChangedEvent): void {
-		super.updateOptions(this._parentEditor.getRawConfiguration());
+		super.updateOptions(this._parentEditor.getRawOptions());
 		super.updateOptions(this._overwriteOptions);
 	}
 

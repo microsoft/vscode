@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import { ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -369,7 +369,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		RenderMinimap: standaloneEnums.RenderMinimap,
 		ScrollType: standaloneEnums.ScrollType,
 		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
-		EditorOption: standaloneEnums.EditorOption,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
@@ -380,7 +379,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// vars
 		EditorType: editorCommon.EditorType,
-		EditorOptions: <any>EditorOptions,
 
 	};
 }

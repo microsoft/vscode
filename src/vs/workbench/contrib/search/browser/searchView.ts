@@ -1223,7 +1223,7 @@ export class SearchView extends ViewletPanel {
 				return this.fileService.exists(fq.folder);
 			});
 
-		return Promise.resolve(folderQueriesExistP).then(existResults => {
+		return Promise.all(folderQueriesExistP).then(existResults => {
 			// If no folders exist, show an error message about the first one
 			const existingFolderQueries = query.folderQueries.filter((folderQuery, i) => existResults[i]);
 			if (!query.folderQueries.length || existingFolderQueries.length) {
