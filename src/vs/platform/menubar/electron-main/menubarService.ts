@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService, IMenubarData } from 'vs/platform/menubar/node/menubar';
 import { Menubar } from 'vs/platform/menubar/electron-main/menubar';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class MenubarService implements IMenubarService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _menubar: Menubar;
 

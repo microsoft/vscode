@@ -19,7 +19,7 @@ import * as ansiColors from 'ansi-colors';
 import * as path from 'path';
 import * as pump from 'pump';
 import * as sm from 'source-map';
-import * as uglifyes from 'uglify-es';
+import * as terser from 'terser';
 import * as VinylFile from 'vinyl';
 import * as bundle from './bundle';
 import { Language, processNlsFiles } from './i18n';
@@ -273,11 +273,14 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 		};
 	};
 
-	const minify = (composer as any)(uglifyes);
+	const minify = (composer as any)(terser);
 	const input = es.through();
 	const output = input
 		.pipe(flatmap((stream, f) => {
 			return stream.pipe(minify({
+				compress: {
+					hoist_funs: true // required due to https://github.com/microsoft/vscode/issues/80202
+				},
 				output: {
 					comments: preserveComments(<FileWithCopyright>f),
 					max_line_len: 1024

@@ -7,7 +7,7 @@ import { ipcMain as ipc, app } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/common/state';
 import { Event, Emitter } from 'vs/base/common/event';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -40,7 +40,7 @@ export interface ShutdownEvent {
 
 export interface ILifecycleService {
 
-	_serviceBrand: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Will be true if the program was restarted (e.g. due to explicit request or update).
@@ -131,7 +131,7 @@ export const enum LifecycleMainPhase {
 
 export class LifecycleService extends Disposable implements ILifecycleService {
 
-	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand: undefined;
 
 	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
@@ -139,10 +139,10 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
 
-	private pendingQuitPromise: Promise<boolean> | null;
-	private pendingQuitPromiseResolve: { (veto: boolean): void } | null;
+	private pendingQuitPromise: Promise<boolean> | null = null;
+	private pendingQuitPromiseResolve: { (veto: boolean): void } | null = null;
 
-	private pendingWillShutdownPromise: Promise<void> | null;
+	private pendingWillShutdownPromise: Promise<void> | null = null;
 
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }

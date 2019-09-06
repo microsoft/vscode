@@ -30,6 +30,7 @@ import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefiniti
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { ISymbolNavigationService } from 'vs/editor/contrib/goToDefinition/goToDefinitionResultsNavigation';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class DefinitionActionConfig {
 
@@ -137,7 +138,7 @@ export class DefinitionAction extends EditorAction {
 		const msg = model.getAriaMessage();
 		alert(msg);
 
-		const { gotoLocation } = editor.getConfiguration().contribInfo;
+		const gotoLocation = editor.getOption(EditorOption.gotoLocation);
 		if (this._configuration.openInPeek || (gotoLocation.multiple === 'peek' && model.references.length > 1)) {
 			this._openInPeek(editorService, editor, model);
 

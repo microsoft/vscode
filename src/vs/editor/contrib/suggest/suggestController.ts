@@ -7,7 +7,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -33,6 +33,53 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IdleValue } from 'vs/base/common/async';
 import { isObject } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
+import { IPosition } from 'vs/editor/common/core/position';
+import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
+const _sticky = false; // for development purposes only
+
+class LineSuffix {
+
+	private readonly _marker: string[] | undefined;
+
+	constructor(private readonly _model: ITextModel, private readonly _position: IPosition) {
+		// spy on what's happening right of the cursor. two cases:
+		// 1. end of line -> check that it's still end of line
+		// 2. mid of line -> add a marker and compute the delta
+		const maxColumn = _model.getLineMaxColumn(_position.lineNumber);
+		if (maxColumn !== _position.column) {
+			const offset = _model.getOffsetAt(_position);
+			const end = _model.getPositionAt(offset + 1);
+			this._marker = _model.deltaDecorations([], [{
+				range: Range.fromPositions(_position, end),
+				options: { stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+			}]);
+		}
+	}
+
+	dispose(): void {
+		if (this._marker && !this._model.isDisposed()) {
+			this._model.deltaDecorations(this._marker, []);
+		}
+	}
+
+	delta(position: IPosition): number {
+		if (this._model.isDisposed() || this._position.lineNumber !== position.lineNumber) {
+			// bail out early if things seems fishy
+			return 0;
+		}
+		// read the marker (in case suggest was triggered at line end) or compare
+		// the cursor to the line end.
+		if (this._marker) {
+			const range = this._model.getDecorationRange(this._marker[0]);
+			const end = this._model.getOffsetAt(range!.getStartPosition());
+			return end - this._model.getOffsetAt(position);
+		} else {
+			return this._model.getLineMaxColumn(position.lineNumber) - position.column;
+		}
+	}
+}
 
 export class SuggestController implements IEditorContribution {
 
@@ -45,9 +92,8 @@ export class SuggestController implements IEditorContribution {
 	private readonly _model: SuggestModel;
 	private readonly _widget: IdleValue<SuggestWidget>;
 	private readonly _alternatives: IdleValue<SuggestAlternatives>;
+	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
 	private readonly _toDispose = new DisposableStore();
-
-	private readonly _sticky = false; // for development purposes only
 
 	constructor(
 		private _editor: ICodeEditor,
@@ -84,7 +130,7 @@ export class SuggestController implements IEditorContribution {
 				const endColumn = position.column;
 				let value = true;
 				if (
-					this._editor.getConfiguration().contribInfo.acceptSuggestionOnEnter === 'smart'
+					this._editor.getOption(EditorOption.acceptSuggestionOnEnter) === 'smart'
 					&& this._model.state === State.Auto
 					&& !item.completion.command
 					&& !item.completion.additionalTextEdits
@@ -114,6 +160,7 @@ export class SuggestController implements IEditorContribution {
 
 		this._toDispose.add(this._model.onDidTrigger(e => {
 			this._widget.getValue().showTriggered(e.auto, e.shy ? 250 : 50);
+			this._lineSuffix.value = new LineSuffix(this._editor.getModel()!, e.position);
 		}));
 		this._toDispose.add(this._model.onDidSuggest(e => {
 			if (!e.shy) {
@@ -122,12 +169,12 @@ export class SuggestController implements IEditorContribution {
 			}
 		}));
 		this._toDispose.add(this._model.onDidCancel(e => {
-			if (this._widget && !e.retrigger) {
+			if (!e.retrigger) {
 				this._widget.getValue().hideWidget();
 			}
 		}));
 		this._toDispose.add(this._editor.onDidBlurEditorWidget(() => {
-			if (!this._sticky) {
+			if (!_sticky) {
 				this._model.cancel();
 				this._model.clear();
 			}
@@ -136,7 +183,7 @@ export class SuggestController implements IEditorContribution {
 		// Manage the acceptSuggestionsOnEnter context key
 		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
 		let updateFromConfig = () => {
-			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
+			const acceptSuggestionOnEnter = this._editor.getOption(EditorOption.acceptSuggestionOnEnter);
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
 		this._toDispose.add(this._editor.onDidChangeConfiguration(() => updateFromConfig()));
@@ -153,6 +200,7 @@ export class SuggestController implements IEditorContribution {
 		this._toDispose.dispose();
 		this._widget.dispose();
 		this._model.dispose();
+		this._lineSuffix.dispose();
 	}
 
 	protected _insertSuggestion(event: ISelectedSuggestion | undefined, keepAlternativeSuggestions: boolean, undoStops: boolean): void {
@@ -192,10 +240,11 @@ export class SuggestController implements IEditorContribution {
 
 		const overwriteBefore = position.column - suggestion.range.startColumn;
 		const overwriteAfter = suggestion.range.endColumn - position.column;
+		const suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(this._editor.getPosition()) : 0;
 
 		SnippetController2.get(this._editor).insert(insertText, {
 			overwriteBefore: overwriteBefore + columnDelta,
-			overwriteAfter,
+			overwriteAfter: overwriteAfter + suffixDelta,
 			undoStopBefore: false,
 			undoStopAfter: false,
 			adjustWhitespace: !(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)

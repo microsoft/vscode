@@ -18,16 +18,17 @@ import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchPro
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
+import * as process from 'vs/base/common/process';
 
 const nullEvent = new class {
-	id: number;
-	topic: string;
-	name: string;
-	description: string;
+	id: number = -1;
+	topic!: string;
+	name!: string;
+	description!: string;
 	data: any;
 
-	startTime: Date;
-	stopTime: Date;
+	startTime!: Date;
+	stopTime!: Date;
 
 	stop(): void {
 		return;

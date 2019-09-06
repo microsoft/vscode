@@ -62,7 +62,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { VariablesRenderer, variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 
 const $ = dom.$;
 
@@ -71,7 +71,7 @@ const IPrivateReplService = createDecorator<IPrivateReplService>('privateReplSer
 const DECORATION_KEY = 'replinputdecoration';
 
 interface IPrivateReplService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	acceptReplInput(): void;
 	getVisibleContent(): string;
 	selectSession(session?: IDebugSession): void;
@@ -85,7 +85,7 @@ function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 
 const sessionsToIgnore = new Set<IDebugSession>();
 export class Repl extends Panel implements IPrivateReplService, IHistoryNavigationWidget {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
 	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
@@ -104,6 +104,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private scopedInstantiationService!: IInstantiationService;
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
+	private completionItemProvider: IDisposable | undefined;
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
@@ -131,7 +132,33 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
 			if (session) {
 				sessionsToIgnore.delete(session);
+				if (this.completionItemProvider) {
+					this.completionItemProvider.dispose();
+				}
+				if (session.capabilities.supportsCompletionsRequest) {
+					this.completionItemProvider = CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
+						triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
+						provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
+							// Disable history navigation because up and down are used to navigate through the suggest widget
+							this.historyNavigationEnablement.set(false);
+
+							const model = this.replInput.getModel();
+							if (model) {
+								const word = model.getWordAtPosition(position);
+								const overwriteBefore = word ? word.word.length : 0;
+								const text = model.getLineContent(position.lineNumber);
+								const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+								const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+								const suggestions = await session.completions(frameId, text, position, overwriteBefore);
+								return { suggestions };
+							}
+
+							return Promise.resolve({ suggestions: [] });
+						}
+					});
+				}
 			}
+
 			this.selectSession();
 		}));
 		this._register(this.debugService.onWillNewSession(newSession => {
@@ -274,7 +301,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			revealLastElement(this.tree);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
-			variableSetEmitter.fire();
 			const shouldRelayout = this.replInputHeight > Repl.REPL_INPUT_INITIAL_HEIGHT;
 			this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 			if (shouldRelayout) {
@@ -380,6 +406,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
+			'DebugRepl',
 			treeContainer,
 			this.replDelegate,
 			[
@@ -428,35 +455,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		const options = getSimpleEditorOptions();
 		options.readOnly = true;
+		options.ariaLabel = nls.localize('debugConsole', "Debug Console");
+
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
-
-		CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
-			triggerCharacters: ['.'],
-			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
-				// Disable history navigation because up and down are used to navigate through the suggest widget
-				this.historyNavigationEnablement.set(false);
-
-				const focusedSession = this.debugService.getViewModel().focusedSession;
-				if (focusedSession && focusedSession.capabilities.supportsCompletionsRequest) {
-
-					const model = this.replInput.getModel();
-					if (model) {
-						const word = model.getWordAtPosition(position);
-						const overwriteBefore = word ? word.word.length : 0;
-						const text = model.getLineContent(position.lineNumber);
-						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-						const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
-
-						return focusedSession.completions(frameId, text, position, overwriteBefore).then(suggestions => {
-							return { suggestions };
-						}, err => {
-							return { suggestions: [] };
-						});
-					}
-				}
-				return Promise.resolve({ suggestions: [] });
-			}
-		});
 
 		this._register(this.replInput.onDidScrollChange(e => {
 			if (!e.scrollHeightChanged) {
@@ -769,7 +770,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 				return (nameRows + 1) * rowHeight;
 			}
 
-			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+			let valueRows = value ? (countNumberOfLines(value) + Math.floor(value.length / 150)) : 0;
 			return rowHeight * (nameRows + valueRows);
 		}
 

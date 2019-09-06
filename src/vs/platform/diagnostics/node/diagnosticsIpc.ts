@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDiagnosticsService, IRemoteDiagnosticInfo, IRemoteDiagnosticError, SystemInfo, PerformanceInfo } from 'vs/platform/diagnostics/common/diagnosticsService';
+import { IRemoteDiagnosticInfo, IRemoteDiagnosticError, SystemInfo, PerformanceInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDiagnosticsService } from './diagnosticsService';
 import { Event } from 'vs/base/common/event';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessInfo } from 'vs/platform/launch/common/launchService';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
@@ -36,7 +36,7 @@ export class DiagnosticsChannel implements IServerChannel {
 
 export class DiagnosticsService implements IDiagnosticsService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	constructor(private channel: IChannel) { }
 

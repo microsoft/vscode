@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
@@ -59,7 +59,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		private readonly _remoteAuthority: string,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
@@ -154,9 +154,13 @@ export class ExtensionHostProcessManager extends Disposable {
 	private async _measureUp(proxy: ExtHostExtensionServiceShape): Promise<number> {
 		const SIZE = 10 * 1024 * 1024; // 10MB
 
-		let b = Buffer.alloc(SIZE, Math.random() % 256);
+		let buff = VSBuffer.alloc(SIZE);
+		let value = Math.ceil(Math.random() * 256);
+		for (let i = 0; i < buff.byteLength; i++) {
+			buff.writeUInt8(i, value);
+		}
 		const sw = StopWatch.create(true);
-		await proxy.$test_up(VSBuffer.wrap(b));
+		await proxy.$test_up(buff);
 		sw.stop();
 		return ExtensionHostProcessManager._convert(SIZE, sw.elapsed());
 	}

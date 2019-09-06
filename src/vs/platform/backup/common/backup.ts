@@ -33,7 +33,7 @@ export interface IWorkspaceBackupInfo {
 }
 
 export interface IBackupMainService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	isHotExitEnabled(): boolean;
 

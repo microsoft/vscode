@@ -130,7 +130,7 @@ export interface IResponsiveStateChangeEvent {
 }
 
 export interface IExtensionService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event emitted when extensions are registered after their extension points got handled.
@@ -220,16 +220,6 @@ export interface IExtensionService {
 	restartExtensionHost(): void;
 
 	/**
-	 * Starts the extension host.
-	 */
-	startExtensionHost(): void;
-
-	/**
-	 * Stops the extension host.
-	 */
-	stopExtensionHost(): void;
-
-	/**
 	 * Modify the environment of the remote extension host
 	 * @param env New properties for the remote extension host
 	 */
@@ -268,7 +258,7 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 
 
 export class NullExtensionService implements IExtensionService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
 	onDidChangeExtensions: Event<void> = Event.None;
@@ -282,8 +272,6 @@ export class NullExtensionService implements IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	getInspectPort(): number { return 0; }
 	restartExtensionHost(): void { }
-	startExtensionHost(): void { }
-	stopExtensionHost(): void { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }

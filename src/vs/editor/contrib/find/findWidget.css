@@ -32,12 +32,13 @@
 .monaco-editor .find-widget {
 	position: absolute;
 	z-index: 10;
-	top: -44px; /* find input height + shadow (10px) */
-	height: 34px; /* find input height */
+	top: -44px;
+	height: 33px;
 	overflow: hidden;
 	line-height: 19px;
 	transition: top 200ms linear;
 	padding: 0 4px;
+	box-sizing: border-box;
 }
 
 .monaco-editor .find-widget.hiddenEditor {
@@ -47,17 +48,33 @@
 /* Find widget when replace is toggled on */
 .monaco-editor .find-widget.replaceToggled {
 	top: -74px; /* find input height + replace input height + shadow (10px) */
-	height: 64px; /* find input height + replace input height */
 }
 .monaco-editor .find-widget.replaceToggled > .replace-part {
 	display: flex;
 	display: -webkit-flex;
-	align-items: center;
 }
 
 .monaco-editor .find-widget.visible,
 .monaco-editor .find-widget.replaceToggled.visible {
 	top: 0;
+}
+
+/* Multiple line find widget */
+
+.monaco-editor .find-widget.multipleline {
+	top: unset;
+	bottom: 10px;
+}
+
+.monaco-editor .find-widget.multipleline.visible,
+.monaco-editor .find-widget.multipleline.replaceToggled.visible {
+	top: 0px;
+	bottom: unset;
+}
+
+.monaco-editor .find-widget .monaco-inputbox.synthetic-focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
 }
 
 .monaco-editor .find-widget .monaco-inputbox .input {
@@ -66,7 +83,7 @@
 	min-height: 0;
 }
 
-.monaco-editor .find-widget .replace-input .input {
+.monaco-editor .find-widget .monaco-findInput .input {
 	font-size: 13px;
 }
 
@@ -76,27 +93,36 @@
 	font-size: 12px;
 	display: flex;
 	display: -webkit-flex;
-	align-items: center;
 }
 
 .monaco-editor .find-widget > .find-part .monaco-inputbox,
 .monaco-editor .find-widget > .replace-part .monaco-inputbox {
-	height: 25px;
+	min-height: 25px;
 }
 
-.monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input {
-	width: 100% !important;
-	padding-right: 66px;
-}
 
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .input {
+.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .mirror {
 	padding-right: 22px;
 }
 
 .monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input,
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .input {
+.monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .mirror,
+.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .input,
+.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .mirror {
 	padding-top: 2px;
 	padding-bottom: 2px;
+}
+
+.monaco-editor .find-widget > .find-part .find-actions {
+	height: 25px;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-editor .find-widget > .replace-part .replace-actions {
+	height: 25px;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-editor .find-widget .monaco-findInput {
@@ -104,6 +130,16 @@
 	display: flex;
 	display: -webkit-flex;
 	flex:1;
+}
+
+.monaco-editor .find-widget .monaco-findInput .monaco-scrollable-element {
+	/* Make sure textarea inherits the width correctly */
+	width: 100%;
+}
+
+.monaco-editor .find-widget .monaco-findInput .monaco-scrollable-element .scrollbar.vertical {
+	/* Hide vertical scrollbar */
+	opacity: 0;
 }
 
 .monaco-editor .find-widget .matchesCount {
@@ -237,15 +273,17 @@
 	display: none;
 }
 
-.monaco-editor .find-widget > .replace-part > .replace-input {
+.monaco-editor .find-widget > .replace-part > .monaco-findInput {
 	position: relative;
 	display: flex;
 	display: -webkit-flex;
 	vertical-align: middle;
-	width: auto !important;
+	flex: auto;
+	flex-grow: 0;
+	flex-shrink: 0;
 }
 
-.monaco-editor .find-widget > .replace-part > .replace-input > .controls {
+.monaco-editor .find-widget > .replace-part > .monaco-findInput > .controls {
 	position: absolute;
 	top: 3px;
 	right: 2px;

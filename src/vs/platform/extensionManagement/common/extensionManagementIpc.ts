@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer, DefaultURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI {
 	return URI.revive(transformer ? transformer.transformIncoming(uri) : uri);
@@ -62,6 +62,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'zip': return this.service.zip(transformIncomingExtension(args[0], uriTransformer)).then(uri => transformOutgoingURI(uri, uriTransformer));
 			case 'unzip': return this.service.unzip(transformIncomingURI(args[0], uriTransformer), args[1]);
 			case 'install': return this.service.install(transformIncomingURI(args[0], uriTransformer));
+			case 'getManifest': return this.service.getManifest(transformIncomingURI(args[0], uriTransformer));
 			case 'installFromGallery': return this.service.installFromGallery(args[0]);
 			case 'uninstall': return this.service.uninstall(transformIncomingExtension(args[0], uriTransformer), args[1]);
 			case 'reinstallFromGallery': return this.service.reinstallFromGallery(transformIncomingExtension(args[0], uriTransformer));
@@ -76,7 +77,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 
 export class ExtensionManagementChannelClient implements IExtensionManagementService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		private readonly channel: IChannel,
@@ -97,6 +98,10 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	install(vsix: URI): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('install', [vsix])).then(local => transformIncomingExtension(local, null));
+	}
+
+	getManifest(vsix: URI): Promise<IExtensionManifest> {
+		return Promise.resolve(this.channel.call<IExtensionManifest>('getManifest', [vsix]));
 	}
 
 	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {

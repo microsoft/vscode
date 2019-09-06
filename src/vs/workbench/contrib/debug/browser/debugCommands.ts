@@ -10,7 +10,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, REPL_ID, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, Breakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Expression, Variable, Breakpoint, FunctionBreakpoint, Thread, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -50,6 +50,15 @@ export const RESTART_FRAME_ID = 'workbench.action.debug.restartFrame';
 export const CONTINUE_ID = 'workbench.action.debug.continue';
 export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
 export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
+
+export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
+export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
+export const STEP_INTO_LABEL = nls.localize('stepIntoDebug', "Step Into");
+export const STEP_OUT_LABEL = nls.localize('stepOutDebug', "Step Out");
+export const PAUSE_LABEL = nls.localize('pauseDebug', "Pause");
+export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
+export const STOP_LABEL = nls.localize('stop', "Stop");
+export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
 
 function getThreadAndRun(accessor: ServicesAccessor, thread: IThread | undefined, run: (thread: IThread) => Promise<void>, ): void {
 	const debugService = accessor.get(IDebugService);
@@ -224,9 +233,9 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: DISCONNECT_ID,
-		handler: (accessor: ServicesAccessor) => {
+		handler: (accessor: ServicesAccessor, _: string, session: IDebugSession | undefined) => {
 			const debugService = accessor.get(IDebugService);
-			const session = debugService.getViewModel().focusedSession;
+			session = session || debugService.getViewModel().focusedSession;
 			debugService.stopSession(session).then(undefined, onUnexpectedError);
 		}
 	});
@@ -410,6 +419,8 @@ export function registerCommands(): void {
 					debugService.removeBreakpoints(element.getId());
 				} else if (element instanceof FunctionBreakpoint) {
 					debugService.removeFunctionBreakpoints(element.getId());
+				} else if (element instanceof DataBreakpoint) {
+					debugService.removeDataBreakpoints(element.getId());
 				}
 			}
 		}

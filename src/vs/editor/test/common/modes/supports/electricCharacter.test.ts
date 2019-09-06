@@ -21,86 +21,20 @@ suite('Editor Modes - Auto Indentation', () => {
 		assert.deepEqual(actual, null);
 	}
 
-	function testAppends(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number, appendText: string): void {
-		let actual = _testOnElectricCharacter(electricCharacterSupport, line, character, offset);
-		assert.deepEqual(actual, { appendText: appendText });
-	}
-
 	function testMatchBracket(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number, matchOpenBracket: string): void {
 		let actual = _testOnElectricCharacter(electricCharacterSupport, line, character, offset);
 		assert.deepEqual(actual, { matchOpenBracket: matchOpenBracket });
 	}
-
-	test('Doc comments', () => {
-		let brackets = new BracketElectricCharacterSupport(null, [{ open: '/**', close: ' */' }], null);
-
-		testAppends(brackets, [
-			{ text: '/*', type: StandardTokenType.Other },
-		], '*', 3, ' */');
-
-		testDoesNothing(brackets, [
-			{ text: '/*', type: StandardTokenType.Other },
-			{ text: ' ', type: StandardTokenType.Other },
-			{ text: '*/', type: StandardTokenType.Other },
-		], '*', 3);
-	});
 
 	test('getElectricCharacters uses all sources and dedups', () => {
 		let sup = new BracketElectricCharacterSupport(
 			new RichEditBrackets(fakeLanguageIdentifier, [
 				['{', '}'],
 				['(', ')']
-			]), [
-				{ open: '{', close: '}', notIn: ['string', 'comment'] },
-				{ open: '"', close: '"', notIn: ['string', 'comment'] },
-				{ open: 'begin', close: 'end', notIn: ['string'] }
-			],
-			{ docComment: { open: '/**', close: ' */' } }
+			])
 		);
 
-		assert.deepEqual(sup.getElectricCharacters(), ['}', ')', 'n', '*']);
-	});
-
-	test('auto-close', () => {
-		let sup = new BracketElectricCharacterSupport(
-			new RichEditBrackets(fakeLanguageIdentifier, [
-				['{', '}'],
-				['(', ')']
-			]), [
-				{ open: '{', close: '}', notIn: ['string', 'comment'] },
-				{ open: '"', close: '"', notIn: ['string', 'comment'] },
-				{ open: 'begin', close: 'end', notIn: ['string'] }
-			],
-			{ docComment: { open: '/**', close: ' */' } }
-		);
-
-		testDoesNothing(sup, [], 'a', 0);
-
-		testDoesNothing(sup, [{ text: 'egi', type: StandardTokenType.Other }], 'b', 1);
-		testDoesNothing(sup, [{ text: 'bgi', type: StandardTokenType.Other }], 'e', 2);
-		testDoesNothing(sup, [{ text: 'bei', type: StandardTokenType.Other }], 'g', 3);
-		testDoesNothing(sup, [{ text: 'beg', type: StandardTokenType.Other }], 'i', 4);
-
-		testDoesNothing(sup, [{ text: 'egin', type: StandardTokenType.Other }], 'b', 1);
-		testDoesNothing(sup, [{ text: 'bgin', type: StandardTokenType.Other }], 'e', 2);
-		testDoesNothing(sup, [{ text: 'bein', type: StandardTokenType.Other }], 'g', 3);
-		testDoesNothing(sup, [{ text: 'begn', type: StandardTokenType.Other }], 'i', 4);
-		testAppends(sup, [{ text: 'begi', type: StandardTokenType.Other }], 'n', 5, 'end');
-
-		testDoesNothing(sup, [{ text: '3gin', type: StandardTokenType.Other }], 'b', 1);
-		testDoesNothing(sup, [{ text: 'bgin', type: StandardTokenType.Other }], '3', 2);
-		testDoesNothing(sup, [{ text: 'b3in', type: StandardTokenType.Other }], 'g', 3);
-		testDoesNothing(sup, [{ text: 'b3gn', type: StandardTokenType.Other }], 'i', 4);
-		testDoesNothing(sup, [{ text: 'b3gi', type: StandardTokenType.Other }], 'n', 5);
-
-		testDoesNothing(sup, [{ text: 'begi', type: StandardTokenType.String }], 'n', 5);
-
-		testAppends(sup, [{ text: '"', type: StandardTokenType.String }, { text: 'begi', type: StandardTokenType.Other }], 'n', 6, 'end');
-		testDoesNothing(sup, [{ text: '"', type: StandardTokenType.String }, { text: 'begi', type: StandardTokenType.String }], 'n', 6);
-
-		testAppends(sup, [{ text: '/*', type: StandardTokenType.String }], '*', 3, ' */');
-
-		testDoesNothing(sup, [{ text: 'begi', type: StandardTokenType.Other }, { text: 'end', type: StandardTokenType.Other }], 'n', 5);
+		assert.deepEqual(sup.getElectricCharacters(), ['}', ')']);
 	});
 
 	test('matchOpenBracket', () => {
@@ -108,12 +42,7 @@ suite('Editor Modes - Auto Indentation', () => {
 			new RichEditBrackets(fakeLanguageIdentifier, [
 				['{', '}'],
 				['(', ')']
-			]), [
-				{ open: '{', close: '}', notIn: ['string', 'comment'] },
-				{ open: '"', close: '"', notIn: ['string', 'comment'] },
-				{ open: 'begin', close: 'end', notIn: ['string'] }
-			],
-			{ docComment: { open: '/**', close: ' */' } }
+			])
 		);
 
 		testDoesNothing(sup, [{ text: '\t{', type: StandardTokenType.Other }], '\t', 1);

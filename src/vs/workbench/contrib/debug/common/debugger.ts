@@ -236,16 +236,18 @@ export class Debugger implements IDebugger {
 			};
 			properties['preLaunchTask'] = {
 				anyOf: [taskSchema, {
-					type: ['string', 'null'],
+					type: ['string']
 				}],
 				default: '',
+				defaultSnippets: [{ body: { task: '', type: '' } }],
 				description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 			};
 			properties['postDebugTask'] = {
 				anyOf: [taskSchema, {
-					type: ['string', 'null'],
+					type: ['string'],
 				}],
 				default: '',
+				defaultSnippets: [{ body: { task: '', type: '' } }],
 				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
 			};
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;

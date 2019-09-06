@@ -25,11 +25,11 @@ class DropOverlay extends Themable {
 
 	private static OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
 
-	private container: HTMLElement;
-	private overlay: HTMLElement;
+	private container!: HTMLElement;
+	private overlay!: HTMLElement;
 
-	private currentDropOperation?: IDropOperation;
-	private _disposed: boolean;
+	private currentDropOperation: IDropOperation | undefined;
+	private _disposed: boolean | undefined;
 
 	private cleanupOverlayScheduler: RunOnceScheduler;
 
@@ -50,7 +50,7 @@ class DropOverlay extends Themable {
 	}
 
 	get disposed(): boolean {
-		return this._disposed;
+		return !!this._disposed;
 	}
 
 	private create(): void {
@@ -409,7 +409,7 @@ class DropOverlay extends Themable {
 	}
 
 	private getOverlayOffsetHeight(): number {
-		if (!this.groupView.isEmpty() && this.accessor.partOptions.showTabs) {
+		if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
 			return EDITOR_TITLE_HEIGHT; // show overlay below title if group shows tabs
 		}
 

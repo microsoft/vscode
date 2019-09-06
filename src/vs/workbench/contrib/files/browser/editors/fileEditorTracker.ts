@@ -27,6 +27,7 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor
 import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -326,7 +327,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 			// Binary editor that should reload from event
 			if (resource && editor.input && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
-				this.editorService.openEditor(editor.input, { forceReload: true, preserveFocus: true }, editor.group);
+				this.editorService.openEditor(editor.input, { forceReload: true, preserveFocus: true, activation: EditorActivation.PRESERVE }, editor.group);
 			}
 		});
 	}

@@ -146,7 +146,7 @@ export interface ITranslation {
 }
 
 export interface IExtensionGalleryService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
@@ -186,7 +186,7 @@ export const INSTALL_ERROR_MALICIOUS = 'malicious';
 export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 
 export interface IExtensionManagementService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
@@ -195,6 +195,7 @@ export interface IExtensionManagementService {
 
 	zip(extension: ILocalExtension): Promise<URI>;
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier>;
+	getManifest(vsix: URI): Promise<IExtensionManifest>;
 	install(vsix: URI): Promise<ILocalExtension>;
 	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, force?: boolean): Promise<void>;

@@ -156,7 +156,7 @@ function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 
 export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
 	private readonly _styleElement: HTMLStyleElement;

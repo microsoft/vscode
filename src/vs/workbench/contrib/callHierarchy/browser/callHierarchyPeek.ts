@@ -203,6 +203,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		};
 		this._tree = <any>this._instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
+			'CallHierarchyPeek',
 			treeContainer,
 			new callHTree.VirtualDelegate(),
 			[this._instantiationService.createInstance(callHTree.CallRenderer)],
@@ -386,7 +387,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			};
 			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
 			this._disposables.add(this._changeDirectionAction);
-			this._actionbarWidget.push(this._changeDirectionAction, { icon: true, label: false });
+			this._actionbarWidget!.push(this._changeDirectionAction, { icon: true, label: false });
 		}
 	}
 

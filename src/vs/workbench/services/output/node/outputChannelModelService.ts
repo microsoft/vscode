@@ -198,7 +198,7 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 
 export class OutputChannelModelService extends AsbtractOutputChannelModelService implements IOutputChannelModelService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -213,7 +213,7 @@ export class OutputChannelModelService extends AsbtractOutputChannelModelService
 			this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, mimeType, this.outputDir);
 	}
 
-	private _outputDir: Promise<URI> | null;
+	private _outputDir: Promise<URI> | null = null;
 	private get outputDir(): Promise<URI> {
 		if (!this._outputDir) {
 			const outputDir = URI.file(join(this.environmentService.logsPath, `output_${this.environmentService.configuration.windowId}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`));

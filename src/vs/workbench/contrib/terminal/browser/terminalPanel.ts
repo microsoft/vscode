@@ -239,20 +239,6 @@ export class TerminalPanel extends Panel {
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(parentDomElement, 'mouseup', async (event: MouseEvent) => {
-			if (this._configurationService.getValue('terminal.integrated.copyOnSelection')) {
-				if (this._terminalService.terminalInstances.length === 0) {
-					return;
-				}
-
-				if (event.which === 1) {
-					const terminal = this._terminalService.getActiveInstance();
-					if (terminal && terminal.hasSelection()) {
-						await terminal.copySelection();
-					}
-				}
-			}
-		}));
 		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
 				const standardEvent = new StandardMouseEvent(event);
@@ -290,7 +276,7 @@ export class TerminalPanel extends Panel {
 				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 				if (resources) {
 					path = URI.parse(JSON.parse(resources)[0]).fsPath;
-				} else if (e.dataTransfer.files.length > 0) {
+				} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
 					// Check if the file was dragged from the filesystem
 					path = URI.file(e.dataTransfer.files[0].path).fsPath;
 				}

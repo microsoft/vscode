@@ -94,14 +94,14 @@ export interface IDevToolsOptions {
 
 export interface IWindowsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	onWindowOpen: Event<number>;
-	onWindowFocus: Event<number>;
-	onWindowBlur: Event<number>;
-	onWindowMaximize: Event<number>;
-	onWindowUnmaximize: Event<number>;
-	onRecentlyOpenedChange: Event<void>;
+	readonly onWindowOpen: Event<number>;
+	readonly onWindowFocus: Event<number>;
+	readonly onWindowBlur: Event<number>;
+	readonly onWindowMaximize: Event<number>;
+	readonly onWindowUnmaximize: Event<number>;
+	readonly onRecentlyOpenedChange: Event<void>;
 
 	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
@@ -221,7 +221,7 @@ export function isFileToOpen(uriToOpen: IURIToOpen): uriToOpen is IFileToOpen {
 
 export interface IWindowService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChangeFocus: Event<boolean>;
 	readonly onDidChangeMaximize: Event<boolean>;
@@ -240,6 +240,8 @@ export interface IWindowService {
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
+	// rationale: will eventually move to electron-browser
+	// tslint:disable-next-line: no-dom-globals
 	toggleFullScreen(target?: HTMLElement): Promise<void>;
 	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
@@ -426,6 +428,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	folderUri?: ISingleFolderWorkspaceIdentifier;
 
 	remoteAuthority?: string;
+	connectionToken?: string;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
@@ -444,7 +447,6 @@ export interface IWindowConfiguration extends ParsedArgs {
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
 	termProgram?: string;
-	connectionToken?: string;
 }
 
 export interface IRunActionInWindowRequest {

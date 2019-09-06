@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
+import { basename } from 'path';
 import * as languageModeIds from './languageModeIds';
 
 export const enum DiagnosticLanguage {
@@ -38,3 +40,11 @@ export const standardLanguageDescriptions: LanguageDescription[] = [
 		configFilePattern: /^jsconfig(\..*)?\.json$/gi
 	}
 ];
+
+export function isTsConfigFileName(fileName: string): boolean {
+	return /^tsconfig\.(.+\.)?json$/i.test(basename(fileName));
+}
+
+export function isJsConfigOrTsConfigFileName(fileName: string): boolean {
+	return /^[jt]sconfig\.(.+\.)?json$/i.test(basename(fileName));
+}

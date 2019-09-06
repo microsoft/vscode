@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRequestOptions, IRequestContext } from 'vs/platform/request/common/request';
+import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -16,7 +16,6 @@ export class RequestService extends BrowserRequestService {
 	private readonly remoteRequestChannel: RequestChannelClient | null;
 
 	constructor(
-		private readonly requestHandler: ((options: IRequestOptions) => Promise<IRequestContext>) | undefined,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService logService: ILogService
@@ -27,9 +26,6 @@ export class RequestService extends BrowserRequestService {
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		if (this.requestHandler) {
-			return this.requestHandler(options);
-		}
 		try {
 			const context = await super.request(options, token);
 			if (this.remoteRequestChannel && context.res.statusCode === 405) {

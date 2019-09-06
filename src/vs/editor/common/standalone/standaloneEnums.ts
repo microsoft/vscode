@@ -332,34 +332,13 @@ export enum CursorChangeReason {
 	Redo = 6
 }
 
-export enum RenderMinimap {
-	None = 0,
-	Small = 1,
-	Large = 2,
-	SmallBlocks = 3,
-	LargeBlocks = 4
-}
-
-/**
- * Describes how to indent wrapped lines.
- */
-export enum WrappingIndent {
+export enum AccessibilitySupport {
 	/**
-	 * No indentation => wrapped lines begin at column 1.
+	 * This should be the browser case where it is not known if a screen reader is attached or no.
 	 */
-	None = 0,
-	/**
-	 * Same => wrapped lines get the same indentation as the parent.
-	 */
-	Same = 1,
-	/**
-	 * Indent => wrapped lines get +1 indentation toward the parent.
-	 */
-	Indent = 2,
-	/**
-	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
-	 */
-	DeepIndent = 3
+	Unknown = 0,
+	Disabled = 1,
+	Enabled = 2
 }
 
 /**
@@ -422,12 +401,42 @@ export enum TextEditorCursorStyle {
 	UnderlineThin = 6
 }
 
+export enum RenderMinimap {
+	None = 0,
+	Small = 1,
+	Large = 2,
+	SmallBlocks = 3,
+	LargeBlocks = 4
+}
+
 export enum RenderLineNumbersType {
 	Off = 0,
 	On = 1,
 	Relative = 2,
 	Interval = 3,
 	Custom = 4
+}
+
+/**
+ * Describes how to indent wrapped lines.
+ */
+export enum WrappingIndent {
+	/**
+	 * No indentation => wrapped lines begin at column 1.
+	 */
+	None = 0,
+	/**
+	 * Same => wrapped lines get the same indentation as the parent.
+	 */
+	Same = 1,
+	/**
+	 * Indent => wrapped lines get +1 indentation toward the parent.
+	 */
+	Indent = 2,
+	/**
+	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
+	 */
+	DeepIndent = 3
 }
 
 /**
@@ -581,6 +590,10 @@ export enum CompletionItemKind {
 	Snippet = 25
 }
 
+export enum CompletionItemTag {
+	Deprecated = 1
+}
+
 export enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
@@ -656,4 +669,8 @@ export enum SymbolKind {
 	Event = 23,
 	Operator = 24,
 	TypeParameter = 25
+}
+
+export enum SymbolTag {
+	Deprecated = 1
 }

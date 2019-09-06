@@ -46,7 +46,7 @@ export class LogLevelSetterChannelClient {
 }
 
 export class FollowerLogService extends DelegatedLogService implements ILogService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private master: LogLevelSetterChannelClient, logService: ILogService) {
 		super(logService);

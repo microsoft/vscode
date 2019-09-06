@@ -119,6 +119,7 @@ export interface TaskSystemInfo {
 	context: any;
 	uriProvider: (this: void, path: string) => URI;
 	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): Promise<ResolvedVariables>;
+	getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }>;
 }
 
 export interface TaskSystemInfoResolver {

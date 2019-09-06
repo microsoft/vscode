@@ -34,7 +34,7 @@ if (product.quality !== 'stable') {
 
 export class LocalizationsService extends Disposable implements ILocalizationsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly cache: LanguagePacksCache;
 
@@ -93,7 +93,7 @@ class LanguagePacksCache extends Disposable {
 	private languagePacks: { [language: string]: ILanguagePack } = {};
 	private languagePacksFilePath: string;
 	private languagePacksFileLimiter: Queue<any>;
-	private initializedCache: boolean;
+	private initializedCache: boolean | undefined;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,

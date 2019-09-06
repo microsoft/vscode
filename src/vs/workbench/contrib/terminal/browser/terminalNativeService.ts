@@ -6,9 +6,10 @@
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITerminalNativeService, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Emitter, Event } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TerminalNativeService implements ITerminalNativeService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public get linuxDistro(): LinuxDistro { return LinuxDistro.Unknown; }
 
@@ -31,3 +32,5 @@ export class TerminalNativeService implements ITerminalNativeService {
 		throw new Error('Not implemented');
 	}
 }
+
+registerSingleton(ITerminalNativeService, TerminalNativeService, true);

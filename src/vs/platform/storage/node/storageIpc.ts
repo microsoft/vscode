@@ -5,7 +5,7 @@
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
-import { StorageMainService, IStorageChangeEvent } from 'vs/platform/storage/node/storageMainService';
+import { IStorageChangeEvent, IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
 import { mapToSerializable, serializableToMap, values } from 'vs/base/common/map';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -38,7 +38,7 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 	constructor(
 		private logService: ILogService,
-		private storageMainService: StorageMainService
+		private storageMainService: IStorageMainService
 	) {
 		super();
 
@@ -147,12 +147,12 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 export class GlobalStorageDatabaseChannelClient extends Disposable implements IStorageDatabase {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
 	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent> = this._onDidChangeItemsExternal.event;
 
-	private onDidChangeItemsOnMainListener: IDisposable;
+	private onDidChangeItemsOnMainListener: IDisposable | undefined;
 
 	constructor(private channel: IChannel) {
 		super();

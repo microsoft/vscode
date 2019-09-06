@@ -16,13 +16,9 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export class WindowsService implements IWindowsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private channel: IChannel;
-
-	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		this.channel = mainProcessService.getChannel('windows');
-	}
 
 	get onWindowOpen(): Event<number> { return this.channel.listen('onWindowOpen'); }
 	get onWindowFocus(): Event<number> { return this.channel.listen('onWindowFocus'); }
@@ -30,6 +26,10 @@ export class WindowsService implements IWindowsService {
 	get onWindowMaximize(): Event<number> { return this.channel.listen('onWindowMaximize'); }
 	get onWindowUnmaximize(): Event<number> { return this.channel.listen('onWindowUnmaximize'); }
 	get onRecentlyOpenedChange(): Event<void> { return this.channel.listen('onRecentlyOpenedChange'); }
+
+	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
+		this.channel = mainProcessService.getChannel('windows');
+	}
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		return this.channel.call('pickFileFolderAndOpen', options);

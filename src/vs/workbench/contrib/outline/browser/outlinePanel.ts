@@ -122,7 +122,8 @@ class RequestOracle {
 		let handle: any;
 		let contentListener = codeEditor.onDidChangeModelContent(event => {
 			clearTimeout(handle);
-			handle = setTimeout(() => this._callback(codeEditor!, event), 350);
+			const timeout = OutlineModel.getRequestDelay(codeEditor!.getModel());
+			handle = setTimeout(() => this._callback(codeEditor!, event), timeout);
 		});
 		let modeListener = codeEditor.onDidChangeModelLanguage(_ => {
 			this._callback(codeEditor!, undefined);
@@ -316,6 +317,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
 		this._tree = this._instantiationService.createInstance(
 			WorkbenchDataTree,
+			'OutlinePanel',
 			treeContainer,
 			new OutlineVirtualDelegate(),
 			[new OutlineGroupRenderer(), this._treeRenderer],

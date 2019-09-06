@@ -334,9 +334,11 @@ class MarkerWidget extends Disposable {
 			const sourceMatches = filterData && filterData.sourceMatches || [];
 			source.set(marker.source, sourceMatches);
 
-			const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')), false);
-			const codeMatches = filterData && filterData.codeMatches || [];
-			code.set(marker.code, codeMatches);
+			if (marker.code) {
+				const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')), false);
+				const codeMatches = filterData && filterData.codeMatches || [];
+				code.set(marker.code, codeMatches);
+			}
 		}
 
 		const lnCol = dom.append(parent, dom.$('span.marker-line'));
@@ -508,7 +510,7 @@ export class MarkerViewModel extends Disposable {
 		}
 	}
 
-	private _quickFixAction: QuickFixAction;
+	private _quickFixAction: QuickFixAction | null = null;
 	get quickFixAction(): QuickFixAction {
 		if (!this._quickFixAction) {
 			this._quickFixAction = this._register(this.instantiationService.createInstance(QuickFixAction, this.marker));
@@ -614,7 +616,7 @@ export class MarkersViewModel extends Disposable {
 
 	private bulkUpdate: boolean = false;
 
-	private hoveredMarker: Marker | null;
+	private hoveredMarker: Marker | null = null;
 	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
 
 	constructor(

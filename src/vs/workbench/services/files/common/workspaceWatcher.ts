@@ -13,10 +13,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ResourceMap } from 'vs/base/common/map';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { FileService } from 'vs/platform/files/common/fileService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class WorkspaceWatcher extends Disposable {
 
@@ -27,7 +27,7 @@ export class WorkspaceWatcher extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IStorageService private readonly storageService: IStorageService
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 
@@ -73,38 +73,34 @@ export class WorkspaceWatcher extends Disposable {
 		onUnexpectedError(msg);
 
 		// Detect if we run < .NET Framework 4.5
-		if (msg.indexOf('System.MissingMethodException') >= 0 && !this.storageService.getBoolean('ignoreNetVersionError', StorageScope.WORKSPACE)) {
+		if (msg.indexOf('System.MissingMethodException') >= 0) {
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
 				[{
 					label: localize('installNet', "Download .NET Framework 4.5"),
-					run: () => window.open('https://go.microsoft.com/fwlink/?LinkId=786533')
-				},
-				{
-					label: localize('neverShowAgain', "Don't Show Again"),
-					isSecondary: true,
-					run: () => this.storageService.store('ignoreNetVersionError', true, StorageScope.WORKSPACE)
+					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=786533'))
 				}],
-				{ sticky: true }
+				{
+					sticky: true,
+					neverShowAgain: { id: 'ignoreNetVersionError', isSecondary: true, scope: NeverShowAgainScope.WORKSPACE }
+				}
 			);
 		}
 
 		// Detect if we run into ENOSPC issues
-		if (msg.indexOf('ENOSPC') >= 0 && !this.storageService.getBoolean('ignoreEnospcError', StorageScope.WORKSPACE)) {
+		if (msg.indexOf('ENOSPC') >= 0) {
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize('enospcError', "Unable to watch for file changes in this large workspace. Please follow the instructions link to resolve this issue."),
 				[{
 					label: localize('learnMore', "Instructions"),
-					run: () => window.open('https://go.microsoft.com/fwlink/?linkid=867693')
-				},
-				{
-					label: localize('neverShowAgain', "Don't Show Again"),
-					isSecondary: true,
-					run: () => this.storageService.store('ignoreEnospcError', true, StorageScope.WORKSPACE)
+					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=867693'))
 				}],
-				{ sticky: true }
+				{
+					sticky: true,
+					neverShowAgain: { id: 'ignoreEnospcError', isSecondary: true, scope: NeverShowAgainScope.WORKSPACE }
+				}
 			);
 		}
 	}

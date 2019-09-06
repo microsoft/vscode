@@ -46,7 +46,7 @@ class BaseTreeItem {
 
 	private _showedMoreThanOne: boolean;
 	private _children = new Map<string, BaseTreeItem>();
-	private _source: Source;
+	private _source: Source | undefined;
 
 	constructor(private _parent: BaseTreeItem | undefined, private _label: string) {
 		this._showedMoreThanOne = false;
@@ -184,7 +184,7 @@ class BaseTreeItem {
 	}
 
 	// skips intermediate single-child nodes
-	getSource(): Source {
+	getSource(): Source | undefined {
 		const child = this.oneChild();
 		if (child) {
 			return child.getSource();
@@ -381,13 +381,13 @@ class SessionTreeItem extends BaseTreeItem {
 
 export class LoadedScriptsView extends ViewletPanel {
 
-	private treeContainer: HTMLElement;
+	private treeContainer!: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
-	private tree: WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>;
-	private treeLabels: ResourceLabels;
-	private changeScheduler: RunOnceScheduler;
-	private treeNeedsRefreshOnVisible: boolean;
-	private filter: LoadedScriptsFilter;
+	private tree!: WorkbenchAsyncDataTree<LoadedScriptsItem, LoadedScriptsItem, FuzzyScore>;
+	private treeLabels!: ResourceLabels;
+	private changeScheduler!: RunOnceScheduler;
+	private treeNeedsRefreshOnVisible = false;
+	private filter!: LoadedScriptsFilter;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -419,7 +419,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, this.treeContainer, new LoadedScriptsDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'LoadedScriptsView', this.treeContainer, new LoadedScriptsDelegate(),
 			[new LoadedScriptsRenderer(this.treeLabels)],
 			new LoadedScriptsDataSource(),
 			{
@@ -466,7 +466,21 @@ export class LoadedScriptsView extends ViewletPanel {
 			}
 		}));
 
-		const registerLoadedSourceListener = (session: IDebugSession) => {
+		const scheduleRefreshOnVisible = () => {
+			if (this.isBodyVisible()) {
+				this.changeScheduler.schedule();
+			} else {
+				this.treeNeedsRefreshOnVisible = true;
+			}
+		};
+
+		const registerSessionListeners = (session: IDebugSession) => {
+			this._register(session.onDidChangeName(() => {
+				// Re-add session, this will trigger proper sorting and id recalculation.
+				root.remove(session.getId());
+				root.add(session);
+				scheduleRefreshOnVisible();
+			}));
 			this._register(session.onDidLoadedSource(event => {
 				let sessionRoot: SessionTreeItem;
 				switch (event.reason) {
@@ -474,11 +488,7 @@ export class LoadedScriptsView extends ViewletPanel {
 					case 'changed':
 						sessionRoot = root.add(session);
 						sessionRoot.addPath(event.source);
-						if (this.isBodyVisible()) {
-							this.changeScheduler.schedule();
-						} else {
-							this.treeNeedsRefreshOnVisible = true;
-						}
+						scheduleRefreshOnVisible();
 						if (event.reason === 'changed') {
 							DebugContentProvider.refreshDebugContent(event.source.uri);
 						}
@@ -486,11 +496,7 @@ export class LoadedScriptsView extends ViewletPanel {
 					case 'removed':
 						sessionRoot = root.find(session);
 						if (sessionRoot && sessionRoot.removePath(event.source)) {
-							if (this.isBodyVisible()) {
-								this.changeScheduler.schedule();
-							} else {
-								this.treeNeedsRefreshOnVisible = true;
-							}
+							scheduleRefreshOnVisible();
 						}
 						break;
 					default:
@@ -501,8 +507,8 @@ export class LoadedScriptsView extends ViewletPanel {
 			}));
 		};
 
-		this._register(this.debugService.onDidNewSession(registerLoadedSourceListener));
-		this.debugService.getModel().getSessions().forEach(registerLoadedSourceListener);
+		this._register(this.debugService.onDidNewSession(registerSessionListeners));
+		this.debugService.getModel().getSessions().forEach(registerSessionListeners);
 
 		this._register(this.debugService.onDidEndSession(session => {
 			root.remove(session.getId());
@@ -635,7 +641,7 @@ class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider<Loaded
 
 class LoadedScriptsFilter implements ITreeFilter<BaseTreeItem, FuzzyScore> {
 
-	private filterText: string;
+	private filterText: string | undefined;
 
 	setFilter(filterText: string) {
 		this.filterText = filterText;

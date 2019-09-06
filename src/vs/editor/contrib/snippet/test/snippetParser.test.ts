@@ -754,4 +754,17 @@ suite('SnippetParser', () => {
 		let snippet = new SnippetParser().parse('namespace ${TM_DIRECTORY/[\\/]/\\\\/g};');
 		assertMarker(snippet, Text, Variable, Text);
 	});
+
+	test('Snippet cannot escape closing bracket inside conditional insertion variable replacement #78883', function () {
+
+		let snippet = new SnippetParser().parse('${TM_DIRECTORY/(.+)/${1:+import { hello \\} from world}/}');
+		let variable = <Variable>snippet.children[0];
+		assert.equal(snippet.children.length, 1);
+		assert.ok(variable instanceof Variable);
+		assert.ok(variable.transform);
+		assert.equal(variable.transform!.children.length, 1);
+		assert.ok(variable.transform!.children[0] instanceof FormatString);
+		assert.equal((<FormatString>variable.transform!.children[0]).ifValue, 'import { hello } from world');
+		assert.equal((<FormatString>variable.transform!.children[0]).elseValue, undefined);
+	});
 });

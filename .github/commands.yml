@@ -4,7 +4,7 @@
         {
             type: 'comment',
             name: 'question',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'updateLabels',
             addLabel: '*question'
         },
@@ -60,7 +60,7 @@
         {
             type: 'comment',
             name: 'duplicate',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'updateLabels',
             addLabel: '*duplicate'
         },
@@ -74,7 +74,7 @@
         {
             type: 'comment',
             name: 'confirm',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'updateLabels',
             addLabel: 'confirmed',
             removeLabel: 'confirmation-pending'
@@ -90,14 +90,14 @@
         {
             type: 'comment',
             name: 'findDuplicates',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'comment',
             comment: "Potential duplicates:\n${potentialDuplicates}"
         },
         {
             type: 'comment',
             name: 'needsMoreInfo',
-            allowUsers: ['cleidigh', 'usernamehw'],
+            allowUsers: ['cleidigh', 'usernamehw', 'gjsjohnmurray', 'IllusionMH'],
             action: 'updateLabels',
             addLabel: 'needs more info',
             comment: "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"

@@ -47,7 +47,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/product';
-import { ProductService } from 'vs/platform/product/node/productService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -84,23 +83,14 @@ export class Main {
 	async run(argv: ParsedArgs): Promise<void> {
 		if (argv['install-source']) {
 			await this.setInstallSource(argv['install-source']);
-
 		} else if (argv['list-extensions']) {
 			await this.listExtensions(!!argv['show-versions'], argv['category']);
-
 		} else if (argv['install-extension']) {
-			const arg = argv['install-extension'];
-			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.installExtensions(args, !!argv['force']);
-
+			await this.installExtensions(argv['install-extension'], !!argv['force']);
 		} else if (argv['uninstall-extension']) {
-			const arg = argv['uninstall-extension'];
-			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.uninstallExtension(ids);
+			await this.uninstallExtension(argv['uninstall-extension']);
 		} else if (argv['locate-extension']) {
-			const arg = argv['locate-extension'];
-			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.locateExtension(ids);
+			await this.locateExtension(argv['locate-extension']);
 		} else if (argv['telemetry']) {
 			console.log(buildTelemetryMessage(this.environmentService.appRoot, this.environmentService.extensionsPath ? this.environmentService.extensionsPath : undefined));
 		}
@@ -325,7 +315,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IStateService, new SyncDescriptor(StateService));
-	services.set(IProductService, new SyncDescriptor(ProductService));
+	services.set(IProductService, { _serviceBrand: undefined, ...product });
 
 	// Files
 	const fileService = new FileService(logService);
@@ -360,7 +350,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
-				commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), installSourcePath),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
 				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
 			};
 

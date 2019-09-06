@@ -45,10 +45,10 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 				onCancel: onCancel,
 				onType: onType
 			}, {
-				inputPlaceHolder: undefined,
-				inputAriaLabel: configuration.inputAriaLabel,
-				keyboardSupport: true
-			}
+			inputPlaceHolder: undefined,
+			inputAriaLabel: configuration.inputAriaLabel,
+			keyboardSupport: true
+		}
 		);
 		this.styler = attachQuickOpenStyler(this.quickOpenWidget, this.themeService, {
 			pickerGroupForeground: foreground

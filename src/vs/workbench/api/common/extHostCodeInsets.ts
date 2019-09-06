@@ -10,7 +10,7 @@ import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import * as vscode from 'vscode';
 import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost.protocol';
-import { toWebviewResource, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import { generateUuid } from 'vs/base/common/uuid';
 
 export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
@@ -65,8 +65,8 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 			private _html: string = '';
 			private _options: vscode.WebviewOptions = Object.create(null);
 
-			toWebviewResource(resource: vscode.Uri): vscode.Uri {
-				return toWebviewResource(that._initData, this._uuid, resource);
+			asWebviewUri(resource: vscode.Uri): vscode.Uri {
+				return asWebviewUri(that._initData, this._uuid, resource);
 			}
 
 			get cspSource(): string {

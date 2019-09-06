@@ -9,17 +9,19 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
-import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
-import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/webview';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
 import { WebviewFindWidget } from '../browser/webviewFindWidget';
@@ -135,51 +137,6 @@ class WebviewPortMappingProvider extends Disposable {
 	}
 }
 
-class SvgBlocker extends Disposable {
-
-	private readonly _onDidBlockSvg = this._register(new Emitter<void>());
-	public readonly onDidBlockSvg = this._onDidBlockSvg.event;
-
-	constructor(
-		session: WebviewSession,
-		private readonly _options: WebviewContentOptions,
-	) {
-		super();
-
-		session.onBeforeRequest(async (details) => {
-			if (details.url.indexOf('.svg') > 0) {
-				const uri = URI.parse(details.url);
-				if (uri && !uri.scheme.match(/file/i) && endsWith(uri.path, '.svg') && !this.isAllowedSvg(uri)) {
-					this._onDidBlockSvg.fire();
-					return { cancel: true };
-				}
-			}
-
-			return undefined;
-		});
-
-		session.onHeadersReceived((details) => {
-			const headers: any = details.responseHeaders;
-			const contentType: string[] = headers['content-type'] || headers['Content-Type'];
-			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
-				const uri = URI.parse(details.url);
-				if (uri && !this.isAllowedSvg(uri)) {
-					this._onDidBlockSvg.fire();
-					return { cancel: true };
-				}
-			}
-			return undefined;
-		});
-	}
-
-	private isAllowedSvg(uri: URI): boolean {
-		if (this._options.svgWhiteList) {
-			return this._options.svgWhiteList.indexOf(uri.authority.toLowerCase()) >= 0;
-		}
-		return false;
-	}
-}
-
 class WebviewKeyboardHandler extends Disposable {
 
 	private _ignoreMenuShortcut = false;
@@ -284,6 +241,8 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		@IFileService fileService: IFileService,
 		@ITunnelService tunnelService: ITunnelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IEnvironmentService private readonly _environementService: IEnvironmentService,
 	) {
 		super();
 		this.content = {
@@ -331,11 +290,6 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 			tunnelService,
 		));
 
-		if (!this._options.allowSvgs) {
-			const svgBlocker = this._register(new SvgBlocker(session, this.content.options));
-			svgBlocker.onDidBlockSvg(() => this.onDidBlockSvg());
-		}
-
 		this._register(new WebviewKeyboardHandler(this._webview));
 
 		this._register(addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
@@ -366,7 +320,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 					return;
 
 				case 'did-click-link':
-					let [uri] = event.args;
+					const [uri] = event.args;
 					this._onDidClickLink.fire(URI.parse(uri));
 					return;
 
@@ -374,12 +328,17 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 					{
 						const rawEvent = event.args[0];
 						const bounds = this._webview.getBoundingClientRect();
-						window.dispatchEvent(new MouseEvent(rawEvent.type, {
-							...rawEvent,
-							clientX: rawEvent.clientX + bounds.left,
-							clientY: rawEvent.clientY + bounds.top,
-						}));
-						return;
+						try {
+							window.dispatchEvent(new MouseEvent(rawEvent.type, {
+								...rawEvent,
+								clientX: rawEvent.clientX + bounds.left,
+								clientY: rawEvent.clientY + bounds.top,
+							}));
+							return;
+						} catch {
+							// CustomEvent was treated as MouseEvent so don't do anything - https://github.com/microsoft/vscode/issues/78915
+							return;
+						}
 					}
 
 				case 'did-set-content':
@@ -411,6 +370,10 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 
 				case 'did-blur':
 					this.handleFocusChange(false);
+					return;
+
+				case 'no-csp-found':
+					this.handleNoCspFound();
 					return;
 			}
 		}));
@@ -463,6 +426,9 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
+
+	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
+	public readonly onMissingCsp = this._onMissingCsp.event;
 
 	private _send(channel: string, data?: any): void {
 		this._ready
@@ -532,7 +498,11 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		if (!this._webview) {
 			return;
 		}
-		this._webview.focus();
+		try {
+			this._webview.focus();
+		} catch {
+			// noop
+		}
 		this._send('focus');
 
 		// Handle focus change programmatically (do not rely on event from <webview>)
@@ -546,14 +516,34 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		}
 	}
 
-	public sendMessage(data: any): void {
-		this._send('message', data);
+	private _hasAlertedAboutMissingCsp = false;
+
+	private handleNoCspFound(): void {
+		if (this._hasAlertedAboutMissingCsp) {
+			return;
+		}
+		this._hasAlertedAboutMissingCsp = true;
+
+		if (this._options.extension && this._options.extension.id) {
+			if (this._environementService.isExtensionDevelopment) {
+				this._onMissingCsp.fire(this._options.extension.id);
+			}
+
+			type TelemetryClassification = {
+				extension?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
+			};
+			type TelemetryData = {
+				extension?: string,
+			};
+
+			this._telemetryService.publicLog2<TelemetryData, TelemetryClassification>('webviewMissingCsp', {
+				extension: this._options.extension.id.value
+			});
+		}
 	}
 
-	private onDidBlockSvg() {
-		this.sendMessage({
-			name: 'vscode-did-block-svg'
-		});
+	public sendMessage(data: any): void {
+		this._send('message', data);
 	}
 
 	private style(theme: ITheme): void {
@@ -566,7 +556,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 	}
 
 	public layout(): void {
-		if (!this._webview) {
+		if (!this._webview || this._webview.style.width === '0px') {
 			return;
 		}
 		const contents = this._webview.getWebContents();
@@ -649,6 +639,12 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 	public hideFind() {
 		if (this._webviewFindWidget) {
 			this._webviewFindWidget.hide();
+		}
+	}
+
+	public runFindAction(previous: boolean) {
+		if (this._webviewFindWidget) {
+			this._webviewFindWidget.find(previous);
 		}
 	}
 

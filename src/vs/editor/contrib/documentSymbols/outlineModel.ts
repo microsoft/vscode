@@ -202,16 +202,33 @@ export class OutlineGroup extends TreeElement {
 	}
 }
 
+class MovingAverage {
+
+	private _n = 1;
+	private _val = 0;
+
+	update(value: number): this {
+		this._val = this._val + (value - this._val) / this._n;
+		this._n += 1;
+		return this;
+	}
+
+	get value(): number {
+		return this._val;
+	}
+}
+
 export class OutlineModel extends TreeElement {
 
+	private static readonly _requestDurations = new LRUCache<string, MovingAverage>(50, 0.7);
 	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel | undefined }>(9, 0.75);
 	private static readonly _keys = new class {
 
 		private _counter = 1;
 		private _data = new WeakMap<DocumentSymbolProvider, number>();
 
-		for(textModel: ITextModel): string {
-			return `${textModel.id}/${textModel.getVersionId()}/${this._hash(DocumentSymbolProviderRegistry.all(textModel))}`;
+		for(textModel: ITextModel, version: boolean): string {
+			return `${textModel.id}/${version ? textModel.getVersionId() : ''}/${this._hash(DocumentSymbolProviderRegistry.all(textModel))}`;
 		}
 
 		private _hash(providers: DocumentSymbolProvider[]): string {
@@ -231,7 +248,7 @@ export class OutlineModel extends TreeElement {
 
 	static create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
-		let key = this._keys.for(textModel);
+		let key = this._keys.for(textModel, true);
 		let data = OutlineModel._requests.get(key);
 
 		if (!data) {
@@ -243,6 +260,18 @@ export class OutlineModel extends TreeElement {
 				model: undefined,
 			};
 			OutlineModel._requests.set(key, data);
+
+			// keep moving average of request durations
+			const now = Date.now();
+			data.promise.then(() => {
+				let key = this._keys.for(textModel, false);
+				let avg = this._requestDurations.get(key);
+				if (!avg) {
+					avg = new MovingAverage();
+					this._requestDurations.set(key, avg);
+				}
+				avg.update(Date.now() - now);
+			});
 		}
 
 		if (data!.model) {
@@ -272,7 +301,18 @@ export class OutlineModel extends TreeElement {
 		});
 	}
 
-	static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
+	static getRequestDelay(textModel: ITextModel | null): number {
+		if (!textModel) {
+			return 350;
+		}
+		const avg = this._requestDurations.get(this._keys.for(textModel, false));
+		if (!avg) {
+			return 350;
+		}
+		return Math.max(350, Math.floor(1.3 * avg.value));
+	}
+
+	private static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
 		const cts = new CancellationTokenSource(token);
 		const result = new OutlineModel(textModel);
@@ -346,6 +386,9 @@ export class OutlineModel extends TreeElement {
 
 	protected constructor(readonly textModel: ITextModel) {
 		super();
+
+		this.id = 'root';
+		this.parent = undefined;
 	}
 
 	adopt(): OutlineModel {

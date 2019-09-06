@@ -33,14 +33,14 @@ function isDirectory(path: string): Promise<boolean> {
 	});
 }
 
-enum UpdateImportsOnFileMoveSetting {
+const enum UpdateImportsOnFileMoveSetting {
 	Prompt = 'prompt',
 	Always = 'always',
 	Never = 'never',
 }
 
 class UpdateImportsOnFileRenameHandler extends Disposable {
-	public static minVersion = API.v300;
+	public static readonly minVersion = API.v300;
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -127,7 +127,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		newResource: vscode.Uri,
 		newDocument: vscode.TextDocument
 	): Promise<boolean> {
-		enum Choice {
+		const enum Choice {
 			None = 0,
 			Accept = 1,
 			Reject = 2,
@@ -141,21 +141,21 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		const response = await vscode.window.showInformationMessage<Item>(
 			localize('prompt', "Update imports for moved file: '{0}'?", path.basename(newResource.fsPath)), {
-				modal: true,
-			}, {
-				title: localize('reject.title', "No"),
-				choice: Choice.Reject,
-				isCloseAffordance: true,
-			}, {
-				title: localize('accept.title', "Yes"),
-				choice: Choice.Accept,
-			}, {
-				title: localize('always.title', "Always automatically update imports"),
-				choice: Choice.Always,
-			}, {
-				title: localize('never.title', "Never automatically update imports"),
-				choice: Choice.Never,
-			});
+			modal: true,
+		}, {
+			title: localize('reject.title', "No"),
+			choice: Choice.Reject,
+			isCloseAffordance: true,
+		}, {
+			title: localize('accept.title', "Yes"),
+			choice: Choice.Accept,
+		}, {
+			title: localize('always.title', "Always automatically update imports"),
+			choice: Choice.Always,
+		}, {
+			title: localize('never.title', "Never automatically update imports"),
+			choice: Choice.Never,
+		});
 
 		if (!response) {
 			return false;

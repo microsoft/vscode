@@ -15,7 +15,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickInputService, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import product from 'vs/platform/product/node/product';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -55,7 +54,11 @@ export class NewWindowAction extends Action {
 }
 
 export abstract class BaseZoomAction extends Action {
+
 	private static readonly SETTING_KEY = 'window.zoomLevel';
+
+	private static readonly MAX_ZOOM_LEVEL = 9;
+	private static readonly MIN_ZOOM_LEVEL = -8;
 
 	constructor(
 		id: string,
@@ -67,6 +70,10 @@ export abstract class BaseZoomAction extends Action {
 
 	protected async setConfiguredZoomLevel(level: number): Promise<void> {
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
+
+		if (level > BaseZoomAction.MAX_ZOOM_LEVEL || level < BaseZoomAction.MIN_ZOOM_LEVEL) {
+			return; // https://github.com/microsoft/vscode/issues/48357
+		}
 
 		const applyZoom = () => {
 			webFrame.setZoomLevel(level);
@@ -264,25 +271,6 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 
 	protected isQuickNavigate(): boolean {
 		return true;
-	}
-}
-
-
-export class ShowAboutDialogAction extends Action {
-
-	static readonly ID = 'workbench.action.showAboutDialog';
-	static LABEL = nls.localize('about', "About {0}", product.applicationName);
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		return this.windowsService.openAboutDialog();
 	}
 }
 

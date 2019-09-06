@@ -48,7 +48,7 @@ suite('ExtHostWebview', () => {
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
 
-	test('toWebviewResource for desktop vscode-resource scheme', () => {
+	test('asWebviewUri for desktop vscode-resource scheme', () => {
 		const shape = createNoopMainThreadWebviews();
 		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
 			webviewCspSource: '',
@@ -57,37 +57,37 @@ suite('ExtHostWebview', () => {
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		assert.strictEqual(
-			webview.webview.toWebviewResource(URI.parse('file:///Users/codey/file.html')).toString(),
+			webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString(),
 			'vscode-resource:/Users/codey/file.html',
 			'Unix basic'
 		);
 
 		assert.strictEqual(
-			webview.webview.toWebviewResource(URI.parse('file:///Users/codey/file.html#frag')).toString(),
+			webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString(),
 			'vscode-resource:/Users/codey/file.html#frag',
 			'Unix should preserve fragment'
 		);
 
 		assert.strictEqual(
-			webview.webview.toWebviewResource(URI.parse('file:///Users/codey/f%20ile.html')).toString(),
+			webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString(),
 			'vscode-resource:/Users/codey/f%20ile.html',
 			'Unix with encoding'
 		);
 
 		assert.strictEqual(
-			webview.webview.toWebviewResource(URI.parse('file://localhost/Users/codey/file.html')).toString(),
+			webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString(),
 			'vscode-resource://localhost/Users/codey/file.html',
 			'Unix should preserve authority'
 		);
 
 		assert.strictEqual(
-			webview.webview.toWebviewResource(URI.parse('file:///c:/codey/file.txt')).toString(),
+			webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString(),
 			'vscode-resource:/c%3A/codey/file.txt',
 			'Windows C drive'
 		);
 	});
 
-	test('toWebviewResource for web endpoint', () => {
+	test('asWebviewUri for web endpoint', () => {
 		const shape = createNoopMainThreadWebviews();
 
 		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape), {
@@ -101,31 +101,31 @@ suite('ExtHostWebview', () => {
 		}
 
 		assert.strictEqual(
-			stripEndpointUuid(webview.webview.toWebviewResource(URI.parse('file:///Users/codey/file.html')).toString()),
+			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
 			'webview.contoso.com/commit///Users/codey/file.html',
 			'Unix basic'
 		);
 
 		assert.strictEqual(
-			stripEndpointUuid(webview.webview.toWebviewResource(URI.parse('file:///Users/codey/file.html#frag')).toString()),
+			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString()),
 			'webview.contoso.com/commit///Users/codey/file.html#frag',
 			'Unix should preserve fragment'
 		);
 
 		assert.strictEqual(
-			stripEndpointUuid(webview.webview.toWebviewResource(URI.parse('file:///Users/codey/f%20ile.html')).toString()),
+			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString()),
 			'webview.contoso.com/commit///Users/codey/f%20ile.html',
 			'Unix with encoding'
 		);
 
 		assert.strictEqual(
-			stripEndpointUuid(webview.webview.toWebviewResource(URI.parse('file://localhost/Users/codey/file.html')).toString()),
+			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString()),
 			'webview.contoso.com/commit//localhost/Users/codey/file.html',
 			'Unix should preserve authority'
 		);
 
 		assert.strictEqual(
-			stripEndpointUuid(webview.webview.toWebviewResource(URI.parse('file:///c:/codey/file.txt')).toString()),
+			stripEndpointUuid(webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString()),
 			'webview.contoso.com/commit///c%3A/codey/file.txt',
 			'Windows C drive'
 		);

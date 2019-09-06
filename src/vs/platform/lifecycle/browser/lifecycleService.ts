@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand: undefined;
 
 	constructor(
 		@ILogService readonly logService: ILogService
@@ -22,10 +21,12 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		window.onbeforeunload = () => this.beforeUnload();
+		// Note: we cannot change this to window.addEventListener('beforeUnload')
+		// because it seems that mechanism does not allow for preventing the unload
+		window.onbeforeunload = () => this.onBeforeUnload();
 	}
 
-	private beforeUnload(): string | null {
+	private onBeforeUnload(): string | null {
 		let veto = false;
 
 		// Before Shutdown
@@ -34,7 +35,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 				if (value === true) {
 					veto = true;
 				} else if (value instanceof Promise && !veto) {
-					console.warn(new Error('Long running onBeforeShutdown currently not supported'));
+					console.warn(new Error('Long running onBeforeShutdown currently not supported in the web'));
 					veto = true;
 				}
 			},
@@ -49,10 +50,13 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// No Veto: continue with Will Shutdown
 		this._onWillShutdown.fire({
 			join() {
-				console.warn(new Error('Long running onWillShutdown currently not supported'));
+				console.warn(new Error('Long running onWillShutdown currently not supported in the web'));
 			},
 			reason: ShutdownReason.QUIT
 		});
+
+		// Finally end with Shutdown event
+		this._onShutdown.fire();
 
 		return null;
 	}

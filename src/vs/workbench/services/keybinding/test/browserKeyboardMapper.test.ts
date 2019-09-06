@@ -42,10 +42,10 @@ suite('keyboard layout loader', () => {
 
 	test('load default US keyboard layout', () => {
 		assert.notEqual(instance.activeKeyboardLayout, null);
-		assert.equal(instance.activeKeyboardLayout!.isUSStandard, true);
 	});
 
 	test('isKeyMappingActive', () => {
+		instance.setUSKeyboardLayout();
 		assert.equal(instance.isKeyMappingActive({
 			KeyA: {
 				value: 'a',
