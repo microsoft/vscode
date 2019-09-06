@@ -28,7 +28,7 @@ export class NotificationsCenter extends Themable {
 	private static MAX_DIMENSIONS = new Dimension(450, 400);
 
 	private readonly _onDidChangeVisibility: Emitter<void> = this._register(new Emitter<void>());
-	get onDidChangeVisibility(): Event<void> { return this._onDidChangeVisibility.event; }
+	readonly onDidChangeVisibility: Event<void> = this._onDidChangeVisibility.event;
 
 	private notificationsCenterContainer: HTMLElement;
 	private notificationsCenterHeader: HTMLElement;
@@ -57,6 +57,7 @@ export class NotificationsCenter extends Themable {
 
 	private registerListeners(): void {
 		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
 	}
 
 	get isVisible(): boolean {

@@ -156,7 +156,7 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 	return [scores[queryLength * targetLength - 1], positions.reverse()];
 }
 
-function computeCharScore(queryCharAtIndex, queryLowerCharAtIndex, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
+function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: string, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
 	let score = 0;
 
 	if (queryLowerCharAtIndex !== targetLower[targetIndex]) {

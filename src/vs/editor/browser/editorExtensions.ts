@@ -20,9 +20,14 @@ import { IConstructorSignature1, ServicesAccessor } from 'vs/platform/instantiat
 import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export type ServicesAccessor = ServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
+export type EditorTelemetryDataFragment = {
+	target: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 //#region Command
 
@@ -39,17 +44,17 @@ export interface ICommandMenubarOptions {
 }
 export interface ICommandOptions {
 	id: string;
-	precondition: ContextKeyExpr | null;
-	kbOpts?: ICommandKeybindingsOptions | null;
+	precondition: ContextKeyExpr | undefined;
+	kbOpts?: ICommandKeybindingsOptions;
 	description?: ICommandHandlerDescription;
 	menubarOpts?: ICommandMenubarOptions;
 }
 export abstract class Command {
 	public readonly id: string;
-	public readonly precondition: ContextKeyExpr | null;
-	private readonly _kbOpts: ICommandKeybindingsOptions | null | undefined;
-	private readonly _menubarOpts: ICommandMenubarOptions | null | undefined;
-	private readonly _description: ICommandHandlerDescription | null | undefined;
+	public readonly precondition: ContextKeyExpr | undefined;
+	private readonly _kbOpts: ICommandKeybindingsOptions | undefined;
+	private readonly _menubarOpts: ICommandMenubarOptions | undefined;
+	private readonly _description: ICommandHandlerDescription | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
@@ -88,7 +93,7 @@ export abstract class Command {
 				id: this.id,
 				handler: (accessor, args) => this.runCommand(accessor, args),
 				weight: this._kbOpts.weight,
-				when: kbWhen || null,
+				when: kbWhen,
 				primary: this._kbOpts.primary,
 				secondary: this._kbOpts.secondary,
 				win: this._kbOpts.win,
@@ -156,7 +161,7 @@ export abstract class EditorCommand extends Command {
 
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
-			if (!kbService.contextMatchesRules(this.precondition)) {
+			if (!kbService.contextMatchesRules(withNullAsUndefined(this.precondition))) {
 				// precondition does not hold
 				return;
 			}
@@ -218,16 +223,15 @@ export abstract class EditorAction extends EditorCommand {
 	}
 
 	protected reportTelemetry(accessor: ServicesAccessor, editor: ICodeEditor) {
-		/* __GDPR__
-			"editorActionInvoked" : {
-				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"${include}": [
-					"${EditorTelemetryData}"
-				]
-			}
-		*/
-		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id, ...editor.getTelemetryData() });
+		type EditorActionInvokedClassification = {
+			name: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		type EditorActionInvokedEvent = {
+			name: string;
+			id: string;
+		};
+		accessor.get(ITelemetryService).publicLog2<EditorActionInvokedEvent, EditorActionInvokedClassification>('editorActionInvoked', { name: this.label, id: this.id });
 	}
 
 	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;

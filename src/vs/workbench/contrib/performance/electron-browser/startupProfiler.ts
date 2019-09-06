@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { dirname, join, basename } from 'vs/base/common/path';
-import { del, exists, readdir, readFile } from 'vs/base/node/pfs';
+import { exists, readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -17,6 +17,7 @@ import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
@@ -28,6 +29,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService extensionService: IExtensionService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		// wait for everything to be ready
 		Promise.all([
@@ -50,7 +52,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 
 		const removeArgs: string[] = ['--prof-startup'];
 		const markerFile = readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
-			.then(() => del(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
+			.then(() => rimraf(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
 			.then(() => new Promise(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
 				const check = () => {
 					exists(profileFilenamePrefix).then(exists => {
@@ -63,7 +65,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 				};
 				check();
 			}))
-			.then(() => del(profileFilenamePrefix)); // (3) finally delete the file again
+			.then(() => rimraf(profileFilenamePrefix)); // (3) finally delete the file again
 
 		markerFile.then(() => {
 			return readdir(dir).then(files => files.filter(value => value.indexOf(prefix) === 0));
@@ -103,21 +105,19 @@ export class StartupProfiler implements IWorkbenchContribution {
 		});
 	}
 
-	private _createPerfIssue(files: string[]): Promise<void> {
-		return this._textModelResolverService.createModelReference(PerfviewInput.Uri).then(ref => {
+	private async _createPerfIssue(files: string[]): Promise<void> {
+		const ref = await this._textModelResolverService.createModelReference(PerfviewInput.Uri);
+		await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
+		ref.dispose();
 
-			this._clipboardService.writeText(ref.object.textEditorModel.getValue());
-			ref.dispose();
-
-			const body = `
+		const body = `
 1. :warning: We have copied additional data to your clipboard. Make sure to **paste** here. :warning:
 1. :warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}
 `;
 
-			const baseUrl = product.reportIssueUrl;
-			const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
+		const baseUrl = product.reportIssueUrl;
+		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 
-			window.open(`${baseUrl}${queryStringPrefix}body=${encodeURIComponent(body)}`);
-		});
+		this._openerService.open(URI.parse(`${baseUrl}${queryStringPrefix}body=${encodeURIComponent(body)}`));
 	}
 }

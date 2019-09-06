@@ -17,14 +17,10 @@ export class DataUriEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.editors.dataUriEditorInput';
 
-	private resource: URI;
-	private readonly name: string | undefined;
-	private readonly description: string | undefined;
-
 	constructor(
-		name: string,
-		description: string,
-		resource: URI,
+		private readonly name: string | undefined,
+		private readonly description: string | undefined,
+		private readonly resource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -54,28 +50,26 @@ export class DataUriEditorInput extends EditorInput {
 		return DataUriEditorInput.ID;
 	}
 
-	getName(): string | null {
-		return this.name || null;
+	getName(): string | undefined {
+		return this.name;
 	}
 
-	getDescription(): string | null {
-		return this.description || null;
+	getDescription(): string | undefined {
+		return this.description;
 	}
 
 	resolve(): Promise<BinaryEditorModel> {
-		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
+		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
 	}
 
-	matches(otherInput: any): boolean {
+	matches(otherInput: unknown): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}
 
+		// Compare by resource
 		if (otherInput instanceof DataUriEditorInput) {
-			const otherDataUriEditorInput = <DataUriEditorInput>otherInput;
-
-			// Compare by resource
-			return otherDataUriEditorInput.resource.toString() === this.resource.toString();
+			return otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;

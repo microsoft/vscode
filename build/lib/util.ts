@@ -17,9 +17,6 @@ import * as git from './git';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
-import { IDownloadOptions, downloadInExternalProcess, IDownloadRequestOptions } from '../download/download';
-
-const REPO_ROOT = path.join(__dirname, '../../');
 
 export interface ICancellationToken {
 	isCancellationRequested(): boolean;
@@ -96,6 +93,9 @@ export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
 
 export function setExecutableBit(pattern?: string | string[]): NodeJS.ReadWriteStream {
 	const setBit = es.mapSync<VinylFile, VinylFile>(f => {
+		if (!f.stat) {
+			f.stat = { isFile() { return true; } } as any;
+		}
 		f.stat.mode = /* 100755 */ 33261;
 		return f;
 	});
@@ -132,23 +132,21 @@ export function skipDirectories(): NodeJS.ReadWriteStream {
 	});
 }
 
-export function cleanNodeModule(name: string, excludes: string[], includes?: string[]): NodeJS.ReadWriteStream {
-	const toGlob = (path: string) => '**/node_modules/' + name + (path ? '/' + path : '');
-	const negate = (str: string) => '!' + str;
+export function cleanNodeModules(rulePath: string): NodeJS.ReadWriteStream {
+	const rules = fs.readFileSync(rulePath, 'utf8')
+		.split(/\r?\n/g)
+		.map(line => line.trim())
+		.filter(line => line && !/^#/.test(line));
 
-	const allFilter = _filter(toGlob('**'), { restore: true });
-	const globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob) as (x: string) => string));
+	const excludes = rules.filter(line => !/^!/.test(line)).map(line => `!**/node_modules/${line}`);
+	const includes = rules.filter(line => /^!/.test(line)).map(line => `**/node_modules/${line.substr(1)}`);
 
 	const input = es.through();
-	const nodeModuleInput = input.pipe(allFilter);
-	let output: NodeJS.ReadWriteStream = nodeModuleInput.pipe(_filter(globs));
+	const output = es.merge(
+		input.pipe(_filter(['**', ...excludes])),
+		input.pipe(_filter(includes))
+	);
 
-	if (includes) {
-		const includeGlobs = includes.map(toGlob);
-		output = es.merge(output, nodeModuleInput.pipe(_filter(includeGlobs)));
-	}
-
-	output = output.pipe(allFilter.restore);
 	return es.duplex(input, output);
 }
 
@@ -236,7 +234,7 @@ export function rimraf(dir: string): (cb: any) => void {
 			return cb(err);
 		});
 	};
-	retry.taskName = `clean-${path.basename(dir)}`;
+	retry.taskName = `clean-${path.basename(dir).toLowerCase()}`;
 	return retry;
 }
 
@@ -282,39 +280,4 @@ export function versionStringToNumber(versionStr: string) {
 	}
 
 	return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
-}
-
-export function download(requestOptions: IDownloadRequestOptions): NodeJS.ReadWriteStream {
-	const result = es.through();
-	const filename = path.join(REPO_ROOT, `.build/tmp-${Date.now()}-${path.posix.basename(requestOptions.path)}`);
-	const opts: IDownloadOptions = {
-		requestOptions: requestOptions,
-		destinationPath: filename
-	};
-	downloadInExternalProcess(opts).then(() => {
-		fs.stat(filename, (err, stat) => {
-			if (err) {
-				result.emit('error', err);
-				return;
-			}
-			fs.readFile(filename, (err, data) => {
-				if (err) {
-					result.emit('error', err);
-					return;
-				}
-				fs.unlink(filename, () => {
-					result.emit('data', new VinylFile({
-						path: path.normalize(requestOptions.path),
-						stat: stat,
-						base: path.normalize(requestOptions.path),
-						contents: data
-					}));
-					result.emit('end');
-				});
-			});
-		});
-	}, (err) => {
-		result.emit('error', err);
-	});
-	return result;
 }

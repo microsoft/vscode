@@ -6,7 +6,7 @@
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ISearchService, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { MainThreadWorkspace } from 'vs/workbench/api/electron-browser/mainThreadWorkspace';
+import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
 import * as assert from 'assert';
 import { SingleProxyRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -39,7 +39,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('foo', undefined, undefined, 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch('foo', null, null, 10, new CancellationTokenSource().token);
 	});
 
 	test('exclude defaults', () => {
@@ -61,7 +61,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', undefined, undefined, 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch('', null, null, 10, new CancellationTokenSource().token);
 	});
 
 	test('disregard excludes', () => {
@@ -82,7 +82,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', undefined, false, 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch('', null, false, 10, new CancellationTokenSource().token);
 	});
 
 	test('exclude string', () => {
@@ -96,6 +96,6 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', undefined, 'exclude/**', 10, new CancellationTokenSource().token);
+		return mtw.$startFileSearch('', null, 'exclude/**', 10, new CancellationTokenSource().token);
 	});
 });

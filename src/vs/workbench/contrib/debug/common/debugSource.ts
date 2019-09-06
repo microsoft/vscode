@@ -12,8 +12,10 @@ import { IRange } from 'vs/editor/common/core/range';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { ITextEditor } from 'vs/workbench/common/editor';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
-const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
+export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
 /**
  * Debug URI format
@@ -25,7 +27,6 @@ const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
  *         |          |                             |                          |
  *      scheme   source.path                    session id            source.reference
  *
- * the arbitrary_path and the session id are encoded with 'encodeURIComponent'
  *
  */
 
@@ -48,7 +49,11 @@ export class Source {
 		}
 
 		if (typeof this.raw.sourceReference === 'number' && this.raw.sourceReference > 0) {
-			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
+			this.uri = uri.from({
+				scheme: DEBUG_SCHEME,
+				path,
+				query: `session=${sessionId}&ref=${this.raw.sourceReference}`
+			});
 		} else {
 			if (isUri(path)) {	// path looks like a uri
 				this.uri = uri.parse(path);
@@ -59,7 +64,11 @@ export class Source {
 				} else {
 					// path is relative: since VS Code cannot deal with this by itself
 					// create a debug url that will result in a DAP 'source' request when the url is resolved.
-					this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}`);
+					this.uri = uri.from({
+						scheme: DEBUG_SCHEME,
+						path,
+						query: `session=${sessionId}`
+					});
 				}
 			}
 		}
@@ -85,18 +94,18 @@ export class Source {
 		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | null> {
 		return !this.available ? Promise.resolve(null) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,
 			options: {
 				preserveFocus,
 				selection,
-				revealIfVisible: true,
+				revealIfOpened: true,
 				revealInCenterIfOutsideViewport: true,
 				pinned: pinned || (!preserveFocus && !this.inMemory)
 			}
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(withUndefinedAsNull);
 	}
 
 	static getEncodedDebugData(modelUri: uri): { name: string, path: string, sessionId?: string, sourceReference?: number } {
@@ -117,7 +126,7 @@ export class Source {
 						if (pair.length === 2) {
 							switch (pair[0]) {
 								case 'session':
-									sessionId = decodeURIComponent(pair[1]);
+									sessionId = pair[1];
 									break;
 								case 'ref':
 									sourceReference = parseInt(pair[1]);

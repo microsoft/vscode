@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
@@ -36,16 +36,17 @@ export interface IOpenEditorOverride {
 	 * If defined, will prevent the opening of an editor and replace the resulting
 	 * promise with the provided promise for the openEditor() call.
 	 */
-	override?: Promise<IEditor | null | undefined>;
+	override?: Promise<IEditor | undefined>;
 }
 
-export interface IActiveEditor extends IEditor {
+export interface IVisibleEditor extends IEditor {
 	input: IEditorInput;
 	group: IEditorGroup;
 }
 
 export interface IEditorService {
-	_serviceBrand: ServiceIdentifier<any>;
+
+	_serviceBrand: undefined;
 
 	/**
 	 * Emitted when the currently active editor changes.
@@ -74,7 +75,7 @@ export interface IEditorService {
 	 *
 	 * @see `IEditorService.activeEditor`
 	 */
-	readonly activeControl: IActiveEditor | undefined;
+	readonly activeControl: IVisibleEditor | undefined;
 
 	/**
 	 * The currently active text editor widget or `undefined` if there is currently no active
@@ -93,7 +94,7 @@ export interface IEditorService {
 	/**
 	 * All editor controls that are currently visible across all editor groups.
 	 */
-	readonly visibleControls: ReadonlyArray<IEditor>;
+	readonly visibleControls: ReadonlyArray<IVisibleEditor>;
 
 	/**
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
@@ -116,13 +117,13 @@ export interface IEditorService {
 	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 *
-	 * @returns the editor that opened or NULL if the operation failed or the editor was not
+	 * @returns the editor that opened or `undefined` if the operation failed or the editor was not
 	 * opened to be active.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor | null>;
-	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditor | null>;
-	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditor | null>;
-	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextSideBySideEditor | null>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor | undefined>;
+	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditor | undefined>;
+	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditor | undefined>;
+	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextSideBySideEditor | undefined>;
 
 	/**
 	 * Open editors in an editor group.

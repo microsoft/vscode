@@ -19,14 +19,6 @@
 	cursor: pointer;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title .icon {
-	display: inline-block;
-	height: 16px;
-	width: 16px;
-	vertical-align: text-bottom;
-	margin-right: 4px;
-}
-
 .monaco-editor .peekview-widget .head .peekview-title .dirname:not(:empty) {
 	font-size: 0.9em;
 	margin-left: 0.5em;
@@ -65,7 +57,7 @@
 }
 
 .monaco-editor .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
-	background: url('close.svg') center center no-repeat;
+	background: url('close-light.svg') center center no-repeat;
 }
 
 .monaco-editor .peekview-widget > .body {
@@ -78,30 +70,23 @@
 
 .monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
 .monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
-	background: url('close-inverse.svg') center center no-repeat;
+	background: url('close-dark.svg') center center no-repeat;
 }
 
 .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up {
-	background: url('chevron-up-inverse.svg') center center no-repeat;
+	background: url('chevron-previous-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up {
-	background: url('chevron-up.svg') center center no-repeat;
-}
-
+.vs-dark .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up,
 .hc-black .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up {
-	background: url('chevron-up-inverse-hc.svg') center center no-repeat;
+	background: url('chevron-previous-dark.svg') center center no-repeat;
 }
 
 .monaco-editor .peekview-widget .peekview-actions .icon.chevron-down {
-	background: url('chevron-down-inverse.svg') center center no-repeat;
+	background: url('chevron-next-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-editor .peekview-widget .peekview-actions .icon.chevron-down {
-	background: url('chevron-down.svg') center center no-repeat;
-}
-
+.vs-dark .monaco-editor .peekview-widget .peekview-actions .icon.chevron-down,
 .hc-black .monaco-editor .peekview-widget .peekview-actions .icon.chevron-down {
-	background: url('chevron-down-hc.svg') center center no-repeat;
+	background: url('chevron-next-dark.svg') center center no-repeat;
 }
-

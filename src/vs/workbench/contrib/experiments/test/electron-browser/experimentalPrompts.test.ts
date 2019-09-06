@@ -7,13 +7,13 @@ import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, IPromptOptions, Severity } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ExperimentalPrompts } from 'vs/workbench/contrib/experiments/electron-browser/experimentalPrompt';
-import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService } from 'vs/workbench/contrib/experiments/node/experimentService';
+import { ExperimentalPrompts } from 'vs/workbench/contrib/experiments/browser/experimentalPrompt';
+import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService, LocalizedPromptText } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 
@@ -23,7 +23,7 @@ suite('Experimental Prompts', () => {
 	let experimentalPrompt: ExperimentalPrompts;
 	let onExperimentEnabledEvent: Emitter<IExperiment>;
 
-	let storageData = {};
+	let storageData: { [key: string]: any } = {};
 	const promptText = 'Hello there! Can you see this?';
 	const experiment: IExperiment =
 	{
@@ -37,7 +37,6 @@ suite('Experimental Prompts', () => {
 				commands: [
 					{
 						text: 'Yes',
-						externalLink: 'https://code.visualstudio.com'
 					},
 					{
 						text: 'No'
@@ -59,11 +58,11 @@ suite('Experimental Prompts', () => {
 
 	setup(() => {
 		storageData = {};
-		instantiationService.stub(IStorageService, {
-			get: (a, b, c) => a === 'experiments.experiment1' ? JSON.stringify(storageData) : c,
+		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
+			get: (a: string, b: StorageScope, c?: string) => a === 'experiments.experiment1' ? JSON.stringify(storageData) : c,
 			store: (a, b, c) => {
 				if (a === 'experiments.experiment1') {
-					storageData = JSON.parse(b);
+					storageData = JSON.parse(b + '');
 				}
 			}
 		});
@@ -91,10 +90,11 @@ suite('Experimental Prompts', () => {
 		};
 
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], options) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				c[0].run();
+				return undefined!;
 			}
 		});
 
@@ -115,10 +115,11 @@ suite('Experimental Prompts', () => {
 		};
 
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], options) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[]) => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				c[1].run();
+				return undefined!;
 			}
 		});
 
@@ -139,10 +140,11 @@ suite('Experimental Prompts', () => {
 		};
 
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], options) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
-				options.onCancel();
+				options.onCancel!();
+				return undefined!;
 			}
 		});
 
@@ -183,12 +185,13 @@ suite('Experimental Prompts', () => {
 		};
 
 		assert.equal(ExperimentalPrompts.getLocalizedText(simpleTextCase.promptText, 'any-language'), simpleTextCase.promptText);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en'), multipleLocaleCase.promptText['en']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'de'), multipleLocaleCase.promptText['de']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-au'), multipleLocaleCase.promptText['en-au']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-gb'), multipleLocaleCase.promptText['en']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'fr'), multipleLocaleCase.promptText['en']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(englishUSTextCase.promptText, 'fr'), englishUSTextCase.promptText['en-us']);
+		const multipleLocalePromptText = multipleLocaleCase.promptText as LocalizedPromptText;
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en'), multipleLocalePromptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'de'), multipleLocalePromptText['de']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-au'), multipleLocalePromptText['en-au']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-gb'), multipleLocalePromptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'fr'), multipleLocalePromptText['en']);
+		assert.equal(ExperimentalPrompts.getLocalizedText(englishUSTextCase.promptText, 'fr'), (englishUSTextCase.promptText as LocalizedPromptText)['en-us']);
 		assert.equal(!!ExperimentalPrompts.getLocalizedText(noEnglishTextCase.promptText, 'fr'), false);
 	});
 });

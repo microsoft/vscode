@@ -115,6 +115,13 @@ export class DragMouseEvent extends StandardMouseEvent {
 
 export interface IMouseWheelEvent extends MouseEvent {
 	readonly wheelDelta: number;
+	readonly wheelDeltaX: number;
+	readonly wheelDeltaY: number;
+
+	readonly deltaX: number;
+	readonly deltaY: number;
+	readonly deltaZ: number;
+	readonly deltaMode: number;
 }
 
 interface IWebKitMouseWheelEvent {
@@ -153,6 +160,8 @@ export class StandardWheelEvent {
 				this.deltaY = e1.wheelDeltaY / 120;
 			} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
 				this.deltaY = -e2.detail / 3;
+			} else {
+				this.deltaY = -e.deltaY / 40;
 			}
 
 			// horizontal delta scroll
@@ -164,6 +173,8 @@ export class StandardWheelEvent {
 				}
 			} else if (typeof e2.HORIZONTAL_AXIS !== 'undefined' && e2.axis === e2.HORIZONTAL_AXIS) {
 				this.deltaX = -e.detail / 3;
+			} else {
+				this.deltaX = -e.deltaX / 40;
 			}
 
 			// Assume a vertical scroll if nothing else worked

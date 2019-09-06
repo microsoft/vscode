@@ -40,7 +40,7 @@ export class Button extends Disposable {
 	private buttonForeground: Color | undefined;
 	private buttonBorder: Color | undefined;
 
-	private _onDidClick = this._register(new Emitter<any>());
+	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
 
 	private focusTracker: DOM.IFocusTracker;

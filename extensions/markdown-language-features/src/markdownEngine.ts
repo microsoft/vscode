@@ -47,6 +47,11 @@ class TokenCache {
 		};
 		this.tokens = tokens;
 	}
+
+	public clean(): void {
+		this.cachedDocument = undefined;
+		this.tokens = undefined;
+	}
 }
 
 export class MarkdownEngine {
@@ -113,7 +118,7 @@ export class MarkdownEngine {
 		return md;
 	}
 
-	private tokenize(
+	private tokenizeDocument(
 		document: SkinnyTextDocument,
 		config: MarkdownItConfig,
 		engine: MarkdownIt
@@ -126,16 +131,23 @@ export class MarkdownEngine {
 		this.currentDocument = document.uri;
 		this._slugCount = new Map<string, number>();
 
-		const text = document.getText();
-		const tokens = engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
+		const tokens = this.tokenizeString(document.getText(), engine);
 		this._tokenCache.update(document, config, tokens);
 		return tokens;
 	}
 
-	public async render(document: SkinnyTextDocument): Promise<string> {
-		const config = this.getConfig(document.uri);
+	private tokenizeString(text: string, engine: MarkdownIt) {
+		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
+	}
+
+	public async render(input: SkinnyTextDocument | string): Promise<string> {
+		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this.getEngine(config);
-		return engine.renderer.render(this.tokenize(document, config, engine), {
+		const tokens = typeof input === 'string'
+			? this.tokenizeString(input, engine)
+			: this.tokenizeDocument(input, config, engine);
+
+		return engine.renderer.render(tokens, {
 			...(engine as any).options,
 			...config
 		}, {});
@@ -144,10 +156,14 @@ export class MarkdownEngine {
 	public async parse(document: SkinnyTextDocument): Promise<Token[]> {
 		const config = this.getConfig(document.uri);
 		const engine = await this.getEngine(config);
-		return this.tokenize(document, config, engine);
+		return this.tokenizeDocument(document, config, engine);
 	}
 
-	private getConfig(resource: vscode.Uri): MarkdownItConfig {
+	public cleanCache(): void {
+		this._tokenCache.clean();
+	}
+
+	private getConfig(resource?: vscode.Uri): MarkdownItConfig {
 		const config = vscode.workspace.getConfiguration('markdown', resource);
 		return {
 			breaks: config.get<boolean>('preview.breaks', false),
@@ -216,7 +232,6 @@ export class MarkdownEngine {
 					return normalizeLink(externalSchemeUri.toString(true));
 				}
 
-
 				// Assume it must be an relative or absolute file path
 				// Use a fake scheme to avoid parse warnings
 				let uri = vscode.Uri.parse(`vscode-resource:${link}`);
@@ -253,7 +268,7 @@ export class MarkdownEngine {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
 			// support file:// links
-			return validateLink(link) || link.indexOf('file:') === 0;
+			return validateLink(link) || link.startsWith('file:') || /^data:image\/.*?;/.test(link);
 		};
 	}
 
@@ -289,13 +304,13 @@ async function getMarkdownOptions(md: () => MarkdownIt) {
 		html: true,
 		highlight: (str: string, lang?: string) => {
 			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
-			if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
+			if (lang && ['tsx', 'typescriptreact'].includes(lang.toLocaleLowerCase())) {
 				lang = 'jsx';
 			}
 			if (lang && lang.toLocaleLowerCase() === 'json5') {
 				lang = 'json';
 			}
-			if (lang && lang.toLocaleLowerCase() === 'c#') {
+			if (lang && ['c#', 'csharp'].includes(lang.toLocaleLowerCase())) {
 				lang = 'cs';
 			}
 			if (lang && hljs.getLanguage(lang)) {

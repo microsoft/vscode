@@ -121,7 +121,7 @@ class MarkerStats implements MarkerStatistics {
 
 export class MarkerService implements IMarkerService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _onMarkerChanged = new Emitter<URI[]>();
 	private _onMarkerChangedEvent: Event<URI[]> = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
@@ -201,7 +201,7 @@ export class MarkerService implements IMarkerService {
 		return {
 			resource,
 			owner,
-			code: code || undefined,
+			code,
 			severity,
 			message,
 			source,

@@ -21,7 +21,7 @@ export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
 	private viewModel: INotificationViewItem[];
-	private isVisible: boolean;
+	private isVisible: boolean | undefined;
 
 	constructor(
 		private container: HTMLElement,
@@ -70,8 +70,9 @@ export class NotificationsList extends Themable {
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
 
 		// List
-		this.list = this._register(<WorkbenchList<INotificationViewItem>>this.instantiationService.createInstance(
+		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList,
+			'NotificationsList',
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
@@ -219,7 +220,7 @@ export class NotificationsList extends Themable {
 			this.listContainer.style.background = background ? background.toString() : null;
 
 			const outlineColor = this.getColor(contrastBorder);
-			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : null;
+			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : '';
 		}
 	}
 

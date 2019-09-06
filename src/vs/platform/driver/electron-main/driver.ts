@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDriver, DriverChannel, IElement, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver, IDriverOptions } from 'vs/platform/driver/node/driver';
+import { DriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IDriverOptions } from 'vs/platform/driver/node/driver';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/node/ipc';
+import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
@@ -17,6 +17,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';
+import { IDriver, IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
 
 function isSilentKeyCode(keyCode: KeyCode) {
 	return keyCode < KeyCode.KEY_0;
@@ -24,7 +25,7 @@ function isSilentKeyCode(keyCode: KeyCode) {
 
 export class Driver implements IDriver, IWindowDriverRegistry {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private registeredWindowIds = new Set<number>();
 	private reloadingWindowIds = new Set<number>();
@@ -163,6 +164,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return await windowDriver.getElements(selector, recursive);
 	}
 
+	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return await windowDriver.getElementXY(selector, xoffset, yoffset);
+	}
+
 	async typeInEditor(windowId: number, selector: string, text: string): Promise<void> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		await windowDriver.typeInEditor(selector, text);
@@ -210,5 +216,5 @@ export async function serve(
 	const channel = new DriverChannel(driver);
 	server.registerChannel('driver', channel);
 
-	return combinedDisposable([server, windowServer]);
+	return combinedDisposable(server, windowServer);
 }

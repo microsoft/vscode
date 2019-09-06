@@ -5,7 +5,7 @@
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, TextDocument, tasks
+	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -34,6 +34,21 @@ export class NpmTaskProvider implements TaskProvider {
 	}
 
 	public resolveTask(_task: Task): Task | undefined {
+		const npmTask = (<any>_task.definition).script;
+		if (npmTask) {
+			const kind: NpmTaskDefinition = (<any>_task.definition);
+			let packageJsonUri: Uri;
+			if (_task.scope === undefined || _task.scope === TaskScope.Global || _task.scope === TaskScope.Workspace) {
+				// scope is required to be a WorkspaceFolder for resolveTask
+				return undefined;
+			}
+			if (kind.path) {
+				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.path + 'package.json' });
+			} else {
+				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
+			}
+			return createTask(kind, `run ${kind.script}`, _task.scope, packageJsonUri);
+		}
 		return undefined;
 	}
 }
@@ -221,7 +236,13 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
+export function createTask(script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
+	let kind: NpmTaskDefinition;
+	if (typeof script === 'string') {
+		kind = { type: 'npm', script: script };
+	} else {
+		kind = script;
+	}
 
 	function getCommandLine(folder: WorkspaceFolder, cmd: string): string {
 		let packageManager = getPackageManager(folder);
@@ -237,15 +258,11 @@ export function createTask(script: string, cmd: string, folder: WorkspaceFolder,
 		return absolutePath.substring(rootUri.path.length + 1);
 	}
 
-	let kind: NpmTaskDefinition = {
-		type: 'npm',
-		script: script
-	};
 	let relativePackageJson = getRelativePath(folder, packageJsonUri);
 	if (relativePackageJson.length) {
 		kind.path = getRelativePath(folder, packageJsonUri);
 	}
-	let taskName = getTaskName(script, relativePackageJson);
+	let taskName = getTaskName(kind.script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);
 	return new Task(kind, folder, taskName, 'npm', new ShellExecution(getCommandLine(folder, cmd), { cwd: cwd }), matcher);
 }
@@ -260,6 +277,22 @@ export function getPackageJsonUriFromTask(task: Task): Uri | null {
 		}
 	}
 	return null;
+}
+
+export async function hasPackageJson(): Promise<boolean> {
+	let folders = workspace.workspaceFolders;
+	if (!folders) {
+		return false;
+	}
+	for (const folder of folders) {
+		if (folder.uri.scheme === 'file') {
+			let packageJson = path.join(folder.uri.fsPath, 'package.json');
+			if (await exists(packageJson)) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 async function exists(file: string): Promise<boolean> {

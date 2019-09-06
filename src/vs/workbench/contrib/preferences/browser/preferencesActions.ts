@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -48,7 +48,7 @@ export class OpenSettings2Action extends Action {
 	}
 
 	run(event?: any): Promise<any> {
-		return this.preferencesService.openSettings(false);
+		return this.preferencesService.openSettings(false, undefined);
 	}
 }
 
@@ -66,7 +66,7 @@ export class OpenSettingsJsonAction extends Action {
 	}
 
 	run(event?: any): Promise<any> {
-		return this.preferencesService.openSettings(true);
+		return this.preferencesService.openSettings(true, undefined);
 	}
 }
 
@@ -85,6 +85,23 @@ export class OpenGlobalSettingsAction extends Action {
 
 	run(event?: any): Promise<any> {
 		return this.preferencesService.openGlobalSettings();
+	}
+}
+
+export class OpenRemoteSettingsAction extends Action {
+
+	static readonly ID = 'workbench.action.openRemoteSettings';
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+	) {
+		super(id, label);
+	}
+
+	run(event?: any): Promise<any> {
+		return this.preferencesService.openRemoteSettings();
 	}
 }
 
@@ -147,7 +164,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 	static readonly ID = 'workbench.action.openWorkspaceSettings';
 	static readonly LABEL = nls.localize('openWorkspaceSettings', "Open Workspace Settings");
 
-	private disposables: IDisposable[] = [];
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		id: string,
@@ -157,7 +174,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 	) {
 		super(id, label);
 		this.update();
-		this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
+		this.disposables.add(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
 	}
 
 	private update(): void {
@@ -169,7 +186,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		super.dispose();
 	}
 }
@@ -208,7 +225,7 @@ export class OpenFolderSettingsAction extends Action {
 					return this.preferencesService.openFolderSettings(workspaceFolder.uri);
 				}
 
-				return null;
+				return undefined;
 			});
 	}
 

@@ -7,20 +7,19 @@ import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
 import { Position as EditorPosition, Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import { MainThreadLanguageFeatures } from 'vs/workbench/api/electron-browser/mainThreadLanguageFeatures';
-import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
-import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapService';
-import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
+import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import * as modes from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
@@ -33,11 +32,10 @@ import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { rename } from 'vs/editor/contrib/rename/rename';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
-import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits, FormatMode } from 'vs/editor/contrib/format/format';
+import { getDocumentFormattingEditsUntilResult, getDocumentRangeFormattingEditsUntilResult, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/format';
 import { getLinks } from 'vs/editor/contrib/links/getLinks';
-import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
+import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -46,10 +44,10 @@ import { getColors } from 'vs/editor/contrib/colorPicker/color';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { nullExtensionDescription as defaultExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { dispose } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -81,12 +79,6 @@ suite('ExtHostLanguageFeatures', function () {
 		{
 			let instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
-			instantiationService.stub(IHeapService, {
-				_serviceBrand: undefined,
-				trackObject(_obj: any) {
-					// nothing
-				}
-			});
 			inst = instantiationService;
 		}
 
@@ -107,16 +99,14 @@ suite('ExtHostLanguageFeatures', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		const heapService = new ExtHostHeapService();
-
-		const commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		const commands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics, new NullLogService());
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -199,7 +189,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
+		assert.equal(value.lenses.length, 1);
 	});
 
 	test('CodeLens, do not resolve a resolved lens', async () => {
@@ -217,8 +207,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		const data = value[0];
+		assert.equal(value.lenses.length, 1);
+		const [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
 		assert.equal(symbol!.command!.id, 'id');
 		assert.equal(symbol!.command!.title, 'Title');
@@ -234,8 +224,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getCodeLensData(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		let data = value[0];
+		assert.equal(value.lenses.length, 1);
+		let [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
 		assert.equal(symbol!.command!.id, 'missing');
 		assert.equal(symbol!.command!.title, '!!MISSING: command!!');
@@ -600,9 +590,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 2);
-		const [first, second] = value;
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 2);
+		const [first, second] = actions;
 		assert.equal(first.title, 'Testing1');
 		assert.equal(first.command!.id, 'test1');
 		assert.equal(second.title, 'Testing2');
@@ -624,9 +614,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 1);
-		const [first] = value;
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 1);
+		const [first] = actions;
 		assert.equal(first.title, 'Testing1');
 		assert.equal(first.command!.title, 'Testing1Command');
 		assert.equal(first.command!.id, 'test1');
@@ -647,8 +637,8 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 1);
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 1);
 	});
 
 	test('Quick Fix, evil provider', async () => {
@@ -665,8 +655,8 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
-		assert.equal(value.length, 1);
+		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		assert.equal(actions.length, 1);
 	});
 
 	// --- navigate types
@@ -911,8 +901,8 @@ suite('ExtHostLanguageFeatures', function () {
 	// --- format
 
 	const NullWorkerService = new class extends mock<IEditorWorkerService>() {
-		computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | null | undefined> {
-			return Promise.resolve(edits);
+		computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
+			return Promise.resolve(withNullAsUndefined(edits));
 		}
 	};
 
@@ -924,7 +914,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = (await getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None))!;
+		let value = (await getDocumentFormattingEditsUntilResult(NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
 		assert.equal(value.length, 2);
 		let [first, second] = value;
 		assert.equal(first.text, 'testing');
@@ -942,7 +932,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		return getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None);
+		return getDocumentFormattingEditsUntilResult(NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
 	});
 
 	test('Format Doc, order', async () => {
@@ -966,7 +956,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = (await getDocumentFormattingEdits(NullTelemetryService, NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None))!;
+		let value = (await getDocumentFormattingEditsUntilResult(NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
 		assert.equal(value.length, 1);
 		let [first] = value;
 		assert.equal(first.text, 'testing');
@@ -981,7 +971,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None))!;
+		const value = (await getDocumentRangeFormattingEditsUntilResult(NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
 		assert.equal(value.length, 1);
 		const [first] = value;
 		assert.equal(first.text, 'testing');
@@ -1005,7 +995,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 		await rpcProtocol.sync();
-		const value = (await getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None))!;
+		const value = (await getDocumentRangeFormattingEditsUntilResult(NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
 		assert.equal(value.length, 1);
 		const [first] = value;
 		assert.equal(first.text, 'range2');
@@ -1023,7 +1013,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		return getDocumentRangeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, FormatMode.Auto, CancellationToken.None);
+		return getDocumentRangeFormattingEditsUntilResult(NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
 	});
 
 	test('Format on Type, data conversion', async () => {
@@ -1035,7 +1025,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, [';']));
 
 		await rpcProtocol.sync();
-		const value = (await getOnTypeFormattingEdits(NullTelemetryService, NullWorkerService, model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }))!;
+		const value = (await getOnTypeFormattingEdits(NullWorkerService, model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }))!;
 		assert.equal(value.length, 1);
 		const [first] = value;
 		assert.equal(first.text, ';');
@@ -1046,16 +1036,19 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentLinkProvider {
 			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
+				const link = new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'));
+				link.tooltip = 'tooltip';
+				return [link];
 			}
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getLinks(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		let [first] = value;
+		let { links } = await getLinks(model, CancellationToken.None);
+		assert.equal(links.length, 1);
+		let [first] = links;
 		assert.equal(first.url, 'foo:bar#3');
 		assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+		assert.equal(first.tooltip, 'tooltip');
 	});
 
 	test('Links, evil provider', async () => {
@@ -1073,9 +1066,9 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getLinks(model, CancellationToken.None);
-		assert.equal(value.length, 1);
-		let [first] = value;
+		let { links } = await getLinks(model, CancellationToken.None);
+		assert.equal(links.length, 1);
+		let [first] = links;
 		assert.equal(first.url, 'foo:bar#3');
 		assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
 	});
@@ -1104,10 +1097,9 @@ suite('ExtHostLanguageFeatures', function () {
 	test('Selection Ranges, data conversion', async () => {
 		disposables.push(extHost.registerSelectionRangeProvider(defaultExtension, defaultSelector, new class implements vscode.SelectionRangeProvider {
 			provideSelectionRanges() {
-				return [[
-					new types.SelectionRange(new types.Range(0, 10, 0, 18), types.SelectionRangeKind.Empty),
-					new types.SelectionRange(new types.Range(0, 2, 0, 20), types.SelectionRangeKind.Empty)
-				]];
+				return [
+					new types.SelectionRange(new types.Range(0, 10, 0, 18), new types.SelectionRange(new types.Range(0, 2, 0, 20))),
+				];
 			}
 		}));
 
@@ -1117,5 +1109,18 @@ suite('ExtHostLanguageFeatures', function () {
 			assert.equal(ranges.length, 1);
 			assert.ok(ranges[0].length >= 2);
 		});
+	});
+
+	test('Selection Ranges, bad data', async () => {
+
+		try {
+			let _a = new types.SelectionRange(new types.Range(0, 10, 0, 18),
+				new types.SelectionRange(new types.Range(0, 11, 0, 18))
+			);
+			assert.ok(false, String(_a));
+		} catch (err) {
+			assert.ok(true);
+		}
+
 	});
 });

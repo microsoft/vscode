@@ -84,7 +84,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 
 	getResults(text: string, token: CancellationToken): Promise<IModel<any>> {
 		if (/\./.test(text)) {
-			return this.galleryService.query({ names: [text], pageSize: 1 })
+			return this.galleryService.query({ names: [text], pageSize: 1 }, token)
 				.then(galleryResult => {
 					const entries: SimpleEntry[] = [];
 					const galleryExtension = galleryResult.firstPage[0];

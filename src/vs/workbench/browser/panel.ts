@@ -25,7 +25,7 @@ export class PanelDescriptor extends CompositeDescriptor<Panel> {
 }
 
 export class PanelRegistry extends CompositeRegistry<Panel> {
-	private defaultPanelId: string;
+	private defaultPanelId!: string;
 
 	/**
 	 * Registers a panel to the platform.
@@ -42,10 +42,17 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	}
 
 	/**
+	 * Returns a panel by id.
+	 */
+	getPanel(id: string): PanelDescriptor | null {
+		return this.getComposite(id);
+	}
+
+	/**
 	 * Returns an array of registered panels known to the platform.
 	 */
 	getPanels(): PanelDescriptor[] {
-		return this.getComposites() as PanelDescriptor[];
+		return this.getComposites();
 	}
 
 	/**
@@ -75,18 +82,15 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
  */
 export abstract class TogglePanelAction extends Action {
 
-	private panelId: string;
-
 	constructor(
 		id: string,
 		label: string,
-		panelId: string,
+		private readonly panelId: string,
 		protected panelService: IPanelService,
 		private layoutService: IWorkbenchLayoutService,
 		cssClass?: string
 	) {
 		super(id, label, cssClass);
-		this.panelId = panelId;
 	}
 
 	run(): Promise<any> {

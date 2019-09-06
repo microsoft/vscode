@@ -6,21 +6,24 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { URI } from 'vs/base/common/uri';
 
 export class GettingStarted implements IWorkbenchContribution {
 
 	private static readonly hideWelcomeSettingskey = 'workbench.hide.welcome';
 
-	private welcomePageURL: string;
+	private welcomePageURL?: string;
 	private appName: string;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		this.appName = product.nameLong;
 
@@ -50,7 +53,7 @@ export class GettingStarted implements IWorkbenchContribution {
 		if (platform.isLinux && platform.isRootUser()) {
 			return;
 		}
-		window.open(url);
+		this.openerService.open(URI.parse(url));
 	}
 
 	private handleWelcome(): void {

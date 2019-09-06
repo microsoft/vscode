@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { ArrayIterator } from 'vs/base/common/iterator';
 import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 
-function makeItem(id, height): any {
+function makeItem(id: any, height: any): any {
 	return {
 		id: id,
 		getHeight: function () { return height; },

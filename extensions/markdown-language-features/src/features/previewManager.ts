@@ -6,32 +6,32 @@
 import * as vscode from 'vscode';
 import { Logger } from '../logger';
 import { MarkdownContributionProvider } from '../markdownExtensions';
-import { disposeAll } from '../util/dispose';
+import { disposeAll, Disposable } from '../util/dispose';
 import { MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreview, PreviewSettings } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';
 
 
-export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
+export class MarkdownPreviewManager extends Disposable implements vscode.WebviewPanelSerializer {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
 	private readonly _topmostLineMonitor = new MarkdownFileTopmostLineMonitor();
 	private readonly _previewConfigurations = new MarkdownPreviewConfigurationManager();
 	private readonly _previews: MarkdownPreview[] = [];
 	private _activePreview: MarkdownPreview | undefined = undefined;
-	private readonly _disposables: vscode.Disposable[] = [];
 
 	public constructor(
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _logger: Logger,
 		private readonly _contributions: MarkdownContributionProvider
 	) {
-		this._disposables.push(vscode.window.registerWebviewPanelSerializer(MarkdownPreview.viewType, this));
+		super();
+		this._register(vscode.window.registerWebviewPanelSerializer(MarkdownPreview.viewType, this));
 	}
 
 	public dispose(): void {
-		disposeAll(this._disposables);
+		super.dispose();
 		disposeAll(this._previews);
 	}
 
@@ -63,6 +63,10 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 
 	public get activePreviewResource() {
 		return this._activePreview && this._activePreview.resource;
+	}
+
+	public get activePreviewResourceColumn() {
+		return this._activePreview && this._activePreview.resourceColumn;
 	}
 
 	public toggleLock() {
@@ -110,6 +114,7 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 		const preview = MarkdownPreview.create(
 			resource,
 			previewSettings.previewColumn,
+			previewSettings.resourceColumn,
 			previewSettings.locked,
 			this._contentProvider,
 			this._previewConfigurations,

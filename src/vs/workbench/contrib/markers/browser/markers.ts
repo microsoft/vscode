@@ -5,7 +5,7 @@
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkersModel, compareMarkersByUri } from './markersModel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/common/markers';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { localize } from 'vs/nls';
@@ -13,6 +13,8 @@ import Constants from './constants';
 import { URI } from 'vs/base/common/uri';
 import { groupBy } from 'vs/base/common/arrays';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Event } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
@@ -22,12 +24,12 @@ export interface IFilter {
 }
 
 export interface IMarkersWorkbenchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	readonly markersModel: MarkersModel;
 }
 
 export class MarkersWorkbenchService extends Disposable implements IMarkersWorkbenchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly markersModel: MarkersModel;
 
@@ -38,17 +40,16 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		super();
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel, this.readMarkers()));
 
-		for (const group of groupBy(this.readMarkers(), compareMarkersByUri)) {
-			this.markersModel.setResourceMarkers(group[0].resource, group);
-		}
-
-		this._register(markerService.onMarkerChanged(resources => this.onMarkerChanged(resources)));
+		this.markersModel.setResourceMarkers(groupBy(this.readMarkers(), compareMarkersByUri).map(group => [group[0].resource, group]));
+		this._register(Event.debounce<URI[], ResourceMap<URI>>(markerService.onMarkerChanged, (resourcesMap, resources) => {
+			resourcesMap = resourcesMap ? resourcesMap : new ResourceMap<URI>();
+			resources.forEach(resource => resourcesMap!.set(resource, resource));
+			return resourcesMap;
+		}, 0)(resourcesMap => this.onMarkerChanged(resourcesMap.values())));
 	}
 
 	private onMarkerChanged(resources: URI[]): void {
-		for (const resource of resources) {
-			this.markersModel.setResourceMarkers(resource, this.readMarkers(resource));
-		}
+		this.markersModel.setResourceMarkers(resources.map(resource => [resource, this.readMarkers(resource)]));
 	}
 
 	private readMarkers(resource?: URI): IMarker[] {
@@ -59,18 +60,21 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 
 export class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
+	private readonly activity = this._register(new MutableDisposable<IDisposable>());
+
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
-		@IMarkersWorkbenchService private readonly markersWorkbenchService: IMarkersWorkbenchService
+		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
-		this._register(this.markersWorkbenchService.markersModel.onDidChange(() => this.updateBadge()));
+		this._register(this.markerService.onMarkerChanged(() => this.updateBadge()));
 		this.updateBadge();
 	}
 
 	private updateBadge(): void {
-		const total = this.markersWorkbenchService.markersModel.resourceMarkers.reduce((r, rm) => r + rm.markers.length, 0);
+		const { errors, warnings, infos } = this.markerService.getStatistics();
+		const total = errors + warnings + infos;
 		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(total, () => message));
+		this.activity.value = this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(total, () => message));
 	}
 }

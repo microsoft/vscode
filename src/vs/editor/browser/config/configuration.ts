@@ -11,10 +11,9 @@ import * as platform from 'vs/base/common/platform';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 class CSSBasedConfigurationCache {
@@ -62,28 +61,17 @@ export function readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
 	return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
 }
 
-export function restoreFontInfo(storageService: IStorageService): void {
-	const strStoredFontInfo = storageService.get('editorFontInfo', StorageScope.GLOBAL);
-	if (typeof strStoredFontInfo !== 'string') {
-		return;
-	}
-	let storedFontInfo: ISerializedFontInfo[] | null = null;
-	try {
-		storedFontInfo = JSON.parse(strStoredFontInfo);
-	} catch (err) {
-		return;
-	}
-	if (!Array.isArray(storedFontInfo)) {
-		return;
-	}
-	CSSBasedConfiguration.INSTANCE.restoreFontInfo(storedFontInfo);
+export function restoreFontInfo(fontInfo: ISerializedFontInfo[]): void {
+	CSSBasedConfiguration.INSTANCE.restoreFontInfo(fontInfo);
 }
 
-export function saveFontInfo(storageService: IStorageService): void {
-	const knownFontInfo = CSSBasedConfiguration.INSTANCE.saveFontInfo();
-	if (knownFontInfo.length > 0) {
-		storageService.store('editorFontInfo', JSON.stringify(knownFontInfo), StorageScope.GLOBAL);
+export function serializeFontInfo(): ISerializedFontInfo[] | null {
+	const fontInfo = CSSBasedConfiguration.INSTANCE.saveFontInfo();
+	if (fontInfo.length > 0) {
+		return fontInfo;
 	}
+
+	return null;
 }
 
 export interface ISerializedFontInfo {
@@ -320,14 +308,19 @@ export class Configuration extends CommonEditorConfiguration {
 
 	private readonly _elementSizeObserver: ElementSizeObserver;
 
-	constructor(options: IEditorOptions, referenceDomElement: HTMLElement | null = null, private readonly accessibilityService: IAccessibilityService) {
-		super(options);
+	constructor(
+		isSimpleWidget: boolean,
+		options: IEditorOptions,
+		referenceDomElement: HTMLElement | null = null,
+		private readonly accessibilityService: IAccessibilityService
+	) {
+		super(isSimpleWidget, options);
 
 		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
 
-		if (this._validatedOptions.automaticLayout) {
+		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
 			this._elementSizeObserver.startObserving();
 		}
 

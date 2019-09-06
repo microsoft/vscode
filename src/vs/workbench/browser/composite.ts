@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
@@ -30,12 +30,12 @@ import { Disposable } from 'vs/base/common/lifecycle';
 export abstract class Composite extends Component implements IComposite {
 
 	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
-	get onTitleAreaUpdate(): Event<void> { return this._onTitleAreaUpdate.event; }
+	readonly onTitleAreaUpdate: Event<void> = this._onTitleAreaUpdate.event;
 
 	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
-	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
-	private _onDidFocus: Emitter<void>;
+	private _onDidFocus!: Emitter<void>;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
 			this.registerFocusTrackEvents();
@@ -44,7 +44,13 @@ export abstract class Composite extends Component implements IComposite {
 		return this._onDidFocus.event;
 	}
 
-	private _onDidBlur: Emitter<void>;
+	protected fireOnDidFocus(): void {
+		if (this._onDidFocus) {
+			this._onDidFocus.fire();
+		}
+	}
+
+	private _onDidBlur!: Emitter<void>;
 	get onDidBlur(): Event<void> {
 		if (!this._onDidBlur) {
 			this.registerFocusTrackEvents();
@@ -62,10 +68,10 @@ export abstract class Composite extends Component implements IComposite {
 		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
-	protected actionRunner: IActionRunner;
+	protected actionRunner: IActionRunner | undefined;
 
 	private visible: boolean;
-	private parent: HTMLElement;
+	private parent!: HTMLElement;
 
 	constructor(
 		id: string,
@@ -78,8 +84,8 @@ export abstract class Composite extends Component implements IComposite {
 		this.visible = false;
 	}
 
-	getTitle(): string | null {
-		return null;
+	getTitle(): string | undefined {
+		return undefined;
 	}
 
 	protected get telemetryService(): ITelemetryService {
@@ -144,7 +150,7 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Returns an array of actions to show in the action bar of the composite.
 	 */
-	getActions(): IAction[] {
+	getActions(): ReadonlyArray<IAction> {
 		return [];
 	}
 
@@ -152,31 +158,31 @@ export abstract class Composite extends Component implements IComposite {
 	 * Returns an array of actions to show in the action bar of the composite
 	 * in a less prominent way then action from getActions.
 	 */
-	getSecondaryActions(): IAction[] {
+	getSecondaryActions(): ReadonlyArray<IAction> {
 		return [];
 	}
 
 	/**
 	 * Returns an array of actions to show in the context menu of the composite
 	 */
-	getContextMenuActions(): IAction[] {
+	getContextMenuActions(): ReadonlyArray<IAction> {
 		return [];
 	}
 
 	/**
-	 * For any of the actions returned by this composite, provide an IActionItem in
+	 * For any of the actions returned by this composite, provide an IActionViewItem in
 	 * cases where the implementor of the composite wants to override the presentation
-	 * of an action. Returns null to indicate that the action is not rendered through
+	 * of an action. Returns undefined to indicate that the action is not rendered through
 	 * an action item.
 	 */
-	getActionItem(action: IAction): IActionItem | null {
-		return null;
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
+		return undefined;
 	}
 
 	/**
 	 * Provide a context to be passed to the toolbar.
 	 */
-	getActionsContext(): any {
+	getActionsContext(): unknown {
 		return null;
 	}
 
@@ -210,10 +216,10 @@ export abstract class Composite extends Component implements IComposite {
 	}
 
 	/**
-	 * Returns the underlying composite control or null if it is not accessible.
+	 * Returns the underlying composite control or `undefined` if it is not accessible.
 	 */
-	getControl(): ICompositeControl | null {
-		return null;
+	getControl(): ICompositeControl | undefined {
+		return undefined;
 	}
 }
 
@@ -257,7 +263,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 
 	protected deregisterComposite(id: string): void {
 		const descriptor = this.compositeById(id);
-		if (descriptor === null) {
+		if (!descriptor) {
 			return;
 		}
 

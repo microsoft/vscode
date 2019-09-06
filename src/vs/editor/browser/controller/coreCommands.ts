@@ -294,20 +294,20 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.moveTo(cursors.context, cursors.getPrimaryCursor(), this._inSelectionMode, args.position, args.viewPosition)
 				]
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
 	export const MoveTo: CoreEditorCommand = registerEditorCommand(new BaseMoveToCommand({
 		id: '_moveTo',
 		inSelectionMode: false,
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const MoveToSelect: CoreEditorCommand = registerEditorCommand(new BaseMoveToCommand({
 		id: '_moveToSelect',
 		inSelectionMode: true,
-		precondition: null
+		precondition: undefined
 	}));
 
 	abstract class ColumnSelectCommand extends CoreEditorCommand {
@@ -316,10 +316,13 @@ export namespace CoreNavigationCommands {
 			const result = this._getColumnSelectResult(cursors.context, cursors.getPrimaryCursor(), cursors.getColumnSelectData(), args);
 			cursors.setStates(args.source, CursorChangeReason.Explicit, result.viewStates.map((viewState) => CursorState.fromViewState(viewState)));
 			cursors.setColumnSelectData({
+				isReal: true,
+				fromViewLineNumber: result.fromLineNumber,
+				fromViewVisualColumn: result.fromVisualColumn,
 				toViewLineNumber: result.toLineNumber,
 				toViewVisualColumn: result.toVisualColumn
 			});
-			cursors.reveal(true, (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost), ScrollType.Smooth);
+			cursors.reveal(args.source, true, (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost), ScrollType.Smooth);
 		}
 
 		protected abstract _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult;
@@ -330,7 +333,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'columnSelect',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -338,15 +341,15 @@ export namespace CoreNavigationCommands {
 
 			// validate `args`
 			const validatedPosition = context.model.validatePosition(args.position);
+			const validatedViewPosition = context.validateViewPosition(new Position(args.viewPosition.lineNumber, args.viewPosition.column), validatedPosition);
 
-			let validatedViewPosition: Position;
-			if (args.viewPosition) {
-				validatedViewPosition = context.validateViewPosition(new Position(args.viewPosition.lineNumber, args.viewPosition.column), validatedPosition);
-			} else {
-				validatedViewPosition = context.convertModelPositionToViewPosition(validatedPosition);
+			let fromViewLineNumber = prevColumnSelectData.fromViewLineNumber;
+			let fromViewVisualColumn = prevColumnSelectData.fromViewVisualColumn;
+			if (!prevColumnSelectData.isReal && args.setAnchorIfNotSet) {
+				fromViewLineNumber = validatedViewPosition.lineNumber;
+				fromViewVisualColumn = args.mouseColumn - 1;
 			}
-
-			return ColumnSelection.columnSelect(context.config, context.viewModel, primary.viewState.selection, validatedViewPosition.lineNumber, args.mouseColumn - 1);
+			return ColumnSelection.columnSelect(context.config, context.viewModel, fromViewLineNumber, fromViewVisualColumn, validatedViewPosition.lineNumber, args.mouseColumn - 1);
 		}
 	});
 
@@ -354,7 +357,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'cursorColumnSelectLeft',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -365,7 +368,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		protected _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectLeft(context.config, context.viewModel, primary.viewState, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
+			return ColumnSelection.columnSelectLeft(context.config, context.viewModel, prevColumnSelectData);
 		}
 	});
 
@@ -373,7 +376,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'cursorColumnSelectRight',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -384,7 +387,7 @@ export namespace CoreNavigationCommands {
 		}
 
 		protected _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectRight(context.config, context.viewModel, primary.viewState, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
+			return ColumnSelection.columnSelectRight(context.config, context.viewModel, prevColumnSelectData);
 		}
 	});
 
@@ -398,14 +401,14 @@ export namespace CoreNavigationCommands {
 		}
 
 		protected _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectUp(context.config, context.viewModel, primary.viewState, this._isPaged, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
+			return ColumnSelection.columnSelectUp(context.config, context.viewModel, prevColumnSelectData, this._isPaged);
 		}
 	}
 
 	export const CursorColumnSelectUp: CoreEditorCommand = registerEditorCommand(new ColumnSelectUpCommand({
 		isPaged: false,
 		id: 'cursorColumnSelectUp',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -417,7 +420,7 @@ export namespace CoreNavigationCommands {
 	export const CursorColumnSelectPageUp: CoreEditorCommand = registerEditorCommand(new ColumnSelectUpCommand({
 		isPaged: true,
 		id: 'cursorColumnSelectPageUp',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -436,14 +439,14 @@ export namespace CoreNavigationCommands {
 		}
 
 		protected _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult {
-			return ColumnSelection.columnSelectDown(context.config, context.viewModel, primary.viewState, this._isPaged, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn);
+			return ColumnSelection.columnSelectDown(context.config, context.viewModel, prevColumnSelectData, this._isPaged);
 		}
 	}
 
 	export const CursorColumnSelectDown: CoreEditorCommand = registerEditorCommand(new ColumnSelectDownCommand({
 		isPaged: false,
 		id: 'cursorColumnSelectDown',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -455,7 +458,7 @@ export namespace CoreNavigationCommands {
 	export const CursorColumnSelectPageDown: CoreEditorCommand = registerEditorCommand(new ColumnSelectDownCommand({
 		isPaged: true,
 		id: 'cursorColumnSelectPageDown',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -468,7 +471,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'cursorMove',
-				precondition: null,
+				precondition: undefined,
 				description: CursorMove_.description
 			});
 		}
@@ -489,7 +492,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.move(cursors.context, cursors.getAll(), args)
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -531,7 +534,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorLeft',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -548,7 +551,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorLeftSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -564,7 +567,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorRight',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -581,7 +584,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorRightSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -597,7 +600,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorUp',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -614,7 +617,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorUpSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -633,7 +636,7 @@ export namespace CoreNavigationCommands {
 			value: Constants.PAGE_SIZE_MARKER
 		},
 		id: 'cursorPageUp',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -649,7 +652,7 @@ export namespace CoreNavigationCommands {
 			value: Constants.PAGE_SIZE_MARKER
 		},
 		id: 'cursorPageUpSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -665,7 +668,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorDown',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -682,7 +685,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorDownSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -701,7 +704,7 @@ export namespace CoreNavigationCommands {
 			value: Constants.PAGE_SIZE_MARKER
 		},
 		id: 'cursorPageDown',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -717,7 +720,7 @@ export namespace CoreNavigationCommands {
 			value: Constants.PAGE_SIZE_MARKER
 		},
 		id: 'cursorPageDownSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -729,7 +732,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'createCursor',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -790,7 +793,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: '_lastCursorMoveToSelect',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -828,14 +831,14 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToBeginningOfLine(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
 	export const CursorHome: CoreEditorCommand = registerEditorCommand(new HomeCommand({
 		inSelectionMode: false,
 		id: 'cursorHome',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -847,7 +850,7 @@ export namespace CoreNavigationCommands {
 	export const CursorHomeSelect: CoreEditorCommand = registerEditorCommand(new HomeCommand({
 		inSelectionMode: true,
 		id: 'cursorHomeSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -860,7 +863,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'cursorLineStart',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -877,7 +880,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				this._exec(cursors.context, cursors.getAll())
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 
 		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
@@ -907,14 +910,14 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToEndOfLine(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
 	export const CursorEnd: CoreEditorCommand = registerEditorCommand(new EndCommand({
 		inSelectionMode: false,
 		id: 'cursorEnd',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -926,7 +929,7 @@ export namespace CoreNavigationCommands {
 	export const CursorEndSelect: CoreEditorCommand = registerEditorCommand(new EndCommand({
 		inSelectionMode: true,
 		id: 'cursorEndSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -939,7 +942,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'cursorLineEnd',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -956,7 +959,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				this._exec(cursors.context, cursors.getAll())
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 
 		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
@@ -987,14 +990,14 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToBeginningOfBuffer(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
 	export const CursorTop: CoreEditorCommand = registerEditorCommand(new TopCommand({
 		inSelectionMode: false,
 		id: 'cursorTop',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -1006,7 +1009,7 @@ export namespace CoreNavigationCommands {
 	export const CursorTopSelect: CoreEditorCommand = registerEditorCommand(new TopCommand({
 		inSelectionMode: true,
 		id: 'cursorTopSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -1031,14 +1034,14 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToEndOfBuffer(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
 	export const CursorBottom: CoreEditorCommand = registerEditorCommand(new BottomCommand({
 		inSelectionMode: false,
 		id: 'cursorBottom',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -1050,7 +1053,7 @@ export namespace CoreNavigationCommands {
 	export const CursorBottomSelect: CoreEditorCommand = registerEditorCommand(new BottomCommand({
 		inSelectionMode: true,
 		id: 'cursorBottomSelect',
-		precondition: null,
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -1063,7 +1066,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'editorScroll',
-				precondition: null,
+				precondition: undefined,
 				description: EditorScroll_.description
 			});
 		}
@@ -1134,7 +1137,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'scrollLineUp',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1159,7 +1162,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'scrollPageUp',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1185,7 +1188,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'scrollLineDown',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1210,7 +1213,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'scrollPageDown',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1250,27 +1253,27 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.word(cursors.context, cursors.getPrimaryCursor(), this._inSelectionMode, args.position)
 				]
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
 	export const WordSelect: CoreEditorCommand = registerEditorCommand(new WordCommand({
 		inSelectionMode: false,
 		id: '_wordSelect',
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const WordSelectDrag: CoreEditorCommand = registerEditorCommand(new WordCommand({
 		inSelectionMode: true,
 		id: '_wordSelectDrag',
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const LastCursorWordSelect: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
 				id: 'lastCursorWordSelect',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -1310,20 +1313,20 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.line(cursors.context, cursors.getPrimaryCursor(), this._inSelectionMode, args.position, args.viewPosition)
 				]
 			);
-			cursors.reveal(false, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, false, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
 	export const LineSelect: CoreEditorCommand = registerEditorCommand(new LineCommand({
 		inSelectionMode: false,
 		id: '_lineSelect',
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const LineSelectDrag: CoreEditorCommand = registerEditorCommand(new LineCommand({
 		inSelectionMode: true,
 		id: '_lineSelectDrag',
-		precondition: null
+		precondition: undefined
 	}));
 
 	class LastCursorLineCommand extends CoreEditorCommand {
@@ -1353,20 +1356,20 @@ export namespace CoreNavigationCommands {
 	export const LastCursorLineSelect: CoreEditorCommand = registerEditorCommand(new LastCursorLineCommand({
 		inSelectionMode: false,
 		id: 'lastCursorLineSelect',
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const LastCursorLineSelectDrag: CoreEditorCommand = registerEditorCommand(new LastCursorLineCommand({
 		inSelectionMode: true,
 		id: 'lastCursorLineSelectDrag',
-		precondition: null
+		precondition: undefined
 	}));
 
 	export const ExpandLineSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
 				id: 'expandLineSelection',
-				precondition: null,
+				precondition: undefined,
 				kbOpts: {
 					weight: CORE_WEIGHT,
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -1382,7 +1385,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.expandLineSelection(cursors.context, cursors.getAll())
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 
 	});
@@ -1410,7 +1413,7 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.cancelSelection(cursors.context, cursors.getPrimaryCursor())
 				]
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	});
 
@@ -1437,7 +1440,7 @@ export namespace CoreNavigationCommands {
 					cursors.getPrimaryCursor()
 				]
 			);
-			cursors.reveal(true, RevealTarget.Primary, ScrollType.Smooth);
+			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	});
 
@@ -1445,7 +1448,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'revealLine',
-				precondition: null,
+				precondition: undefined,
 				description: RevealLine_.description
 			});
 		}
@@ -1485,7 +1488,7 @@ export namespace CoreNavigationCommands {
 
 			const viewRange = cursors.context.convertModelRangeToViewRange(range);
 
-			cursors.revealRange(false, viewRange, revealAt, ScrollType.Smooth);
+			cursors.revealRange(args.source, false, viewRange, revealAt, ScrollType.Smooth);
 		}
 	});
 
@@ -1493,7 +1496,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'selectAll',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -1513,7 +1516,7 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super({
 				id: 'setSelection',
-				precondition: null
+				precondition: undefined
 			});
 		}
 
@@ -1728,7 +1731,7 @@ class EditorHandlerCommand extends Command {
 	constructor(id: string, handlerId: string, description?: ICommandHandlerDescription) {
 		super({
 			id: id,
-			precondition: null,
+			precondition: undefined,
 			description: description
 		});
 		this._handlerId = handlerId;

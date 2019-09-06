@@ -9,11 +9,9 @@ const { ipcRenderer } = require('electron');
 const assert = require('assert');
 const path = require('path');
 const glob = require('glob');
-const minimatch = require('minimatch');
-const istanbul = require('istanbul');
-const i_remap = require('remap-istanbul/lib/remap');
 const util = require('util');
 const bootstrap = require('../../src/bootstrap');
+const coverage = require('../coverage');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -42,77 +40,19 @@ function initLoader(opts) {
 		}
 	};
 
-	// nodeInstrumenter when coverage is requested
 	if (opts.coverage) {
-		const instrumenter = new istanbul.Instrumenter();
-
-		loaderConfig.nodeInstrumenter = function (contents, source) {
-			return minimatch(source, _tests_glob)
-				? contents // don't instrument tests itself
-				: instrumenter.instrumentSync(contents, source);
-		};
+		// initialize coverage if requested
+		coverage.initialize(loaderConfig);
 	}
 
 	loader.require.config(loaderConfig);
 }
 
 function createCoverageReport(opts) {
-	return new Promise(resolve => {
-
-		if (!opts.coverage) {
-			return resolve(undefined);
-		}
-
-		const exclude = /\b((marked)|(raw\.marked)|(nls)|(css))\.js$/;
-		const remappedCoverage = i_remap(global.__coverage__, { exclude: exclude }).getFinalCoverage();
-
-		// The remapped coverage comes out with broken paths
-		function toUpperDriveLetter(str) {
-			if (/^[a-z]:/.test(str)) {
-				return str.charAt(0).toUpperCase() + str.substr(1);
-			}
-			return str;
-		}
-		function toLowerDriveLetter(str) {
-			if (/^[A-Z]:/.test(str)) {
-				return str.charAt(0).toLowerCase() + str.substr(1);
-			}
-			return str;
-		}
-
-		const REPO_PATH = toUpperDriveLetter(path.join(__dirname, '../..'));
-		const fixPath = function (brokenPath) {
-			const startIndex = brokenPath.indexOf(REPO_PATH);
-			if (startIndex === -1) {
-				return toLowerDriveLetter(brokenPath);
-			}
-			return toLowerDriveLetter(brokenPath.substr(startIndex));
-		};
-
-		const finalCoverage = Object.create(null);
-		for (const entryKey in remappedCoverage) {
-			const entry = remappedCoverage[entryKey];
-			entry.path = fixPath(entry.path);
-			finalCoverage[fixPath(entryKey)] = entry;
-		}
-
-		const collector = new istanbul.Collector();
-		collector.add(finalCoverage);
-
-		let coveragePath = path.join(path.dirname(__dirname), '../.build/coverage');
-		let reportTypes = [];
-		if (opts.run || opts.runGlob) {
-			// single file running
-			coveragePath += '-single';
-			reportTypes = ['lcovonly'];
-		} else {
-			reportTypes = ['json', 'lcov', 'html'];
-		}
-
-		const reporter = new istanbul.Reporter(null, coveragePath);
-		reporter.addAll(reportTypes);
-		reporter.write(collector, true, resolve);
-	});
+	if (opts.coverage) {
+		coverage.createReport(opts.run || opts.runGlob);
+	}
+	return Promise.resolve(undefined);
 }
 
 function loadTestModules(opts) {
@@ -273,5 +213,12 @@ function runTests(opts) {
 
 ipcRenderer.on('run', (e, opts) => {
 	initLoader(opts);
-	runTests(opts).catch(err => console.error(typeof err === 'string' ? err : JSON.stringify(err)));
+	runTests(opts).catch(err => {
+		if (typeof err !== 'string') {
+			err = JSON.stringify(err);
+		}
+
+		console.error(err);
+		ipcRenderer.send('error', err);
+	});
 });

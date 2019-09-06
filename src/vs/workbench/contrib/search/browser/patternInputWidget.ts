@@ -29,14 +29,14 @@ export class PatternInputWidget extends Widget {
 
 	static OPTION_CHANGE: string = 'optionChange';
 
-	inputFocusTracker: dom.IFocusTracker;
+	inputFocusTracker!: dom.IFocusTracker;
 
 	private width: number;
 	private placeholder: string;
 	private ariaLabel: string;
 
-	private domNode: HTMLElement;
-	protected inputBox: HistoryInputBox;
+	private domNode!: HTMLElement;
+	protected inputBox!: HistoryInputBox;
 
 	private _onSubmit = this._register(new Emitter<boolean>());
 	onSubmit: CommonEvent<boolean> = this._onSubmit.event;
@@ -148,7 +148,7 @@ export class PatternInputWidget extends Widget {
 		this.setInputWidth();
 	}
 
-	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+	protected renderSubcontrols(_controlsDiv: HTMLDivElement): void {
 	}
 
 	private onInputKeyUp(keyboardEvent: IKeyboardEvent) {
@@ -174,7 +174,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 		super(parent, contextViewProvider, options, themeService, contextKeyService);
 	}
 
-	private useExcludesAndIgnoreFilesBox: Checkbox;
+	private useExcludesAndIgnoreFilesBox!: Checkbox;
 
 	dispose(): void {
 		super.dispose();

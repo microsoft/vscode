@@ -7,13 +7,13 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
-	[arg: string]: any;
 	_: string[];
-	'folder-uri'?: string | string[];
-	'file-uri'?: string | string[];
+	'folder-uri'?: string[]; // undefined or array of 1 or more
+	'file-uri'?: string[]; // undefined or array of 1 or more
 	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
+	telemetry?: boolean;
 	status?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
@@ -28,7 +28,6 @@ export interface ParsedArgs {
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
-	'prof-modules'?: string;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -37,20 +36,23 @@ export interface ParsedArgs {
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
 	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string; // either a local path or a URI
+	extensionDevelopmentPath?: string[]; // // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
+	'extension-development-confirm-save'?: boolean;
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
 	'inspect-search'?: string;
 	'inspect-brk-search'?: string;
 	'disable-extensions'?: boolean;
-	'disable-extension'?: string | string[];
+	'disable-extension'?: string[]; // undefined or array of 1 or more
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
-	'install-extension'?: string | string[];
-	'uninstall-extension'?: string | string[];
-	'enable-proposed-api'?: string | string[];
+	'category'?: string;
+	'install-extension'?: string[]; // undefined or array of 1 or more
+	'uninstall-extension'?: string[]; // undefined or array of 1 or more
+	'locate-extension'?: string[]; // undefined or array of 1 or more
+	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
 	'skip-release-notes'?: boolean;
@@ -65,10 +67,21 @@ export interface ParsedArgs {
 	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
-	'upload-logs'?: string;
 	'driver'?: string;
 	'driver-verbose'?: boolean;
 	remote?: string;
+	'disable-user-env-probe'?: boolean;
+	'enable-remote-auto-shutdown'?: boolean;
+	'disable-inspect'?: boolean;
+	'force'?: boolean;
+	'gitCredential'?: string;
+	// node flags
+	'js-flags'?: boolean;
+	'disable-gpu'?: boolean;
+	'nolazy'?: boolean;
+
+	// Web flags
+	'web-user-data-dir'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -82,8 +95,11 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
 }
 
+export const BACKUPS = 'Backups';
+
 export interface IEnvironmentService {
-	_serviceBrand: any;
+
+	_serviceBrand: undefined;
 
 	args: ParsedArgs;
 
@@ -96,17 +112,22 @@ export interface IEnvironmentService {
 
 	appNameLong: string;
 	appQuality?: string;
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
+	appSettingsHome: URI;
 
-	settingsSearchBuildId?: number;
-	settingsSearchUrl?: string;
+	// user roaming data
+	userRoamingDataHome: URI;
+	settingsResource: URI;
+	keybindingsResource: URI;
+	keyboardLayoutResource: URI;
+	localeResource: URI;
+
+	machineSettingsHome: URI;
+	machineSettingsResource: URI;
 
 	globalStorageHome: string;
 	workspaceStorageHome: string;
 
-	backupHome: string;
+	backupHome: URI;
 	backupWorkspacesPath: string;
 
 	untitledWorkspacesHome: URI;
@@ -114,28 +135,19 @@ export interface IEnvironmentService {
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
 	builtinExtensionsPath: string;
-	extensionsPath: string;
-	extensionDevelopmentLocationURI?: URI;
+	extensionsPath?: string;
+	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 
 	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch: IDebugParams;
-
-	logExtensionHostCommunication: boolean;
 
 	isBuilt: boolean;
 	wait: boolean;
 	status: boolean;
 
-	// logging
 	log?: string;
 	logsPath: string;
 	verbose: boolean;
-
-	skipGettingStarted: boolean | undefined;
-	skipReleaseNotes: boolean | undefined;
-
-	skipAddToRecentlyOpened: boolean;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
@@ -148,4 +160,6 @@ export interface IEnvironmentService {
 
 	driverHandle?: string;
 	driverVerbose: boolean;
+
+	galleryMachineIdResource?: URI;
 }

@@ -19,12 +19,19 @@ export class ResourceEditorModel extends BaseTextEditorModel {
 		@IModelService modelService: IModelService
 	) {
 		super(modelService, modeService, resource);
-
-		// TODO@Joao: force this class to dispose the underlying model
-		this.createdEditorModel = true;
 	}
 
 	isReadonly(): boolean {
 		return true;
+	}
+
+	dispose(): void {
+
+		// TODO@Joao: force this class to dispose the underlying model
+		if (this.textEditorModelHandle) {
+			this.modelService.destroyModel(this.textEditorModelHandle);
+		}
+
+		super.dispose();
 	}
 }

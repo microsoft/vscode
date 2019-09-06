@@ -14,20 +14,25 @@ import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MN
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { KeyCode, ResolvedKeybinding, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { asArray } from 'vs/base/common/arrays';
+import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = DOM.$;
 
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
+	disableAltFocus?: boolean;
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 }
 
 export interface MenuBarMenu {
-	actions: IAction[];
+	actions: ReadonlyArray<IAction>;
 	label: string;
 }
 
@@ -46,7 +51,7 @@ export class MenuBar extends Disposable {
 		buttonElement: HTMLElement;
 		titleElement: HTMLElement;
 		label: string;
-		actions?: IAction[];
+		actions?: ReadonlyArray<IAction>;
 	}[];
 
 	private overflowMenu: {
@@ -86,7 +91,7 @@ export class MenuBar extends Disposable {
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
 
-		this.container.attributes['role'] = 'menubar';
+		this.container.setAttribute('role', 'menubar');
 
 		this.menuCache = [];
 		this.mnemonics = new Map<string, number>();
@@ -112,9 +117,9 @@ export class MenuBar extends Disposable {
 			let eventHandled = true;
 			const key = !!e.key ? e.key.toLocaleLowerCase() : '';
 
-			if (event.equals(KeyCode.LeftArrow)) {
+			if (event.equals(KeyCode.LeftArrow) || (isMacintosh && event.equals(KeyCode.Tab | KeyMod.Shift))) {
 				this.focusPrevious();
-			} else if (event.equals(KeyCode.RightArrow)) {
+			} else if (event.equals(KeyCode.RightArrow) || (isMacintosh && event.equals(KeyCode.Tab))) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 				this.setUnfocusedState();
@@ -123,6 +128,11 @@ export class MenuBar extends Disposable {
 				this.onMenuTriggered(menuIndex, false);
 			} else {
 				eventHandled = false;
+			}
+
+			// Never allow default tab behavior
+			if (event.equals(KeyCode.Tab | KeyMod.Shift) || event.equals(KeyCode.Tab)) {
+				event.preventDefault();
 			}
 
 			if (eventHandled) {
@@ -151,7 +161,12 @@ export class MenuBar extends Disposable {
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
 			let event = e as FocusEvent;
 
-			if (!event.relatedTarget || !this.container.contains(event.relatedTarget as HTMLElement)) {
+			// We are losing focus and there is no related target, e.g. webview case
+			if (!event.relatedTarget) {
+				this.setUnfocusedState();
+			}
+			// We are losing focus and there is a target, reset focusToReturn value as not to redirect
+			else if (event.relatedTarget && !this.container.contains(event.relatedTarget as HTMLElement)) {
 				this.focusToReturn = undefined;
 				this.setUnfocusedState();
 			}
@@ -178,7 +193,7 @@ export class MenuBar extends Disposable {
 	}
 
 	push(arg: MenuBarMenu | MenuBarMenu[]): void {
-		const menus: MenuBarMenu[] = !Array.isArray(arg) ? [arg] : arg;
+		const menus: MenuBarMenu[] = asArray(arg);
 
 		menus.forEach((menuBarMenu) => {
 			const menuIndex = this.menuCache.length;
@@ -194,7 +209,7 @@ export class MenuBar extends Disposable {
 
 			// Register mnemonics
 			if (mnemonicMatches) {
-				let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[2];
+				let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
 
 				this.registerMnemonic(this.menuCache.length, mnemonic);
 			}
@@ -457,15 +472,34 @@ export class MenuBar extends Disposable {
 		const cleanMenuLabel = cleanMnemonic(label);
 
 		// Update the button label to reflect mnemonics
-		titleElement.innerHTML = this.options.enableMnemonics ?
-			strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<mnemonic aria-hidden="true">$1</mnemonic>').replace(/&amp;&amp;/g, '&amp;') :
-			cleanMenuLabel.replace(/&&/g, '&');
+
+		if (this.options.enableMnemonics) {
+			let innerHtml = strings.escape(label);
+
+			// This is global so reset it
+			MENU_ESCAPED_MNEMONIC_REGEX.lastIndex = 0;
+			let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(innerHtml);
+
+			// We can't use negative lookbehind so we match our negative and skip
+			while (escMatch && escMatch[1]) {
+				escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(innerHtml);
+			}
+
+			if (escMatch) {
+				innerHtml = `${innerHtml.substr(0, escMatch.index)}<mnemonic aria-hidden="true">${escMatch[3]}</mnemonic>${innerHtml.substr(escMatch.index + escMatch[0].length)}`;
+			}
+
+			innerHtml = innerHtml.replace(/&amp;&amp;/g, '&amp;');
+			titleElement.innerHTML = innerHtml;
+		} else {
+			titleElement.innerHTML = cleanMenuLabel.replace(/&&/g, '&');
+		}
 
 		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
 
 		// Register mnemonics
 		if (mnemonicMatches) {
-			let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[2];
+			let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
 
 			if (this.options.enableMnemonics) {
 				buttonElement.setAttribute('aria-keyshortcuts', 'Alt+' + mnemonic.toLocaleLowerCase());
@@ -724,7 +758,7 @@ export class MenuBar extends Disposable {
 				if (menuBarMenu.titleElement.children.length) {
 					let child = menuBarMenu.titleElement.children.item(0) as HTMLElement;
 					if (child) {
-						child.style.textDecoration = (this.options.alwaysOnMnemonics || visible) ? 'underline' : null;
+						child.style.textDecoration = (this.options.alwaysOnMnemonics || visible) ? 'underline' : '';
 					}
 				}
 			});
@@ -769,6 +803,13 @@ export class MenuBar extends Disposable {
 			return;
 		}
 
+		// Prevent alt-key default if the menu is not hidden and we use alt to focus
+		if (modifierKeyStatus.event && !this.options.disableAltFocus) {
+			if (ScanCodeUtils.toEnum(modifierKeyStatus.event.code) === ScanCode.AltLeft) {
+				modifierKeyStatus.event.preventDefault();
+			}
+		}
+
 		// Alt key pressed while menu is focused. This should return focus away from the menubar
 		if (this.isFocused && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.altKey) {
 			this.setUnfocusedState();
@@ -779,7 +820,7 @@ export class MenuBar extends Disposable {
 		// Clean alt key press and release
 		if (allModifiersReleased && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.lastKeyReleased === 'alt') {
 			if (!this.awaitingAltRelease) {
-				if (!this.isFocused) {
+				if (!this.isFocused && !(this.options.disableAltFocus && this.options.visibility !== 'toggle')) {
 					this.mnemonicsInUse = true;
 					this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
 					this.focusState = MenubarState.FOCUSED;
@@ -852,7 +893,7 @@ export class MenuBar extends Disposable {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: customMenu.buttonElement.attributes['aria-label'].value
+			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label'))
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
@@ -884,12 +925,13 @@ interface IModifierKeyStatus {
 	ctrlKey: boolean;
 	lastKeyPressed?: ModifierKey;
 	lastKeyReleased?: ModifierKey;
+	event?: KeyboardEvent;
 }
 
 
 class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
-	private _subscriptions: IDisposable[] = [];
+	private readonly _subscriptions = new DisposableStore();
 	private _keyStatus: IModifierKeyStatus;
 	private static instance: ModifierKeyEmitter;
 
@@ -902,7 +944,7 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			ctrlKey: false
 		};
 
-		this._subscriptions.push(domEvent(document.body, 'keydown', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
 			const event = new StandardKeyboardEvent(e);
 
 			if (e.altKey && !this._keyStatus.altKey) {
@@ -922,11 +964,12 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			this._keyStatus.shiftKey = e.shiftKey;
 
 			if (this._keyStatus.lastKeyPressed) {
+				this._keyStatus.event = e;
 				this.fire(this._keyStatus);
 			}
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'keyup', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'keyup', true)(e => {
 			if (!e.altKey && this._keyStatus.altKey) {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
@@ -946,25 +989,26 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			this._keyStatus.shiftKey = e.shiftKey;
 
 			if (this._keyStatus.lastKeyReleased) {
+				this._keyStatus.event = e;
 				this.fire(this._keyStatus);
 			}
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'mousedown', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'mouseup', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
-		this._subscriptions.push(domEvent(document.body, 'mousemove', true)(e => {
+		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
 			if (e.buttons) {
 				this._keyStatus.lastKeyPressed = undefined;
 			}
 		}));
 
-		this._subscriptions.push(domEvent(window, 'blur')(e => {
+		this._subscriptions.add(domEvent(window, 'blur')(e => {
 			this._keyStatus.lastKeyPressed = undefined;
 			this._keyStatus.lastKeyReleased = undefined;
 			this._keyStatus.altKey = false;
@@ -985,6 +1029,6 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
 	dispose() {
 		super.dispose();
-		this._subscriptions = dispose(this._subscriptions);
+		this._subscriptions.dispose();
 	}
 }

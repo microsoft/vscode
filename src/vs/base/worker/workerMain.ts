@@ -20,11 +20,11 @@
 	let loadCode = function (moduleId: string) {
 		require([moduleId], function (ws) {
 			setTimeout(function () {
-				let messageHandler = ws.create((msg: any) => {
-					(<any>self).postMessage(msg);
+				let messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
+					(<any>self).postMessage(msg, transfer);
 				}, null);
 
-				self.onmessage = (e) => messageHandler.onmessage(e.data);
+				self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data);
 				while (beforeReadyMessages.length > 0) {
 					self.onmessage(beforeReadyMessages.shift()!);
 				}
@@ -34,7 +34,7 @@
 
 	let isFirstMessage = true;
 	let beforeReadyMessages: MessageEvent[] = [];
-	self.onmessage = (message) => {
+	self.onmessage = (message: MessageEvent) => {
 		if (!isFirstMessage) {
 			beforeReadyMessages.push(message);
 			return;

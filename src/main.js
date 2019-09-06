@@ -11,7 +11,6 @@ const lp = require('./vs/base/node/languagePacks');
 
 perf.mark('main:started');
 
-const fs = require('fs');
 const path = require('path');
 const bootstrap = require('./bootstrap');
 const paths = require('./paths');
@@ -29,21 +28,6 @@ bootstrap.enableASARSupport();
 // Set userData path before app 'ready' event and call to process.chdir
 const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args);
-
-// global storage migration needs to happen very early before app.on("ready")
-// TODO@Ben remove after a while
-try {
-	const globalStorageHome = path.join(userDataPath, 'User', 'globalStorage', 'state.vscdb');
-	const localStorageHome = path.join(userDataPath, 'Local Storage');
-	const localStorageDB = path.join(localStorageHome, 'file__0.localstorage');
-	const localStorageDBBackup = path.join(localStorageHome, 'file__0.vscmig');
-	if (!fs.existsSync(globalStorageHome) && fs.existsSync(localStorageDB)) {
-		fs.renameSync(localStorageDB, localStorageDBBackup);
-	}
-} catch (error) {
-	console.error(error);
-}
-
 app.setPath('userData', userDataPath);
 
 // Update cwd based on environment and platform
@@ -67,9 +51,11 @@ userDefinedLocale.then(locale => {
 	}
 });
 
-// Configure command line switches
+// Cached data
 const nodeCachedDataDir = getNodeCachedDir();
-configureCommandlineSwitches(args, nodeCachedDataDir);
+
+// Configure command line switches
+configureCommandlineSwitches(args);
 
 // Load our code once ready
 app.once('ready', function () {
@@ -147,18 +133,17 @@ function onReady() {
 }
 
 /**
- * @typedef {import('minimist').ParsedArgs} ParsedArgs
+ * @typedef	 {{ [arg: string]: any; '--'?: string[]; _: string[]; }} ParsedArgs
  *
  * @param {ParsedArgs} cliArgs
- * @param {{ jsFlags: () => string }} nodeCachedDataDir
  */
-function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
+function configureCommandlineSwitches(cliArgs) {
 
 	// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
 	app.commandLine.appendSwitch('disable-color-correct-rendering');
 
 	// Support JS Flags
-	const jsFlags = resolveJSFlags(cliArgs, nodeCachedDataDir.jsFlags());
+	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
 		app.commandLine.appendSwitch('--js-flags', jsFlags);
 	}
@@ -166,10 +151,10 @@ function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 
 /**
  * @param {ParsedArgs} cliArgs
- * @param {string[]} jsFlags
  * @returns {string}
  */
-function resolveJSFlags(cliArgs, ...jsFlags) {
+function getJSFlags(cliArgs) {
+	const jsFlags = [];
 
 	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
@@ -201,7 +186,7 @@ function getUserDataPath(cliArgs) {
  * @returns {ParsedArgs}
  */
 function parseCLIArgs() {
-	const minimist = require('minimist');
+	const minimist = require('vscode-minimist');
 
 	return minimist(process.argv, {
 		string: [
@@ -216,7 +201,7 @@ function parseCLIArgs() {
 function setCurrentWorkingDirectory() {
 	try {
 		if (process.platform === 'win32') {
-			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment letiable
+			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
 			process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
 		} else if (process.env['VSCODE_CWD']) {
 			process.chdir(process.env['VSCODE_CWD']);
@@ -264,18 +249,13 @@ function registerListeners() {
 }
 
 /**
- * @returns {{ jsFlags: () => string; ensureExists: () => Promise<string | void>, _compute: () => string; }}
+ * @returns {{ ensureExists: () => Promise<string | void> }}
  */
 function getNodeCachedDir() {
 	return new class {
 
 		constructor() {
 			this.value = this._compute();
-		}
-
-		jsFlags() {
-			// return this.value ? '--nolazy' : undefined;
-			return undefined;
 		}
 
 		ensureExists() {

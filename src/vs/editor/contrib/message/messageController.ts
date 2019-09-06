@@ -7,7 +7,7 @@ import 'vs/css!./messageController';
 import * as nls from 'vs/nls';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -29,14 +29,16 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 		return editor.getContribution<MessageController>(MessageController._id);
 	}
 
+	private readonly closeTimeout = 3000; // close after 3s
+
 	getId(): string {
 		return MessageController._id;
 	}
 
 	private readonly _editor: ICodeEditor;
 	private readonly _visible: IContextKey<boolean>;
-	private _messageWidget: MessageWidget;
-	private _messageListeners: IDisposable[] = [];
+	private readonly _messageWidget = this._register(new MutableDisposable<MessageWidget>());
+	private readonly _messageListeners = this._register(new DisposableStore());
 
 	constructor(
 		editor: ICodeEditor,
@@ -62,22 +64,21 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 		alert(message);
 
 		this._visible.set(true);
-		dispose(this._messageWidget);
-		this._messageListeners = dispose(this._messageListeners);
-		this._messageWidget = new MessageWidget(this._editor, position, message);
+		this._messageWidget.clear();
+		this._messageListeners.clear();
+		this._messageWidget.value = new MessageWidget(this._editor, position, message);
 
 		// close on blur, cursor, model change, dispose
-		this._messageListeners.push(this._editor.onDidBlurEditorText(() => this.closeMessage()));
-		this._messageListeners.push(this._editor.onDidChangeCursorPosition(() => this.closeMessage()));
-		this._messageListeners.push(this._editor.onDidDispose(() => this.closeMessage()));
-		this._messageListeners.push(this._editor.onDidChangeModel(() => this.closeMessage()));
+		this._messageListeners.add(this._editor.onDidBlurEditorText(() => this.closeMessage()));
+		this._messageListeners.add(this._editor.onDidChangeCursorPosition(() => this.closeMessage()));
+		this._messageListeners.add(this._editor.onDidDispose(() => this.closeMessage()));
+		this._messageListeners.add(this._editor.onDidChangeModel(() => this.closeMessage()));
 
-		// close after 3s
-		this._messageListeners.push(new TimeoutTimer(() => this.closeMessage(), 3000));
+		this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), this.closeTimeout));
 
 		// close on mouse move
 		let bounds: Range;
-		this._messageListeners.push(this._editor.onMouseMove(e => {
+		this._messageListeners.add(this._editor.onMouseMove(e => {
 			// outside the text area
 			if (!e.target.position) {
 				return;
@@ -95,8 +96,10 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 
 	closeMessage(): void {
 		this._visible.reset();
-		this._messageListeners = dispose(this._messageListeners);
-		this._messageListeners.push(MessageWidget.fadeOut(this._messageWidget));
+		this._messageListeners.clear();
+		if (this._messageWidget.value) {
+			this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget.value));
+		}
 	}
 
 	private _onDidAttemptReadOnlyEdit(): void {

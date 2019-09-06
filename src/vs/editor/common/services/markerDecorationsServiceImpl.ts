@@ -16,6 +16,7 @@ import { keys } from 'vs/base/common/map';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -60,12 +61,12 @@ class MarkerDecorations extends Disposable {
 
 export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	private readonly _onDidChangeMarker = new Emitter<ITextModel>();
+	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
 
-	private readonly _markerDecorations: Map<string, MarkerDecorations> = new Map<string, MarkerDecorations>();
+	private readonly _markerDecorations = new Map<string, MarkerDecorations>();
 
 	constructor(
 		@IModelService modelService: IModelService,
@@ -78,9 +79,15 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		this._register(this._markerService.onMarkerChanged(this._handleMarkerChange, this));
 	}
 
+	dispose() {
+		super.dispose();
+		this._markerDecorations.forEach(value => value.dispose());
+		this._markerDecorations.clear();
+	}
+
 	getMarker(model: ITextModel, decoration: IModelDecoration): IMarker | null {
 		const markerDecorations = this._markerDecorations.get(MODEL_ID(model.uri));
-		return markerDecorations ? markerDecorations.getMarker(decoration) || null : null;
+		return markerDecorations ? withUndefinedAsNull(markerDecorations.getMarker(decoration)) : null;
 	}
 
 	getLiveMarkers(model: ITextModel): [Range, IMarker][] {
@@ -213,6 +220,9 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		if (marker.tags) {
 			if (marker.tags.indexOf(MarkerTag.Unnecessary) !== -1) {
 				inlineClassName = ClassName.EditorUnnecessaryInlineDecoration;
+			}
+			if (marker.tags.indexOf(MarkerTag.Deprecated) !== -1) {
+				inlineClassName = ClassName.EditorDeprecatedInlineDecoration;
 			}
 		}
 

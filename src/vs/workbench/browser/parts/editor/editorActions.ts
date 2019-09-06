@@ -21,7 +21,7 @@ import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class ExecuteCommandAction extends Action {
 
@@ -30,7 +30,7 @@ export class ExecuteCommandAction extends Action {
 		label: string,
 		private commandId: string,
 		private commandService: ICommandService,
-		private commandArgs?: any
+		private commandArgs?: unknown
 	) {
 		super(id, label);
 	}
@@ -41,7 +41,7 @@ export class ExecuteCommandAction extends Action {
 }
 
 export class BaseSplitEditorAction extends Action {
-	private toDispose: IDisposable[] = [];
+	private readonly toDispose = this._register(new DisposableStore());
 	private direction: GroupDirection;
 
 	constructor(
@@ -62,7 +62,7 @@ export class BaseSplitEditorAction extends Action {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+		this.toDispose.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.editor.openSideBySideDirection')) {
 				this.direction = preferredSideBySideGroupDirection(this.configurationService);
 			}
@@ -73,12 +73,6 @@ export class BaseSplitEditorAction extends Action {
 		splitEditor(this.editorGroupService, this.direction, context);
 
 		return Promise.resolve(true);
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		this.toDispose = dispose(this.toDispose);
 	}
 }
 
@@ -188,20 +182,22 @@ export class JoinTwoGroupsAction extends Action {
 	}
 
 	run(context?: IEditorIdentifier): Promise<any> {
-		let sourceGroup: IEditorGroup;
+		let sourceGroup: IEditorGroup | undefined;
 		if (context && typeof context.groupId === 'number') {
 			sourceGroup = this.editorGroupService.getGroup(context.groupId);
 		} else {
 			sourceGroup = this.editorGroupService.activeGroup;
 		}
 
-		const targetGroupDirections = [GroupDirection.RIGHT, GroupDirection.DOWN, GroupDirection.LEFT, GroupDirection.UP];
-		for (const targetGroupDirection of targetGroupDirections) {
-			const targetGroup = this.editorGroupService.findGroup({ direction: targetGroupDirection }, sourceGroup);
-			if (targetGroup && sourceGroup !== targetGroup) {
-				this.editorGroupService.mergeGroup(sourceGroup, targetGroup);
+		if (sourceGroup) {
+			const targetGroupDirections = [GroupDirection.RIGHT, GroupDirection.DOWN, GroupDirection.LEFT, GroupDirection.UP];
+			for (const targetGroupDirection of targetGroupDirections) {
+				const targetGroup = this.editorGroupService.findGroup({ direction: targetGroupDirection }, sourceGroup);
+				if (targetGroup && sourceGroup !== targetGroup) {
+					this.editorGroupService.mergeGroup(sourceGroup, targetGroup);
 
-				return Promise.resolve(true);
+					return Promise.resolve(true);
+				}
 			}
 		}
 
@@ -427,14 +423,16 @@ export class OpenToSideFromQuickOpenAction extends Action {
 		const entry = toEditorQuickOpenEntry(context);
 		if (entry) {
 			const input = entry.getInput();
-			if (input instanceof EditorInput) {
-				return this.editorService.openEditor(input, entry.getOptions() || undefined, SIDE_GROUP);
+			if (input) {
+				if (input instanceof EditorInput) {
+					return this.editorService.openEditor(input, entry.getOptions() || undefined, SIDE_GROUP);
+				}
+
+				const resourceInput = input as IResourceInput;
+				resourceInput.options = mixin(resourceInput.options, entry.getOptions());
+
+				return this.editorService.openEditor(resourceInput, SIDE_GROUP);
 			}
-
-			const resourceInput = input as IResourceInput;
-			resourceInput.options = mixin(resourceInput.options, entry.getOptions());
-
-			return this.editorService.openEditor(resourceInput, SIDE_GROUP);
 		}
 
 		return Promise.resolve(false);
@@ -445,7 +443,7 @@ export function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry | nu
 
 	// QuickOpenEntryGroup
 	if (element instanceof QuickOpenEntryGroup) {
-		const group = <QuickOpenEntryGroup>element;
+		const group = element;
 		if (group.getEntry()) {
 			element = group.getEntry();
 		}
@@ -535,23 +533,27 @@ export class RevertAndCloseEditorAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		const activeControl = this.editorService.activeControl;
 		if (activeControl) {
 			const editor = activeControl.input;
 			const group = activeControl.group;
 
 			// first try a normal revert where the contents of the editor are restored
-			return editor.revert().then(() => group.closeEditor(editor), error => {
+			try {
+				await editor.revert();
+			} catch (error) {
 				// if that fails, since we are about to close the editor, we accept that
 				// the editor cannot be reverted and instead do a soft revert that just
 				// enables us to close the editor. With this, a user can always close a
 				// dirty editor even when reverting fails.
-				return editor.revert({ soft: true }).then(() => group.closeEditor(editor));
-			});
+				await editor.revert({ soft: true });
+			}
+
+			group.closeEditor(editor);
 		}
 
-		return Promise.resolve(false);
+		return true;
 	}
 }
 
@@ -579,7 +581,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	}
 }
 
-function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup } {
+function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup | undefined } {
 	if (context) {
 		return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
 	}
@@ -614,34 +616,43 @@ export abstract class BaseCloseAllAction extends Action {
 		return groupsToClose;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 
-		// Just close all if there are no or one dirty editor
-		if (this.textFileService.getDirty().length < 2) {
+		// Just close all if there are no dirty editors
+		if (!this.textFileService.isDirty()) {
 			return this.doCloseAll();
 		}
 
-		// Otherwise ask for combined confirmation
-		return this.textFileService.confirmSave().then(confirm => {
-			if (confirm === ConfirmResult.CANCEL) {
-				return undefined;
-			}
-
-			let saveOrRevertPromise: Promise<boolean>;
-			if (confirm === ConfirmResult.DONT_SAVE) {
-				saveOrRevertPromise = this.textFileService.revertAll(undefined, { soft: true }).then(() => true);
-			} else {
-				saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => !!r.success));
-			}
-
-			return saveOrRevertPromise.then(success => {
-				if (success) {
-					return this.doCloseAll();
+		// Otherwise ask for combined confirmation and make sure
+		// to bring each dirty editor to the front so that the user
+		// can review if the files should be changed or not.
+		await Promise.all(this.groupsToClose.map(async groupToClose => {
+			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+				if (editor.isDirty()) {
+					return groupToClose.openEditor(editor);
 				}
+			}
 
-				return undefined;
-			});
-		});
+			return undefined;
+		}));
+
+		const confirm = await this.textFileService.confirmSave();
+		if (confirm === ConfirmResult.CANCEL) {
+			return;
+		}
+
+		let saveOrRevert: boolean;
+		if (confirm === ConfirmResult.DONT_SAVE) {
+			await this.textFileService.revertAll(undefined, { soft: true });
+			saveOrRevert = true;
+		} else {
+			const res = await this.textFileService.saveAll(true);
+			saveOrRevert = res.results.every(r => !!r.success);
+		}
+
+		if (saveOrRevert) {
+			return this.doCloseAll();
+		}
 	}
 
 	protected abstract doCloseAll(): Promise<any>;
@@ -680,10 +691,10 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 		super(id, label, undefined, textFileService, editorGroupService);
 	}
 
-	protected doCloseAll(): Promise<any> {
-		return Promise.all(this.groupsToClose.map(g => g.closeAllEditors())).then(() => {
-			this.groupsToClose.forEach(group => this.editorGroupService.removeGroup(group));
-		});
+	protected async doCloseAll(): Promise<any> {
+		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors()));
+
+		this.groupsToClose.forEach(group => this.editorGroupService.removeGroup(group));
 	}
 }
 
@@ -703,7 +714,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	run(context?: IEditorIdentifier): Promise<any> {
 		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
 		return Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => {
-			if (g.id === groupToSkip.id) {
+			if (groupToSkip && g.id === groupToSkip.id) {
 				return Promise.resolve();
 			}
 
@@ -748,16 +759,18 @@ export class BaseMoveGroupAction extends Action {
 	}
 
 	run(context?: IEditorIdentifier): Promise<any> {
-		let sourceGroup: IEditorGroup;
+		let sourceGroup: IEditorGroup | undefined;
 		if (context && typeof context.groupId === 'number') {
 			sourceGroup = this.editorGroupService.getGroup(context.groupId);
 		} else {
 			sourceGroup = this.editorGroupService.activeGroup;
 		}
 
-		const targetGroup = this.findTargetGroup(sourceGroup);
-		if (targetGroup) {
-			this.editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
+		if (sourceGroup) {
+			const targetGroup = this.findTargetGroup(sourceGroup);
+			if (targetGroup) {
+				this.editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
+			}
 		}
 
 		return Promise.resolve(true);
@@ -879,6 +892,22 @@ export class ResetGroupSizesAction extends Action {
 	}
 }
 
+export class ToggleGroupSizesAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleEditorWidths';
+	static readonly LABEL = nls.localize('toggleEditorWidths', "Toggle Editor Group Sizes");
+
+	constructor(id: string, label: string, @IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
+		super(id, label);
+	}
+
+	run(): Promise<any> {
+		this.editorGroupService.arrangeGroups(GroupsArrangement.TOGGLE);
+
+		return Promise.resolve(false);
+	}
+}
+
 export class MaximizeGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.maximizeEditor';
@@ -927,7 +956,11 @@ export abstract class BaseNavigateEditorAction extends Action {
 		}
 
 		const group = this.editorGroupService.getGroup(groupId);
-		return group.openEditor(editor);
+		if (group) {
+			return group.openEditor(editor);
+		}
+
+		return Promise.resolve();
 	}
 
 	protected abstract navigate(): IEditorIdentifier | undefined;

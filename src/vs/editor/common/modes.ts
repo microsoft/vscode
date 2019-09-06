@@ -17,8 +17,8 @@ import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/t
 import * as model from 'vs/editor/common/model';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 /**
  * Open ended enum at runtime
@@ -367,6 +367,10 @@ export let completionKindFromString: {
 	};
 })();
 
+export const enum CompletionItemTag {
+	Deprecated = 1
+}
+
 export const enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
@@ -396,6 +400,11 @@ export interface CompletionItem {
 	 * an icon is chosen by the editor.
 	 */
 	kind: CompletionItemKind;
+	/**
+	 * A modifier to the `kind` which affect how the item
+	 * is rendered, e.g. Deprecated is rendered with a strikeout
+	 */
+	tags?: ReadonlyArray<CompletionItemTag>;
 	/**
 	 * A human-readable string with additional information
 	 * about this item, like type or symbol information.
@@ -460,6 +469,11 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
+
+	/**
+	 * @internal
+	 */
+	_id?: [number, number];
 }
 
 export interface CompletionList {
@@ -505,6 +519,11 @@ export interface CompletionContext {
  */
 export interface CompletionItemProvider {
 
+	/**
+	 * @internal
+	 */
+	_debugDisplayName?: string;
+
 	triggerCharacters?: string[];
 	/**
 	 * Provide completion items for the given position and document.
@@ -545,6 +564,10 @@ export interface CodeActionContext {
 	trigger: CodeActionTrigger;
 }
 
+export interface CodeActionList extends IDisposable {
+	readonly actions: ReadonlyArray<CodeAction>;
+}
+
 /**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
@@ -554,7 +577,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeAction[]>;
+	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
 
 	/**
 	 * Optional list of CodeActionKinds that this provider returns.
@@ -619,6 +642,10 @@ export interface SignatureHelp {
 	activeParameter: number;
 }
 
+export interface SignatureHelpResult extends IDisposable {
+	value: SignatureHelp;
+}
+
 export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,
@@ -644,7 +671,7 @@ export interface SignatureHelpProvider {
 	/**
 	 * Provide help for the signature at the given position and document.
 	 */
-	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelpResult>;
 }
 
 /**
@@ -840,6 +867,9 @@ export const enum SymbolKind {
 	TypeParameter = 25
 }
 
+export const enum SymbolTag {
+	Deprecated = 1,
+}
 
 /**
  * @internal
@@ -883,6 +913,7 @@ export interface DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
+	tags: ReadonlyArray<SymbolTag>;
 	containerName?: string;
 	range: IRange;
 	selectionRange: IRange;
@@ -929,6 +960,8 @@ export interface DocumentFormattingEditProvider {
 	 */
 	readonly extensionId?: ExtensionIdentifier;
 
+	readonly displayName?: string;
+
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
@@ -939,12 +972,12 @@ export interface DocumentFormattingEditProvider {
  * the formatting-feature.
  */
 export interface DocumentRangeFormattingEditProvider {
-
-
 	/**
 	 * @internal
 	 */
 	readonly extensionId?: ExtensionIdentifier;
+
+	readonly displayName?: string;
 
 	/**
 	 * Provide formatting edits for a range in a document.
@@ -993,12 +1026,18 @@ export interface IInplaceReplaceSupportResult {
 export interface ILink {
 	range: IRange;
 	url?: URI | string;
+	tooltip?: string;
+}
+
+export interface ILinksList {
+	links: ILink[];
+	dispose?(): void;
 }
 /**
  * A provider of links.
  */
 export interface LinkProvider {
-	provideLinks(model: model.ITextModel, token: CancellationToken): ProviderResult<ILink[]>;
+	provideLinks(model: model.ITextModel, token: CancellationToken): ProviderResult<ILinksList>;
 	resolveLink?: (link: ILink, token: CancellationToken) => ProviderResult<ILink>;
 }
 
@@ -1081,7 +1120,6 @@ export interface DocumentColorProvider {
 }
 
 export interface SelectionRange {
-	kind: string;
 	range: IRange;
 }
 
@@ -1202,21 +1240,21 @@ export interface Command {
 /**
  * @internal
  */
-export interface CommentInfo {
-	extensionId: string;
-	threads: CommentThread[];
-	commentingRanges?: (IRange[] | CommentingRanges);
-	reply?: Command;
-	draftMode: DraftMode;
+export interface CommentThreadTemplate {
+	controllerHandle: number;
+	label: string;
+	acceptInputCommand?: Command;
+	additionalCommands?: Command[];
+	deleteCommand?: Command;
 }
 
 /**
  * @internal
  */
-export enum DraftMode {
-	NotSupported,
-	InDraft,
-	NotInDraft
+export interface CommentInfo {
+	extensionId?: string;
+	threads: CommentThread[];
+	commentingRanges: CommentingRanges;
 }
 
 /**
@@ -1256,25 +1294,24 @@ export interface CommentInput {
 /**
  * @internal
  */
-export interface CommentThread2 {
+export interface CommentThread {
 	commentThreadHandle: number;
-	extensionId: string;
+	controllerHandle: number;
+	extensionId?: string;
 	threadId: string;
-	resource: string;
+	resource: string | null;
 	range: IRange;
-	label: string;
-	comments: Comment[];
-	onDidChangeComments: Event<Comment[]>;
+	label: string | undefined;
+	contextValue: string | undefined;
+	comments: Comment[] | undefined;
+	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
-	input: CommentInput;
-	onDidChangeInput: Event<CommentInput>;
-	acceptInputCommand?: Command;
-	additionalCommands: Command[];
-	onDidChangeAcceptInputCommand: Event<Command>;
-	onDidChangeAdditionalCommands: Event<Command[]>;
+	input?: CommentInput;
+	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<IRange>;
-	onDidChangeLabel: Event<string>;
-	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState>;
+	onDidChangeLabel: Event<string | undefined>;
+	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	isDisposed: boolean;
 }
 
 /**
@@ -1284,29 +1321,6 @@ export interface CommentThread2 {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
-	newCommentThreadCommand?: Command;
-	newCommentThreadCallback?: (uri: UriComponents, range: IRange) => void;
-}
-
-/**
- * @internal
- */
-export interface CommentThread {
-	extensionId: string;
-	threadId: string;
-	resource: string;
-	range: IRange;
-	comments: Comment[];
-	collapsibleState?: CommentThreadCollapsibleState;
-	reply?: Command;
-}
-
-/**
- * @internal
- */
-export interface NewCommentAction {
-	ranges: IRange[];
-	actions: Command[];
 }
 
 /**
@@ -1323,19 +1337,23 @@ export interface CommentReaction {
 /**
  * @internal
  */
+export enum CommentMode {
+	Editing = 0,
+	Preview = 1
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
-	readonly commentId: string;
+	readonly uniqueIdInThread: number;
 	readonly body: IMarkdownString;
 	readonly userName: string;
-	readonly userIconPath: string;
-	readonly canEdit?: boolean;
-	readonly canDelete?: boolean;
-	readonly command?: Command;
-	readonly editCommand?: Command;
-	readonly deleteCommand?: Command;
-	readonly isDraft?: boolean;
+	readonly userIconPath?: string;
+	readonly contextValue?: string;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
+	readonly mode?: CommentMode;
 }
 
 /**
@@ -1345,65 +1363,60 @@ export interface CommentThreadChangedEvent {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: (CommentThread | CommentThread2)[];
+	readonly added: CommentThread[];
 
 	/**
 	 * Removed comment threads.
 	 */
-	readonly removed: (CommentThread | CommentThread2)[];
+	readonly removed: CommentThread[];
 
 	/**
 	 * Changed comment threads.
 	 */
-	readonly changed: (CommentThread | CommentThread2)[];
-
-	/**
-	 * changed draft mode.
-	 */
-	readonly draftMode?: DraftMode;
+	readonly changed: CommentThread[];
 }
 
 /**
  * @internal
  */
-export interface DocumentCommentProvider {
-	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo>;
-	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
-	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
-	startDraft?(resource: URI, token: CancellationToken): Promise<void>;
-	deleteDraft?(resource: URI, token: CancellationToken): Promise<void>;
-	finishDraft?(resource: URI, token: CancellationToken): Promise<void>;
-
-	startDraftLabel?: string;
-	deleteDraftLabel?: string;
-	finishDraftLabel?: string;
-
-	addReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
-	deleteReaction?(resource: URI, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
-	reactionGroup?: CommentReaction[];
-
-	onDidChangeCommentThreads?(): Event<CommentThreadChangedEvent>;
+export interface IWebviewPortMapping {
+	webviewPort: number;
+	extensionHostPort: number;
 }
 
 /**
  * @internal
  */
-export interface WorkspaceCommentProvider {
-	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
+export interface IWebviewOptions {
+	readonly enableScripts?: boolean;
+	readonly enableCommandUris?: boolean;
+	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
 }
 
-export interface ICodeLensSymbol {
+/**
+ * @internal
+ */
+export interface IWebviewPanelOptions {
+	readonly enableFindWidget?: boolean;
+	readonly retainContextWhenHidden?: boolean;
+}
+
+export interface CodeLens {
 	range: IRange;
 	id?: string;
 	command?: Command;
 }
+
+export interface CodeLensList {
+	lenses: CodeLens[];
+	dispose(): void;
+}
+
 export interface CodeLensProvider {
 	onDidChange?: Event<this>;
-	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<ICodeLensSymbol[]>;
-	resolveCodeLens?(model: model.ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ProviderResult<ICodeLensSymbol>;
+	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
+	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 }
 
 // --- feature registries ------
@@ -1546,9 +1559,9 @@ export interface ITokenizationRegistry {
 
 	/**
 	 * Get the tokenization support for a language.
-	 * Returns null if not found.
+	 * Returns `null` if not found.
 	 */
-	get(language: string): ITokenizationSupport;
+	get(language: string): ITokenizationSupport | null;
 
 	/**
 	 * Get the promise of a tokenization support for a language.

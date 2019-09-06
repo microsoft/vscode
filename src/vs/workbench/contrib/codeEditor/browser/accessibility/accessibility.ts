@@ -7,7 +7,7 @@ import 'vs/css!./accessibility';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { renderFormattedText } from 'vs/base/browser/htmlContentRenderer';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -17,7 +17,7 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
@@ -27,7 +27,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
@@ -185,13 +185,13 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _buildContent() {
-		let opts = this._editor.getConfiguration();
+		const options = this._editor.getOptions();
 		let text = nls.localize('introMsg', "Thank you for trying out VS Code's accessibility options.");
 
 		text += '\n\n' + nls.localize('status', "Status:");
 
-		const configuredValue = this._configurationService.getValue<editorOptions.IEditorOptions>('editor').accessibilitySupport;
-		const actualValue = opts.accessibilitySupport;
+		const configuredValue = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
+		const actualValue = options.get(EditorOption.accessibilitySupport);
 
 		const emergencyTurnOnMessage = (
 			platform.isMacintosh
@@ -229,7 +229,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		const NLS_TAB_FOCUS_MODE_OFF = nls.localize('tabFocusModeOffMsg', "Pressing Tab in the current editor will insert the tab character. Toggle this behavior by pressing {0}.");
 		const NLS_TAB_FOCUS_MODE_OFF_NO_KB = nls.localize('tabFocusModeOffMsgNoKb', "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
 
-		if (opts.tabFocusMode) {
+		if (options.get(EditorOption.tabFocusMode)) {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
 		} else {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
@@ -282,7 +282,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			id: 'editor.action.showAccessibilityHelp',
 			label: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"),
 			alias: 'Show Accessibility Help',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Alt | KeyCode.F1,
@@ -319,6 +319,11 @@ registerThemingParticipant((theme, collector) => {
 	const widgetBackground = theme.getColor(editorWidgetBackground);
 	if (widgetBackground) {
 		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
+	}
+
+	const widgetForeground = theme.getColor(editorWidgetForeground);
+	if (widgetBackground) {
+		collector.addRule(`.monaco-editor .accessibilityHelpWidget { color: ${widgetForeground}; }`);
 	}
 
 	const widgetShadowColor = theme.getColor(widgetShadow);

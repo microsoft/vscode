@@ -16,11 +16,12 @@ import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { fuzzyContains, stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { ViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { IViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -101,7 +102,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
-		const entryToCategory = {};
+		const entryToCategory: IStringDictionary<string> = {};
 		entries.forEach(e => {
 			if (!entryToCategory[e.getLabel()]) {
 				entryToCategory[e.getLabel()] = e.getCategory();
@@ -133,11 +134,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		const viewEntries: ViewEntry[] = [];
 
 		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewContainer: ViewContainer): ViewEntry[] => {
-			const views = ViewsRegistry.getViews(viewContainer);
+			const views = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViews(viewContainer);
 			const result: ViewEntry[] = [];
 			if (views.length) {
 				for (const view of views) {
-					if (this.contextKeyService.contextMatchesRules(view.when || null)) {
+					if (this.contextKeyService.contextMatchesRules(view.when)) {
 						result.push(new ViewEntry(view.name, viewlet.name, () => this.viewsService.openView(view.id, true)));
 					}
 				}
@@ -147,7 +148,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlets
 		const viewlets = this.viewletService.getViewlets();
-		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Side Bar"), () => this.viewletService.openViewlet(viewlet.id, true))));
+		viewlets.forEach((viewlet, index) => {
+			if (this.hasToShowViewlet(viewlet)) {
+				viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Side Bar"), () => this.viewletService.openViewlet(viewlet.id, true)));
+			}
+		});
 
 		// Panels
 		const panels = this.panelService.getPanels();
@@ -155,7 +160,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
-			const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(viewlet.id);
+			const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(viewlet.id);
 			if (viewContainer) {
 				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewContainer);
 				viewEntries.push(...viewEntriesForViewlet);
@@ -187,6 +192,15 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		});
 
 		return viewEntries;
+	}
+
+	private hasToShowViewlet(viewlet: ViewletDescriptor): boolean {
+		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(viewlet.id);
+		if (viewContainer && viewContainer.hideIfEmpty) {
+			const viewsCollection = this.viewsService.getViewDescriptors(viewContainer);
+			return !!viewsCollection && viewsCollection.activeViewDescriptors.length > 0;
+		}
+		return true;
 	}
 
 	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {

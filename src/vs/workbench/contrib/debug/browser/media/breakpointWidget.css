@@ -18,6 +18,5 @@
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .inputContainer {
 	flex: 1;
-	margin-top: 6px;
-	margin-bottom: 6px;
+	margin-top: 8px;
 }

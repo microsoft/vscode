@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
+import { Dimension } from 'vs/base/browser/dom';
 
 export const IWorkbenchLayoutService = createDecorator<IWorkbenchLayoutService>('layoutService');
 
@@ -33,7 +34,7 @@ export interface ILayoutOptions {
 
 export interface IWorkbenchLayoutService extends ILayoutService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Emits when the visibility of the title bar changes.
@@ -44,6 +45,21 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Emits when the zen mode is enabled or disabled.
 	 */
 	readonly onZenModeChange: Event<boolean>;
+
+	/**
+	 * Emits when fullscreen is enabled or disabled.
+	 */
+	readonly onFullscreenChange: Event<boolean>;
+
+	/**
+	 * Emits when centered layout is enabled or disabled.
+	 */
+	readonly onCenteredLayoutChange: Event<boolean>;
+
+	/**
+	 * Emit when panel position changes.
+	 */
+	readonly onPanelPositionChange: Event<string>;
 
 	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
@@ -59,12 +75,17 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Returns the parts HTML element, if there is one.
 	 */
-	getContainer(part: Parts): HTMLElement | null;
+	getContainer(part: Parts): HTMLElement;
 
 	/**
 	 * Returns if the part is visible.
 	 */
 	isVisible(part: Parts): boolean;
+
+	/**
+	 * Returns if the part is visible.
+	 */
+	getDimension(part: Parts): Dimension;
 
 	/**
 	 * Set activity bar hidden or not
@@ -122,6 +143,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Sets the panel position.
 	 */
 	setPanelPosition(position: Position): void;
+
+	/**
+	 * Gets the maximum possible size for editor.
+	 */
+	getMaximumEditorDimensions(): Dimension;
+
+	/**
+	 * Returns the element that is parent of the workbench element.
+	 */
+	getWorkbenchContainer(): HTMLElement;
 
 	/**
 	 * Returns the element that contains the workbench.

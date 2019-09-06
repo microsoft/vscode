@@ -92,3 +92,25 @@ export function removeMarkdownEscapes(text: string): string {
 	}
 	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
 }
+
+export function parseHrefAndDimensions(href: string): { href: string, dimensions: string[] } {
+	const dimensions: string[] = [];
+	const splitted = href.split('|').map(s => s.trim());
+	href = splitted[0];
+	const parameters = splitted[1];
+	if (parameters) {
+		const heightFromParams = /height=(\d+)/.exec(parameters);
+		const widthFromParams = /width=(\d+)/.exec(parameters);
+		const height = heightFromParams ? heightFromParams[1] : '';
+		const width = widthFromParams ? widthFromParams[1] : '';
+		const widthIsFinite = isFinite(parseInt(width));
+		const heightIsFinite = isFinite(parseInt(height));
+		if (widthIsFinite) {
+			dimensions.push(`width="${width}"`);
+		}
+		if (heightIsFinite) {
+			dimensions.push(`height="${height}"`);
+		}
+	}
+	return { href, dimensions };
+}

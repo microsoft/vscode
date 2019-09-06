@@ -8,7 +8,6 @@ import { isEqual } from 'vs/base/common/extpath';
 import { posix } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
-import { isLinux } from 'vs/base/common/platform';
 import { IFileStat, IFileService } from 'vs/platform/files/common/files';
 import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
@@ -16,10 +15,11 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 export class ExplorerModel implements IDisposable {
 
-	private _roots: ExplorerItem[];
+	private _roots!: ExplorerItem[];
 	private _listener: IDisposable;
 	private _onDidChangeRoots = new Emitter<void>();
 
@@ -69,13 +69,13 @@ export class ExplorerModel implements IDisposable {
 	}
 
 	dispose(): void {
-		this._listener = dispose(this._listener);
+		dispose(this._listener);
 	}
 }
 
 export class ExplorerItem {
 	private _isDirectoryResolved: boolean;
-	public isError: boolean;
+	public isError = false;
 
 	constructor(
 		public resource: URI,
@@ -85,7 +85,6 @@ export class ExplorerItem {
 		private _isReadonly?: boolean,
 		private _name: string = resources.basenameOrAuthority(resource),
 		private _mtime?: number,
-		private _etag?: string,
 	) {
 		this._isDirectoryResolved = false;
 	}
@@ -104,10 +103,6 @@ export class ExplorerItem {
 
 	get isReadonly(): boolean {
 		return !!this._isReadonly;
-	}
-
-	get etag(): string | undefined {
-		return this._etag;
 	}
 
 	get mtime(): number | undefined {
@@ -153,8 +148,8 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime, raw.etag);
+	static create(raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -247,24 +242,28 @@ export class ExplorerItem {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
-	fetchChildren(fileService: IFileService): Promise<ExplorerItem[]> {
-		let promise: Promise<any> = Promise.resolve(undefined);
+	async fetchChildren(fileService: IFileService, explorerService: IExplorerService): Promise<ExplorerItem[]> {
 		if (!this._isDirectoryResolved) {
-			promise = fileService.resolveFile(this.resource, { resolveSingleChildDescendants: true }).then(stat => {
+			// Resolve metadata only when the mtime is needed since this can be expensive
+			// Mtime is only used when the sort order is 'modified'
+			const resolveMetadata = explorerService.sortOrder === 'modified';
+			try {
+				const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
 				const resolved = ExplorerItem.create(stat, this);
 				ExplorerItem.mergeLocalWithDisk(resolved, this);
-				this._isDirectoryResolved = true;
-			});
+			} catch (e) {
+				this.isError = true;
+				throw e;
+			}
+			this._isDirectoryResolved = true;
 		}
 
-		return promise.then(() => {
-			const items: ExplorerItem[] = [];
-			this.children.forEach(child => {
-				items.push(child);
-			});
-
-			return items;
+		const items: ExplorerItem[] = [];
+		this.children.forEach(child => {
+			items.push(child);
 		});
+
+		return items;
 	}
 
 	/**
@@ -280,7 +279,7 @@ export class ExplorerItem {
 	}
 
 	private getPlatformAwareName(name: string): string {
-		return (isLinux || !name) ? name : name.toLowerCase();
+		return (!name || !resources.hasToIgnoreCase(this.resource)) ? name : name.toLowerCase();
 	}
 
 	/**
@@ -339,7 +338,7 @@ export class ExplorerItem {
 	}
 
 	private findByPath(path: string, index: number): ExplorerItem | null {
-		if (isEqual(rtrim(this.resource.path, posix.sep), path, !isLinux)) {
+		if (isEqual(rtrim(this.resource.path, posix.sep), path, resources.hasToIgnoreCase(this.resource))) {
 			return this;
 		}
 
@@ -366,5 +365,11 @@ export class ExplorerItem {
 		}
 
 		return null;
+	}
+}
+
+export class NewExplorerItem extends ExplorerItem {
+	constructor(parent: ExplorerItem, isDirectory: boolean) {
+		super(URI.file(''), parent, isDirectory);
 	}
 }

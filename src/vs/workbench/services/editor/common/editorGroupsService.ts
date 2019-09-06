@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IActiveEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -59,7 +59,13 @@ export const enum GroupsArrangement {
 	/**
 	 * Size all groups evenly.
 	 */
-	EVEN
+	EVEN,
+
+	/**
+	 * Will behave like MINIMIZE_OTHERS if the active
+	 * group is not already maximized and EVEN otherwise
+	 */
+	TOGGLE
 }
 
 export interface GroupLayoutArgument {
@@ -143,7 +149,7 @@ export const enum EditorsOrder {
 
 export interface IEditorGroupsService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event for when the active editor group changes. The active editor
@@ -177,6 +183,16 @@ export interface IEditorGroupsService {
 	readonly onDidLayout: Event<IDimension>;
 
 	/**
+	 * An event for when the index of a group changes.
+	 */
+	readonly onDidGroupIndexChange: Event<IEditorGroup>;
+
+	/**
+	 * The size of the editor groups area.
+	 */
+	readonly contentDimension: IDimension;
+
+	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: IEditorGroup;
@@ -203,6 +219,11 @@ export interface IEditorGroupsService {
 	readonly whenRestored: Promise<void>;
 
 	/**
+	 * Find out if the editor group service has editors to restore from a previous session.
+	 */
+	readonly willRestoreEditors: boolean;
+
+	/**
 	 * Get all groups that are currently visible in the editor area optionally
 	 * sorted by being most recent active or grid order. Will sort by creation
 	 * time by default (oldest group first).
@@ -212,7 +233,7 @@ export interface IEditorGroupsService {
 	/**
 	 * Allows to convert a group identifier to a group.
 	 */
-	getGroup(identifier: GroupIdentifier): IEditorGroup;
+	getGroup(identifier: GroupIdentifier): IEditorGroup | undefined;
 
 	/**
 	 * Set a group as active. An active group is the default location for new editors to open.
@@ -222,12 +243,12 @@ export interface IEditorGroupsService {
 	/**
 	 * Returns the size of a group.
 	 */
-	getSize(group: IEditorGroup | GroupIdentifier): number;
+	getSize(group: IEditorGroup | GroupIdentifier): { width: number, height: number };
 
 	/**
 	 * Sets the size of a group.
 	 */
-	setSize(group: IEditorGroup | GroupIdentifier, size: number): void;
+	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number, height: number }): void;
 
 	/**
 	 * Arrange all groups according to the provided arrangement.
@@ -333,7 +354,7 @@ export const enum GroupChangeKind {
 
 	/* Group Changes */
 	GROUP_ACTIVE,
-	GROUP_LABEL,
+	GROUP_INDEX,
 
 	/* Editor Changes */
 	EDITOR_OPEN,
@@ -365,6 +386,14 @@ export interface IEditorGroup {
 	readonly id: GroupIdentifier;
 
 	/**
+	 * A number that indicates the position of this group in the visual
+	 * order of groups from left to right and top to bottom. The lowest
+	 * index will likely be top-left while the largest index in most
+	 * cases should be bottom-right, but that depends on the grid.
+	 */
+	readonly index: number;
+
+	/**
 	 * A human readable label for the group. This label can change depending
 	 * on the layout of all editor groups. Clients should listen on the
 	 * `onDidGroupChange` event to react to that.
@@ -374,7 +403,7 @@ export interface IEditorGroup {
 	/**
 	 * The active control is the currently visible control of the group.
 	 */
-	readonly activeControl: IActiveEditor | undefined;
+	readonly activeControl: IVisibleEditor | undefined;
 
 	/**
 	 * The active editor is the currently visible editor of the group
@@ -401,7 +430,7 @@ export interface IEditorGroup {
 	/**
 	 * Returns the editor at a specific index of the group.
 	 */
-	getEditor(index: number): IEditorInput | null;
+	getEditor(index: number): IEditorInput | undefined;
 
 	/**
 	 * Get all editors that are currently opened in the group optionally

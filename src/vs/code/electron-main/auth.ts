@@ -24,7 +24,7 @@ type Credentials = {
 
 export class ProxyAuthHandler {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private retryCount = 0;
 	private disposables: IDisposable[] = [];
@@ -54,7 +54,11 @@ export class ProxyAuthHandler {
 			width: 450,
 			height: 220,
 			show: true,
-			title: 'VS Code'
+			title: 'VS Code',
+			webPreferences: {
+				nodeIntegration: true,
+				webviewTag: true
+			}
 		};
 
 		const focusedWindow = this.windowsMainService.getFocusedWindow();

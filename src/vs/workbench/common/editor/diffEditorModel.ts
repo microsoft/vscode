@@ -11,8 +11,8 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
  * and the modified version.
  */
 export class DiffEditorModel extends EditorModel {
-	protected _originalModel: IEditorModel | null;
-	protected _modifiedModel: IEditorModel | null;
+	protected readonly _originalModel: IEditorModel | null;
+	protected readonly _modifiedModel: IEditorModel | null;
 
 	constructor(originalModel: IEditorModel | null, modifiedModel: IEditorModel | null) {
 		super();
@@ -21,29 +21,33 @@ export class DiffEditorModel extends EditorModel {
 		this._modifiedModel = modifiedModel;
 	}
 
-	get originalModel(): EditorModel | null {
+	get originalModel(): IEditorModel | null {
 		if (!this._originalModel) {
 			return null;
 		}
-		return this._originalModel as EditorModel;
+
+		return this._originalModel;
 	}
 
-	get modifiedModel(): EditorModel | null {
+	get modifiedModel(): IEditorModel | null {
 		if (!this._modifiedModel) {
 			return null;
 		}
-		return this._modifiedModel as EditorModel;
+
+		return this._modifiedModel;
 	}
 
-	load(): Promise<EditorModel> {
-		return Promise.all([
+	async load(): Promise<EditorModel> {
+		await Promise.all([
 			this._originalModel ? this._originalModel.load() : Promise.resolve(undefined),
 			this._modifiedModel ? this._modifiedModel.load() : Promise.resolve(undefined),
-		]).then(() => this);
+		]);
+
+		return this;
 	}
 
 	isResolved(): boolean {
-		return !!this.originalModel && this.originalModel.isResolved() && !!this.modifiedModel && this.modifiedModel.isResolved();
+		return this.originalModel instanceof EditorModel && this.originalModel.isResolved() && this.modifiedModel instanceof EditorModel && this.modifiedModel.isResolved();
 	}
 
 	dispose(): void {

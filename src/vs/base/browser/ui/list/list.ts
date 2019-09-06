@@ -11,13 +11,14 @@ export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
 	getTemplateId(element: T): string;
 	hasDynamicHeight?(element: T): boolean;
+	setDynamicHeight?(element: T, height: number): void;
 }
 
 export interface IListRenderer<T, TTemplateData> {
 	templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
-	renderElement(element: T, index: number, templateData: TTemplateData, dynamicHeightProbing?: boolean): void;
-	disposeElement?(element: T, index: number, templateData: TTemplateData, dynamicHeightProbing?: boolean): void;
+	renderElement(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
+	disposeElement?(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
 	disposeTemplate(templateData: TTemplateData): void;
 }
 
@@ -103,4 +104,11 @@ export interface IListDragAndDrop<T> {
 	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void;
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction;
 	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
+}
+
+export class ListError extends Error {
+
+	constructor(user: string, message: string) {
+		super(`ListError [${user}] ${message}`);
+	}
 }

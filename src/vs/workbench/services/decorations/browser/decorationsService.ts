@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
@@ -95,20 +95,20 @@ class DecorationRule {
 	}
 }
 
-class DecorationStyles {
+class DecorationStyles extends Disposable {
 
-	private readonly _disposables: IDisposable[];
 	private readonly _styleElement = createStyleSheet();
 	private readonly _decorationRules = new Map<string, DecorationRule>();
 
 	constructor(
 		private _themeService: IThemeService,
 	) {
-		this._disposables = [this._themeService.onThemeChange(this._onThemeChange, this)];
+		super();
+		this._register(this._themeService.onThemeChange(this._onThemeChange, this));
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		super.dispose();
 
 		const parent = this._styleElement.parentElement;
 		if (parent) {
@@ -144,17 +144,7 @@ class DecorationStyles {
 		return {
 			labelClassName,
 			badgeClassName,
-			tooltip,
-			update: (replace) => {
-				let newData = data.slice();
-				for (let i = 0; i < newData.length; i++) {
-					if (newData[i].source === replace.source) {
-						// replace
-						newData[i] = replace;
-					}
-				}
-				return this.asDecoration(newData, onlyChildren);
-			}
+			tooltip
 		};
 	}
 
@@ -291,7 +281,7 @@ class DecorationProviderWrapper {
 		}
 	}
 
-	private _fetchData(uri: URI): IDecorationData | undefined | null {
+	private _fetchData(uri: URI): IDecorationData | null {
 
 		// check for pending request and cancel it
 		const pendingRequest = this.data.get(uri.toString());
@@ -319,11 +309,11 @@ class DecorationProviderWrapper {
 			}));
 
 			this.data.set(uri.toString(), request);
-			return undefined;
+			return null;
 		}
 	}
 
-	private _keepItem(uri: URI, data: IDecorationData | null | undefined): IDecorationData | null {
+	private _keepItem(uri: URI, data: IDecorationData | undefined): IDecorationData | null {
 		const deco = data ? data : null;
 		const old = this.data.set(uri.toString(), deco);
 		if (deco || old) {
@@ -336,7 +326,7 @@ class DecorationProviderWrapper {
 
 export class FileDecorationsService implements IDecorationsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
 	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
@@ -402,7 +392,7 @@ export class FileDecorationsService implements IDecorationsService {
 		});
 	}
 
-	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration | undefined {
+	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined {
 		let data: IDecorationData[] = [];
 		let containsChildren: boolean = false;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
@@ -414,22 +404,9 @@ export class FileDecorationsService implements IDecorationsService {
 			});
 		}
 
-		if (data.length === 0) {
-			// nothing, maybe overwrite data
-			if (overwrite) {
-				return this._decorationStyles.asDecoration([overwrite], containsChildren);
-			} else {
-				return undefined;
-			}
-		} else {
-			// result, maybe overwrite
-			let result = this._decorationStyles.asDecoration(data, containsChildren);
-			if (overwrite) {
-				return result.update(overwrite);
-			} else {
-				return result;
-			}
-		}
+		return data.length === 0
+			? undefined
+			: this._decorationStyles.asDecoration(data, containsChildren);
 	}
 }
 function getColor(theme: ITheme, color: string | undefined) {

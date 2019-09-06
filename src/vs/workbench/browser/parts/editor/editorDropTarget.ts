@@ -25,11 +25,11 @@ class DropOverlay extends Themable {
 
 	private static OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
 
-	private container: HTMLElement;
-	private overlay: HTMLElement;
+	private container!: HTMLElement;
+	private overlay!: HTMLElement;
 
-	private currentDropOperation?: IDropOperation;
-	private _disposed: boolean;
+	private currentDropOperation: IDropOperation | undefined;
+	private _disposed: boolean | undefined;
 
 	private cleanupOverlayScheduler: RunOnceScheduler;
 
@@ -50,7 +50,7 @@ class DropOverlay extends Themable {
 	}
 
 	get disposed(): boolean {
-		return this._disposed;
+		return !!this._disposed;
 	}
 
 	private create(): void {
@@ -88,10 +88,10 @@ class DropOverlay extends Themable {
 
 		// Overlay contrast border (if any)
 		const activeContrastBorderColor = this.getColor(activeContrastBorder);
-		this.overlay.style.outlineColor = activeContrastBorderColor;
-		this.overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : null;
-		this.overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : null;
-		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : null;
+		this.overlay.style.outlineColor = activeContrastBorderColor || '';
+		this.overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : '';
+		this.overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : '';
+		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
 	}
 
 	private registerListeners(): void {
@@ -193,30 +193,35 @@ class DropOverlay extends Themable {
 
 			// Return if the drop is a no-op
 			const sourceGroup = this.accessor.getGroup(draggedEditorGroup);
-			if (typeof splitDirection !== 'number' && sourceGroup === this.groupView) {
-				return;
-			}
+			if (sourceGroup) {
+				if (typeof splitDirection !== 'number' && sourceGroup === this.groupView) {
+					return;
+				}
 
-			// Split to new group
-			let targetGroup: IEditorGroupView;
-			if (typeof splitDirection === 'number') {
-				if (this.isCopyOperation(event)) {
-					targetGroup = this.accessor.copyGroup(sourceGroup, this.groupView, splitDirection);
-				} else {
-					targetGroup = this.accessor.moveGroup(sourceGroup, this.groupView, splitDirection);
+				// Split to new group
+				let targetGroup: IEditorGroupView | undefined;
+				if (typeof splitDirection === 'number') {
+					if (this.isCopyOperation(event)) {
+						targetGroup = this.accessor.copyGroup(sourceGroup, this.groupView, splitDirection);
+					} else {
+						targetGroup = this.accessor.moveGroup(sourceGroup, this.groupView, splitDirection);
+					}
+				}
+
+				// Merge into existing group
+				else {
+					if (this.isCopyOperation(event)) {
+						targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView, { mode: MergeGroupMode.COPY_EDITORS });
+					} else {
+						targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView);
+					}
+				}
+
+				if (targetGroup) {
+					this.accessor.activateGroup(targetGroup);
 				}
 			}
 
-			// Merge into existing group
-			else {
-				if (this.isCopyOperation(event)) {
-					targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView, { mode: MergeGroupMode.COPY_EDITORS });
-				} else {
-					targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView);
-				}
-			}
-
-			this.accessor.activateGroup(targetGroup);
 			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 		}
 
@@ -227,21 +232,23 @@ class DropOverlay extends Themable {
 
 			// Return if the drop is a no-op
 			const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
-			if (sourceGroup === targetGroup) {
-				return;
-			}
+			if (sourceGroup) {
+				if (sourceGroup === targetGroup) {
+					return;
+				}
 
-			// Open in target group
-			const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({ pinned: true }));
-			targetGroup.openEditor(draggedEditor.editor, options);
+				// Open in target group
+				const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({ pinned: true }));
+				targetGroup.openEditor(draggedEditor.editor, options);
 
-			// Ensure target has focus
-			targetGroup.focus();
+				// Ensure target has focus
+				targetGroup.focus();
 
-			// Close in source group unless we copy
-			const copyEditor = this.isCopyOperation(event, draggedEditor);
-			if (!copyEditor) {
-				sourceGroup.closeEditor(draggedEditor.editor);
+				// Close in source group unless we copy
+				const copyEditor = this.isCopyOperation(event, draggedEditor);
+				if (!copyEditor) {
+					sourceGroup.closeEditor(draggedEditor.editor);
+				}
 			}
 
 			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
@@ -250,12 +257,16 @@ class DropOverlay extends Themable {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
-			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => targetGroup!.focus());
+			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => {
+				if (targetGroup) {
+					targetGroup.focus();
+				}
+			});
 		}
 	}
 
 	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
-		if (draggedEditor && !(draggedEditor.editor as EditorInput).supportsSplitEditor()) {
+		if (draggedEditor && draggedEditor.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
 			return false;
 		}
 
@@ -398,7 +409,7 @@ class DropOverlay extends Themable {
 	}
 
 	private getOverlayOffsetHeight(): number {
-		if (!this.groupView.isEmpty() && this.accessor.partOptions.showTabs) {
+		if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
 			return EDITOR_TITLE_HEIGHT; // show overlay below title if group shows tabs
 		}
 

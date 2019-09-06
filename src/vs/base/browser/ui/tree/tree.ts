@@ -33,7 +33,7 @@ export const enum TreeVisibility {
 export interface ITreeFilterDataResult<TFilterData> {
 
 	/**
-	 * Whether the node should be visibile.
+	 * Whether the node should be visible.
 	 */
 	visibility: boolean | TreeVisibility;
 
@@ -124,6 +124,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
 	expandTo(location: TRef): void;
 
+	rerender(location: TRef): void;
 	refilter(): void;
 }
 
@@ -137,15 +138,22 @@ export interface ITreeEvent<T> {
 	browserEvent?: UIEvent;
 }
 
+export enum TreeMouseEventTarget {
+	Unknown,
+	Twistie,
+	Element
+}
+
 export interface ITreeMouseEvent<T> {
 	browserEvent: MouseEvent;
 	element: T | null;
+	target: TreeMouseEventTarget;
 }
 
 export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | null;
-	anchor: HTMLElement | { x: number; y: number; } | undefined;
+	anchor: HTMLElement | { x: number; y: number; };
 }
 
 export interface ITreeNavigator<T> {
@@ -185,4 +193,11 @@ export const TreeDragOverReactions = {
 
 export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
+}
+
+export class TreeError extends Error {
+
+	constructor(user: string, message: string) {
+		super(`TreeError [${user}] ${message}`);
+	}
 }

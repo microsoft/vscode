@@ -5,8 +5,7 @@
 
 import * as Assert from 'vs/base/common/assert';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import * as arrays from 'vs/base/common/arrays';
+import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { INavigator } from 'vs/base/common/iterator';
 import * as _ from './tree';
 import { Event, Emitter, EventMultiplexer, Relay } from 'vs/base/common/event';
@@ -160,7 +159,7 @@ export class ItemRegistry {
 	public register(item: Item): void {
 		Assert.ok(!this.isRegistered(item.id), 'item already registered: ' + item.id);
 
-		const disposable = combinedDisposable([
+		const disposable = combinedDisposable(
 			this._onDidRevealItem.add(item.onDidReveal),
 			this._onExpandItem.add(item.onExpand),
 			this._onDidExpandItem.add(item.onDidExpand),
@@ -172,7 +171,7 @@ export class ItemRegistry {
 			this._onRefreshItemChildren.add(item.onRefreshChildren),
 			this._onDidRefreshItemChildren.add(item.onDidRefreshChildren),
 			this._onDidDisposeItem.add(item.onDidDispose)
-		]);
+		);
 
 		this.items[item.id] = { item, disposable };
 	}
@@ -193,7 +192,7 @@ export class ItemRegistry {
 	}
 
 	public dispose(): void {
-		this.items = null!; // StrictNullOverride: nulling out ok in dispose
+		this.items = {};
 
 		this._onDidRevealItem.dispose();
 		this._onExpandItem.dispose();
@@ -558,19 +557,6 @@ export class Item {
 		return this.isAncestorOf(other) || other.isAncestorOf(this);
 	}
 
-	public getHierarchy(): Item[] {
-		let result: Item[] = [];
-		let node: Item | null = this;
-
-		do {
-			result.push(node);
-			node = node.parent;
-		} while (node);
-
-		result.reverse();
-		return result;
-	}
-
 	private isAncestorOf(startItem: Item): boolean {
 		let item: Item | null = startItem;
 		while (item) {
@@ -863,42 +849,6 @@ export class TreeNavigator implements INavigator<Item> {
 	}
 }
 
-function getRange(one: Item, other: Item): Item[] {
-	let oneHierarchy = one.getHierarchy();
-	let otherHierarchy = other.getHierarchy();
-	let length = arrays.commonPrefixLength(oneHierarchy, otherHierarchy);
-	let item: Item | null = oneHierarchy[length - 1];
-	let nav = item.getNavigator();
-
-	let oneIndex: number | null = null;
-	let otherIndex: number | null = null;
-
-	let index = 0;
-	let result: Item[] = [];
-
-	while (item && (oneIndex === null || otherIndex === null)) {
-		result.push(item);
-
-		if (item === one) {
-			oneIndex = index;
-		}
-		if (item === other) {
-			otherIndex = index;
-		}
-
-		index++;
-		item = nav.next();
-	}
-
-	if (oneIndex === null || otherIndex === null) {
-		return [];
-	}
-
-	let min = Math.min(oneIndex, otherIndex);
-	let max = Math.max(oneIndex, otherIndex);
-	return result.slice(min, max + 1);
-}
-
 export interface IBaseEvent {
 	item: Item | null;
 }
@@ -912,10 +862,10 @@ export interface IRefreshEvent extends IBaseEvent {
 export class TreeModel {
 
 	private context: _.ITreeContext;
-	private lock: Lock;
+	private lock!: Lock;
 	private input: Item | null;
-	private registry: ItemRegistry;
-	private registryDisposable: IDisposable;
+	private registry: ItemRegistry = new ItemRegistry();
+	private registryDisposable: IDisposable = Disposable.None;
 	private traitsToItems: ITraitMap;
 
 	private _onSetInput = new Emitter<IInputEvent>();
@@ -1196,28 +1146,6 @@ export class TreeModel {
 		this.selectAll([element], eventPayload);
 	}
 
-	public selectRange(fromElement: any, toElement: any, eventPayload?: any): void {
-		let fromItem = this.getItem(fromElement);
-		let toItem = this.getItem(toElement);
-
-		if (!fromItem || !toItem) {
-			return;
-		}
-
-		this.selectAll(getRange(fromItem, toItem), eventPayload);
-	}
-
-	public deselectRange(fromElement: any, toElement: any, eventPayload?: any): void {
-		let fromItem = this.getItem(fromElement);
-		let toItem = this.getItem(toElement);
-
-		if (!fromItem || !toItem) {
-			return;
-		}
-
-		this.deselectAll(getRange(fromItem, toItem), eventPayload);
-	}
-
 	public selectAll(elements: any[], eventPayload?: any): void {
 		this.addTraits('selected', elements);
 		let eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
@@ -1236,12 +1164,6 @@ export class TreeModel {
 
 	public setSelection(elements: any[], eventPayload?: any): void {
 		this.setTraits('selected', elements);
-		let eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
-		this._onDidSelect.fire(eventData);
-	}
-
-	public toggleSelection(element: any, eventPayload?: any): void {
-		this.toggleTrait('selected', element);
 		let eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
 		this._onDidSelect.fire(eventData);
 	}
@@ -1312,21 +1234,6 @@ export class TreeModel {
 			this.setSelection([item], eventPayload);
 		} else {
 			this.select(item, eventPayload);
-		}
-	}
-
-	public selectParent(eventPayload?: any, clearSelection: boolean = true): void {
-		let selection = this.getSelection();
-		let item: Item = selection.length > 0 ? selection[0] : this.input;
-		let nav = this.getNavigator(item, false);
-		let parent = nav.parent();
-
-		if (parent) {
-			if (clearSelection) {
-				this.setSelection([parent], eventPayload);
-			} else {
-				this.select(parent, eventPayload);
-			}
 		}
 	}
 
@@ -1504,25 +1411,6 @@ export class TreeModel {
 		}
 	}
 
-	public hasTrait(trait: string, element: any): boolean {
-		const item = this.getItem(element);
-		return !!(item && item.hasTrait(trait));
-	}
-
-	private toggleTrait(trait: string, element: any): void {
-		let item = this.getItem(element);
-
-		if (!item) {
-			return;
-		}
-
-		if (item.hasTrait(trait)) {
-			this.removeTraits(trait, [element]);
-		} else {
-			this.addTraits(trait, [element]);
-		}
-	}
-
 	private setTraits(trait: string, elements: any[]): void {
 		if (elements.length === 0) {
 			this.removeTraits(trait, elements);
@@ -1583,11 +1471,7 @@ export class TreeModel {
 	}
 
 	public dispose(): void {
-		if (this.registry) {
-			this.registry.dispose();
-			this.registry = null!; // StrictNullOverride: nulling out ok in dispose
-		}
-
+		this.registry.dispose();
 		this._onSetInput.dispose();
 		this._onDidSetInput.dispose();
 		this._onRefresh.dispose();

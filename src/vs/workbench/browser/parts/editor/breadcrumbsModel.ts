@@ -9,7 +9,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { size } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -21,6 +21,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { FileKind } from 'vs/platform/files/common/files';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class FileElement {
 	constructor(
@@ -35,14 +36,14 @@ type FileInfo = { path: FileElement[], folder?: IWorkspaceFolder };
 
 export class EditorBreadcrumbsModel {
 
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 	private readonly _fileInfo: FileInfo;
 
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
 	private _outlineElements: Array<OutlineModel | OutlineGroup | OutlineElement> = [];
-	private _outlineDisposables: IDisposable[] = [];
+	private _outlineDisposables = new DisposableStore();
 
 	private _onDidUpdate = new Emitter<this>();
 	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
@@ -57,8 +58,8 @@ export class EditorBreadcrumbsModel {
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
 		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
 
-		this._disposables.push(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
-		this._disposables.push(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
+		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
+		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
 
 		this._fileInfo = EditorBreadcrumbsModel._initFilePathInfo(this._uri, workspaceService);
 		this._bindToEditor();
@@ -68,7 +69,7 @@ export class EditorBreadcrumbsModel {
 	dispose(): void {
 		this._cfgFilePath.dispose();
 		this._cfgSymbolPath.dispose();
-		dispose(this._disposables);
+		this._disposables.dispose();
 	}
 
 	isRelative(): boolean {
@@ -105,7 +106,7 @@ export class EditorBreadcrumbsModel {
 		}
 
 		let info: FileInfo = {
-			folder: workspaceService.getWorkspaceFolder(uri) || undefined,
+			folder: withNullAsUndefined(workspaceService.getWorkspaceFolder(uri)),
 			path: []
 		};
 
@@ -132,20 +133,27 @@ export class EditorBreadcrumbsModel {
 		if (!this._editor) {
 			return;
 		}
-		// update as model changes
-		this._disposables.push(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
-		this._disposables.push(this._editor.onDidChangeModel(_ => this._updateOutline()));
-		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._updateOutline()));
-		this._disposables.push(Event.debounce(this._editor.onDidChangeModelContent, _ => _, 350)(_ => this._updateOutline(true)));
+		// update as language, model, providers changes
+		this._disposables.add(DocumentSymbolProviderRegistry.onDidChange(_ => this._updateOutline()));
+		this._disposables.add(this._editor.onDidChangeModel(_ => this._updateOutline()));
+		this._disposables.add(this._editor.onDidChangeModelLanguage(_ => this._updateOutline()));
+
+		// update soon'ish as model content change
+		const updateSoon = new TimeoutTimer();
+		this._disposables.add(updateSoon);
+		this._disposables.add(this._editor.onDidChangeModelContent(_ => {
+			const timeout = OutlineModel.getRequestDelay(this._editor!.getModel());
+			updateSoon.cancelAndSet(() => this._updateOutline(true), timeout);
+		}));
 		this._updateOutline();
 
 		// stop when editor dies
-		this._disposables.push(this._editor.onDidDispose(() => this._outlineDisposables = dispose(this._outlineDisposables)));
+		this._disposables.add(this._editor.onDidDispose(() => this._outlineDisposables.clear()));
 	}
 
 	private _updateOutline(didChangeContent?: boolean): void {
 
-		this._outlineDisposables = dispose(this._outlineDisposables);
+		this._outlineDisposables.clear();
 		if (!didChangeContent) {
 			this._updateOutlineElements([]);
 		}
@@ -161,7 +169,7 @@ export class EditorBreadcrumbsModel {
 		const versionIdThen = buffer.getVersionId();
 		const timeout = new TimeoutTimer();
 
-		this._outlineDisposables.push({
+		this._outlineDisposables.add({
 			dispose: () => {
 				source.cancel();
 				source.dispose();
@@ -179,7 +187,7 @@ export class EditorBreadcrumbsModel {
 				model = model.adopt();
 
 				this._updateOutlineElements(this._getOutlineElements(model, editor.getPosition()));
-				this._outlineDisposables.push(editor.onDidChangeCursorPosition(_ => {
+				this._outlineDisposables.add(editor.onDidChangeCursorPosition(_ => {
 					timeout.cancelAndSet(() => {
 						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && editor.getModel()) {
 							this._updateOutlineElements(this._getOutlineElements(model, editor.getPosition()));
@@ -204,7 +212,7 @@ export class EditorBreadcrumbsModel {
 		let chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
 			chain.push(item);
-			let parent = item.parent;
+			let parent: any = item.parent;
 			if (parent instanceof OutlineModel) {
 				break;
 			}

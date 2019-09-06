@@ -41,7 +41,7 @@ export interface IKeyboardEvent {
 export const IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
@@ -93,5 +93,6 @@ export interface IKeybindingService {
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
 
 	_dumpDebugInfo(): string;
+	_dumpDebugInfoJSON(): string;
 }
 
