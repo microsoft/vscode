@@ -51,6 +51,15 @@ export const CONTINUE_ID = 'workbench.action.debug.continue';
 export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
 export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
 
+export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
+export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
+export const STEP_INTO_LABEL = nls.localize('stepIntoDebug', "Step Into");
+export const STEP_OUT_LABEL = nls.localize('stepOutDebug', "Step Out");
+export const PAUSE_LABEL = nls.localize('pauseDebug', "Pause");
+export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
+export const STOP_LABEL = nls.localize('stop', "Stop");
+export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
+
 function getThreadAndRun(accessor: ServicesAccessor, thread: IThread | undefined, run: (thread: IThread) => Promise<void>, ): void {
 	const debugService = accessor.get(IDebugService);
 	if (!(thread instanceof Thread)) {
@@ -224,9 +233,9 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: DISCONNECT_ID,
-		handler: (accessor: ServicesAccessor) => {
+		handler: (accessor: ServicesAccessor, _: string, session: IDebugSession | undefined) => {
 			const debugService = accessor.get(IDebugService);
-			const session = debugService.getViewModel().focusedSession;
+			session = session || debugService.getViewModel().focusedSession;
 			debugService.stopSession(session).then(undefined, onUnexpectedError);
 		}
 	});
