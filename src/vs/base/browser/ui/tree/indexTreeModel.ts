@@ -396,7 +396,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		result.push(node);
 		node.renderNodeCount = 1;
 
-		if (node.collapsible && !node.collapsed) {
+		if (!node.collapsed) {
 			for (const child of node.children) {
 				node.renderNodeCount += this._updateNodeAfterCollapseChange(child, result);
 			}
