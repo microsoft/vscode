@@ -210,13 +210,9 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		if (typeof collapsible === 'undefined') {
 			collapsible = !node.collapsible;
-		} else if (node.collapsible === collapsible) {
-			return false;
 		}
 
-		node.collapsible = collapsible;
-		this.eventBufferer.bufferEvents(() => this._setCollapsed(location, node.collapsed));
-		return true;
+		return this.eventBufferer.bufferEvents(() => this._setCollapseState(location, collapsible!, node.collapsed));
 	}
 
 	isCollapsed(location: number[]): boolean {
@@ -230,13 +226,13 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			collapsed = !node.collapsed;
 		}
 
-		return this.eventBufferer.bufferEvents(() => this._setCollapsed(location, collapsed!, recursive));
+		return this.eventBufferer.bufferEvents(() => this._setCollapseState(location, node.collapsible, collapsed!, recursive));
 	}
 
-	private _setCollapsed(location: number[], collapsed: boolean, recursive?: boolean): boolean {
+	private _setCollapseState(location: number[], collapsible: boolean, collapsed: boolean, recursive?: boolean): boolean {
 		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
 
-		const result = this._setListNodeCollapsed(node, listIndex, revealed, collapsed!, recursive || false);
+		const result = this._setListNodeCollapseState(node, listIndex, revealed, collapsible, collapsed, recursive || false);
 
 		if (node !== this.root && this.autoExpandSingleChildren && !collapsed! && !recursive) {
 			let onlyVisibleChildIndex = -1;
@@ -255,15 +251,15 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			}
 
 			if (onlyVisibleChildIndex > -1) {
-				this._setCollapsed([...location, onlyVisibleChildIndex], false, false);
+				this._setCollapseState([...location, onlyVisibleChildIndex], false, false);
 			}
 		}
 
 		return result;
 	}
 
-	private _setListNodeCollapsed(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsed: boolean, recursive: boolean): boolean {
-		const result = this._setNodeCollapsed(node, collapsed, recursive, false);
+	private _setListNodeCollapseState(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsible: boolean, collapsed: boolean, recursive: boolean): boolean {
+		const result = this._setNodeCollapseState(node, collapsible, collapsed, recursive, false);
 
 		if (!revealed || !node.visible) {
 			return result;
@@ -277,20 +273,19 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return result;
 	}
 
-	private _setNodeCollapsed(node: IMutableTreeNode<T, TFilterData>, collapsed: boolean, recursive: boolean, deep: boolean): boolean {
-		let result = node.collapsible && node.collapsed !== collapsed;
+	private _setNodeCollapseState(node: IMutableTreeNode<T, TFilterData>, collapsible: boolean, collapsed: boolean, recursive: boolean, deep: boolean): boolean {
+		let result = node.collapsible !== collapsible || node.collapsed !== collapsed;
 
-		if (node.collapsible) {
-			node.collapsed = collapsed;
+		node.collapsible = collapsible;
+		node.collapsed = collapsed;
 
-			if (result) {
-				this._onDidChangeCollapseState.fire({ node, deep });
-			}
+		if (result) {
+			this._onDidChangeCollapseState.fire({ node, deep });
 		}
 
 		if (recursive) {
 			for (const child of node.children) {
-				result = this._setNodeCollapsed(child, collapsed, true, true) || result;
+				result = this._setNodeCollapseState(child, collapsible, collapsed, true, true) || result;
 			}
 		}
 
@@ -306,7 +301,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 				location = location.slice(0, location.length - 1);
 
 				if (node.collapsed) {
-					this._setCollapsed(location, false);
+					this._setCollapseState(location, node.collapsible, false);
 				}
 			}
 		});
