@@ -12,6 +12,8 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { isObject } from 'vs/base/common/types';
 
+//#region typed options
+
 /**
  * Configuration options for editor scrollbars
  */
@@ -756,6 +758,8 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	originalEditable?: boolean;
 }
 
+//#endregion
+
 /**
  * An event describing that the configuration of the editor has changed.
  */
@@ -787,70 +791,6 @@ export interface IEnvironmentalOptions {
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
 	readonly accessibilitySupport: AccessibilitySupport;
-}
-
-function _boolean(value: any, defaultValue: boolean): boolean {
-	if (typeof value === 'undefined') {
-		return defaultValue;
-	}
-	if (value === 'false') {
-		// treat the string 'false' as false
-		return false;
-	}
-	return Boolean(value);
-}
-
-function _string(value: any, defaultValue: string): string {
-	if (typeof value !== 'string') {
-		return defaultValue;
-	}
-	return value;
-}
-
-function _stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: ReadonlyArray<T>): T {
-	if (typeof value !== 'string') {
-		return defaultValue;
-	}
-	if (allowedValues.indexOf(value) === -1) {
-		return defaultValue;
-	}
-	return value;
-}
-
-function _clamp(n: number, min: number, max: number): number {
-	if (n < min) {
-		return min;
-	}
-	if (n > max) {
-		return max;
-	}
-	return n;
-}
-
-function _clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
-	let r: number;
-	if (typeof value === 'undefined') {
-		r = defaultValue;
-	} else {
-		r = parseInt(value, 10);
-		if (isNaN(r)) {
-			r = defaultValue;
-		}
-	}
-	r = Math.max(minimum, r);
-	r = Math.min(maximum, r);
-	return r | 0;
-}
-
-function _float(value: any, defaultValue: number): number {
-	if (typeof value === 'number') {
-		return value;
-	}
-	if (typeof value === 'undefined') {
-		return defaultValue;
-	}
-	const r = parseFloat(value);
-	return (isNaN(r) ? defaultValue : r);
 }
 
 /**
@@ -963,6 +903,17 @@ class SimpleEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1
 	}
 }
 
+function _boolean(value: any, defaultValue: boolean): boolean {
+	if (typeof value === 'undefined') {
+		return defaultValue;
+	}
+	if (value === 'false') {
+		// treat the string 'false' as false
+		return false;
+	}
+	return Boolean(value);
+}
+
 class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1, boolean> {
 	public validate(input: any): boolean {
 		return _boolean(input, this.defaultValue);
@@ -970,6 +921,22 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 }
 
 class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
+
+	public static clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
+		let r: number;
+		if (typeof value === 'undefined') {
+			r = defaultValue;
+		} else {
+			r = parseInt(value, 10);
+			if (isNaN(r)) {
+				r = defaultValue;
+			}
+		}
+		r = Math.max(minimum, r);
+		r = Math.min(maximum, r);
+		return r | 0;
+	}
+
 	public readonly minimum: number;
 	public readonly maximum: number;
 	constructor(id: K1, name: PossibleKeyName<number>, defaultValue: number, minimum: number, maximum: number) {
@@ -978,35 +945,76 @@ class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, nu
 		this.maximum = maximum;
 	}
 	public validate(input: any): number {
-		return _clampedInt(input, this.defaultValue, this.minimum, this.maximum);
+		return EditorIntOption.clampedInt(input, this.defaultValue, this.minimum, this.maximum);
 	}
 }
 
 class EditorFloatOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
+
+	public static clamp(n: number, min: number, max: number): number {
+		if (n < min) {
+			return min;
+		}
+		if (n > max) {
+			return max;
+		}
+		return n;
+	}
+
+	public static float(value: any, defaultValue: number): number {
+		if (typeof value === 'number') {
+			return value;
+		}
+		if (typeof value === 'undefined') {
+			return defaultValue;
+		}
+		const r = parseFloat(value);
+		return (isNaN(r) ? defaultValue : r);
+	}
+
 	public readonly validationFn: (value: number) => number;
 	constructor(id: K1, name: PossibleKeyName<number>, defaultValue: number, validationFn: (value: number) => number) {
 		super(id, name, defaultValue);
 		this.validationFn = validationFn;
 	}
 	public validate(input: any): number {
-		return this.validationFn(_float(input, this.defaultValue));
+		return this.validationFn(EditorFloatOption.float(input, this.defaultValue));
 	}
 }
 
 class EditorStringOption<K1 extends EditorOption> extends SimpleEditorOption<K1, string> {
+
+	public static string(value: any, defaultValue: string): string {
+		if (typeof value !== 'string') {
+			return defaultValue;
+		}
+		return value;
+	}
+
 	public validate(input: any): string {
-		return _string(input, this.defaultValue);
+		return EditorStringOption.string(input, this.defaultValue);
 	}
 }
 
 class EditorStringEnumOption<K1 extends EditorOption, V extends string> extends SimpleEditorOption<K1, V> {
+
+	public static stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: ReadonlyArray<T>): T {
+		if (typeof value !== 'string') {
+			return defaultValue;
+		}
+		if (allowedValues.indexOf(value) === -1) {
+			return defaultValue;
+		}
+		return value;
+	}
+
 	public readonly allowedValues: ReadonlyArray<V>;
 	constructor(id: K1, name: PossibleKeyName<V>, defaultValue: V, allowedValues: ReadonlyArray<V>) {
 		super(id, name, defaultValue);
 		this.allowedValues = allowedValues;
 	}
 	public validate(input: any): V {
-		return _stringSet<V>(input, this.defaultValue, this.allowedValues);
+		return EditorStringEnumOption.stringSet<V>(input, this.defaultValue, this.allowedValues);
 	}
 }
 
@@ -1057,7 +1065,7 @@ class EditorAccessibilitySupportOption<K1 extends EditorOption, K2 extends Possi
 
 class EditorAriaLabel<K1 extends EditorOption> extends SimpleEditorOption<K1, string> {
 	public validate(input: any): string {
-		return _string(input, this.defaultValue);
+		return EditorStringOption.string(input, this.defaultValue);
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: string): string {
 		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
@@ -1264,11 +1272,11 @@ class EditorFontInfo<K1 extends EditorOption> extends ComputedEditorOption<K1, F
 
 class EditorFontSize<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
 	public validate(input: any): number {
-		let r = _float(input, this.defaultValue);
+		let r = EditorFloatOption.float(input, this.defaultValue);
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
 		}
-		return _clamp(r, 8, 100);
+		return EditorFloatOption.clamp(r, 8, 100);
 	}
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The final fontSize respects the editor zoom level.
@@ -1292,7 +1300,7 @@ class EditorGoToLocation<K1 extends EditorOption, K2 extends PossibleKeyName<IGo
 		}
 		const input = _input as IGotoLocationOptions;
 		return {
-			multiple: _stringSet<'peek' | 'gotoAndPeek' | 'goto'>(input.multiple, this.defaultValue.multiple, ['peek', 'gotoAndPeek', 'goto'])
+			multiple: EditorStringEnumOption.stringSet<'peek' | 'gotoAndPeek' | 'goto'>(input.multiple, this.defaultValue.multiple, ['peek', 'gotoAndPeek', 'goto'])
 		};
 	}
 }
@@ -1315,7 +1323,7 @@ class EditorHover<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorHov
 		const input = _input as IEditorHoverOptions;
 		return {
 			enabled: _boolean(input.enabled, this.defaultValue.enabled),
-			delay: _clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
+			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
 			sticky: _boolean(input.sticky, this.defaultValue.sticky)
 		};
 	}
@@ -1514,9 +1522,9 @@ export class EditorLayoutInfoComputer<K1 extends EditorOption> extends ComputedE
 		let lineDecorationsWidth: number;
 		if (typeof rawLineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(rawLineDecorationsWidth)) {
 			const multiple = parseFloat(rawLineDecorationsWidth.substr(0, rawLineDecorationsWidth.length - 2));
-			lineDecorationsWidth = _clampedInt(multiple * typicalHalfwidthCharacterWidth, 0, 0, 1000);
+			lineDecorationsWidth = EditorIntOption.clampedInt(multiple * typicalHalfwidthCharacterWidth, 0, 0, 1000);
 		} else {
-			lineDecorationsWidth = _clampedInt(rawLineDecorationsWidth, 0, 0, 1000);
+			lineDecorationsWidth = EditorIntOption.clampedInt(rawLineDecorationsWidth, 0, 0, 1000);
 		}
 		if (folding) {
 			lineDecorationsWidth += 16;
@@ -1685,10 +1693,10 @@ class EditorMinimap<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorM
 		const input = _input as IEditorMinimapOptions;
 		return {
 			enabled: _boolean(input.enabled, this.defaultValue.enabled),
-			side: _stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
-			showSlider: _stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
+			side: EditorStringEnumOption.stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
+			showSlider: EditorStringEnumOption.stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
 			renderCharacters: _boolean(input.renderCharacters, this.defaultValue.renderCharacters),
-			maxColumn: _clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
+			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 		};
 	}
 }
@@ -1807,7 +1815,7 @@ class EditorRulers<K1 extends EditorOption> extends SimpleEditorOption<K1, numbe
 		if (Array.isArray(input)) {
 			let rulers: number[] = [];
 			for (let value of input) {
-				rulers.push(_clampedInt(value, 0, 0, 10000));
+				rulers.push(EditorIntOption.clampedInt(value, 0, 0, 10000));
 			}
 			rulers.sort();
 			return rulers;
@@ -1851,10 +1859,10 @@ class EditorScrollbar<K1 extends EditorOption, K2 extends PossibleKeyName<IEdito
 			return this.defaultValue;
 		}
 		const input = _input as IEditorScrollbarOptions;
-		const horizontalScrollbarSize = _clampedInt(input.horizontalScrollbarSize, this.defaultValue.horizontalScrollbarSize, 0, 1000);
-		const verticalScrollbarSize = _clampedInt(input.verticalScrollbarSize, this.defaultValue.verticalScrollbarSize, 0, 1000);
+		const horizontalScrollbarSize = EditorIntOption.clampedInt(input.horizontalScrollbarSize, this.defaultValue.horizontalScrollbarSize, 0, 1000);
+		const verticalScrollbarSize = EditorIntOption.clampedInt(input.verticalScrollbarSize, this.defaultValue.verticalScrollbarSize, 0, 1000);
 		return {
-			arrowSize: _clampedInt(input.arrowSize, this.defaultValue.arrowSize, 0, 1000),
+			arrowSize: EditorIntOption.clampedInt(input.arrowSize, this.defaultValue.arrowSize, 0, 1000),
 			vertical: _scrollbarVisibilityFromString(input.vertical, this.defaultValue.vertical),
 			horizontal: _scrollbarVisibilityFromString(input.horizontal, this.defaultValue.horizontal),
 			useShadows: _boolean(input.useShadows, this.defaultValue.useShadows),
@@ -1862,9 +1870,9 @@ class EditorScrollbar<K1 extends EditorOption, K2 extends PossibleKeyName<IEdito
 			horizontalHasArrows: _boolean(input.horizontalHasArrows, this.defaultValue.horizontalHasArrows),
 			handleMouseWheel: _boolean(input.handleMouseWheel, this.defaultValue.handleMouseWheel),
 			horizontalScrollbarSize: horizontalScrollbarSize,
-			horizontalSliderSize: _clampedInt(input.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
+			horizontalSliderSize: EditorIntOption.clampedInt(input.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
 			verticalScrollbarSize: verticalScrollbarSize,
-			verticalSliderSize: _clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
+			verticalSliderSize: EditorIntOption.clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
 		};
 	}
 }
@@ -1897,7 +1905,7 @@ class EditorSuggest<K1 extends EditorOption, K2 extends PossibleKeyName<ISuggest
 			localityBonus: _boolean(input.localityBonus, this.defaultValue.localityBonus),
 			shareSuggestSelections: _boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: _boolean(input.showIcons, this.defaultValue.showIcons),
-			maxVisibleSuggestions: _clampedInt(input.maxVisibleSuggestions, this.defaultValue.maxVisibleSuggestions, 1, 15),
+			maxVisibleSuggestions: EditorIntOption.clampedInt(input.maxVisibleSuggestions, this.defaultValue.maxVisibleSuggestions, 1, 15),
 			filteredTypes: isObject(input.filteredTypes) ? input.filteredTypes : Object.create(null)
 		};
 	}
@@ -2245,7 +2253,7 @@ export const EditorOptions = {
 		sticky: true
 	})),
 	inDiffEditor: registerEditorOption(new EditorBooleanOption(EditorOption.inDiffEditor, 'inDiffEditor', false)),
-	letterSpacing: registerEditorOption(new EditorFloatOption(EditorOption.letterSpacing, 'letterSpacing', EDITOR_FONT_DEFAULTS.letterSpacing, x => _clamp(x, -5, 20))),
+	letterSpacing: registerEditorOption(new EditorFloatOption(EditorOption.letterSpacing, 'letterSpacing', EDITOR_FONT_DEFAULTS.letterSpacing, x => EditorFloatOption.clamp(x, -5, 20))),
 	lightbulb: registerEditorOption(new EditorLightbulb(EditorOption.lightbulb, 'lightbulb', {
 		enabled: true
 	})),
