@@ -2225,7 +2225,7 @@ export interface ISuggestOptions {
 
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
 
-class EditorSuggest<K1 extends EditorOption, K2 extends PossibleKeyName<ISuggestOptions>> extends BaseEditorOption<EditorOption.suggest, InternalSuggestOptions> {
+class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSuggestOptions> {
 
 	constructor() {
 		const defaults: InternalSuggestOptions = {
@@ -2434,7 +2434,12 @@ class EditorSuggest<K1 extends EditorOption, K2 extends PossibleKeyName<ISuggest
 
 //#region tabFocusMode
 
-class EditorTabFocusMode<K1 extends EditorOption> extends ComputedEditorOption<K1, boolean> {
+class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode, boolean> {
+
+	constructor() {
+		super(EditorOption.tabFocusMode, [EditorOption.readOnly]);
+	}
+
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: boolean): boolean {
 		const readOnly = options.get(EditorOption.readOnly);
 		return (readOnly ? true : env.tabFocusMode);
@@ -2487,7 +2492,12 @@ export interface EditorWrappingInfo {
 	readonly wrappingColumn: number;
 }
 
-class EditorWrappingInfoComputer<K1 extends EditorOption> extends ComputedEditorOption<K1, EditorWrappingInfo> {
+class EditorWrappingInfoComputer extends ComputedEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo> {
+
+	constructor() {
+		super(EditorOption.wrappingInfo, [EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified, EditorOption.layoutInfo, EditorOption.accessibilitySupport]);
+	}
+
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: EditorWrappingInfo): EditorWrappingInfo {
 		const wordWrap = options.get(EditorOption.wordWrap);
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
@@ -3216,9 +3226,9 @@ export const EditorOptions = {
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	pixelRatio: register(new EditorPixelRatio()),
-	tabFocusMode: register(new EditorTabFocusMode(EditorOption.tabFocusMode, [EditorOption.readOnly])),
+	tabFocusMode: register(new EditorTabFocusMode()),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
-	wrappingInfo: register(new EditorWrappingInfoComputer(EditorOption.wrappingInfo, [EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified, EditorOption.layoutInfo, EditorOption.accessibilitySupport])),
+	wrappingInfo: register(new EditorWrappingInfoComputer()),
 };
 
 type EditorOptionsType = typeof EditorOptions;
