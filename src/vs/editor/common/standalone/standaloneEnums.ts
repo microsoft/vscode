@@ -341,36 +341,6 @@ export enum AccessibilitySupport {
 	Enabled = 2
 }
 
-export enum RenderMinimap {
-	None = 0,
-	Small = 1,
-	Large = 2,
-	SmallBlocks = 3,
-	LargeBlocks = 4
-}
-
-/**
- * Describes how to indent wrapped lines.
- */
-export enum WrappingIndent {
-	/**
-	 * No indentation => wrapped lines begin at column 1.
-	 */
-	None = 0,
-	/**
-	 * Same => wrapped lines get the same indentation as the parent.
-	 */
-	Same = 1,
-	/**
-	 * Indent => wrapped lines get +1 indentation toward the parent.
-	 */
-	Indent = 2,
-	/**
-	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
-	 */
-	DeepIndent = 3
-}
-
 /**
  * The kind of animation in which the editor's cursor should be rendered.
  */
@@ -431,12 +401,42 @@ export enum TextEditorCursorStyle {
 	UnderlineThin = 6
 }
 
+export enum RenderMinimap {
+	None = 0,
+	Small = 1,
+	Large = 2,
+	SmallBlocks = 3,
+	LargeBlocks = 4
+}
+
 export enum RenderLineNumbersType {
 	Off = 0,
 	On = 1,
 	Relative = 2,
 	Interval = 3,
 	Custom = 4
+}
+
+/**
+ * Describes how to indent wrapped lines.
+ */
+export enum WrappingIndent {
+	/**
+	 * No indentation => wrapped lines begin at column 1.
+	 */
+	None = 0,
+	/**
+	 * Same => wrapped lines get the same indentation as the parent.
+	 */
+	Same = 1,
+	/**
+	 * Indent => wrapped lines get +1 indentation toward the parent.
+	 */
+	Indent = 2,
+	/**
+	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
+	 */
+	DeepIndent = 3
 }
 
 export enum EditorOption {

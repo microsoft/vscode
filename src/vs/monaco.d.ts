@@ -2540,7 +2540,7 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Configuration options for editor minimap
+	 * Configuration options for editor lightbulb
 	 */
 	export interface IEditorLightbulbOptions {
 		/**
@@ -2587,6 +2587,9 @@ declare namespace monaco.editor {
 		cycle?: boolean;
 	}
 
+	/**
+	 * Configuration options for editor suggest widget
+	 */
 	export interface ISuggestOptions {
 		/**
 		 * Enable graceful matching. Defaults to true.
@@ -2618,6 +2621,9 @@ declare namespace monaco.editor {
 		filteredTypes?: Record<string, boolean>;
 	}
 
+	/**
+	 * Configuration options for go to location
+	 */
 	export interface IGotoLocationOptions {
 		/**
 		 * Control how goto-command work when having multiple results.
@@ -2625,6 +2631,9 @@ declare namespace monaco.editor {
 		multiple?: 'peek' | 'gotoAndPeek' | 'goto';
 	}
 
+	/**
+	 * Configuration options for quick suggestions
+	 */
 	export interface IQuickSuggestionsOptions {
 		other: boolean;
 		comments: boolean;
@@ -3112,33 +3121,6 @@ declare namespace monaco.editor {
 		showUnused?: boolean;
 	}
 
-	export type IExtendedEditorOptions = IEditorOptions & {
-		/**
-		 * Do not use, this is a computed option.
-		 */
-		editorClassName?: undefined;
-		/**
-		 * Do not use, this is a computed option.
-		 */
-		pixelRatio?: undefined;
-		/**
-		 * Do not use, this is a computed option.
-		 */
-		fontInfo?: undefined;
-		/**
-		 * Do not use, this is a computed option.
-		 */
-		tabFocusMode?: undefined;
-		/**
-		 * Do not use, this is a computed option.
-		 */
-		layoutInfo?: undefined;
-		/**
-		 * Do not use, this is a computed option.
-		 */
-		wrappingInfo?: undefined;
-	};
-
 	/**
 	 * Configuration options for the diff editor.
 	 */
@@ -3168,36 +3150,6 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		originalEditable?: boolean;
-	}
-
-	export enum RenderMinimap {
-		None = 0,
-		Small = 1,
-		Large = 2,
-		SmallBlocks = 3,
-		LargeBlocks = 4
-	}
-
-	/**
-	 * Describes how to indent wrapped lines.
-	 */
-	export enum WrappingIndent {
-		/**
-		 * No indentation => wrapped lines begin at column 1.
-		 */
-		None = 0,
-		/**
-		 * Same => wrapped lines get the same indentation as the parent.
-		 */
-		Same = 1,
-		/**
-		 * Indent => wrapped lines get +1 indentation toward the parent.
-		 */
-		Indent = 2,
-		/**
-		 * DeepIndent => wrapped lines get +2 indentation toward the parent.
-		 */
-		DeepIndent = 3
 	}
 
 	/**
@@ -3290,69 +3242,6 @@ declare namespace monaco.editor {
 		readonly defaultValue: V;
 	}
 
-	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
-
-	export enum RenderLineNumbersType {
-		Off = 0,
-		On = 1,
-		Relative = 2,
-		Interval = 3,
-		Custom = 4
-	}
-
-	export interface InternalEditorRenderLineNumbersOptions {
-		readonly renderType: RenderLineNumbersType;
-		readonly renderFn: ((lineNumber: number) => string) | null;
-	}
-
-	export interface InternalEditorMinimapOptions {
-		readonly enabled: boolean;
-		readonly side: 'right' | 'left';
-		readonly showSlider: 'always' | 'mouseover';
-		readonly renderCharacters: boolean;
-		readonly maxColumn: number;
-	}
-
-	export interface InternalEditorHoverOptions {
-		readonly enabled: boolean;
-		readonly delay: number;
-		readonly sticky: boolean;
-	}
-
-	export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
-
-	export type ValidEditorLightbulbOptions = Required<IEditorLightbulbOptions>;
-
-	export interface InternalEditorScrollbarOptions {
-		readonly arrowSize: number;
-		readonly vertical: ScrollbarVisibility;
-		readonly horizontal: ScrollbarVisibility;
-		readonly useShadows: boolean;
-		readonly verticalHasArrows: boolean;
-		readonly horizontalHasArrows: boolean;
-		readonly handleMouseWheel: boolean;
-		readonly horizontalScrollbarSize: number;
-		readonly horizontalSliderSize: number;
-		readonly verticalScrollbarSize: number;
-		readonly verticalSliderSize: number;
-	}
-
-	export interface InternalSuggestOptions {
-		readonly filterGraceful: boolean;
-		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
-		readonly snippetsPreventQuickSuggestions: boolean;
-		readonly localityBonus: boolean;
-		readonly shareSuggestSelections: boolean;
-		readonly showIcons: boolean;
-		readonly maxVisibleSuggestions: number;
-		readonly filteredTypes: Record<string, boolean>;
-	}
-
-	export interface InternalParameterHintOptions {
-		readonly enabled: boolean;
-		readonly cycle: boolean;
-	}
-
 	export interface InternalEditorFindOptions {
 		readonly seedSearchStringFromSelection: boolean;
 		readonly autoFindInSelection: boolean;
@@ -3361,6 +3250,12 @@ declare namespace monaco.editor {
 
 	export interface InternalGoToLocationOptions {
 		readonly multiple: 'peek' | 'gotoAndPeek' | 'goto';
+	}
+
+	export interface InternalEditorHoverOptions {
+		readonly enabled: boolean;
+		readonly delay: number;
+		readonly sticky: boolean;
 	}
 
 	/**
@@ -3383,6 +3278,14 @@ declare namespace monaco.editor {
 		 * Right position for the overview ruler
 		 */
 		readonly right: number;
+	}
+
+	export enum RenderMinimap {
+		None = 0,
+		Small = 1,
+		Large = 2,
+		SmallBlocks = 3,
+		LargeBlocks = 4
 	}
 
 	/**
@@ -3473,6 +3376,85 @@ declare namespace monaco.editor {
 		 * The position of the overview ruler.
 		 */
 		readonly overviewRuler: OverviewRulerPosition;
+	}
+
+	export type ValidEditorLightbulbOptions = Required<IEditorLightbulbOptions>;
+
+	export interface InternalEditorMinimapOptions {
+		readonly enabled: boolean;
+		readonly side: 'right' | 'left';
+		readonly showSlider: 'always' | 'mouseover';
+		readonly renderCharacters: boolean;
+		readonly maxColumn: number;
+	}
+
+	export interface InternalParameterHintOptions {
+		readonly enabled: boolean;
+		readonly cycle: boolean;
+	}
+
+	export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
+
+	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
+
+	export enum RenderLineNumbersType {
+		Off = 0,
+		On = 1,
+		Relative = 2,
+		Interval = 3,
+		Custom = 4
+	}
+
+	export interface InternalEditorRenderLineNumbersOptions {
+		readonly renderType: RenderLineNumbersType;
+		readonly renderFn: ((lineNumber: number) => string) | null;
+	}
+
+	export interface InternalEditorScrollbarOptions {
+		readonly arrowSize: number;
+		readonly vertical: ScrollbarVisibility;
+		readonly horizontal: ScrollbarVisibility;
+		readonly useShadows: boolean;
+		readonly verticalHasArrows: boolean;
+		readonly horizontalHasArrows: boolean;
+		readonly handleMouseWheel: boolean;
+		readonly horizontalScrollbarSize: number;
+		readonly horizontalSliderSize: number;
+		readonly verticalScrollbarSize: number;
+		readonly verticalSliderSize: number;
+	}
+
+	export interface InternalSuggestOptions {
+		readonly filterGraceful: boolean;
+		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
+		readonly snippetsPreventQuickSuggestions: boolean;
+		readonly localityBonus: boolean;
+		readonly shareSuggestSelections: boolean;
+		readonly showIcons: boolean;
+		readonly maxVisibleSuggestions: number;
+		readonly filteredTypes: Record<string, boolean>;
+	}
+
+	/**
+	 * Describes how to indent wrapped lines.
+	 */
+	export enum WrappingIndent {
+		/**
+		 * No indentation => wrapped lines begin at column 1.
+		 */
+		None = 0,
+		/**
+		 * Same => wrapped lines get the same indentation as the parent.
+		 */
+		Same = 1,
+		/**
+		 * Indent => wrapped lines get +1 indentation toward the parent.
+		 */
+		Indent = 2,
+		/**
+		 * DeepIndent => wrapped lines get +2 indentation toward the parent.
+		 */
+		DeepIndent = 3
 	}
 
 	export interface EditorWrappingInfo {
