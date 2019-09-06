@@ -20,7 +20,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;
@@ -42,8 +42,7 @@ export abstract class MoveWordCommand extends EditorCommand {
 		if (!editor.hasModel()) {
 			return;
 		}
-		const config = editor.getConfiguration();
-		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
+		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators));
 		const model = editor.getModel();
 		const selections = editor.getSelections();
 
@@ -190,7 +189,7 @@ export class CursorWordAccessibilityLeft extends WordLeftCommand {
 	}
 
 	protected _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EDITOR_DEFAULTS.wordSeparators), model, position, wordNavigationType);
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
 	}
 }
 
@@ -211,7 +210,7 @@ export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
 	}
 
 	protected _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EDITOR_DEFAULTS.wordSeparators), model, position, wordNavigationType);
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
 	}
 }
 
@@ -310,7 +309,7 @@ export class CursorWordAccessibilityRight extends WordRightCommand {
 	}
 
 	protected _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EDITOR_DEFAULTS.wordSeparators), model, position, wordNavigationType);
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
 	}
 }
 
@@ -331,7 +330,7 @@ export class CursorWordAccessibilityRightSelect extends WordRightCommand {
 	}
 
 	protected _move(_: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return super._move(getMapForWordSeparators(EDITOR_DEFAULTS.wordSeparators), model, position, wordNavigationType);
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
 	}
 }
 
@@ -354,8 +353,7 @@ export abstract class DeleteWordCommand extends EditorCommand {
 		if (!editor.hasModel()) {
 			return;
 		}
-		const config = editor.getConfiguration();
-		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
+		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators));
 		const model = editor.getModel();
 		const selections = editor.getSelections();
 

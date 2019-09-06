@@ -26,6 +26,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class MessageWidget {
 
@@ -122,7 +123,7 @@ class MessageWidget {
 		this._editor.applyFontInfo(this._relatedBlock);
 		if (isNonEmptyArray(relatedInformation)) {
 			const relatedInformationNode = this._relatedBlock.appendChild(document.createElement('div'));
-			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * 0.66)}px`;
+			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getOption(EditorOption.lineHeight) * 0.66)}px`;
 			this._lines += 1;
 
 			for (const related of relatedInformation) {
@@ -146,7 +147,7 @@ class MessageWidget {
 			}
 		}
 
-		const fontInfo = this._editor.getConfiguration().fontInfo;
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		const scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
 		const scrollHeight = fontInfo.lineHeight * this._lines;
 		this._scrollable.setScrollDimensions({ scrollWidth, scrollHeight });
