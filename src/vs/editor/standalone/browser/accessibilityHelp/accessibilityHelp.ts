@@ -164,7 +164,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
 				alert(AccessibilityHelpNLS.openingDocs);
 
-				let url = (<IEditorConstructionOptions>this._editor.getRawConfiguration()).accessibilityHelpUrl;
+				let url = (<IEditorConstructionOptions>this._editor.getRawOptions()).accessibilityHelpUrl;
 				if (typeof url === 'undefined') {
 					url = 'https://go.microsoft.com/fwlink/?linkid=852450';
 				}

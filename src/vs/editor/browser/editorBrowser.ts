@@ -532,16 +532,19 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	setModel(model: ITextModel | null): void;
 
 	/**
-	 * Returns the current editor's configuration
+	 * @internal
 	 */
 	getOptions(): IComputedEditorOptions;
 
-	getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 	/**
-	 * Returns the 'raw' editor's configuration (without any validation or defaults).
 	 * @internal
 	 */
-	getRawConfiguration(): IEditorOptions;
+	getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
+
+	/**
+	 * Returns the editor's configuration (without any validation or defaults).
+	 */
+	getRawOptions(): IEditorOptions;
 
 	/**
 	 * Get value of the current model attached to this editor.

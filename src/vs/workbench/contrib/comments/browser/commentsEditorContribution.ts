@@ -597,7 +597,7 @@ export class ReviewController implements IEditorContribution {
 			if (!this._commentingRangeSpaceReserved) {
 				this._commentingRangeSpaceReserved = true;
 				let extraEditorClassName: string[] = [];
-				const configuredExtraClassName = this.editor.getRawConfiguration().extraEditorClassName;
+				const configuredExtraClassName = this.editor.getRawOptions().extraEditorClassName;
 				if (configuredExtraClassName) {
 					extraEditorClassName = configuredExtraClassName.split(' ');
 				}
