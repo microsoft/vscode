@@ -11,6 +11,7 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { isObject } from 'vs/base/common/types';
+import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 
 //#region typed options
 
@@ -822,6 +823,10 @@ export interface IEditorOption<K1 extends EditorOption, V> {
 	/**
 	 * @internal
 	 */
+	readonly schema: IConfigurationPropertySchema | undefined;
+	/**
+	 * @internal
+	 */
 	validate(input: any): V;
 	/**
 	 * @internal
@@ -838,6 +843,7 @@ abstract class BaseEditorOption<K1 extends EditorOption, K2 extends keyof IEdito
 	public readonly name: K2;
 	public readonly defaultValue: V;
 	public readonly deps: EditorOption[] | null;
+	public readonly schema: IConfigurationPropertySchema | undefined = undefined;
 
 	constructor(id: K1, name: K2, defaultValue: V, deps: EditorOption[] | null = null) {
 		this.id = id;
@@ -862,6 +868,7 @@ abstract class ComputedEditorOption<K1 extends EditorOption, V> implements IEdit
 	public readonly name: '_never_';
 	public readonly defaultValue: V;
 	public readonly deps: EditorOption[] | null;
+	public readonly schema: IConfigurationPropertySchema | undefined = undefined;
 
 	constructor(id: K1, deps: EditorOption[] | null = null) {
 		this.id = id;
@@ -882,12 +889,14 @@ class SimpleEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1
 	public readonly id: K1;
 	public readonly name: PossibleKeyName<V>;
 	public readonly defaultValue: V;
+	public readonly schema: IConfigurationPropertySchema | undefined;
 	public readonly deps: EditorOption[] | null;
 
-	constructor(id: K1, name: PossibleKeyName<V>, defaultValue: V, deps: EditorOption[] | null = null) {
+	constructor(id: K1, name: PossibleKeyName<V>, defaultValue: V, schema?: IConfigurationPropertySchema, deps: EditorOption[] | null = null) {
 		this.id = id;
 		this.name = name;
 		this.defaultValue = defaultValue;
+		this.schema = schema;
 		this.deps = deps;
 	}
 
@@ -914,6 +923,14 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 			return false;
 		}
 		return Boolean(value);
+	}
+
+	constructor(id: K1, name: PossibleKeyName<boolean>, defaultValue: boolean, schema: IConfigurationPropertySchema | undefined = undefined, deps: EditorOption[] | null = null) {
+		if (typeof schema !== 'undefined') {
+			schema.type = 'boolean';
+			schema.default = defaultValue;
+		}
+		super(id, name, defaultValue, schema, deps);
 	}
 
 	public validate(input: any): boolean {
@@ -2048,7 +2065,7 @@ export const EDITOR_MODEL_DEFAULTS = {
  */
 export const editorOptionsRegistry: IEditorOption<EditorOption, any>[] = [];
 
-function registerEditorOption<K1 extends EditorOption, V>(option: IEditorOption<K1, V>): IEditorOption<K1, V> {
+function register<K1 extends EditorOption, V>(option: IEditorOption<K1, V>): IEditorOption<K1, V> {
 	editorOptionsRegistry[option.id] = option;
 	return option;
 }
@@ -2161,102 +2178,186 @@ export const enum EditorOption {
 }
 
 export const EditorOptions = {
-	acceptSuggestionOnCommitCharacter: registerEditorOption(new EditorBooleanOption(EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true)),
-	acceptSuggestionOnEnter: registerEditorOption(new EditorStringEnumOption(EditorOption.acceptSuggestionOnEnter, 'acceptSuggestionOnEnter', 'on' as 'on' | 'smart' | 'off', ['on', 'smart', 'off'] as const)),
-	accessibilitySupport: registerEditorOption(new EditorAccessibilitySupportOption(EditorOption.accessibilitySupport, 'accessibilitySupport', AccessibilitySupport.Unknown)),
-	autoClosingBrackets: registerEditorOption(new EditorStringEnumOption(EditorOption.autoClosingBrackets, 'autoClosingBrackets', 'languageDefined' as 'always' | 'languageDefined' | 'beforeWhitespace' | 'never', ['always', 'languageDefined', 'beforeWhitespace', 'never'] as const)),
-	autoClosingOvertype: registerEditorOption(new EditorStringEnumOption(EditorOption.autoClosingOvertype, 'autoClosingOvertype', 'auto' as 'always' | 'auto' | 'never', ['always', 'auto', 'never'] as const)),
-	autoClosingQuotes: registerEditorOption(new EditorStringEnumOption(EditorOption.autoClosingQuotes, 'autoClosingQuotes', 'languageDefined' as 'always' | 'languageDefined' | 'beforeWhitespace' | 'never', ['always', 'languageDefined', 'beforeWhitespace', 'never'] as const)),
-	autoIndent: registerEditorOption(new EditorBooleanOption(EditorOption.autoIndent, 'autoIndent', true)),
-	automaticLayout: registerEditorOption(new EditorBooleanOption(EditorOption.automaticLayout, 'automaticLayout', false)),
-	autoSurround: registerEditorOption(new EditorStringEnumOption(EditorOption.autoSurround, 'autoSurround', 'languageDefined' as 'languageDefined' | 'quotes' | 'brackets' | 'never', ['languageDefined', 'quotes', 'brackets', 'never'] as const)),
-	codeLens: registerEditorOption(new EditorBooleanOption(EditorOption.codeLens, 'codeLens', true)),
-	colorDecorators: registerEditorOption(new EditorBooleanOption(EditorOption.colorDecorators, 'colorDecorators', true)),
-	contextmenu: registerEditorOption(new EditorBooleanOption(EditorOption.contextmenu, 'contextmenu', true)),
-	copyWithSyntaxHighlighting: registerEditorOption(new EditorBooleanOption(EditorOption.copyWithSyntaxHighlighting, 'copyWithSyntaxHighlighting', true)),
-	cursorBlinking: registerEditorOption(new EditorEnumOption(EditorOption.cursorBlinking, 'cursorBlinking', TextEditorCursorBlinkingStyle.Blink, ['blink', 'smooth', 'phase', 'expand', 'solid'], _cursorBlinkingStyleFromString)),
-	cursorSmoothCaretAnimation: registerEditorOption(new EditorBooleanOption(EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation', false)),
-	cursorStyle: registerEditorOption(new EditorEnumOption(EditorOption.cursorStyle, 'cursorStyle', TextEditorCursorStyle.Line, ['line', 'block', 'underline', 'line-thin', 'block-outline', 'underline-thin'], _cursorStyleFromString)),
-	cursorSurroundingLines: registerEditorOption(new EditorIntOption(EditorOption.cursorSurroundingLines, 'cursorSurroundingLines', 0, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
-	cursorWidth: registerEditorOption(new EditorIntOption(EditorOption.cursorWidth, 'cursorWidth', 0, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
-	disableLayerHinting: registerEditorOption(new EditorBooleanOption(EditorOption.disableLayerHinting, 'disableLayerHinting', false)),
-	dragAndDrop: registerEditorOption(new EditorBooleanOption(EditorOption.dragAndDrop, 'dragAndDrop', true)),
-	emptySelectionClipboard: registerEditorOption(new EditorEmptySelectionClipboard(EditorOption.emptySelectionClipboard, 'emptySelectionClipboard', true)),
-	extraEditorClassName: registerEditorOption(new EditorStringOption(EditorOption.extraEditorClassName, 'extraEditorClassName', '')),
-	fastScrollSensitivity: registerEditorOption(new EditorFloatOption(EditorOption.fastScrollSensitivity, 'fastScrollSensitivity', 5, x => (x <= 0 ? 5 : x))),
-	find: registerEditorOption(new EditorFind(EditorOption.find, 'find', {
+	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(
+		EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true,
+		{ markdownDescription: nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.") }
+	)),
+	acceptSuggestionOnEnter: register(new EditorStringEnumOption(EditorOption.acceptSuggestionOnEnter, 'acceptSuggestionOnEnter', 'on' as 'on' | 'smart' | 'off', ['on', 'smart', 'off'] as const)),
+	accessibilitySupport: register(new EditorAccessibilitySupportOption(EditorOption.accessibilitySupport, 'accessibilitySupport', AccessibilitySupport.Unknown)),
+	autoClosingBrackets: register(new EditorStringEnumOption(EditorOption.autoClosingBrackets, 'autoClosingBrackets', 'languageDefined' as 'always' | 'languageDefined' | 'beforeWhitespace' | 'never', ['always', 'languageDefined', 'beforeWhitespace', 'never'] as const)),
+	autoClosingOvertype: register(new EditorStringEnumOption(EditorOption.autoClosingOvertype, 'autoClosingOvertype', 'auto' as 'always' | 'auto' | 'never', ['always', 'auto', 'never'] as const)),
+	autoClosingQuotes: register(new EditorStringEnumOption(EditorOption.autoClosingQuotes, 'autoClosingQuotes', 'languageDefined' as 'always' | 'languageDefined' | 'beforeWhitespace' | 'never', ['always', 'languageDefined', 'beforeWhitespace', 'never'] as const)),
+	autoIndent: register(new EditorBooleanOption(
+		EditorOption.autoIndent, 'autoIndent', true,
+		{ description: nls.localize('autoIndent', "Controls whether the editor should automatically adjust the indentation when users type, paste or move lines. Extensions with indentation rules of the language must be available.") }
+	)),
+	automaticLayout: register(new EditorBooleanOption(
+		EditorOption.automaticLayout, 'automaticLayout', false,
+	)),
+	autoSurround: register(new EditorStringEnumOption(EditorOption.autoSurround, 'autoSurround', 'languageDefined' as 'languageDefined' | 'quotes' | 'brackets' | 'never', ['languageDefined', 'quotes', 'brackets', 'never'] as const)),
+	codeLens: register(new EditorBooleanOption(
+		EditorOption.codeLens, 'codeLens', true,
+		{ description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.") }
+	)),
+	colorDecorators: register(new EditorBooleanOption(
+		EditorOption.colorDecorators, 'colorDecorators', true,
+		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
+	)),
+	contextmenu: register(new EditorBooleanOption(
+		EditorOption.contextmenu, 'contextmenu', true,
+	)),
+	copyWithSyntaxHighlighting: register(new EditorBooleanOption(
+		EditorOption.copyWithSyntaxHighlighting, 'copyWithSyntaxHighlighting', true,
+		{ description: nls.localize('copyWithSyntaxHighlighting', "Controls whether syntax highlighting should be copied into the clipboard.") }
+	)),
+	cursorBlinking: register(new EditorEnumOption(EditorOption.cursorBlinking, 'cursorBlinking', TextEditorCursorBlinkingStyle.Blink, ['blink', 'smooth', 'phase', 'expand', 'solid'], _cursorBlinkingStyleFromString)),
+	cursorSmoothCaretAnimation: register(new EditorBooleanOption(
+		EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation', false,
+		{ description: nls.localize('cursorSmoothCaretAnimation', "Controls whether the smooth caret animation should be enabled.") }
+	)),
+	cursorStyle: register(new EditorEnumOption(EditorOption.cursorStyle, 'cursorStyle', TextEditorCursorStyle.Line, ['line', 'block', 'underline', 'line-thin', 'block-outline', 'underline-thin'], _cursorStyleFromString)),
+	cursorSurroundingLines: register(new EditorIntOption(EditorOption.cursorSurroundingLines, 'cursorSurroundingLines', 0, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
+	cursorWidth: register(new EditorIntOption(EditorOption.cursorWidth, 'cursorWidth', 0, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
+	disableLayerHinting: register(new EditorBooleanOption(
+		EditorOption.disableLayerHinting, 'disableLayerHinting', false,
+	)),
+	dragAndDrop: register(new EditorBooleanOption(
+		EditorOption.dragAndDrop, 'dragAndDrop', true,
+		{ description: nls.localize('dragAndDrop', "Controls whether the editor should allow moving selections via drag and drop.") }
+	)),
+	emptySelectionClipboard: register(new EditorEmptySelectionClipboard(EditorOption.emptySelectionClipboard, 'emptySelectionClipboard', true)),
+	extraEditorClassName: register(new EditorStringOption(EditorOption.extraEditorClassName, 'extraEditorClassName', '')),
+	fastScrollSensitivity: register(new EditorFloatOption(EditorOption.fastScrollSensitivity, 'fastScrollSensitivity', 5, x => (x <= 0 ? 5 : x))),
+	find: register(new EditorFind(EditorOption.find, 'find', {
 		seedSearchStringFromSelection: true,
 		autoFindInSelection: false,
 		globalFindClipboard: false,
 		addExtraSpaceOnTop: true
 	})),
-	fixedOverflowWidgets: registerEditorOption(new EditorBooleanOption(EditorOption.fixedOverflowWidgets, 'fixedOverflowWidgets', false)),
-	folding: registerEditorOption(new EditorBooleanOption(EditorOption.folding, 'folding', true)),
-	foldingStrategy: registerEditorOption(new EditorStringEnumOption(EditorOption.foldingStrategy, 'foldingStrategy', 'auto' as 'auto' | 'indentation', ['auto', 'indentation'] as const)),
-	fontFamily: registerEditorOption(new EditorStringOption(EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily)),
-	fontInfo: registerEditorOption(new EditorFontInfo(EditorOption.fontInfo)),
-	fontLigatures: registerEditorOption(new EditorBooleanOption(EditorOption.fontLigatures, 'fontLigatures', false)),
-	fontSize: registerEditorOption(new EditorFontSize(EditorOption.fontSize, 'fontSize', EDITOR_FONT_DEFAULTS.fontSize)),
-	fontWeight: registerEditorOption(new EditorStringOption(EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight)),
-	formatOnPaste: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnPaste, 'formatOnPaste', false)),
-	formatOnType: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnType, 'formatOnType', false)),
-	glyphMargin: registerEditorOption(new EditorBooleanOption(EditorOption.glyphMargin, 'glyphMargin', true)),
-	gotoLocation: registerEditorOption(new EditorGoToLocation(EditorOption.gotoLocation, 'gotoLocation', {
+	fixedOverflowWidgets: register(new EditorBooleanOption(
+		EditorOption.fixedOverflowWidgets, 'fixedOverflowWidgets', false,
+	)),
+	folding: register(new EditorBooleanOption(
+		EditorOption.folding, 'folding', true,
+		{ description: nls.localize('folding', "Controls whether the editor has code folding enabled.") }
+	)),
+	foldingStrategy: register(new EditorStringEnumOption(EditorOption.foldingStrategy, 'foldingStrategy', 'auto' as 'auto' | 'indentation', ['auto', 'indentation'] as const)),
+	fontFamily: register(new EditorStringOption(EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily)),
+	fontInfo: register(new EditorFontInfo(EditorOption.fontInfo)),
+	fontLigatures: register(new EditorBooleanOption(
+		EditorOption.fontLigatures, 'fontLigatures', false,
+		{ description: nls.localize('fontLigatures', "Enables/Disables font ligatures.") }
+	)),
+	fontSize: register(new EditorFontSize(EditorOption.fontSize, 'fontSize', EDITOR_FONT_DEFAULTS.fontSize)),
+	fontWeight: register(new EditorStringOption(EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight)),
+	formatOnPaste: register(new EditorBooleanOption(
+		EditorOption.formatOnPaste, 'formatOnPaste', false,
+		{ description: nls.localize('formatOnPaste', "Controls whether the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.") }
+	)),
+	formatOnType: register(new EditorBooleanOption(
+		EditorOption.formatOnType, 'formatOnType', false,
+		{ description: nls.localize('formatOnType', "Controls whether the editor should automatically format the line after typing.") }
+	)),
+	glyphMargin: register(new EditorBooleanOption(
+		EditorOption.glyphMargin, 'glyphMargin', true,
+		{ description: nls.localize('glyphMargin', "Controls whether the editor should render the vertical glyph margin. Glyph margin is mostly used for debugging.") }
+	)),
+	gotoLocation: register(new EditorGoToLocation(EditorOption.gotoLocation, 'gotoLocation', {
 		multiple: 'peek'
 	})),
-	hideCursorInOverviewRuler: registerEditorOption(new EditorBooleanOption(EditorOption.hideCursorInOverviewRuler, 'hideCursorInOverviewRuler', false)),
-	highlightActiveIndentGuide: registerEditorOption(new EditorBooleanOption(EditorOption.highlightActiveIndentGuide, 'highlightActiveIndentGuide', true)),
-	hover: registerEditorOption(new EditorHover(EditorOption.hover, 'hover', {
+	hideCursorInOverviewRuler: register(new EditorBooleanOption(
+		EditorOption.hideCursorInOverviewRuler, 'hideCursorInOverviewRuler', false,
+		{ description: nls.localize('hideCursorInOverviewRuler', "Controls whether the cursor should be hidden in the overview ruler.") }
+	)),
+	highlightActiveIndentGuide: register(new EditorBooleanOption(
+		EditorOption.highlightActiveIndentGuide, 'highlightActiveIndentGuide', true,
+		{ description: nls.localize('highlightActiveIndentGuide', "Controls whether the editor should highlight the active indent guide.") }
+	)),
+	hover: register(new EditorHover(EditorOption.hover, 'hover', {
 		enabled: true,
 		delay: 300,
 		sticky: true
 	})),
-	inDiffEditor: registerEditorOption(new EditorBooleanOption(EditorOption.inDiffEditor, 'inDiffEditor', false)),
-	letterSpacing: registerEditorOption(new EditorFloatOption(EditorOption.letterSpacing, 'letterSpacing', EDITOR_FONT_DEFAULTS.letterSpacing, x => EditorFloatOption.clamp(x, -5, 20))),
-	lightbulb: registerEditorOption(new EditorLightbulb(EditorOption.lightbulb, 'lightbulb', {
+	inDiffEditor: register(new EditorBooleanOption(
+		EditorOption.inDiffEditor, 'inDiffEditor', false,
+	)),
+	letterSpacing: register(new EditorFloatOption(EditorOption.letterSpacing, 'letterSpacing', EDITOR_FONT_DEFAULTS.letterSpacing, x => EditorFloatOption.clamp(x, -5, 20))),
+	lightbulb: register(new EditorLightbulb(EditorOption.lightbulb, 'lightbulb', {
 		enabled: true
 	})),
-	lineDecorationsWidth: registerEditorOption(new SimpleEditorOption(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10 as number | string)),
-	lineHeight: registerEditorOption(new EditorLineHeight(EditorOption.lineHeight, 'lineHeight', EDITOR_FONT_DEFAULTS.lineHeight, 0, 150)),
-	lineNumbers: registerEditorOption(new EditorRenderLineNumbersOption(EditorOption.lineNumbers, 'lineNumbers', { renderType: RenderLineNumbersType.On, renderFn: null })),
-	lineNumbersMinChars: registerEditorOption(new EditorIntOption(EditorOption.lineNumbersMinChars, 'lineNumbersMinChars', 5, 1, 10)),
-	links: registerEditorOption(new EditorBooleanOption(EditorOption.links, 'links', true)),
-	matchBrackets: registerEditorOption(new EditorBooleanOption(EditorOption.matchBrackets, 'matchBrackets', true)),
-	minimap: registerEditorOption(new EditorMinimap(EditorOption.minimap, 'minimap', {
+	lineDecorationsWidth: register(new SimpleEditorOption(EditorOption.lineDecorationsWidth, 'lineDecorationsWidth', 10 as number | string)),
+	lineHeight: register(new EditorLineHeight(EditorOption.lineHeight, 'lineHeight', EDITOR_FONT_DEFAULTS.lineHeight, 0, 150)),
+	lineNumbers: register(new EditorRenderLineNumbersOption(EditorOption.lineNumbers, 'lineNumbers', { renderType: RenderLineNumbersType.On, renderFn: null })),
+	lineNumbersMinChars: register(new EditorIntOption(EditorOption.lineNumbersMinChars, 'lineNumbersMinChars', 5, 1, 10)),
+	links: register(new EditorBooleanOption(
+		EditorOption.links, 'links', true,
+		{ description: nls.localize('links', "Controls whether the editor should detect links and make them clickable.") }
+	)),
+	matchBrackets: register(new EditorBooleanOption(
+		EditorOption.matchBrackets, 'matchBrackets', true,
+		{ description: nls.localize('matchBrackets', "Highlight matching brackets when one of them is selected.") }
+	)),
+	minimap: register(new EditorMinimap(EditorOption.minimap, 'minimap', {
 		enabled: true,
 		side: 'right',
 		showSlider: 'mouseover',
 		renderCharacters: true,
 		maxColumn: 120,
 	})),
-	mouseStyle: registerEditorOption(new EditorStringEnumOption(EditorOption.mouseStyle, 'mouseStyle', 'text' as 'text' | 'default' | 'copy', ['text', 'default', 'copy'] as const)),
-	mouseWheelScrollSensitivity: registerEditorOption(new EditorFloatOption(EditorOption.mouseWheelScrollSensitivity, 'mouseWheelScrollSensitivity', 1, x => (x === 0 ? 1 : x))),
-	mouseWheelZoom: registerEditorOption(new EditorBooleanOption(EditorOption.mouseWheelZoom, 'mouseWheelZoom', false)),
-	multiCursorMergeOverlapping: registerEditorOption(new EditorBooleanOption(EditorOption.multiCursorMergeOverlapping, 'multiCursorMergeOverlapping', true)),
-	multiCursorModifier: registerEditorOption(new EditorEnumOption(EditorOption.multiCursorModifier, 'multiCursorModifier', 'altKey', ['ctrlCmd', 'alt'], _multiCursorModifierFromString)),
-	occurrencesHighlight: registerEditorOption(new EditorBooleanOption(EditorOption.occurrencesHighlight, 'occurrencesHighlight', true)),
-	overviewRulerBorder: registerEditorOption(new EditorBooleanOption(EditorOption.overviewRulerBorder, 'overviewRulerBorder', true)),
-	overviewRulerLanes: registerEditorOption(new EditorIntOption(EditorOption.overviewRulerLanes, 'overviewRulerLanes', 2, 0, 3)),
-	parameterHints: registerEditorOption(new EditorParameterHints(EditorOption.parameterHints, 'parameterHints', {
+	mouseStyle: register(new EditorStringEnumOption(EditorOption.mouseStyle, 'mouseStyle', 'text' as 'text' | 'default' | 'copy', ['text', 'default', 'copy'] as const)),
+	mouseWheelScrollSensitivity: register(new EditorFloatOption(EditorOption.mouseWheelScrollSensitivity, 'mouseWheelScrollSensitivity', 1, x => (x === 0 ? 1 : x))),
+	mouseWheelZoom: register(new EditorBooleanOption(
+		EditorOption.mouseWheelZoom, 'mouseWheelZoom', false,
+		{ markdownDescription: nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.") }
+	)),
+	multiCursorMergeOverlapping: register(new EditorBooleanOption(
+		EditorOption.multiCursorMergeOverlapping, 'multiCursorMergeOverlapping', true,
+		{ description: nls.localize('multiCursorMergeOverlapping', "Merge multiple cursors when they are overlapping.") }
+	)),
+	multiCursorModifier: register(new EditorEnumOption(EditorOption.multiCursorModifier, 'multiCursorModifier', 'altKey', ['ctrlCmd', 'alt'], _multiCursorModifierFromString)),
+	occurrencesHighlight: register(new EditorBooleanOption(
+		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
+		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
+	)),
+	overviewRulerBorder: register(new EditorBooleanOption(
+		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,
+		{ description: nls.localize('overviewRulerBorder', "Controls whether a border should be drawn around the overview ruler.") }
+	)),
+	overviewRulerLanes: register(new EditorIntOption(EditorOption.overviewRulerLanes, 'overviewRulerLanes', 2, 0, 3)),
+	parameterHints: register(new EditorParameterHints(EditorOption.parameterHints, 'parameterHints', {
 		enabled: true,
 		cycle: false
 	})),
-	quickSuggestions: registerEditorOption(new EditorQuickSuggestions(EditorOption.quickSuggestions, 'quickSuggestions', {
+	quickSuggestions: register(new EditorQuickSuggestions(EditorOption.quickSuggestions, 'quickSuggestions', {
 		other: true,
 		comments: false,
 		strings: false
 	})),
-	quickSuggestionsDelay: registerEditorOption(new EditorIntOption(EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay', 10, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
-	readOnly: registerEditorOption(new EditorBooleanOption(EditorOption.readOnly, 'readOnly', false)),
-	renderControlCharacters: registerEditorOption(new EditorBooleanOption(EditorOption.renderControlCharacters, 'renderControlCharacters', false)),
-	renderIndentGuides: registerEditorOption(new EditorBooleanOption(EditorOption.renderIndentGuides, 'renderIndentGuides', true)),
-	renderFinalNewline: registerEditorOption(new EditorBooleanOption(EditorOption.renderFinalNewline, 'renderFinalNewline', true)),
-	renderLineHighlight: registerEditorOption(new EditorStringEnumOption(EditorOption.renderLineHighlight, 'renderLineHighlight', 'line' as 'none' | 'gutter' | 'line' | 'all', ['none', 'gutter', 'line', 'all'] as const)),
-	renderWhitespace: registerEditorOption(new EditorStringEnumOption(EditorOption.renderWhitespace, 'renderWhitespace', 'none' as 'none' | 'boundary' | 'selection' | 'all', ['none', 'boundary', 'selection', 'all'] as const)),
-	revealHorizontalRightPadding: registerEditorOption(new EditorIntOption(EditorOption.revealHorizontalRightPadding, 'revealHorizontalRightPadding', 30, 0, 1000)),
-	roundedSelection: registerEditorOption(new EditorBooleanOption(EditorOption.roundedSelection, 'roundedSelection', true)),
-	rulers: registerEditorOption(new EditorRulers(EditorOption.rulers, 'rulers', [])),
-	scrollbar: registerEditorOption(new EditorScrollbar(EditorOption.scrollbar, 'scrollbar', {
+	quickSuggestionsDelay: register(new EditorIntOption(EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay', 10, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
+	readOnly: register(new EditorBooleanOption(
+		EditorOption.readOnly, 'readOnly', false,
+	)),
+	renderControlCharacters: register(new EditorBooleanOption(
+		EditorOption.renderControlCharacters, 'renderControlCharacters', false,
+		{ description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters.") }
+	)),
+	renderIndentGuides: register(new EditorBooleanOption(
+		EditorOption.renderIndentGuides, 'renderIndentGuides', true,
+		{ description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides.") }
+	)),
+	renderFinalNewline: register(new EditorBooleanOption(
+		EditorOption.renderFinalNewline, 'renderFinalNewline', true,
+		{ description: nls.localize('renderFinalNewline', "Render last line number when the file ends with a newline.") }
+	)),
+	renderLineHighlight: register(new EditorStringEnumOption(EditorOption.renderLineHighlight, 'renderLineHighlight', 'line' as 'none' | 'gutter' | 'line' | 'all', ['none', 'gutter', 'line', 'all'] as const)),
+	renderWhitespace: register(new EditorStringEnumOption(EditorOption.renderWhitespace, 'renderWhitespace', 'none' as 'none' | 'boundary' | 'selection' | 'all', ['none', 'boundary', 'selection', 'all'] as const)),
+	revealHorizontalRightPadding: register(new EditorIntOption(EditorOption.revealHorizontalRightPadding, 'revealHorizontalRightPadding', 30, 0, 1000)),
+	roundedSelection: register(new EditorBooleanOption(
+		EditorOption.roundedSelection, 'roundedSelection', true,
+		{ description: nls.localize('roundedSelection', "Controls whether selections should have rounded corners.") }
+	)),
+	rulers: register(new EditorRulers(EditorOption.rulers, 'rulers', [])),
+	scrollbar: register(new EditorScrollbar(EditorOption.scrollbar, 'scrollbar', {
 		vertical: ScrollbarVisibility.Auto,
 		horizontal: ScrollbarVisibility.Auto,
 		arrowSize: 11,
@@ -2269,17 +2370,37 @@ export const EditorOptions = {
 		verticalSliderSize: 14,
 		handleMouseWheel: true,
 	})),
-	scrollBeyondLastColumn: registerEditorOption(new EditorIntOption(EditorOption.scrollBeyondLastColumn, 'scrollBeyondLastColumn', 5, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
-	scrollBeyondLastLine: registerEditorOption(new EditorBooleanOption(EditorOption.scrollBeyondLastLine, 'scrollBeyondLastLine', true)),
-	selectionClipboard: registerEditorOption(new EditorBooleanOption(EditorOption.selectionClipboard, 'selectionClipboard', true)),
-	selectionHighlight: registerEditorOption(new EditorBooleanOption(EditorOption.selectionHighlight, 'selectionHighlight', true)),
-	selectOnLineNumbers: registerEditorOption(new EditorBooleanOption(EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true)),
-	showFoldingControls: registerEditorOption(new EditorStringEnumOption(EditorOption.showFoldingControls, 'showFoldingControls', 'mouseover' as 'always' | 'mouseover', ['always', 'mouseover'] as const)),
-	showUnused: registerEditorOption(new EditorBooleanOption(EditorOption.showUnused, 'showUnused', true)),
-	snippetSuggestions: registerEditorOption(new EditorStringEnumOption(EditorOption.snippetSuggestions, 'snippetSuggestions', 'inline' as 'top' | 'bottom' | 'inline' | 'none', ['top', 'bottom', 'inline', 'none'] as const)),
-	smoothScrolling: registerEditorOption(new EditorBooleanOption(EditorOption.smoothScrolling, 'smoothScrolling', false)),
-	stopRenderingLineAfter: registerEditorOption(new EditorIntOption(EditorOption.stopRenderingLineAfter, 'stopRenderingLineAfter', 10000, -1, Constants.MAX_SAFE_SMALL_INTEGER)),
-	suggest: registerEditorOption(new EditorSuggest(EditorOption.suggest, 'suggest', {
+	scrollBeyondLastColumn: register(new EditorIntOption(EditorOption.scrollBeyondLastColumn, 'scrollBeyondLastColumn', 5, 0, Constants.MAX_SAFE_SMALL_INTEGER)),
+	scrollBeyondLastLine: register(new EditorBooleanOption(
+		EditorOption.scrollBeyondLastLine, 'scrollBeyondLastLine', true,
+		{ description: nls.localize('scrollBeyondLastLine', "Controls whether the editor will scroll beyond the last line.") }
+	)),
+	selectionClipboard: register(new EditorBooleanOption(
+		EditorOption.selectionClipboard, 'selectionClipboard', true,
+		{
+			description: nls.localize('selectionClipboard', "Controls whether the Linux primary clipboard should be supported."),
+			included: platform.isLinux
+		}
+	)),
+	selectionHighlight: register(new EditorBooleanOption(
+		EditorOption.selectionHighlight, 'selectionHighlight', true,
+		{ description: nls.localize('selectionHighlight', "Controls whether the editor should highlight matches similar to the selection.") }
+	)),
+	selectOnLineNumbers: register(new EditorBooleanOption(
+		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,
+	)),
+	showFoldingControls: register(new EditorStringEnumOption(EditorOption.showFoldingControls, 'showFoldingControls', 'mouseover' as 'always' | 'mouseover', ['always', 'mouseover'] as const)),
+	showUnused: register(new EditorBooleanOption(
+		EditorOption.showUnused, 'showUnused', true,
+		{ description: nls.localize('showUnused', "Controls fading out of unused code.") }
+	)),
+	snippetSuggestions: register(new EditorStringEnumOption(EditorOption.snippetSuggestions, 'snippetSuggestions', 'inline' as 'top' | 'bottom' | 'inline' | 'none', ['top', 'bottom', 'inline', 'none'] as const)),
+	smoothScrolling: register(new EditorBooleanOption(
+		EditorOption.smoothScrolling, 'smoothScrolling', false,
+		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }
+	)),
+	stopRenderingLineAfter: register(new EditorIntOption(EditorOption.stopRenderingLineAfter, 'stopRenderingLineAfter', 10000, -1, Constants.MAX_SAFE_SMALL_INTEGER)),
+	suggest: register(new EditorSuggest(EditorOption.suggest, 'suggest', {
 		filterGraceful: true,
 		snippetsPreventQuickSuggestions: true,
 		localityBonus: false,
@@ -2288,30 +2409,38 @@ export const EditorOptions = {
 		maxVisibleSuggestions: 12,
 		filteredTypes: Object.create(null)
 	})),
-	suggestFontSize: registerEditorOption(new EditorIntOption(EditorOption.suggestFontSize, 'suggestFontSize', 0, 0, 1000)),
-	suggestLineHeight: registerEditorOption(new EditorIntOption(EditorOption.suggestLineHeight, 'suggestLineHeight', 0, 0, 1000)),
-	suggestOnTriggerCharacters: registerEditorOption(new EditorBooleanOption(EditorOption.suggestOnTriggerCharacters, 'suggestOnTriggerCharacters', true)),
-	suggestSelection: registerEditorOption(new EditorStringEnumOption(EditorOption.suggestSelection, 'suggestSelection', 'recentlyUsed' as 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix', ['first', 'recentlyUsed', 'recentlyUsedByPrefix'] as const)),
-	tabCompletion: registerEditorOption(new EditorStringEnumOption(EditorOption.tabCompletion, 'tabCompletion', 'off' as 'on' | 'off' | 'onlySnippets', ['on', 'off', 'onlySnippets'] as const)),
-	useTabStops: registerEditorOption(new EditorBooleanOption(EditorOption.useTabStops, 'useTabStops', true)),
-	wordSeparators: registerEditorOption(new EditorStringOption(EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS)),
-	wordWrap: registerEditorOption(new EditorStringEnumOption(EditorOption.wordWrap, 'wordWrap', 'off' as 'off' | 'on' | 'wordWrapColumn' | 'bounded', ['off', 'on', 'wordWrapColumn', 'bounded'] as const)),
-	wordWrapBreakAfterCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters', ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣')),
-	wordWrapBreakBeforeCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters', '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋')),
-	wordWrapBreakObtrusiveCharacters: registerEditorOption(new EditorStringOption(EditorOption.wordWrapBreakObtrusiveCharacters, 'wordWrapBreakObtrusiveCharacters', '.')),
-	wordWrapColumn: registerEditorOption(new EditorIntOption(EditorOption.wordWrapColumn, 'wordWrapColumn', 80, 1, Constants.MAX_SAFE_SMALL_INTEGER)),
-	wordWrapMinified: registerEditorOption(new EditorBooleanOption(EditorOption.wordWrapMinified, 'wordWrapMinified', true)),
-	wrappingIndent: registerEditorOption(new EditorEnumOption(EditorOption.wrappingIndent, 'wrappingIndent', WrappingIndent.Same, ['none', 'same', 'indent', 'deepIndent'], _wrappingIndentFromString)),
+	suggestFontSize: register(new EditorIntOption(EditorOption.suggestFontSize, 'suggestFontSize', 0, 0, 1000)),
+	suggestLineHeight: register(new EditorIntOption(EditorOption.suggestLineHeight, 'suggestLineHeight', 0, 0, 1000)),
+	suggestOnTriggerCharacters: register(new EditorBooleanOption(
+		EditorOption.suggestOnTriggerCharacters, 'suggestOnTriggerCharacters', true,
+		{ description: nls.localize('suggestOnTriggerCharacters', "Controls whether suggestions should automatically show up when typing trigger characters.") }
+	)),
+	suggestSelection: register(new EditorStringEnumOption(EditorOption.suggestSelection, 'suggestSelection', 'recentlyUsed' as 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix', ['first', 'recentlyUsed', 'recentlyUsedByPrefix'] as const)),
+	tabCompletion: register(new EditorStringEnumOption(EditorOption.tabCompletion, 'tabCompletion', 'off' as 'on' | 'off' | 'onlySnippets', ['on', 'off', 'onlySnippets'] as const)),
+	useTabStops: register(new EditorBooleanOption(
+		EditorOption.useTabStops, 'useTabStops', true,
+		{ description: nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops.") }
+	)),
+	wordSeparators: register(new EditorStringOption(EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS)),
+	wordWrap: register(new EditorStringEnumOption(EditorOption.wordWrap, 'wordWrap', 'off' as 'off' | 'on' | 'wordWrapColumn' | 'bounded', ['off', 'on', 'wordWrapColumn', 'bounded'] as const)),
+	wordWrapBreakAfterCharacters: register(new EditorStringOption(EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters', ' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣')),
+	wordWrapBreakBeforeCharacters: register(new EditorStringOption(EditorOption.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters', '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋')),
+	wordWrapBreakObtrusiveCharacters: register(new EditorStringOption(EditorOption.wordWrapBreakObtrusiveCharacters, 'wordWrapBreakObtrusiveCharacters', '.')),
+	wordWrapColumn: register(new EditorIntOption(EditorOption.wordWrapColumn, 'wordWrapColumn', 80, 1, Constants.MAX_SAFE_SMALL_INTEGER)),
+	wordWrapMinified: register(new EditorBooleanOption(
+		EditorOption.wordWrapMinified, 'wordWrapMinified', true,
+	)),
+	wrappingIndent: register(new EditorEnumOption(EditorOption.wrappingIndent, 'wrappingIndent', WrappingIndent.Same, ['none', 'same', 'indent', 'deepIndent'], _wrappingIndentFromString)),
 
 	// Leave these at the end (because they have dependencies!)
-	ariaLabel: registerEditorOption(new EditorAriaLabel(EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content"), [EditorOption.accessibilitySupport])),
-	disableMonospaceOptimizations: registerEditorOption(new EditorDisableMonospaceOptimizations(EditorOption.disableMonospaceOptimizations, 'disableMonospaceOptimizations', false, [EditorOption.fontLigatures])),
-	editorClassName: registerEditorOption(new EditorClassName(EditorOption.editorClassName, [EditorOption.mouseStyle, EditorOption.fontLigatures, EditorOption.extraEditorClassName])),
-	pixelRatio: registerEditorOption(new EditorPixelRatio(EditorOption.pixelRatio)),
-	tabFocusMode: registerEditorOption(new EditorTabFocusMode(EditorOption.tabFocusMode, [EditorOption.readOnly])),
+	ariaLabel: register(new EditorAriaLabel(EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content"), undefined, [EditorOption.accessibilitySupport])),
+	disableMonospaceOptimizations: register(new EditorDisableMonospaceOptimizations(EditorOption.disableMonospaceOptimizations, 'disableMonospaceOptimizations', false, undefined, [EditorOption.fontLigatures])),
+	editorClassName: register(new EditorClassName(EditorOption.editorClassName, [EditorOption.mouseStyle, EditorOption.fontLigatures, EditorOption.extraEditorClassName])),
+	pixelRatio: register(new EditorPixelRatio(EditorOption.pixelRatio)),
+	tabFocusMode: register(new EditorTabFocusMode(EditorOption.tabFocusMode, [EditorOption.readOnly])),
 
-	layoutInfo: registerEditorOption(new EditorLayoutInfoComputer(EditorOption.layoutInfo, [EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding, EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers])),
-	wrappingInfo: registerEditorOption(new EditorWrappingInfoComputer(EditorOption.wrappingInfo, [EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified, EditorOption.layoutInfo, EditorOption.accessibilitySupport])),
+	layoutInfo: register(new EditorLayoutInfoComputer(EditorOption.layoutInfo, [EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding, EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers])),
+	wrappingInfo: register(new EditorWrappingInfoComputer(EditorOption.wrappingInfo, [EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified, EditorOption.layoutInfo, EditorOption.accessibilitySupport])),
 };
 
 type EditorOptionsType = typeof EditorOptions;
