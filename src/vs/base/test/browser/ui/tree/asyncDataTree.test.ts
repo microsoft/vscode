@@ -51,6 +51,15 @@ class VirtualDelegate implements IListVirtualDelegate<Element> {
 	getTemplateId(element: Element): string { return 'default'; }
 }
 
+class DataSource implements IAsyncDataSource<Element, Element> {
+	hasChildren(element: Element): boolean {
+		return !!element.children && element.children.length > 0;
+	}
+	getChildren(element: Element): Promise<Element[]> {
+		return Promise.resolve(element.children || []);
+	}
+}
+
 class Model {
 
 	constructor(readonly root: Element) { }
@@ -65,15 +74,6 @@ suite('AsyncDataTree', function () {
 	test('Collapse state should be preserved across refresh calls', async () => {
 		const container = document.createElement('div');
 
-		const dataSource = new class implements IAsyncDataSource<Element, Element> {
-			hasChildren(element: Element): boolean {
-				return !!element.children && element.children.length > 0;
-			}
-			getChildren(element: Element): Promise<Element[]> {
-				return Promise.resolve(element.children || []);
-			}
-		};
-
 		const model = new Model({
 			id: 'root',
 			children: [{
@@ -81,7 +81,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 		assert.equal(container.querySelectorAll('.monaco-list-row').length, 0);
 
@@ -212,15 +212,6 @@ suite('AsyncDataTree', function () {
 	test('resolved collapsed nodes which lose children should lose twistie as well', async () => {
 		const container = document.createElement('div');
 
-		const dataSource = new class implements IAsyncDataSource<Element, Element> {
-			hasChildren(element: Element): boolean {
-				return !!element.children && element.children.length > 0;
-			}
-			getChildren(element: Element): Promise<Element[]> {
-				return Promise.resolve(element.children || []);
-			}
-		};
-
 		const model = new Model({
 			id: 'root',
 			children: [{
@@ -228,7 +219,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
 		tree.layout(200);
 
 		await tree.setInput(model.root);

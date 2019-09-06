@@ -395,6 +395,10 @@ export class StackFrame implements IStackFrame {
 		return !this.source.available ? Promise.resolve(null) :
 			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
 	}
+
+	equals(other: IStackFrame): boolean {
+		return (this.name === other.name) && (other.thread === this.thread) && (other.source === this.source) && (Range.equalsRange(this.range, other.range));
+	}
 }
 
 export class Thread implements IThread {
@@ -901,7 +905,16 @@ export class DebugModel implements IDebugModel {
 					if (!this.schedulers.has(thread.getId())) {
 						this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
 							thread.fetchCallStack(19).then(() => {
-								this._onDidChangeCallStack.fire();
+								const stale = thread.getStaleCallStack();
+								const current = thread.getCallStack();
+								let bottomOfCallStackChanged = stale.length !== current.length;
+								for (let i = 1; i < stale.length && !bottomOfCallStackChanged; i++) {
+									bottomOfCallStackChanged = !stale[i].equals(current[i]);
+								}
+
+								if (bottomOfCallStackChanged) {
+									this._onDidChangeCallStack.fire();
+								}
 								c();
 							});
 						}, 420));

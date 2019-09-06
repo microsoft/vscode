@@ -1766,7 +1766,7 @@ export class Repository {
 			}
 
 			const raw = await readfile(templatePath, 'utf8');
-			return raw.replace(/\n?#.*/g, '');
+			return raw.replace(/^\s*#.*$\n?/gm, '');
 
 		} catch (err) {
 			return '';
