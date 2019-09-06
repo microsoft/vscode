@@ -136,7 +136,6 @@ const serverWithWebEntryPoints = [
 	..._.flatten([
 		buildfile.entrypoint('vs/workbench/workbench.web.api'),
 		buildfile.base,
-		buildfile.serviceWorker,
 		buildfile.workerExtensionHost,
 		buildfile.keyboardMaps,
 		buildfile.workbenchWeb
