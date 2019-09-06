@@ -310,6 +310,7 @@ export interface IStackFrame extends ITreeElement {
 	restart(): Promise<any>;
 	toString(): string;
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditor | null>;
+	equals(other: IStackFrame): boolean;
 }
 
 export interface IEnablement extends ITreeElement {

@@ -29,7 +29,7 @@ import { StartAction, AddFunctionBreakpointAction, ConfigureAction, DisableAllBr
 import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import * as service from 'vs/workbench/contrib/debug/browser/debugService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { IViewsRegistry, Extensions as ViewExtensions } from 'vs/workbench/common/views';
@@ -147,23 +147,16 @@ const registerDebugCommandPaletteItem = (id: string, title: string, when?: Conte
 		}
 	});
 };
-const restartLabel = nls.localize('restartDebug', "Restart");
-const stepOverLabel = nls.localize('stepOverDebug', "Step Over");
-const stepIntoLabel = nls.localize('stepIntoDebug', "Step Into");
-const stepOutLabel = nls.localize('stepOutDebug', "Step Out");
-const pauseLabel = nls.localize('pauseDebug', "Pause");
-const disconnectLabel = nls.localize('disconnect', "Disconnect");
-const stopLabel = nls.localize('stop', "Stop");
-const continueLabel = nls.localize('continueDebug', "Continue");
-registerDebugCommandPaletteItem(RESTART_SESSION_ID, restartLabel);
+
+registerDebugCommandPaletteItem(RESTART_SESSION_ID, RESTART_LABEL);
 registerDebugCommandPaletteItem(TERMINATE_THREAD_ID, nls.localize('terminateThread', "Terminate Thread"), CONTEXT_IN_DEBUG_MODE);
-registerDebugCommandPaletteItem(STEP_OVER_ID, stepOverLabel, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugCommandPaletteItem(STEP_INTO_ID, stepIntoLabel, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugCommandPaletteItem(STEP_OUT_ID, stepOutLabel, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugCommandPaletteItem(PAUSE_ID, pauseLabel, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('running'));
-registerDebugCommandPaletteItem(DISCONNECT_ID, disconnectLabel, CONTEXT_IN_DEBUG_MODE, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
-registerDebugCommandPaletteItem(STOP_ID, stopLabel, CONTEXT_IN_DEBUG_MODE, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
-registerDebugCommandPaletteItem(CONTINUE_ID, continueLabel, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugCommandPaletteItem(STEP_OVER_ID, STEP_OVER_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugCommandPaletteItem(STEP_INTO_ID, STEP_INTO_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugCommandPaletteItem(STEP_OUT_ID, STEP_OUT_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugCommandPaletteItem(PAUSE_ID, PAUSE_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('running'));
+registerDebugCommandPaletteItem(DISCONNECT_ID, DISCONNECT_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
+registerDebugCommandPaletteItem(STOP_ID, STOP_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
+registerDebugCommandPaletteItem(CONTINUE_ID, CONTINUE_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugCommandPaletteItem(FOCUS_REPL_ID, nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, 'Focus on Debug Console View'));
 registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, nls.localize('jumpToCursor', "Jump to Cursor"), ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED));
 registerDebugCommandPaletteItem(RunToCursorAction.ID, RunToCursorAction.LABEL, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')));
@@ -295,14 +288,14 @@ const registerDebugToolBarItem = (id: string, title: string, icon: string, order
 	});
 };
 
-registerDebugToolBarItem(CONTINUE_ID, continueLabel, 'continue', 10, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(PAUSE_ID, pauseLabel, 'pause', 10, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'));
-registerDebugToolBarItem(STOP_ID, stopLabel, 'stop', 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
-registerDebugToolBarItem(DISCONNECT_ID, disconnectLabel, 'disconnect', 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
-registerDebugToolBarItem(STEP_OVER_ID, stepOverLabel, 'step-over', 20, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_INTO_ID, stepIntoLabel, 'step-into', 30, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_OUT_ID, stepOutLabel, 'step-out', 40, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(RESTART_SESSION_ID, restartLabel, 'restart', 60);
+registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 'continue', 10, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 'pause', 10, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'));
+registerDebugToolBarItem(STOP_ID, STOP_LABEL, 'stop', 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
+registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, 'disconnect', 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
+registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, 'step-over', 20, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, 'step-into', 30, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 'step-out', 40, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 'restart', 60);
 registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"), 'step-back', 50, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), 'reverse-continue', 60, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 
@@ -319,13 +312,13 @@ const registerDebugCallstackItem = (id: string, title: string, order: number, wh
 		}
 	});
 };
-registerDebugCallstackItem(RESTART_SESSION_ID, restartLabel, 10, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'));
-registerDebugCallstackItem(STOP_ID, stopLabel, 20, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'));
-registerDebugCallstackItem(PAUSE_ID, pauseLabel, 10, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('running')));
-registerDebugCallstackItem(CONTINUE_ID, continueLabel, 10, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped')));
-registerDebugCallstackItem(STEP_OVER_ID, stepOverLabel, 20, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugCallstackItem(STEP_INTO_ID, stepIntoLabel, 30, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugCallstackItem(STEP_OUT_ID, stepOutLabel, 40, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugCallstackItem(RESTART_SESSION_ID, RESTART_LABEL, 10, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'));
+registerDebugCallstackItem(STOP_ID, STOP_LABEL, 20, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'));
+registerDebugCallstackItem(PAUSE_ID, PAUSE_LABEL, 10, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('running')));
+registerDebugCallstackItem(CONTINUE_ID, CONTINUE_LABEL, 10, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped')));
+registerDebugCallstackItem(STEP_OVER_ID, STEP_OVER_LABEL, 20, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugCallstackItem(STEP_INTO_ID, STEP_INTO_LABEL, 30, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugCallstackItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugCallstackItem(TERMINATE_THREAD_ID, nls.localize('terminateThread', "Terminate Thread"), 10, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), undefined, 'termination');
 registerDebugCallstackItem(RESTART_FRAME_ID, nls.localize('restartFrame', "Restart Frame"), 10, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'), CONTEXT_RESTART_FRAME_SUPPORTED));
 registerDebugCallstackItem(COPY_STACK_TRACE_ID, nls.localize('copyStackTrace', "Copy Call Stack"), 20, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'));
@@ -559,11 +552,11 @@ if (isMacintosh) {
 
 	registerTouchBarEntry(StartAction.ID, StartAction.LABEL, 0, CONTEXT_IN_DEBUG_MODE.toNegated(), 'continue-tb.png');
 	registerTouchBarEntry(RunAction.ID, RunAction.LABEL, 1, CONTEXT_IN_DEBUG_MODE.toNegated(), 'continue-without-debugging-tb.png');
-	registerTouchBarEntry(CONTINUE_ID, continueLabel, 0, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'continue-tb.png');
-	registerTouchBarEntry(PAUSE_ID, pauseLabel, 1, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.notEquals('debugState', 'stopped')), 'pause-tb.png');
-	registerTouchBarEntry(STEP_OVER_ID, stepOverLabel, 2, CONTEXT_IN_DEBUG_MODE, 'stepover-tb.png');
-	registerTouchBarEntry(STEP_INTO_ID, stepIntoLabel, 3, CONTEXT_IN_DEBUG_MODE, 'stepinto-tb.png');
-	registerTouchBarEntry(STEP_OUT_ID, stepOutLabel, 4, CONTEXT_IN_DEBUG_MODE, 'stepout-tb.png');
-	registerTouchBarEntry(RESTART_SESSION_ID, restartLabel, 5, CONTEXT_IN_DEBUG_MODE, 'restart-tb.png');
-	registerTouchBarEntry(STOP_ID, stopLabel, 6, CONTEXT_IN_DEBUG_MODE, 'stop-tb.png');
+	registerTouchBarEntry(CONTINUE_ID, CONTINUE_LABEL, 0, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'continue-tb.png');
+	registerTouchBarEntry(PAUSE_ID, PAUSE_LABEL, 1, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.notEquals('debugState', 'stopped')), 'pause-tb.png');
+	registerTouchBarEntry(STEP_OVER_ID, STEP_OUT_LABEL, 2, CONTEXT_IN_DEBUG_MODE, 'stepover-tb.png');
+	registerTouchBarEntry(STEP_INTO_ID, STEP_INTO_LABEL, 3, CONTEXT_IN_DEBUG_MODE, 'stepinto-tb.png');
+	registerTouchBarEntry(STEP_OUT_ID, STEP_OUT_LABEL, 4, CONTEXT_IN_DEBUG_MODE, 'stepout-tb.png');
+	registerTouchBarEntry(RESTART_SESSION_ID, RESTART_LABEL, 5, CONTEXT_IN_DEBUG_MODE, 'restart-tb.png');
+	registerTouchBarEntry(STOP_ID, STOP_LABEL, 6, CONTEXT_IN_DEBUG_MODE, 'stop-tb.png');
 }
