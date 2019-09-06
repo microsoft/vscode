@@ -473,11 +473,6 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('ignoreTrimWhitespace', "Controls whether the diff editor shows changes in leading or trailing whitespace as diffs.")
 		},
-		'editor.focusOnHover': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('focusOnHover', 'Controls if editors should be focused when hovered.')
-		},
 		'diffEditor.renderIndicators': {
 			type: 'boolean',
 			default: true,
