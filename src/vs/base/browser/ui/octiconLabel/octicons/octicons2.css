@@ -1,7 +1,7 @@
 @font-face {
     font-family: "octicons2";
-    src: url("./octicons2.ttf?d8711b2fb33d14ed72f2a5859ed5f80a") format("truetype"),
-url("./octicons2.svg?d8711b2fb33d14ed72f2a5859ed5f80a#octicons2") format("svg");
+    src: url("./octicons2.ttf?04609cb7b40cfe676d00e166656be7e8") format("truetype"),
+url("./octicons2.svg?04609cb7b40cfe676d00e166656be7e8#octicons2") format("svg");
 }
 
 .octicon, .mega-octicon {
