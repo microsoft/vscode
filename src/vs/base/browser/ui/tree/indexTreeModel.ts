@@ -276,11 +276,15 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private _setNodeCollapseState(node: IMutableTreeNode<T, TFilterData>, collapsible: boolean, collapsed: boolean, recursive: boolean, deep: boolean): boolean {
 		let result = node.collapsible !== collapsible || node.collapsed !== collapsed;
 
-		node.collapsible = collapsible;
-		node.collapsed = collapsed;
+		if (node === this.root) {
+			result = false;
+		} else {
+			node.collapsible = collapsible;
+			node.collapsed = collapsed;
 
-		if (result) {
-			this._onDidChangeCollapseState.fire({ node, deep });
+			if (result) {
+				this._onDidChangeCollapseState.fire({ node, deep });
+			}
 		}
 
 		if (recursive) {
