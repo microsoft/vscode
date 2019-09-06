@@ -10,17 +10,17 @@ import { ParsedArgs } from '../common/environment';
 import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 import { parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
 
-function parseAndValidate(cmdLineArgs: string[]): ParsedArgs {
+function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): ParsedArgs {
 	const errorReporter: ErrorReporter = {
 		onUnknownOption: (id) => {
-			throw new Error(localize('unknownOption', "Option '{0}' is unknown. Use --help for the list of supported options.", id));
+			console.warn(localize('unknownOption', "Option '{0}' is unknown. Ignoring.", id));
 		},
 		onMultipleValues: (id, val) => {
 			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}.'", id, val));
 		}
 	};
 
-	const args = parseArgs(cmdLineArgs, undefined, errorReporter);
+	const args = parseArgs(cmdLineArgs, undefined, reportWarnings ? errorReporter : undefined);
 	if (args.goto) {
 		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
 	}
@@ -52,7 +52,9 @@ export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
 		args = stripAppPath(args) || [];
 	}
 
-	return parseAndValidate(args);
+	// If called from CLI, don't report warnings as they are already reported.
+	let reportWarnings = !process.env['VSCODE_CLI'];
+	return parseAndValidate(args, reportWarnings);
 }
 
 /**
@@ -65,5 +67,5 @@ export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
 		args = stripAppPath(args) || [];
 	}
 
-	return parseAndValidate(args);
+	return parseAndValidate(args, true);
 }

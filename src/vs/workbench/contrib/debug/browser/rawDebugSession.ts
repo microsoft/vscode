@@ -587,7 +587,13 @@ export class RawDebugSession {
 						} else {
 							args[key] = [value];
 						}
-
+					} else if (key === 'extensionDevelopmentPath') {
+						const v = args[key];
+						if (v) {
+							v.push(value);
+						} else {
+							args[key] = [value];
+						}
 					} else {
 						(<any>args)[key] = value;
 					}
