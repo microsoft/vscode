@@ -2297,7 +2297,7 @@ export const EditorOptions = {
 	foldingStrategy: registerEditorOption(new EditorStringEnumOption(EditorOption.foldingStrategy, 'foldingStrategy', 'auto' as 'auto' | 'indentation', ['auto', 'indentation'] as const)),
 	fontFamily: registerEditorOption(new EditorStringOption(EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily)),
 	fontInfo: registerEditorOption(new EditorFontInfo(EditorOption.fontInfo)),
-	fontLigatures: registerEditorOption(new EditorBooleanOption(EditorOption.fontLigatures, 'fontLigatures', true)),
+	fontLigatures: registerEditorOption(new EditorBooleanOption(EditorOption.fontLigatures, 'fontLigatures', false)),
 	fontSize: registerEditorOption(new EditorFontSize(EditorOption.fontSize, 'fontSize', EDITOR_FONT_DEFAULTS.fontSize)),
 	fontWeight: registerEditorOption(new EditorStringOption(EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight)),
 	formatOnPaste: registerEditorOption(new EditorBooleanOption(EditorOption.formatOnPaste, 'formatOnPaste', false)),
