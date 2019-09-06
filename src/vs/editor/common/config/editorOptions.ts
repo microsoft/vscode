@@ -856,45 +856,6 @@ function _float(value: any, defaultValue: number): number {
 /**
  * @internal
  */
-export interface IEditorLayoutProviderOpts {
-	readonly outerWidth: number;
-	readonly outerHeight: number;
-
-	readonly showGlyphMargin: boolean;
-	readonly lineHeight: number;
-
-	readonly showLineNumbers: boolean;
-	readonly lineNumbersMinChars: number;
-	readonly lineNumbersDigitCount: number;
-
-	readonly lineDecorationsWidth: number;
-
-	readonly typicalHalfwidthCharacterWidth: number;
-	readonly maxDigitWidth: number;
-
-	readonly verticalScrollbarWidth: number;
-	readonly verticalScrollbarHasArrows: boolean;
-	readonly scrollbarArrowSize: number;
-	readonly horizontalScrollbarHeight: number;
-
-	readonly minimap: boolean;
-	readonly minimapSide: string;
-	readonly minimapRenderCharacters: boolean;
-	readonly minimapMaxColumn: number;
-	readonly pixelRatio: number;
-}
-
-
-/**
- * @internal
- */
-export interface IRawEditorOptionsBag extends IEditorOptions {
-	[key: string]: any;
-}
-
-/**
- * @internal
- */
 export class ValidatedEditorOptions {
 	private readonly _values: any[] = [];
 	public _read<T>(option: EditorOption): T {
@@ -1497,70 +1458,69 @@ export interface EditorLayoutInfo {
 /**
  * @internal
  */
+export interface EditorLayoutInfoComputerEnv {
+	outerWidth: number;
+	outerHeight: number;
+	lineHeight: number;
+	lineNumbersDigitCount: number;
+	typicalHalfwidthCharacterWidth: number;
+	maxDigitWidth: number;
+	pixelRatio: number;
+}
+
+/**
+ * @internal
+ */
 export class EditorLayoutInfoComputer<K1 extends EditorOption> extends ComputedEditorOption<K1, EditorLayoutInfo> {
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: EditorLayoutInfo): EditorLayoutInfo {
-		const glyphMargin = options.get(EditorOption.glyphMargin);
-		const lineNumbersMinChars = options.get(EditorOption.lineNumbersMinChars);
+		return EditorLayoutInfoComputer.computeLayout(options, {
+			outerWidth: env.outerWidth,
+			outerHeight: env.outerHeight,
+			lineHeight: env.fontInfo.lineHeight,
+			lineNumbersDigitCount: env.lineNumbersDigitCount,
+			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
+			maxDigitWidth: env.fontInfo.maxDigitWidth,
+			pixelRatio: env.pixelRatio
+		});
+	}
+
+	public static computeLayout(options: IComputedEditorOptions, env: EditorLayoutInfoComputerEnv): EditorLayoutInfo {
+		const outerWidth = env.outerWidth | 0;
+		const outerHeight = env.outerHeight | 0;
+		const lineHeight = env.lineHeight | 0;
+		const lineNumbersDigitCount = env.lineNumbersDigitCount | 0;
+		const typicalHalfwidthCharacterWidth = env.typicalHalfwidthCharacterWidth;
+		const maxDigitWidth = env.maxDigitWidth;
+		const pixelRatio = env.pixelRatio;
+
+		const showGlyphMargin = options.get(EditorOption.glyphMargin);
+		const showLineNumbers = (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off);
+		const lineNumbersMinChars = options.get(EditorOption.lineNumbersMinChars) | 0;
+		const minimap = options.get(EditorOption.minimap);
+		const minimapEnabled = minimap.enabled;
+		const minimapSide = minimap.side;
+		const minimapRenderCharacters = minimap.renderCharacters;
+		const minimapMaxColumn = minimap.maxColumn | 0;
+
+		const scrollbar = options.get(EditorOption.scrollbar);
+		const verticalScrollbarWidth = scrollbar.verticalScrollbarSize | 0;
+		const verticalScrollbarHasArrows = scrollbar.verticalHasArrows;
+		const scrollbarArrowSize = scrollbar.arrowSize | 0;
+		const horizontalScrollbarHeight = scrollbar.horizontalScrollbarSize | 0;
+
 		const rawLineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
 		const folding = options.get(EditorOption.folding);
-		const minimap = options.get(EditorOption.minimap);
-		const scrollbar = options.get(EditorOption.scrollbar);
-		const lineNumbers = options.get(EditorOption.lineNumbers);
 
 		let lineDecorationsWidth: number;
 		if (typeof rawLineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(rawLineDecorationsWidth)) {
 			const multiple = parseFloat(rawLineDecorationsWidth.substr(0, rawLineDecorationsWidth.length - 2));
-			lineDecorationsWidth = multiple * env.fontInfo.typicalHalfwidthCharacterWidth;
+			lineDecorationsWidth = _clampedInt(multiple * typicalHalfwidthCharacterWidth, 0, 0, 1000);
 		} else {
 			lineDecorationsWidth = _clampedInt(rawLineDecorationsWidth, 0, 0, 1000);
 		}
 		if (folding) {
 			lineDecorationsWidth += 16;
 		}
-
-		return EditorLayoutInfoComputer.compute({
-			outerWidth: env.outerWidth,
-			outerHeight: env.outerHeight,
-			showGlyphMargin: glyphMargin,
-			lineHeight: env.fontInfo.lineHeight,
-			showLineNumbers: (lineNumbers.renderType !== RenderLineNumbersType.Off),
-			lineNumbersMinChars: lineNumbersMinChars,
-			lineNumbersDigitCount: env.lineNumbersDigitCount,
-			lineDecorationsWidth: lineDecorationsWidth,
-			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
-			maxDigitWidth: env.fontInfo.maxDigitWidth,
-			verticalScrollbarWidth: scrollbar.verticalScrollbarSize,
-			horizontalScrollbarHeight: scrollbar.horizontalScrollbarSize,
-			scrollbarArrowSize: scrollbar.arrowSize,
-			verticalScrollbarHasArrows: scrollbar.verticalHasArrows,
-			minimap: minimap.enabled,
-			minimapSide: minimap.side,
-			minimapRenderCharacters: minimap.renderCharacters,
-			minimapMaxColumn: minimap.maxColumn,
-			pixelRatio: env.pixelRatio
-		});
-	}
-
-	public static compute(_opts: IEditorLayoutProviderOpts): EditorLayoutInfo {
-		const outerWidth = _opts.outerWidth | 0;
-		const outerHeight = _opts.outerHeight | 0;
-		const showGlyphMargin = _opts.showGlyphMargin;
-		const lineHeight = _opts.lineHeight | 0;
-		const showLineNumbers = _opts.showLineNumbers;
-		const lineNumbersMinChars = _opts.lineNumbersMinChars | 0;
-		const lineNumbersDigitCount = _opts.lineNumbersDigitCount | 0;
-		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
-		const typicalHalfwidthCharacterWidth = _opts.typicalHalfwidthCharacterWidth;
-		const maxDigitWidth = _opts.maxDigitWidth;
-		const verticalScrollbarWidth = _opts.verticalScrollbarWidth | 0;
-		const verticalScrollbarHasArrows = _opts.verticalScrollbarHasArrows;
-		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
-		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
-		const minimap = _opts.minimap;
-		const minimapSide = _opts.minimapSide;
-		const minimapRenderCharacters = _opts.minimapRenderCharacters;
-		const minimapMaxColumn = _opts.minimapMaxColumn | 0;
-		const pixelRatio = _opts.pixelRatio;
 
 		let lineNumbersWidth = 0;
 		if (showLineNumbers) {
@@ -1584,7 +1544,7 @@ export class EditorLayoutInfoComputer<K1 extends EditorOption> extends ComputedE
 		let minimapLeft: number;
 		let minimapWidth: number;
 		let contentWidth: number;
-		if (!minimap) {
+		if (!minimapEnabled) {
 			minimapLeft = 0;
 			minimapWidth = 0;
 			renderMinimap = RenderMinimap.None;

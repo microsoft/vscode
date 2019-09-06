@@ -61,7 +61,7 @@ export interface IEnvConfiguration {
 
 const hasOwnProperty = Object.hasOwnProperty;
 
-class ComputedEditorOptions implements IComputedEditorOptions {
+export class ComputedEditorOptions implements IComputedEditorOptions {
 	private readonly _values: any[] = [];
 	public _read<T>(id: EditorOption): T {
 		return this._values[id];
