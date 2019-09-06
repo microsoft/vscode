@@ -1043,39 +1043,3 @@ declare module 'xterm' {
 		addOscHandler(ident: number, callback: (data: string) => boolean): IDisposable;
 	}
 }
-
-
-
-
-
-// Modifications to official .d.ts below
-declare module 'xterm' {
-	interface TerminalCore {
-		_onScroll: IEventEmitter<number>;
-		_onKey: IEventEmitter<{ key: string }>;
-
-		_charSizeService: {
-			width: number;
-			height: number;
-		};
-
-		_coreService: {
-			triggerDataEvent(data: string, wasUserInput?: boolean): void;
-		}
-
-		_renderService: {
-			_renderer: {
-				_renderLayers: any[];
-			};
-			_onIntersectionChange: any;
-		};
-	}
-
-	interface IEventEmitter<T> {
-		fire(e: T): void;
-	}
-
-	interface Terminal {
-		_core: TerminalCore;
-	}
-}

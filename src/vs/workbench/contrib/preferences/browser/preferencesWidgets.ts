@@ -394,11 +394,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		this.update();
 
 		if (this._action.checked) {
-			if ((oldFolder || !this._folder)
-				|| (!oldFolder || this._folder)
-				|| (oldFolder && this._folder && (oldFolder as IWorkspaceFolder).uri.toString() === (this._folder as IWorkspaceFolder).uri.toString())) {
-				this._action.run(this._folder);
-			}
+			this._action.run(this._folder);
 		}
 	}
 
@@ -520,7 +516,8 @@ export class SettingsTargetsWidget extends Widget {
 		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
 		this.workspaceSettings.tooltip = this.workspaceSettings.label;
 
-		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false, (folder: IWorkspaceFolder) => this.updateTarget(folder.uri));
+		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false,
+			(folder: IWorkspaceFolder | null) => this.updateTarget(folder ? folder.uri : ConfigurationTarget.USER_LOCAL));
 		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, folderSettingsAction);
 
 		this.update();

@@ -921,11 +921,9 @@ export class DebugSession implements IDebugSession {
 	}
 
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		const viewModel = this.debugService.getViewModel();
 		await this.repl.addReplExpression(stackFrame, name);
 		this._onDidChangeREPLElements.fire();
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-		this.debugService.focusStackFrame(viewModel.focusedStackFrame, viewModel.focusedThread, viewModel.focusedSession);
 		variableSetEmitter.fire();
 	}
 
