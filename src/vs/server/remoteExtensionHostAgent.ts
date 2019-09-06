@@ -16,16 +16,32 @@ import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { generateUuid } from 'vs/base/common/uuid';
 
-const args = minimist(process.argv.slice(2), {
+const minimistArgs = minimist(process.argv.slice(2), {
 	string: [
 		'port',
-		'disable-telemetry',
 		'connectionToken',
 		'host',
 		'folder',
-		'extensions-dir'
+		'extensions-dir',
+		'install-extension',
+		'uninstall-extension'
+	],
+	boolean: [
+		'list-extensions',
+		'force',
+		'disable-telemetry'
 	]
-}) as ParsedArgs;
+});
+
+// ensure array
+['install-extension', 'uninstall-extension'].forEach(key => {
+	const val = minimistArgs[key];
+	if (typeof val === 'string') {
+		minimistArgs[key] = [val];
+	}
+});
+
+const args = minimistArgs as ParsedArgs;
 
 const REMOTE_DATA_FOLDER = process.env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-remote');
 const USER_DATA_PATH = path.join(REMOTE_DATA_FOLDER, 'data');
@@ -36,9 +52,9 @@ args['user-data-dir'] = USER_DATA_PATH;
 const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 const BUILTIN_EXTENSIONS_FOLDER_PATH = path.join(APP_ROOT, 'extensions');
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
-const PORT = (args as any)['port'] || 8000;
-const CONNECTION_AUTH_TOKEN = (args as any)['connectionToken'] || generateUuid();
-const HOST = (args as any)['host'];
+const PORT = minimistArgs['port'] || 8000;
+const CONNECTION_AUTH_TOKEN = minimistArgs['connectionToken'] || generateUuid();
+const HOST = minimistArgs['host'];
 
 args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER, 'extensions');
 
