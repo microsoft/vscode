@@ -21,7 +21,6 @@ const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const plumber = require('gulp-plumber');
-const _ = require('underscore');
 const ext = require('./lib/extensions');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
@@ -37,10 +36,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(extensionsPath, tsconfigFile);
 	const relativeDirname = path.dirname(tsconfigFile);
 
-	const tsconfig = require(absolutePath);
-	const tsOptions = _.assign({}, tsconfig.extends ? require(path.join(extensionsPath, relativeDirname, tsconfig.extends)).compilerOptions : {}, tsconfig.compilerOptions);
-	tsOptions.verbose = false;
-	tsOptions.sourceMap = true;
+	const overrideOptions = {};
+	overrideOptions.sourceMap = true;
 
 	const name = relativeDirname.replace(/\//g, '-');
 
@@ -63,10 +60,10 @@ const tasks = compilations.map(function (tsconfigFile) {
 	function createPipeline(build, emitError) {
 		const reporter = createReporter();
 
-		tsOptions.inlineSources = !!build;
-		tsOptions.base = path.dirname(absolutePath);
+		overrideOptions.inlineSources = Boolean(build);
+		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(tsOptions, null, null, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, false, err => reporter(err.toString()));
 
 		return function () {
 			const input = es.through();
