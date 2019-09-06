@@ -80,9 +80,6 @@ const serverResources = [
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 
-	// Extension Worker
-	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
-
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',
@@ -94,6 +91,9 @@ const serverWithWebResources = [
 
 	// Include all of server
 	...serverResources,
+
+	// Extension Worker
+	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
 
 	// Include workbench web
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,cur,html}',
