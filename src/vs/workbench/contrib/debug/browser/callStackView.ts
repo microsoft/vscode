@@ -52,6 +52,7 @@ export class CallStackView extends ViewletPanel {
 	private tree!: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 	private contributedContextMenu: IMenu;
 	private parentSessionToExpand = new Set<IDebugSession>();
+	private selectionNeedsUpdate = false;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -90,7 +91,10 @@ export class CallStackView extends ViewletPanel {
 			this.tree.updateChildren().then(() => {
 				this.parentSessionToExpand.forEach(s => this.tree.expand(s));
 				this.parentSessionToExpand.clear();
-				this.updateTreeSelection();
+				if (this.selectionNeedsUpdate) {
+					this.selectionNeedsUpdate = false;
+					this.updateTreeSelection();
+				}
 			});
 		}, 50);
 	}
@@ -205,13 +209,17 @@ export class CallStackView extends ViewletPanel {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
-		const onCallStackChange = Event.any<any>(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getViewModel().onDidFocusSession);
-		this._register(onCallStackChange(() => {
+		const onFocusChange = Event.any<any>(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getViewModel().onDidFocusSession);
+		this._register(onFocusChange(() => {
 			if (this.ignoreFocusStackFrameEvent) {
 				return;
 			}
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
+				return;
+			}
+			if (this.onCallStackChangeScheduler.isScheduled()) {
+				this.selectionNeedsUpdate = true;
 				return;
 			}
 
