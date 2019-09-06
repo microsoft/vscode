@@ -182,6 +182,9 @@ async function setupRepository(): Promise<void> {
 
 async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
+	if (screenshotsPath) {
+		console.log('*** Storing screenshots for fialing builds at ' + screenshotsPath);
+	}
 	console.log('*** Preparing smoketest setup...');
 
 	await setupRepository();

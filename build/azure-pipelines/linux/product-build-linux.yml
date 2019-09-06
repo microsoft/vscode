@@ -119,9 +119,9 @@ steps:
 
 - script: |
     APP_ROOT=$(agent.builddirectory)/VSCode-linux-x64
-    DISPLAY=:10 yarn smoketest --build "$APP_ROOT" --screenshots $(agent.builddirectory)/linux-smoke-screenshots --log=true
+    DISPLAY=:10 yarn smoketest --build "$APP_ROOT" --screenshots $(agent.builddirectory)/linux-smoke-screenshots
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
-    DISPLAY=:10 yarn smoketest --remote --build "$APP_ROOT" --screenshots $(agent.builddirectory)/linux-smoke-screenshots --log=true
+    DISPLAY=:10 yarn smoketest --remote --build "$APP_ROOT" --screenshots $(agent.builddirectory)/linux-smoke-screenshots
   displayName: Run smoke tests
   continueOnError: true
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))

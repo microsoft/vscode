@@ -107,9 +107,7 @@ export class Application {
 			const raw = await this.code.capturePage();
 			const buffer = Buffer.from(raw, 'base64');
 			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
-			if (this.options.log) {
-				this.logger.log('*** Screenshot recorded:', screenshotPath);
-			}
+			this.logger.log('*** Screenshot recorded:', screenshotPath);
 			fs.writeFileSync(screenshotPath, buffer);
 		}
 	}
