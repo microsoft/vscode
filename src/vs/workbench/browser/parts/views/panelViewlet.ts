@@ -5,8 +5,7 @@
 
 import 'vs/css!./media/panelviewlet';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Event, Emitter, filterEvent } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER } from 'vs/workbench/common/theme';
@@ -14,7 +13,7 @@ import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, a
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { Viewlet, ViewletRegistry, Extensions } from 'vs/workbench/browser/viewlet';
@@ -25,10 +24,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IView } from 'vs/workbench/common/views';
+import { IView, FocusedViewContext } from 'vs/workbench/common/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -41,61 +41,93 @@ export interface IViewletPanelOptions extends IPanelOptions {
 	actionRunner?: IActionRunner;
 	id: string;
 	title: string;
+	showActionsAlways?: boolean;
 }
 
 export abstract class ViewletPanel extends Panel implements IView {
 
 	private static AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
 
-	private _onDidFocus = new Emitter<void>();
+	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private _onDidBlur = new Emitter<void>();
+	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
-	protected _onDidChangeTitleArea = new Emitter<void>();
+	private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
+
+	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
-	private _isVisible: boolean;
+	private focusedViewContextKey: IContextKey<string>;
+
+	private _isVisible: boolean = false;
 	readonly id: string;
 	readonly title: string;
 
-	protected actionRunner: IActionRunner;
+	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar;
+	private readonly showActionsAlways: boolean = false;
 	private headerContainer: HTMLElement;
+	private titleContainer: HTMLElement;
 
 	constructor(
 		options: IViewletPanelOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(options);
 
 		this.id = options.id;
 		this.title = options.title;
 		this.actionRunner = options.actionRunner;
+		this.showActionsAlways = !!options.showActionsAlways;
+		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): void {
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
-		}
 
-		return TPromise.wrap(null);
+			if (this.isExpanded()) {
+				this._onDidChangeBodyVisibility.fire(visible);
+			}
+		}
 	}
 
 	isVisible(): boolean {
 		return this._isVisible;
 	}
 
+	isBodyVisible(): boolean {
+		return this._isVisible && this.isExpanded();
+	}
+
+	setExpanded(expanded: boolean): boolean {
+		const changed = super.setExpanded(expanded);
+		if (changed) {
+			this._onDidChangeBodyVisibility.fire(expanded);
+		}
+
+		return changed;
+	}
+
 	render(): void {
 		super.render();
 
 		const focusTracker = trackFocus(this.element);
-		this.disposables.push(focusTracker);
-		this.disposables.push(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
-		this.disposables.push(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
+		this._register(focusTracker);
+		this._register(focusTracker.onDidFocus(() => {
+			this.focusedViewContextKey.set(this.id);
+			this._onDidFocus.fire();
+		}));
+		this._register(focusTracker.onDidBlur(() => {
+			this.focusedViewContextKey.reset();
+			this._onDidBlur.fire();
+		}));
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -104,24 +136,30 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
+		toggleClass(actions, 'show', this.showActionsAlways);
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: action => this.getActionItem(action),
+			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			actionRunner: this.actionRunner
 		});
 
-		this.disposables.push(this.toolbar);
+		this._register(this.toolbar);
 		this.setActions();
 
-		const onDidRelevantConfigurationChange = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPanel.AlwaysShowActionsConfig));
-		onDidRelevantConfigurationChange(this.updateActionsVisibility, this, this.disposables);
+		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPanel.AlwaysShowActionsConfig));
+		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		append(container, $('h3.title', null, title));
+		this.titleContainer = append(container, $('h3.title', undefined, title));
+	}
+
+	protected updateTitle(title: string): void {
+		this.titleContainer.textContent = title;
+		this._onDidChangeTitleArea.fire();
 	}
 
 	focus(): void {
@@ -154,11 +192,11 @@ export abstract class ViewletPanel extends Panel implements IView {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem {
-		return null;
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
+		return undefined;
 	}
 
-	getActionsContext(): any {
+	getActionsContext(): unknown {
 		return undefined;
 	}
 
@@ -202,13 +240,13 @@ export class PanelViewlet extends Viewlet {
 		id: string,
 		private options: IViewsViewletOptions,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(id, configurationService, partService, telemetryService, themeService, storageService);
+		super(id, configurationService, layoutService, telemetryService, themeService, storageService);
 	}
 
 	create(parent: HTMLElement): void {
@@ -232,7 +270,7 @@ export class PanelViewlet extends Viewlet {
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => Promise.resolve(this.getContextMenuActions())
+			getActions: () => this.getContextMenuActions()
 		});
 	}
 
@@ -240,7 +278,8 @@ export class PanelViewlet extends Viewlet {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 
 		if (this.isSingleView()) {
-			title += ': ' + this.panelItems[0].panel.title;
+			const panelItemTitle = this.panelItems[0].panel.title;
+			title = panelItemTitle ? `${title}: ${panelItemTitle}` : title;
 		}
 
 		return title;
@@ -262,12 +301,12 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
-	getActionItem(action: IAction): IActionItem {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (this.isSingleView()) {
-			return this.panelItems[0].panel.getActionItem(action);
+			return this.panelItems[0].panel.getActionViewItem(action);
 		}
 
-		return super.getActionItem(action);
+		return super.getActionViewItem(action);
 	}
 
 	focus(): void {
@@ -286,7 +325,7 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	layout(dimension: Dimension): void {
-		this.panelview.layout(dimension.height);
+		this.panelview.layout(dimension.height, dimension.width);
 	}
 
 	getOptimalWidth(): number {
@@ -310,26 +349,25 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	private addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
-		const disposables: IDisposable[] = [];
-		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel, null, disposables);
+		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel);
 		const onDidChangeTitleArea = panel.onDidChangeTitleArea(() => {
 			if (this.isSingleView()) {
 				this.updateTitleArea();
 			}
-		}, null, disposables);
+		});
 		const onDidChange = panel.onDidChange(() => {
 			if (panel === this.lastFocusedPanel && !panel.isExpanded()) {
 				this.lastFocusedPanel = undefined;
 			}
-		}, null, disposables);
+		});
 
 		const panelStyler = attachStyler<IPanelColors>(this.themeService, {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
-			headerBorder: index === 0 ? null : SIDE_BAR_SECTION_HEADER_BORDER,
+			headerBorder: SIDE_BAR_SECTION_HEADER_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, panel);
-		const disposable = combinedDisposable([onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange]);
+		const disposable = combinedDisposable(onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
 		this.panelItems.splice(index, 0, panelItem);

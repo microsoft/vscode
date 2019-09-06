@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -15,12 +15,15 @@ import { ICommand, IConfiguration, ScrollType } from 'vs/editor/common/editorCom
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
+import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export interface IColumnSelectData {
+	isReal: boolean;
+	fromViewLineNumber: number;
+	fromViewVisualColumn: number;
 	toViewLineNumber: number;
 	toViewVisualColumn: number;
 }
@@ -52,8 +55,8 @@ export interface ICursors {
 	setColumnSelectData(columnSelectData: IColumnSelectData): void;
 
 	setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
-	reveal(horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
-	revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
+	reveal(source: string, horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
+	revealRange(source: string, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
 
 	scrollTo(desiredScrollTop: number): void;
 
@@ -64,18 +67,29 @@ export interface ICursors {
 export interface CharacterMap {
 	[char: string]: string;
 }
+export interface MultipleCharacterMap {
+	[char: string]: string[];
+}
 
-const autoCloseAlways = _ => true;
-const autoCloseNever = _ => false;
+const autoCloseAlways = () => true;
+const autoCloseNever = () => false;
 const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
+
+function appendEntry<K, V>(target: Map<K, V[]>, key: K, value: V): void {
+	if (target.has(key)) {
+		target.get(key)!.push(value);
+	} else {
+		target.set(key, [value]);
+	}
+}
 
 export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
 	public readonly readOnly: boolean;
 	public readonly tabSize: number;
+	public readonly indentSize: number;
 	public readonly insertSpaces: boolean;
-	public readonly oneIndent: string;
 	public readonly pageSize: number;
 	public readonly lineHeight: number;
 	public readonly useTabStops: boolean;
@@ -85,59 +99,62 @@ export class CursorConfiguration {
 	public readonly multiCursorMergeOverlapping: boolean;
 	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	public readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
 	public readonly autoIndent: boolean;
-	public readonly autoClosingPairsOpen: CharacterMap;
-	public readonly autoClosingPairsClose: CharacterMap;
+	public readonly autoClosingPairsOpen2: Map<string, StandardAutoClosingPairConditional[]>;
+	public readonly autoClosingPairsClose2: Map<string, StandardAutoClosingPairConditional[]>;
 	public readonly surroundingPairs: CharacterMap;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 
 	private readonly _languageIdentifier: LanguageIdentifier;
 	private _electricChars: { [key: string]: boolean; } | null;
 
-	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
+	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
 		return (
-			e.layoutInfo
-			|| e.wordSeparators
-			|| e.emptySelectionClipboard
-			|| e.multiCursorMergeOverlapping
-			|| e.autoClosingBrackets
-			|| e.autoClosingQuotes
-			|| e.autoSurround
-			|| e.useTabStops
-			|| e.lineHeight
-			|| e.readOnly
+			e.hasChanged(EditorOption.layoutInfo)
+			|| e.hasChanged(EditorOption.wordSeparators)
+			|| e.hasChanged(EditorOption.emptySelectionClipboard)
+			|| e.hasChanged(EditorOption.multiCursorMergeOverlapping)
+			|| e.hasChanged(EditorOption.autoClosingBrackets)
+			|| e.hasChanged(EditorOption.autoClosingQuotes)
+			|| e.hasChanged(EditorOption.autoClosingOvertype)
+			|| e.hasChanged(EditorOption.autoSurround)
+			|| e.hasChanged(EditorOption.useTabStops)
+			|| e.hasChanged(EditorOption.lineHeight)
+			|| e.hasChanged(EditorOption.readOnly)
 		);
 	}
 
 	constructor(
 		languageIdentifier: LanguageIdentifier,
-		oneIndent: string,
 		modelOptions: TextModelResolvedOptions,
 		configuration: IConfiguration
 	) {
 		this._languageIdentifier = languageIdentifier;
 
-		let c = configuration.editor;
+		const options = configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this.readOnly = c.readOnly;
+		this.readOnly = options.get(EditorOption.readOnly);
 		this.tabSize = modelOptions.tabSize;
+		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
-		this.oneIndent = oneIndent;
-		this.pageSize = Math.max(1, Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2);
-		this.lineHeight = c.lineHeight;
-		this.useTabStops = c.useTabStops;
-		this.wordSeparators = c.wordSeparators;
-		this.emptySelectionClipboard = c.emptySelectionClipboard;
-		this.copyWithSyntaxHighlighting = c.copyWithSyntaxHighlighting;
-		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
-		this.autoClosingBrackets = c.autoClosingBrackets;
-		this.autoClosingQuotes = c.autoClosingQuotes;
-		this.autoSurround = c.autoSurround;
-		this.autoIndent = c.autoIndent;
+		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
+		this.useTabStops = options.get(EditorOption.useTabStops);
+		this.wordSeparators = options.get(EditorOption.wordSeparators);
+		this.emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+		this.copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+		this.multiCursorMergeOverlapping = options.get(EditorOption.multiCursorMergeOverlapping);
+		this.autoClosingBrackets = options.get(EditorOption.autoClosingBrackets);
+		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
+		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
+		this.autoSurround = options.get(EditorOption.autoSurround);
+		this.autoIndent = options.get(EditorOption.autoIndent);
 
-		this.autoClosingPairsOpen = {};
-		this.autoClosingPairsClose = {};
+		this.autoClosingPairsOpen2 = new Map<string, StandardAutoClosingPairConditional[]>();
+		this.autoClosingPairsClose2 = new Map<string, StandardAutoClosingPairConditional[]>();
 		this.surroundingPairs = {};
 		this._electricChars = null;
 
@@ -148,16 +165,18 @@ export class CursorConfiguration {
 
 		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
 		if (autoClosingPairs) {
-			for (let i = 0; i < autoClosingPairs.length; i++) {
-				this.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
-				this.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
+			for (const pair of autoClosingPairs) {
+				appendEntry(this.autoClosingPairsOpen2, pair.open.charAt(pair.open.length - 1), pair);
+				if (pair.close.length === 1) {
+					appendEntry(this.autoClosingPairsClose2, pair.close, pair);
+				}
 			}
 		}
 
 		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
 		if (surroundingPairs) {
-			for (let i = 0; i < surroundingPairs.length; i++) {
-				this.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
+			for (const pair of surroundingPairs) {
+				this.surroundingPairs[pair.open] = pair.close;
 			}
 		}
 	}
@@ -167,8 +186,8 @@ export class CursorConfiguration {
 			this._electricChars = {};
 			let electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
 			if (electricChars) {
-				for (let i = 0; i < electricChars.length; i++) {
-					this._electricChars[electricChars[i]] = true;
+				for (const char of electricChars) {
+					this._electricChars[char] = true;
 				}
 			}
 		}
@@ -176,7 +195,7 @@ export class CursorConfiguration {
 	}
 
 	public normalizeIndentation(str: string): string {
-		return TextModel.normalizeIndentation(str, this.tabSize, this.insertSpaces);
+		return TextModel.normalizeIndentation(str, this.indentSize, this.insertSpaces);
 	}
 
 	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] | null {
@@ -188,7 +207,7 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getAutoClosingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] | null {
+	private static _getAutoClosingPairs(languageIdentifier: LanguageIdentifier): StandardAutoClosingPairConditional[] | null {
 		try {
 			return LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
 		} catch (e) {
@@ -342,7 +361,6 @@ export class CursorContext {
 		this.viewModel = viewModel;
 		this.config = new CursorConfiguration(
 			this.model.getLanguageIdentifier(),
-			this.model.getOneIndent(),
 			this.model.getOptions(),
 			configuration
 		);
@@ -464,13 +482,13 @@ export class EditOperationResult {
 	_editOperationResultBrand: void;
 
 	readonly type: EditOperationType;
-	readonly commands: (ICommand | null)[];
+	readonly commands: Array<ICommand | null>;
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
 	constructor(
 		type: EditOperationType,
-		commands: (ICommand | null)[],
+		commands: Array<ICommand | null>,
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
@@ -518,7 +536,7 @@ export class CursorColumns {
 		for (let i = 0; i < endOffset; i++) {
 			let charCode = lineContent.charCodeAt(i);
 			if (charCode === CharCode.Tab) {
-				result = this.nextTabStop(result, tabSize);
+				result = this.nextRenderTabStop(result, tabSize);
 			} else if (strings.isFullWidthCharacter(charCode)) {
 				result = result + 2;
 			} else {
@@ -545,7 +563,7 @@ export class CursorColumns {
 
 			let afterVisibleColumn: number;
 			if (charCode === CharCode.Tab) {
-				afterVisibleColumn = this.nextTabStop(beforeVisibleColumn, tabSize);
+				afterVisibleColumn = this.nextRenderTabStop(beforeVisibleColumn, tabSize);
 			} else if (strings.isFullWidthCharacter(charCode)) {
 				afterVisibleColumn = beforeVisibleColumn + 2;
 			} else {
@@ -588,15 +606,29 @@ export class CursorColumns {
 	/**
 	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
 	 */
-	public static nextTabStop(visibleColumn: number, tabSize: number): number {
+	public static nextRenderTabStop(visibleColumn: number, tabSize: number): number {
 		return visibleColumn + tabSize - visibleColumn % tabSize;
 	}
 
 	/**
 	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
 	 */
-	public static prevTabStop(column: number, tabSize: number): number {
+	public static nextIndentTabStop(visibleColumn: number, indentSize: number): number {
+		return visibleColumn + indentSize - visibleColumn % indentSize;
+	}
+
+	/**
+	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 */
+	public static prevRenderTabStop(column: number, tabSize: number): number {
 		return column - 1 - (column - 1) % tabSize;
+	}
+
+	/**
+	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 */
+	public static prevIndentTabStop(column: number, indentSize: number): number {
+		return column - 1 - (column - 1) % indentSize;
 	}
 }
 

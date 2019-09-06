@@ -56,7 +56,7 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 
 export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactory {
 
-	private classifier: WrappingCharacterClassifier;
+	private readonly classifier: WrappingCharacterClassifier;
 
 	constructor(breakBeforeChars: string, breakAfterChars: string, breakObtrusiveChars: string) {
 		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars, breakObtrusiveChars);
@@ -135,6 +135,13 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			let charCode = lineText.charCodeAt(i);
 			let charCodeIsTab = (charCode === CharCode.Tab);
 			let charCodeClass = classifier.get(charCode);
+
+			if (strings.isLowSurrogate(charCode)/*  && i + 1 < len */) {
+				// A surrogate pair must always be considered as a single unit, so it is never to be broken
+				// => advance visibleColumn by 1 and advance to next char code...
+				visibleColumn = visibleColumn + 1;
+				continue;
+			}
 
 			if (charCodeClass === CharacterClass.BREAK_BEFORE) {
 				// This is a character that indicates that a break should happen before it
@@ -255,8 +262,8 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 export class CharacterHardWrappingLineMapping implements ILineMapping {
 
-	private _prefixSums: PrefixSumComputer;
-	private _wrappedLinesIndent: string;
+	private readonly _prefixSums: PrefixSumComputer;
+	private readonly _wrappedLinesIndent: string;
 
 	constructor(prefixSums: PrefixSumComputer, wrappedLinesIndent: string) {
 		this._prefixSums = prefixSums;

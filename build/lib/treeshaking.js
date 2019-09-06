@@ -14,9 +14,19 @@ var ShakeLevel;
     ShakeLevel[ShakeLevel["InnerFile"] = 1] = "InnerFile";
     ShakeLevel[ShakeLevel["ClassMembers"] = 2] = "ClassMembers";
 })(ShakeLevel = exports.ShakeLevel || (exports.ShakeLevel = {}));
+function toStringShakeLevel(shakeLevel) {
+    switch (shakeLevel) {
+        case 0 /* Files */:
+            return 'Files (0)';
+        case 1 /* InnerFile */:
+            return 'InnerFile (1)';
+        case 2 /* ClassMembers */:
+            return 'ClassMembers (2)';
+    }
+}
+exports.toStringShakeLevel = toStringShakeLevel;
 function printDiagnostics(diagnostics) {
-    for (let i = 0; i < diagnostics.length; i++) {
-        const diag = diagnostics[i];
+    for (const diag of diagnostics) {
         let result = '';
         if (diag.file) {
             result += `${diag.file.fileName}: `;
@@ -57,7 +67,7 @@ function createTypeScriptLanguageService(options) {
     const FILES = discoverAndReadFiles(options);
     // Add fake usage files
     options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-        FILES[`inlineEntryPoint:${index}.ts`] = inlineEntryPoint;
+        FILES[`inlineEntryPoint.${index}.ts`] = inlineEntryPoint;
     });
     // Add additional typings
     options.typings.forEach((typing) => {
@@ -70,7 +80,8 @@ function createTypeScriptLanguageService(options) {
         const filepath = path.join(TYPESCRIPT_LIB_FOLDER, filename);
         RESOLVED_LIBS[`defaultLib:${filename}`] = fs.readFileSync(filepath).toString();
     });
-    const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, ts.convertCompilerOptionsFromJson(options.compilerOptions, ``).options);
+    const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
+    const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, compilerOptions);
     return ts.createLanguageService(host);
 }
 /**
@@ -94,6 +105,11 @@ function discoverAndReadFiles(options) {
         if (fs.existsSync(dts_filename)) {
             const dts_filecontents = fs.readFileSync(dts_filename).toString();
             FILES[`${moduleId}.d.ts`] = dts_filecontents;
+            continue;
+        }
+        const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+        if (fs.existsSync(js_filename)) {
+            // This is an import for a .js file, so ignore it...
             continue;
         }
         let ts_filename;
@@ -335,7 +351,7 @@ function markNodes(languageService, options) {
     }
     options.entryPoints.forEach(moduleId => enqueueFile(moduleId + '.ts'));
     // Add fake usage files
-    options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint:${index}.ts`));
+    options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint.${index}.ts`));
     let step = 0;
     const checker = program.getTypeChecker();
     while (black_queue.length > 0 || gray_queue.length > 0) {
@@ -389,6 +405,7 @@ function markNodes(languageService, options) {
                                 || memberName === 'toJSON'
                                 || memberName === 'toString'
                                 || memberName === 'dispose' // TODO: keeping all `dispose` methods
+                                || /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
                             ) {
                                 enqueue_black(member);
                             }
@@ -474,8 +491,7 @@ function generateResult(languageService, shakeLevel) {
                     }
                     else {
                         let survivingImports = [];
-                        for (let i = 0; i < node.importClause.namedBindings.elements.length; i++) {
-                            const importNode = node.importClause.namedBindings.elements[i];
+                        for (const importNode of node.importClause.namedBindings.elements) {
                             if (getColor(importNode) === 2 /* Black */) {
                                 survivingImports.push(importNode.getFullText(sourceFile));
                             }
@@ -507,10 +523,6 @@ function generateResult(languageService, shakeLevel) {
                     const member = node.members[i];
                     if (getColor(member) === 2 /* Black */ || !member.name) {
                         // keep method
-                        continue;
-                    }
-                    if (/^_(.*)Brand$/.test(member.name.getText())) {
-                        // TODO: keep all members ending with `Brand`...
                         continue;
                     }
                     let pos = member.pos - node.pos;

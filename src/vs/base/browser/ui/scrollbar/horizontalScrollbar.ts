@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
@@ -34,22 +34,22 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 				className: 'left-arrow',
 				top: scrollbarDelta,
 				left: arrowDelta,
-				bottom: void 0,
-				right: void 0,
+				bottom: undefined,
+				right: undefined,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
-				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, 1, 0)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 1, 0)),
 			});
 
 			this._createArrow({
 				className: 'right-arrow',
 				top: scrollbarDelta,
-				left: void 0,
-				bottom: void 0,
+				left: undefined,
+				bottom: undefined,
 				right: arrowDelta,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
-				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, -1, 0)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, -1, 0)),
 			});
 		}
 

@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { normalize } from 'vs/base/common/paths';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 
 
 suite('URI', () => {
 	test('file#toString', () => {
-		assert.equal(URI.file('c:/win/path').toString(), 'file:///c:/win/path');
-		assert.equal(URI.file('C:/win/path').toString(), 'file:///c:/win/path');
-		assert.equal(URI.file('c:/win/path/').toString(), 'file:///c:/win/path/');
-		assert.equal(URI.file('/c:/win/path').toString(), 'file:///c:/win/path');
+		assert.equal(URI.file('c:/win/path').toString(), 'file:///c%3A/win/path');
+		assert.equal(URI.file('C:/win/path').toString(), 'file:///c%3A/win/path');
+		assert.equal(URI.file('c:/win/path/').toString(), 'file:///c%3A/win/path/');
+		assert.equal(URI.file('/c:/win/path').toString(), 'file:///c%3A/win/path');
 	});
 
 	test('URI.file (win-special)', () => {
 		if (isWindows) {
-			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c:/win/path');
-			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c:/win/path');
+			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A/win/path');
+			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A/win/path');
 		} else {
 			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A%5Cwin%5Cpath');
 			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A%5Cwin/path');
+
 		}
 	});
 
@@ -72,15 +72,15 @@ suite('URI', () => {
 		assert.equal(URI.from({ scheme: 'http', authority: 'a-test-site.com', path: '/', query: '', fragment: 'test=true' }).toString(true), 'http://a-test-site.com/#test=true');
 		assert.equal(URI.from({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(true), 'http:/api/files/test.me?t=1234');
 
-		var value = URI.parse('file://shares/pröjects/c%23/#l12');
+		const value = URI.parse('file://shares/pröjects/c%23/#l12');
 		assert.equal(value.authority, 'shares');
 		assert.equal(value.path, '/pröjects/c#/');
 		assert.equal(value.fragment, 'l12');
 		assert.equal(value.toString(), 'file://shares/pr%C3%B6jects/c%23/#l12');
 		assert.equal(value.toString(true), 'file://shares/pröjects/c%23/#l12');
 
-		var uri2 = URI.parse(value.toString(true));
-		var uri3 = URI.parse(value.toString());
+		const uri2 = URI.parse(value.toString(true));
+		const uri3 = URI.parse(value.toString());
 		assert.equal(uri2.authority, uri3.authority);
 		assert.equal(uri2.path, uri3.path);
 		assert.equal(uri2.query, uri3.query);
@@ -90,9 +90,9 @@ suite('URI', () => {
 	test('with, identity', () => {
 		let uri = URI.parse('foo:bar/path');
 
-		let uri2 = uri.with(null);
+		let uri2 = uri.with(null!);
 		assert.ok(uri === uri2);
-		uri2 = uri.with(undefined);
+		uri2 = uri.with(undefined!);
 		assert.ok(uri === uri2);
 		uri2 = uri.with({});
 		assert.ok(uri === uri2);
@@ -129,7 +129,7 @@ suite('URI', () => {
 	});
 
 	test('parse', () => {
-		var value = URI.parse('http:/api/files/test.me?t=1234');
+		let value = URI.parse('http:/api/files/test.me?t=1234');
 		assert.equal(value.scheme, 'http');
 		assert.equal(value.authority, '');
 		assert.equal(value.path, '/api/files/test.me');
@@ -140,7 +140,6 @@ suite('URI', () => {
 		assert.equal(value.scheme, 'http');
 		assert.equal(value.authority, 'api');
 		assert.equal(value.path, '/files/test.me');
-		assert.equal(value.fsPath, normalize('/files/test.me', true));
 		assert.equal(value.query, 't=1234');
 		assert.equal(value.fragment, '');
 
@@ -150,7 +149,7 @@ suite('URI', () => {
 		assert.equal(value.path, '/c:/test/me');
 		assert.equal(value.fragment, '');
 		assert.equal(value.query, '');
-		assert.equal(value.fsPath, normalize('c:/test/me', true));
+		assert.equal(value.fsPath, isWindows ? 'c:\\test\\me' : 'c:/test/me');
 
 		value = URI.parse('file://shares/files/c%23/p.cs');
 		assert.equal(value.scheme, 'file');
@@ -158,7 +157,7 @@ suite('URI', () => {
 		assert.equal(value.path, '/files/c#/p.cs');
 		assert.equal(value.fragment, '');
 		assert.equal(value.query, '');
-		assert.equal(value.fsPath, normalize('//shares/files/c#/p.cs', true));
+		assert.equal(value.fsPath, isWindows ? '\\\\shares\\files\\c#\\p.cs' : '//shares/files/c#/p.cs');
 
 		value = URI.parse('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins/c%23/plugin.json');
 		assert.equal(value.scheme, 'file');
@@ -237,9 +236,9 @@ suite('URI', () => {
 
 	test('URI#file, win-speciale', () => {
 		if (isWindows) {
-			var value = URI.file('c:\\test\\drive');
+			let value = URI.file('c:\\test\\drive');
 			assert.equal(value.path, '/c:/test/drive');
-			assert.equal(value.toString(), 'file:///c:/test/drive');
+			assert.equal(value.toString(), 'file:///c%3A/test/drive');
 
 			value = URI.file('\\\\shäres\\path\\c#\\plugin.json');
 			assert.equal(value.scheme, 'file');
@@ -259,15 +258,15 @@ suite('URI', () => {
 
 			value = URI.file('c:\\test with %\\path');
 			assert.equal(value.path, '/c:/test with %/path');
-			assert.equal(value.toString(), 'file:///c:/test%20with%20%25/path');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/path');
 
 			value = URI.file('c:\\test with %25\\path');
 			assert.equal(value.path, '/c:/test with %25/path');
-			assert.equal(value.toString(), 'file:///c:/test%20with%20%2525/path');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/path');
 
 			value = URI.file('c:\\test with %25\\c#code');
 			assert.equal(value.path, '/c:/test with %25/c#code');
-			assert.equal(value.toString(), 'file:///c:/test%20with%20%2525/c%23code');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
 
 			value = URI.file('\\\\shares');
 			assert.equal(value.scheme, 'file');
@@ -297,7 +296,7 @@ suite('URI', () => {
 
 	test('URI#file, always slash', () => {
 
-		var value = URI.file('a.file');
+		let value = URI.file('a.file');
 		assert.equal(value.scheme, 'file');
 		assert.equal(value.authority, '');
 		assert.equal(value.path, '/a.file');
@@ -311,12 +310,12 @@ suite('URI', () => {
 	});
 
 	test('URI.toString, only scheme and query', () => {
-		var value = URI.parse('stuff:?qüery');
+		const value = URI.parse('stuff:?qüery');
 		assert.equal(value.toString(), 'stuff:?q%C3%BCery');
 	});
 
 	test('URI#toString, upper-case percent espaces', () => {
-		var value = URI.parse('file://sh%c3%a4res/path');
+		const value = URI.parse('file://sh%c3%a4res/path');
 		assert.equal(value.toString(), 'file://sh%C3%A4res/path');
 	});
 
@@ -327,12 +326,12 @@ suite('URI', () => {
 
 	test('URI#toString, escape all the bits', () => {
 
-		var value = URI.file('/Users/jrieken/Code/_samples/18500/Mödel + Other Thîngß/model.js');
+		const value = URI.file('/Users/jrieken/Code/_samples/18500/Mödel + Other Thîngß/model.js');
 		assert.equal(value.toString(), 'file:///Users/jrieken/Code/_samples/18500/M%C3%B6del%20%2B%20Other%20Th%C3%AEng%C3%9F/model.js');
 	});
 
 	test('URI#toString, don\'t encode port', () => {
-		var value = URI.parse('http://localhost:8080/far');
+		let value = URI.parse('http://localhost:8080/far');
 		assert.equal(value.toString(), 'http://localhost:8080/far');
 
 		value = URI.from({ scheme: 'http', authority: 'löcalhost:8080', path: '/far', query: undefined, fragment: undefined });
@@ -340,7 +339,7 @@ suite('URI', () => {
 	});
 
 	test('URI#toString, user information in authority', () => {
-		var value = URI.parse('http://foo:bar@localhost/far');
+		let value = URI.parse('http://foo:bar@localhost/far');
 		assert.equal(value.toString(), 'http://foo:bar@localhost/far');
 
 		value = URI.parse('http://foo@localhost/far');
@@ -358,19 +357,18 @@ suite('URI', () => {
 
 	test('correctFileUriToFilePath2', () => {
 
-		var test = (input: string, expected: string) => {
-			expected = normalize(expected, true);
-			var value = URI.parse(input);
+		const test = (input: string, expected: string) => {
+			const value = URI.parse(input);
 			assert.equal(value.fsPath, expected, 'Result for ' + input);
-			var value2 = URI.file(value.fsPath);
+			const value2 = URI.file(value.fsPath);
 			assert.equal(value2.fsPath, expected, 'Result for ' + input);
 			assert.equal(value.toString(), value2.toString());
 		};
 
-		test('file:///c:/alex.txt', 'c:\\alex.txt');
-		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins', 'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins');
-		test('file://monacotools/folder/isi.txt', '\\\\monacotools\\folder\\isi.txt');
-		test('file://monacotools1/certificates/SSL/', '\\\\monacotools1\\certificates\\SSL\\');
+		test('file:///c:/alex.txt', isWindows ? 'c:\\alex.txt' : 'c:/alex.txt');
+		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins', isWindows ? 'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins' : 'c:/Source/Zürich or Zurich (ˈzjʊərɪk,/Code/resources/app/plugins');
+		test('file://monacotools/folder/isi.txt', isWindows ? '\\\\monacotools\\folder\\isi.txt' : '//monacotools/folder/isi.txt');
+		test('file://monacotools1/certificates/SSL/', isWindows ? '\\\\monacotools1\\certificates\\SSL\\' : '//monacotools1/certificates/SSL/');
 	});
 
 	test('URI - http, query & toString', function () {
@@ -428,9 +426,22 @@ suite('URI', () => {
 		assert.equal(uri.toString(true), input);
 	});
 
+	test('Unable to open \'%A0.txt\': URI malformed #76506', function () {
+
+		let uri = URI.file('/foo/%A0.txt');
+		let uri2 = URI.parse(uri.toString());
+		assert.equal(uri.scheme, uri2.scheme);
+		assert.equal(uri.path, uri2.path);
+
+		uri = URI.file('/foo/%2e.txt');
+		uri2 = URI.parse(uri.toString());
+		assert.equal(uri.scheme, uri2.scheme);
+		assert.equal(uri.path, uri2.path);
+	});
+
 	test('URI - (de)serialize', function () {
 
-		var values = [
+		const values = [
 			URI.parse('http://localhost:8080/far'),
 			URI.file('c:\\test with %25\\c#code'),
 			URI.file('\\\\shäres\\path\\c#\\plugin.json'),
@@ -443,7 +454,7 @@ suite('URI', () => {
 		// let c = 100000;
 		// while (c-- > 0) {
 		for (let value of values) {
-			let data = value.toJSON();
+			let data = value.toJSON() as UriComponents;
 			let clone = URI.revive(data);
 
 			assert.equal(clone.scheme, value.scheme);
@@ -456,38 +467,5 @@ suite('URI', () => {
 		}
 		// }
 		// console.profileEnd();
-	});
-
-	test('Opening files from quick open not showing file contents #60163', function () {
-
-		const data = {
-			'$mid': 1,
-			'fsPath': 'c:\\Users\\bpasero\\Desktop\\Golda\'s Kitchen\\CHANGELOG.md',
-			'external': 'file:///c%3A/Users/bpasero/Desktop/Golda%27s%20Kitchen/CHANGELOG.md',
-			'path': '/c:/Users/bpasero/Desktop/Golda\'s Kitchen/CHANGELOG.md',
-			'scheme': 'file'
-		};
-		const uri = URI.revive(data);
-		assert.equal(uri.scheme, data.scheme);
-		assert.equal(uri.path, data.path);
-		assert.equal((uri as any)._formatted, null);
-		assert.equal((uri as any)._fsPath, null);
-
-		// when the $mid is the current one then we trust
-		// the data(no matter what)
-		const data2 = {
-			'$mid': 100,
-			'fsPath': 'c:\\Users\\bpasero\\Desktop\\Golda\'s Kitchen\\CHANGELOG.md',
-			'external': 'file:///c%3A/Users/bpasero/Desktop/Golda%27s%20Kitchen/CHANGELOG.md',
-			'path': '/c:/Users/bpasero/Desktop/Golda\'s Kitchen/CHANGELOG.md',
-			'scheme': 'file'
-		};
-		const uri2 = URI.revive(data2);
-		assert.equal(uri2.scheme, data2.scheme);
-		assert.equal(uri2.path, data2.path);
-		assert.ok((uri2 as any)._formatted);
-		assert.ok((uri2 as any)._fsPath);
-
-
 	});
 });

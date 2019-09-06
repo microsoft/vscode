@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery } from 'vs/platform/search/common/search';
-import { QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/node/search';
-import * as vscode from 'vscode';
+import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { FileSearchProvider, FileSearchOptions } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IInternalFileMatch {
 	base: URI;
@@ -34,42 +32,39 @@ export interface IDirectoryTree {
 	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
 }
 
-
 class FileSearchEngine {
-	private filePattern: string;
-	private includePattern: glob.ParsedExpression;
-	private maxResults: number;
-	private exists: boolean;
-	private isLimitHit: boolean;
-	private resultCount: number;
-	private isCanceled: boolean;
+	private filePattern?: string;
+	private includePattern?: glob.ParsedExpression;
+	private maxResults?: number;
+	private exists?: boolean;
+	private isLimitHit = false;
+	private resultCount = 0;
+	private isCanceled = false;
 
 	private activeCancellationTokens: Set<CancellationTokenSource>;
 
-	private globalExcludePattern: glob.ParsedExpression;
+	private globalExcludePattern?: glob.ParsedExpression;
 
-	constructor(private config: IFileQuery, private provider: vscode.FileSearchProvider) {
+	constructor(private config: IFileQuery, private provider: FileSearchProvider, private sessionToken?: CancellationToken) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
-		this.maxResults = config.maxResults || null;
+		this.maxResults = config.maxResults || undefined;
 		this.exists = config.exists;
-		this.resultCount = 0;
-		this.isLimitHit = false;
 		this.activeCancellationTokens = new Set<CancellationTokenSource>();
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.isCanceled = true;
 		this.activeCancellationTokens.forEach(t => t.cancel());
 		this.activeCancellationTokens = new Set();
 	}
 
-	public search(_onResult: (match: IInternalFileMatch) => void): TPromise<IInternalSearchComplete> {
-		const folderQueries = this.config.folderQueries;
+	search(_onResult: (match: IInternalFileMatch) => void): Promise<IInternalSearchComplete> {
+		const folderQueries = this.config.folderQueries || [];
 
-		return new TPromise((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			const onResult = (match: IInternalFileMatch) => {
 				this.resultCount++;
 				_onResult(match);
@@ -96,26 +91,22 @@ class FileSearchEngine {
 			}
 
 			// For each root folder
-			TPromise.join(folderQueries.map(fq => {
+			Promise.all(folderQueries.map(fq => {
 				return this.searchInFolder(fq, onResult);
 			})).then(stats => {
 				resolve({
 					limitHit: this.isLimitHit,
-					stats: stats[0] // Only looking at single-folder workspace stats...
+					stats: stats[0] || undefined // Only looking at single-folder workspace stats...
 				});
-			}, (errs: Error[]) => {
-				const errMsg = errs
-					.map(err => toErrorMessage(err))
-					.filter(msg => !!msg)[0];
-
-				reject(new Error(errMsg));
+			}, (err: Error) => {
+				reject(new Error(toErrorMessage(err)));
 			});
 		});
 	}
 
-	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): TPromise<IFileSearchProviderStats> {
-		let cancellation = new CancellationTokenSource();
-		return new TPromise((resolve, reject) => {
+	private searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): Promise<IFileSearchProviderStats | null> {
+		const cancellation = new CancellationTokenSource();
+		return new Promise((resolve, reject) => {
 			const options = this.getSearchOptionsForFolder(fq);
 			const tree = this.initDirectoryTree();
 
@@ -123,7 +114,7 @@ class FileSearchEngine {
 			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
 
 			let providerSW: StopWatch;
-			new TPromise(_resolve => process.nextTick(_resolve))
+			new Promise(_resolve => process.nextTick(_resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
 
@@ -139,16 +130,16 @@ class FileSearchEngine {
 					const providerTime = providerSW.elapsed();
 					const postProcessSW = StopWatch.create();
 
-					if (this.isCanceled) {
+					if (this.isCanceled && !this.isLimitHit) {
 						return null;
 					}
 
 					if (results) {
 						results.forEach(result => {
-							const relativePath = path.relative(fq.folder.fsPath, result.fsPath);
+							const relativePath = path.posix.relative(fq.folder.path, result.path);
 
 							if (noSiblingsClauses) {
-								const basename = path.basename(result.fsPath);
+								const basename = path.basename(result.path);
 								this.matchFile(onResult, { base: fq.folder, relativePath, basename });
 
 								return;
@@ -160,7 +151,7 @@ class FileSearchEngine {
 					}
 
 					this.activeCancellationTokens.delete(cancellation);
-					if (this.isCanceled) {
+					if (this.isCanceled && !this.isLimitHit) {
 						return null;
 					}
 
@@ -181,7 +172,7 @@ class FileSearchEngine {
 		});
 	}
 
-	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): vscode.FileSearchOptions {
+	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): FileSearchOptions {
 		const includes = resolvePatternsForProvider(this.config.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.config.excludePattern, fq.excludePattern);
 
@@ -192,7 +183,8 @@ class FileSearchEngine {
 			useIgnoreFiles: !fq.disregardIgnoreFiles,
 			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
 			followSymlinks: !fq.ignoreSymlinks,
-			maxResults: this.config.maxResults
+			maxResults: this.config.maxResults,
+			session: this.sessionToken
 		};
 	}
 
@@ -267,7 +259,7 @@ class FileSearchEngine {
 	}
 
 	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {
-		if (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename)) {
+		if (!this.includePattern || (candidate.relativePath && this.includePattern(candidate.relativePath, candidate.basename))) {
 			if (this.exists || (this.maxResults && this.resultCount >= this.maxResults)) {
 				this.isLimitHit = true;
 				this.cancel();
@@ -289,8 +281,11 @@ export class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
-	fileSearch(config: IFileQuery, provider: vscode.FileSearchProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
-		const engine = new FileSearchEngine(config, provider);
+	private readonly sessions = new Map<string, CancellationTokenSource>();
+
+	fileSearch(config: IFileQuery, provider: FileSearchProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
+		const sessionTokenSource = this.getSessionTokenSource(config.cacheKey);
+		const engine = new FileSearchEngine(config, provider, sessionTokenSource && sessionTokenSource.token);
 
 		let resultCount = 0;
 		const onInternalResult = (batch: IInternalFileMatch[]) => {
@@ -312,6 +307,25 @@ export class FileSearchManager {
 			});
 	}
 
+	clearCache(cacheKey: string): void {
+		const sessionTokenSource = this.getSessionTokenSource(cacheKey);
+		if (sessionTokenSource) {
+			sessionTokenSource.cancel();
+		}
+	}
+
+	private getSessionTokenSource(cacheKey: string | undefined): CancellationTokenSource | undefined {
+		if (!cacheKey) {
+			return undefined;
+		}
+
+		if (!this.sessions.has(cacheKey)) {
+			this.sessions.set(cacheKey, new CancellationTokenSource());
+		}
+
+		return this.sessions.get(cacheKey);
+	}
+
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
 		if (match.relativePath) {
 			return {
@@ -325,12 +339,12 @@ export class FileSearchManager {
 		}
 	}
 
-	private doSearch(engine: FileSearchEngine, batchSize: number, onResultBatch: (matches: IInternalFileMatch[]) => void, token: CancellationToken): TPromise<IInternalSearchComplete> {
+	private doSearch(engine: FileSearchEngine, batchSize: number, onResultBatch: (matches: IInternalFileMatch[]) => void, token: CancellationToken): Promise<IInternalSearchComplete> {
 		token.onCancellationRequested(() => {
 			engine.cancel();
 		});
 
-		const _onResult = match => {
+		const _onResult = (match: IInternalFileMatch) => {
 			if (match) {
 				batch.push(match);
 				if (batchSize > 0 && batch.length >= batchSize) {
@@ -352,7 +366,7 @@ export class FileSearchManager {
 				onResultBatch(batch);
 			}
 
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 }

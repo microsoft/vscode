@@ -38,11 +38,11 @@ suite('QuickOpen', () => {
 		model.addEntries([entry1, entry2, entry3]);
 
 		const ds = new DataSource(model);
-		assert.equal(entry1.getId(), ds.getId(null, entry1));
-		assert.equal(true, ds.hasChildren(null, model));
-		assert.equal(false, ds.hasChildren(null, entry1));
+		assert.equal(entry1.getId(), ds.getId(null!, entry1));
+		assert.equal(true, ds.hasChildren(null!, model));
+		assert.equal(false, ds.hasChildren(null!, entry1));
 
-		ds.getChildren(null, model).then((children: any[]) => {
+		ds.getChildren(null!, model).then((children: any[]) => {
 			assert.equal(3, children.length);
 		});
 	});

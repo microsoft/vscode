@@ -5,7 +5,7 @@
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, TextDocument, tasks
+	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -34,6 +34,21 @@ export class NpmTaskProvider implements TaskProvider {
 	}
 
 	public resolveTask(_task: Task): Task | undefined {
+		const npmTask = (<any>_task.definition).script;
+		if (npmTask) {
+			const kind: NpmTaskDefinition = (<any>_task.definition);
+			let packageJsonUri: Uri;
+			if (_task.scope === undefined || _task.scope === TaskScope.Global || _task.scope === TaskScope.Workspace) {
+				// scope is required to be a WorkspaceFolder for resolveTask
+				return undefined;
+			}
+			if (kind.path) {
+				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.path + 'package.json' });
+			} else {
+				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
+			}
+			return createTask(kind, `run ${kind.script}`, _task.scope, packageJsonUri);
+		}
 		return undefined;
 	}
 }
@@ -70,8 +85,7 @@ function getPrePostScripts(scripts: any): Set<string> {
 		'pretest', 'postest', 'prepublishOnly'
 	]);
 	let keys = Object.keys(scripts);
-	for (let i = 0; i < keys.length; i++) {
-		const script = keys[i];
+	for (const script of keys) {
 		const prepost = ['pre' + script, 'post' + script];
 		prepost.forEach(each => {
 			if (scripts[each] !== undefined) {
@@ -96,8 +110,7 @@ export async function hasNpmScripts(): Promise<boolean> {
 		return false;
 	}
 	try {
-		for (let i = 0; i < folders.length; i++) {
-			let folder = folders[i];
+		for (const folder of folders) {
 			if (isAutoDetectionEnabled(folder)) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
@@ -123,13 +136,11 @@ async function detectNpmScripts(): Promise<Task[]> {
 		return emptyTasks;
 	}
 	try {
-		for (let i = 0; i < folders.length; i++) {
-			let folder = folders[i];
+		for (const folder of folders) {
 			if (isAutoDetectionEnabled(folder)) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
 				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
-				for (let j = 0; j < paths.length; j++) {
-					let path = paths[j];
+				for (const path of paths) {
 					if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
 						let tasks = await provideNpmScriptsForFolder(path);
 						visitedPackageJsonFiles.add(path.fsPath);
@@ -225,7 +236,13 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
+export function createTask(script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
+	let kind: NpmTaskDefinition;
+	if (typeof script === 'string') {
+		kind = { type: 'npm', script: script };
+	} else {
+		kind = script;
+	}
 
 	function getCommandLine(folder: WorkspaceFolder, cmd: string): string {
 		let packageManager = getPackageManager(folder);
@@ -241,15 +258,11 @@ export function createTask(script: string, cmd: string, folder: WorkspaceFolder,
 		return absolutePath.substring(rootUri.path.length + 1);
 	}
 
-	let kind: NpmTaskDefinition = {
-		type: 'npm',
-		script: script
-	};
 	let relativePackageJson = getRelativePath(folder, packageJsonUri);
 	if (relativePackageJson.length) {
 		kind.path = getRelativePath(folder, packageJsonUri);
 	}
-	let taskName = getTaskName(script, relativePackageJson);
+	let taskName = getTaskName(kind.script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);
 	return new Task(kind, folder, taskName, 'npm', new ShellExecution(getCommandLine(folder, cmd), { cwd: cwd }), matcher);
 }
@@ -264,6 +277,22 @@ export function getPackageJsonUriFromTask(task: Task): Uri | null {
 		}
 	}
 	return null;
+}
+
+export async function hasPackageJson(): Promise<boolean> {
+	let folders = workspace.workspaceFolders;
+	if (!folders) {
+		return false;
+	}
+	for (const folder of folders) {
+		if (folder.uri.scheme === 'file') {
+			let packageJson = path.join(folder.uri.fsPath, 'package.json');
+			if (await exists(packageJson)) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 async function exists(file: string): Promise<boolean> {
@@ -343,7 +372,7 @@ export function startDebugging(scriptName: string, protocol: string, port: numbe
 export type StringMap = { [s: string]: string; };
 
 async function findAllScripts(buffer: string): Promise<StringMap> {
-	var scripts: StringMap = {};
+	let scripts: StringMap = {};
 	let script: string | undefined = undefined;
 	let inScripts = false;
 
@@ -380,7 +409,7 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 }
 
 export function findAllScriptRanges(buffer: string): Map<string, [number, number, string]> {
-	var scripts: Map<string, [number, number, string]> = new Map();
+	let scripts: Map<string, [number, number, string]> = new Map();
 	let script: string | undefined = undefined;
 	let offset: number;
 	let length: number;
@@ -469,8 +498,8 @@ export async function getScripts(packageJsonUri: Uri): Promise<StringMap | undef
 	}
 
 	try {
-		var contents = await readFile(packageJson);
-		var json = findAllScripts(contents);//JSON.parse(contents);
+		let contents = await readFile(packageJson);
+		let json = findAllScripts(contents);//JSON.parse(contents);
 		return json;
 	} catch (e) {
 		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri.fsPath);

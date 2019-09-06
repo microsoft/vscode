@@ -56,3 +56,17 @@ function objectHash(obj: any, initialHashVal: number): number {
 		return hash(obj[key], hashVal);
 	}, initialHashVal);
 }
+
+export class Hasher {
+
+	private _value = 0;
+
+	get value(): number {
+		return this._value;
+	}
+
+	hash(obj: any): number {
+		this._value = hash(obj, this._value);
+		return this._value;
+	}
+}

@@ -10,14 +10,14 @@ import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IViewWhitespaceViewportData {
-	readonly id: number;
+	readonly id: string;
 	readonly afterLineNumber: number;
 	readonly verticalOffset: number;
 	readonly height: number;
@@ -74,15 +74,15 @@ export interface IViewLayout {
 	 * Reserve rendering space.
 	 * @return an identifier that can be later used to remove or change the whitespace.
 	 */
-	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): number;
+	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): string;
 	/**
 	 * Change the properties of a whitespace.
 	 */
-	changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean;
+	changeWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean;
 	/**
 	 * Remove rendering space
 	 */
-	removeWhitespace(id: number): boolean;
+	removeWhitespace(id: string): boolean;
 	/**
 	 * Get the layout information for whitespaces currently in the viewport
 	 */
@@ -119,6 +119,7 @@ export interface IViewModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
+	tokenizeViewport(): void;
 	setHasFocus(hasFocus: boolean): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
@@ -128,7 +129,7 @@ export interface IViewModel {
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
-	getTabSize(): number;
+	getOptions(): TextModelResolvedOptions;
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getLineLength(lineNumber: number): number;
@@ -140,6 +141,7 @@ export interface IViewModel {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations;
 	invalidateOverviewRulerColorCache(): void;
+	invalidateMinimapColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
 	getModelLineMaxColumn(modelLineNumber: number): number;
@@ -154,11 +156,11 @@ export interface IViewModel {
 
 export class MinimapLinesRenderingData {
 	public readonly tabSize: number;
-	public readonly data: (ViewLineData | null)[];
+	public readonly data: Array<ViewLineData | null>;
 
 	constructor(
 		tabSize: number,
-		data: (ViewLineData | null)[]
+		data: Array<ViewLineData | null>
 	) {
 		this.tabSize = tabSize;
 		this.data = data;

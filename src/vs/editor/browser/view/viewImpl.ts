@@ -48,6 +48,8 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -63,11 +65,11 @@ const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
 export class View extends ViewEventHandler {
 
-	private eventDispatcher: ViewEventDispatcher;
+	private readonly eventDispatcher: ViewEventDispatcher;
 
 	private _scrollbar: EditorScrollbar;
-	private _context: ViewContext;
-	private _cursor: Cursor;
+	private readonly _context: ViewContext;
+	private readonly _cursor: Cursor;
 
 	// The view lines
 	private viewLines: ViewLines;
@@ -105,7 +107,7 @@ export class View extends ViewEventHandler {
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = outgoingEvents;
 
-		let viewController = new ViewController(configuration, model, this.outgoingEvents, commandDelegate);
+		const viewController = new ViewController(configuration, model, this.outgoingEvents, commandDelegate);
 
 		// The event dispatcher will always go through _renderOnce before dispatching any events
 		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));
@@ -128,22 +130,6 @@ export class View extends ViewEventHandler {
 		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this.createTextAreaHandlerHelper());
 		this.viewParts.push(this._textAreaHandler);
 
-		this.createViewParts();
-		this._setLayout();
-
-		// Pointer handler
-		this.pointerHandler = new PointerHandler(this._context, viewController, this.createPointerHandlerHelper());
-
-		this._register(model.addEventListener((events: viewEvents.ViewEvent[]) => {
-			this.eventDispatcher.emitMany(events);
-		}));
-
-		this._register(this._cursor.addEventListener((events: viewEvents.ViewEvent[]) => {
-			this.eventDispatcher.emitMany(events);
-		}));
-	}
-
-	private createViewParts(): void {
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this.linesContent = createFastDomNode(document.createElement('div'));
 		this.linesContent.setClassName('lines-content' + ' monaco-editor-background');
@@ -167,21 +153,21 @@ export class View extends ViewEventHandler {
 		this.viewParts.push(this.viewZones);
 
 		// Decorations overview ruler
-		let decorationsOverviewRuler = new DecorationsOverviewRuler(this._context);
+		const decorationsOverviewRuler = new DecorationsOverviewRuler(this._context);
 		this.viewParts.push(decorationsOverviewRuler);
 
 
-		let scrollDecoration = new ScrollDecorationViewPart(this._context);
+		const scrollDecoration = new ScrollDecorationViewPart(this._context);
 		this.viewParts.push(scrollDecoration);
 
-		let contentViewOverlays = new ContentViewOverlays(this._context);
+		const contentViewOverlays = new ContentViewOverlays(this._context);
 		this.viewParts.push(contentViewOverlays);
 		contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
 
-		let marginViewOverlays = new MarginViewOverlays(this._context);
+		const marginViewOverlays = new MarginViewOverlays(this._context);
 		this.viewParts.push(marginViewOverlays);
 		marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
@@ -189,7 +175,7 @@ export class View extends ViewEventHandler {
 		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
 
-		let margin = new Margin(this._context);
+		const margin = new Margin(this._context);
 		margin.getDomNode().appendChild(this.viewZones.marginDomNode);
 		margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
 		this.viewParts.push(margin);
@@ -205,16 +191,16 @@ export class View extends ViewEventHandler {
 		this.overlayWidgets = new ViewOverlayWidgets(this._context);
 		this.viewParts.push(this.overlayWidgets);
 
-		let rulers = new Rulers(this._context);
+		const rulers = new Rulers(this._context);
 		this.viewParts.push(rulers);
 
-		let minimap = new Minimap(this._context);
+		const minimap = new Minimap(this._context);
 		this.viewParts.push(minimap);
 
 		// -------------- Wire dom nodes up
 
 		if (decorationsOverviewRuler) {
-			let overviewRulerData = this._scrollbar.getOverviewRulerLayoutInfo();
+			const overviewRulerData = this._scrollbar.getOverviewRulerLayoutInfo();
 			overviewRulerData.parent.insertBefore(decorationsOverviewRuler.getDomNode(), overviewRulerData.insertBefore);
 		}
 
@@ -233,6 +219,19 @@ export class View extends ViewEventHandler {
 		this.overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this.overflowGuardContainer);
 		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
+
+		this._applyLayout();
+
+		// Pointer handler
+		this.pointerHandler = this._register(new PointerHandler(this._context, viewController, this.createPointerHandlerHelper()));
+
+		this._register(model.addEventListener((events: viewEvents.ViewEvent[]) => {
+			this.eventDispatcher.emitMany(events);
+		}));
+
+		this._register(this._cursor.addEventListener((events: viewEvents.ViewEvent[]) => {
+			this.eventDispatcher.emitMany(events);
+		}));
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
@@ -251,7 +250,7 @@ export class View extends ViewEventHandler {
 			getLastViewCursorsRenderData: () => {
 				return this.viewCursors.getLastRenderData() || [];
 			},
-			shouldSuppressMouseDownOnViewZone: (viewZoneId: number) => {
+			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
 				return this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
 			},
 			shouldSuppressMouseDownOnWidget: (widgetId: string) => {
@@ -283,8 +282,10 @@ export class View extends ViewEventHandler {
 		};
 	}
 
-	private _setLayout(): void {
-		const layoutInfo = this._context.configuration.editor.layoutInfo;
+	private _applyLayout(): void {
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
 		this.domNode.setWidth(layoutInfo.width);
 		this.domNode.setHeight(layoutInfo.height);
 
@@ -293,23 +294,18 @@ export class View extends ViewEventHandler {
 
 		this.linesContent.setWidth(1000000);
 		this.linesContent.setHeight(1000000);
-
 	}
 
 	private getEditorClassName() {
-		let focused = this._textAreaHandler.isFocused() ? ' focused' : '';
-		return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
+		const focused = this._textAreaHandler.isFocused() ? ' focused' : '';
+		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.editorClassName) {
-			this.domNode.setClassName(this.getEditorClassName());
-		}
-		if (e.layoutInfo) {
-			this._setLayout();
-		}
+		this.domNode.setClassName(this.getEditorClassName());
+		this._applyLayout();
 		return false;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -342,8 +338,6 @@ export class View extends ViewEventHandler {
 		this.eventDispatcher.removeEventHandler(this);
 		this.outgoingEvents.dispose();
 
-		this.pointerHandler.dispose();
-
 		this.viewLines.dispose();
 
 		// Destroy view parts
@@ -356,7 +350,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _renderOnce(callback: () => any): any {
-		let r = safeInvokeNoArg(callback);
+		const r = safeInvokeNoArg(callback);
 		this._scheduleRender();
 		return r;
 	}
@@ -379,7 +373,7 @@ export class View extends ViewEventHandler {
 	private _getViewPartsToRender(): ViewPart[] {
 		let result: ViewPart[] = [], resultLen = 0;
 		for (let i = 0, len = this.viewParts.length; i < len; i++) {
-			let viewPart = this.viewParts[i];
+			const viewPart = this.viewParts[i];
 			if (viewPart.shouldRender()) {
 				result[resultLen++] = viewPart;
 			}
@@ -402,7 +396,7 @@ export class View extends ViewEventHandler {
 		const partialViewportData = this._context.viewLayout.getLinesViewportData();
 		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
-		let viewportData = new ViewportData(
+		const viewportData = new ViewportData(
 			this._cursor.getViewSelections(),
 			partialViewportData,
 			this._context.viewLayout.getWhitespaceViewportData(),
@@ -422,16 +416,16 @@ export class View extends ViewEventHandler {
 			viewPartsToRender = this._getViewPartsToRender();
 		}
 
-		let renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this.viewLines);
+		const renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this.viewLines);
 
 		// Render the rest of the parts
 		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
-			let viewPart = viewPartsToRender[i];
+			const viewPart = viewPartsToRender[i];
 			viewPart.prepareRender(renderingContext);
 		}
 
 		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
-			let viewPart = viewPartsToRender[i];
+			const viewPart = viewPartsToRender[i];
 			viewPart.render(renderingContext);
 			viewPart.onDidRender();
 		}
@@ -445,17 +439,18 @@ export class View extends ViewEventHandler {
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
 		this._context.viewLayout.setScrollPositionNow({ scrollTop: scrollPosition.scrollTop });
+		this._context.model.tokenizeViewport();
 		this._renderNow();
 		this.viewLines.updateLineWidths();
 		this._context.viewLayout.setScrollPositionNow({ scrollLeft: scrollPosition.scrollLeft });
 	}
 
 	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {
-		let modelPosition = this._context.model.validateModelPosition({
+		const modelPosition = this._context.model.validateModelPosition({
 			lineNumber: modelLineNumber,
 			column: modelColumn
 		});
-		let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 		this._flushAccumulatedAndRenderNow();
 		const visibleRange = this.viewLines.visibleRangeForPosition(new Position(viewPosition.lineNumber, viewPosition.column));
 		if (!visibleRange) {
@@ -476,18 +471,18 @@ export class View extends ViewEventHandler {
 		let zonesHaveChanged = false;
 
 		this._renderOnce(() => {
-			let changeAccessor: editorBrowser.IViewZoneChangeAccessor = {
-				addZone: (zone: editorBrowser.IViewZone): number => {
+			const changeAccessor: editorBrowser.IViewZoneChangeAccessor = {
+				addZone: (zone: editorBrowser.IViewZone): string => {
 					zonesHaveChanged = true;
 					return this.viewZones.addZone(zone);
 				},
-				removeZone: (id: number): void => {
+				removeZone: (id: string): void => {
 					if (!id) {
 						return;
 					}
 					zonesHaveChanged = this.viewZones.removeZone(id) || zonesHaveChanged;
 				},
-				layoutZone: (id: number): void => {
+				layoutZone: (id: string): void => {
 					if (!id) {
 						return;
 					}
@@ -515,7 +510,7 @@ export class View extends ViewEventHandler {
 			// Force everything to render...
 			this.viewLines.forceShouldRender();
 			for (let i = 0, len = this.viewParts.length; i < len; i++) {
-				let viewPart = this.viewParts[i];
+				const viewPart = this.viewParts[i];
 				viewPart.forceShouldRender();
 			}
 		}
@@ -541,9 +536,9 @@ export class View extends ViewEventHandler {
 	}
 
 	public layoutContentWidget(widgetData: IContentWidgetData): void {
-		let newPosition = widgetData.position ? widgetData.position.position : null;
-		let newRange = widgetData.position ? widgetData.position.range : null;
-		let newPreference = widgetData.position ? widgetData.position.preference : null;
+		const newPosition = widgetData.position ? widgetData.position.position : null;
+		const newRange = widgetData.position ? widgetData.position.range || null : null;
+		const newPreference = widgetData.position ? widgetData.position.preference : null;
 		this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newRange, newPreference);
 		this._scheduleRender();
 	}
@@ -560,8 +555,8 @@ export class View extends ViewEventHandler {
 	}
 
 	public layoutOverlayWidget(widgetData: IOverlayWidgetData): void {
-		let newPreference = widgetData.position ? widgetData.position.preference : null;
-		let shouldRender = this.overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
+		const newPreference = widgetData.position ? widgetData.position.preference : null;
+		const shouldRender = this.overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
 		if (shouldRender) {
 			this._scheduleRender();
 		}

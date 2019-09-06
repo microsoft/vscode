@@ -30,12 +30,12 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 		search: string,
 		token: vscode.CancellationToken
 	): Promise<vscode.SymbolInformation[]> {
-		const uri = this.getUri();
-		if (!uri) {
+		const document = this.getDocument();
+		if (!document) {
 			return [];
 		}
 
-		const filepath = this.client.toPath(uri);
+		const filepath = this.client.toOpenedFilePath(document);
 		if (!filepath) {
 			return [];
 		}
@@ -70,7 +70,7 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 		return label;
 	}
 
-	private getUri(): vscode.Uri | undefined {
+	private getDocument(): vscode.TextDocument | undefined {
 		// typescript wants to have a resource even when asking
 		// general questions so we check the active editor. If this
 		// doesn't match we take the first TS document.
@@ -79,14 +79,14 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 		if (editor) {
 			const document = editor.document;
 			if (document && this.modeIds.indexOf(document.languageId) >= 0) {
-				return document.uri;
+				return document;
 			}
 		}
 
 		const documents = vscode.workspace.textDocuments;
 		for (const document of documents) {
 			if (this.modeIds.indexOf(document.languageId) >= 0) {
-				return document.uri;
+				return document;
 			}
 		}
 		return undefined;

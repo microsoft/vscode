@@ -84,7 +84,7 @@ export function consolidate(groups: IRangedGroup[]): IRangedGroup[] {
  * collection.
  */
 function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
-	return consolidate(groups.reduce((r, g) => r.concat(g), [] as IRangedGroup[]));
+	return consolidate(groups.reduce((r, g) => r.concat(g), []));
 }
 
 export class RangeMap {
@@ -92,7 +92,7 @@ export class RangeMap {
 	private groups: IRangedGroup[] = [];
 	private _size = 0;
 
-	splice(index: number, deleteCount: number, ...items: IItem[]): void {
+	splice(index: number, deleteCount: number, items: IItem[] = []): void {
 		const diff = items.length - deleteCount;
 		const before = groupIntersect({ start: 0, end: index }, this.groups);
 		const after = groupIntersect({ start: index + deleteCount, end: Number.POSITIVE_INFINITY }, this.groups)
@@ -185,9 +185,5 @@ export class RangeMap {
 		}
 
 		return -1;
-	}
-
-	dispose() {
-		this.groups = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 }

@@ -17,7 +17,7 @@ function handleDeletions() {
 	});
 }
 
-let watch = void 0;
+let watch = undefined;
 
 if (!watch) {
 	watch = process.platform === 'win32' ? require('./watch-win32') : require('gulp-watch');

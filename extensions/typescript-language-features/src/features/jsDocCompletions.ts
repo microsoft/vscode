@@ -44,7 +44,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.CompletionItem[] | undefined> {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return undefined;
 		}
@@ -112,9 +112,10 @@ export function templateToSnippet(template: string): vscode.SnippetString {
 
 export function register(
 	selector: vscode.DocumentSelector,
+	modeId: string,
 	client: ITypeScriptServiceClient,
 ): vscode.Disposable {
-	return new ConfigurationDependentRegistration('jsDocCompletion', 'enabled', () => {
+	return new ConfigurationDependentRegistration(modeId, 'suggest.completeJSDocs', () => {
 		return vscode.languages.registerCompletionItemProvider(selector,
 			new JsDocCompletionProvider(client),
 			'*');

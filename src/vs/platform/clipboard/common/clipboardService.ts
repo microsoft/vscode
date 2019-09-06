@@ -10,17 +10,19 @@ export const IClipboardService = createDecorator<IClipboardService>('clipboardSe
 
 export interface IClipboardService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Writes text to the system clipboard.
 	 */
-	writeText(text: string): void;
+	writeText(text: string, type?: string): Promise<void>;
 
 	/**
 	 * Reads the content of the clipboard in plain text
 	 */
-	readText(): string;
+	readText(type?: string): Promise<string>;
+
+	readTextSync(): string | undefined;
 
 	/**
 	 * Reads text from the system find pasteboard.

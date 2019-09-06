@@ -13,20 +13,20 @@ import { IElement } from '../../vscode/driver';
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET} .debug-view-content`;
 const CONFIGURE = `div[id="workbench.parts.sidebar"] .actions-container .configure`;
-const STOP = `.debug-toolbar .debug-action.stop`;
-const STEP_OVER = `.debug-toolbar .debug-action.step-over`;
-const STEP_IN = `.debug-toolbar .debug-action.step-into`;
-const STEP_OUT = `.debug-toolbar .debug-action.step-out`;
-const CONTINUE = `.debug-toolbar .debug-action.continue`;
+const STOP = `.debug-toolbar .action-label[title*="Stop"]`;
+const STEP_OVER = `.debug-toolbar .action-label[title*="Step Over"]`;
+const STEP_IN = `.debug-toolbar .action-label[title*="Step Into"]`;
+const STEP_OUT = `.debug-toolbar .action-label[title*="Step Out"]`;
+const CONTINUE = `.debug-toolbar .action-label[title*="Continue"]`;
 const GLYPH_AREA = '.margin-view-overlays>:nth-child';
 const BREAKPOINT_GLYPH = '.debug-breakpoint';
-const PAUSE = `.debug-toolbar .debug-action.pause`;
+const PAUSE = `.debug-toolbar .action-label[title*="Pause"]`;
 const DEBUG_STATUS_BAR = `.statusbar.debugging`;
 const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;
 const TOOLBAR_HIDDEN = `.debug-toolbar[aria-hidden="true"]`;
-const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
+const STACK_FRAME = `${VIEWLET} .monaco-list-row .stack-frame`;
 const SPECIFIC_STACK_FRAME = filename => `${STACK_FRAME} .file[title*="${filename}"]`;
-const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
+const VARIABLE = `${VIEWLET} .debug-variables .monaco-list-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
 
@@ -136,8 +136,9 @@ export class Debug extends Viewlet {
 		await this.waitForOutput(output => accept(output[output.length - 1] || ''));
 	}
 
-	async waitForVariableCount(count: number): Promise<void> {
-		await this.code.waitForElements(VARIABLE, false, els => els.length === count);
+	// Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count
+	async waitForVariableCount(count: number, alternativeCount: number): Promise<void> {
+		await this.code.waitForElements(VARIABLE, false, els => els.length === count || els.length === alternativeCount);
 	}
 
 	private async waitForOutput(fn: (output: string[]) => boolean): Promise<string[]> {

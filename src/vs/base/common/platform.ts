@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+const LANGUAGE_DEFAULT = 'en';
+
 let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
 let _isNative = false;
 let _isWeb = false;
 let _locale: string | undefined = undefined;
-let _language: string | undefined = undefined;
+let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
+let _userAgent: string | undefined = undefined;
 
 interface NLSConfig {
 	locale: string;
@@ -32,26 +35,24 @@ interface INodeProcess {
 	};
 	type?: string;
 }
-declare let process: INodeProcess;
-declare let global: any;
+declare const process: INodeProcess;
+declare const global: any;
 
 interface INavigator {
 	userAgent: string;
 	language: string;
 }
-declare let navigator: INavigator;
-declare let self: any;
-
-export const LANGUAGE_DEFAULT = 'en';
+declare const navigator: INavigator;
+declare const self: any;
 
 const isElectronRenderer = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'renderer');
 
 // OS detection
 if (typeof navigator === 'object' && !isElectronRenderer) {
-	const userAgent = navigator.userAgent;
-	_isWindows = userAgent.indexOf('Windows') >= 0;
-	_isMacintosh = userAgent.indexOf('Macintosh') >= 0;
-	_isLinux = userAgent.indexOf('Linux') >= 0;
+	_userAgent = navigator.userAgent;
+	_isWindows = _userAgent.indexOf('Windows') >= 0;
+	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
+	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
 	_locale = navigator.language;
 	_language = _locale;
@@ -92,14 +93,12 @@ export function PlatformToString(platform: Platform) {
 }
 
 let _platform: Platform = Platform.Web;
-if (_isNative) {
-	if (_isMacintosh) {
-		_platform = Platform.Mac;
-	} else if (_isWindows) {
-		_platform = Platform.Windows;
-	} else if (_isLinux) {
-		_platform = Platform.Linux;
-	}
+if (_isMacintosh) {
+	_platform = Platform.Mac;
+} else if (_isWindows) {
+	_platform = Platform.Windows;
+} else if (_isLinux) {
+	_platform = Platform.Linux;
 }
 
 export const isWindows = _isWindows;
@@ -108,6 +107,7 @@ export const isLinux = _isLinux;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
 export const platform = _platform;
+export const userAgent = _userAgent;
 
 export function isRootUser(): boolean {
 	return _isNative && !_isWindows && (process.getuid() === 0);
@@ -119,6 +119,27 @@ export function isRootUser(): boolean {
  * Chinese)
  */
 export const language = _language;
+
+export namespace Language {
+
+	export function value(): string {
+		return language;
+	}
+
+	export function isDefaultVariant(): boolean {
+		if (language.length === 2) {
+			return language === 'en';
+		} else if (language.length >= 3) {
+			return language[0] === 'e' && language[1] === 'n' && language[2] === '-';
+		} else {
+			return false;
+		}
+	}
+
+	export function isDefault(): boolean {
+		return language === 'en';
+	}
+}
 
 /**
  * The OS locale or the locale specified by --locale. The format of
@@ -135,19 +156,20 @@ export const translationsConfigFile = _translationsConfigFile;
 const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
 export const globals: any = _globals;
 
-let _setImmediate: ((callback: (...args: any[]) => void) => number) | null = null;
-export function setImmediate(callback: (...args: any[]) => void): number {
-	if (_setImmediate === null) {
-		if (globals.setImmediate) {
-			_setImmediate = globals.setImmediate.bind(globals);
-		} else if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
-			_setImmediate = process.nextTick.bind(process);
-		} else {
-			_setImmediate = globals.setTimeout.bind(globals);
-		}
-	}
-	return _setImmediate!(callback);
+interface ISetImmediate {
+	(callback: (...args: any[]) => void): void;
 }
+
+export const setImmediate: ISetImmediate = (function defineSetImmediate() {
+	if (globals.setImmediate) {
+		return globals.setImmediate.bind(globals);
+	}
+	if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
+		return process.nextTick.bind(process);
+	}
+	const _promise = Promise.resolve();
+	return (callback: (...args: any[]) => void) => _promise.then(callback);
+})();
 
 export const enum OperatingSystem {
 	Windows = 1,
@@ -155,14 +177,3 @@ export const enum OperatingSystem {
 	Linux = 3
 }
 export const OS = (_isMacintosh ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));
-
-export const enum AccessibilitySupport {
-	/**
-	 * This should be the browser case where it is not known if a screen reader is attached or no.
-	 */
-	Unknown = 0,
-
-	Disabled = 1,
-
-	Enabled = 2
-}

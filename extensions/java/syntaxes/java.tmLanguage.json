@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/295af4375e4a5da4a4352fa08a8bb3e17145ec47",
+	"version": "https://github.com/atom/language-java/commit/ed8ad7451b4d0454374885a102dbe63befdea509",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -124,15 +124,15 @@
 		"annotations": {
 			"patterns": [
 				{
-					"begin": "((@)[^\\s(]+)(\\()",
+					"begin": "((@)\\s*([^\\s(]+))(\\()",
 					"beginCaptures": {
-						"1": {
-							"name": "storage.type.annotation.java"
-						},
 						"2": {
 							"name": "punctuation.definition.annotation.java"
 						},
 						"3": {
+							"name": "storage.type.annotation.java"
+						},
+						"4": {
 							"name": "punctuation.definition.annotation-arguments.begin.bracket.round.java"
 						}
 					},
@@ -161,7 +161,7 @@
 					]
 				},
 				{
-					"match": "(@)(interface)\\s+(\\w*)|((@)\\w*)",
+					"match": "(@)(interface)\\s+(\\w*)|((@)\\s*(\\w+))",
 					"name": "meta.declaration.annotation.java",
 					"captures": {
 						"1": {
@@ -173,11 +173,11 @@
 						"3": {
 							"name": "storage.type.annotation.java"
 						},
-						"4": {
-							"name": "storage.type.annotation.java"
-						},
 						"5": {
 							"name": "punctuation.definition.annotation.java"
+						},
+						"6": {
+							"name": "storage.type.annotation.java"
 						}
 					}
 				}
@@ -209,7 +209,7 @@
 					"name": "keyword.control.new.java"
 				}
 			},
-			"end": "(?=;|\\)|,|:|}|\\+)",
+			"end": "(?=;|\\)|,|:|}|\\+|\\-|\\*|\\/|%|!|&|\\||=)",
 			"patterns": [
 				{
 					"include": "#comments"
@@ -269,7 +269,7 @@
 			]
 		},
 		"class": {
-			"begin": "(?=\\w?[\\w\\s]*(?:class|(?<!@)interface|enum)\\s+\\w+)",
+			"begin": "(?=\\w?[\\w\\s]*\\b(?:class|(?<!@)interface|enum)\\s+\\w+)",
 			"end": "}",
 			"endCaptures": {
 				"0": {
@@ -373,19 +373,35 @@
 					"include": "#static-initializer"
 				},
 				{
-					"include": "#methods"
+					"include": "#class-fields-and-methods"
 				},
 				{
 					"include": "#annotations"
 				},
 				{
-					"include": "#member-variables"
-				},
-				{
 					"include": "#storage-modifiers"
 				},
 				{
+					"include": "#member-variables"
+				},
+				{
 					"include": "#code"
+				}
+			]
+		},
+		"class-fields-and-methods": {
+			"patterns": [
+				{
+					"begin": "(?=\\=)",
+					"end": "(?=;)",
+					"patterns": [
+						{
+							"include": "#code"
+						}
+					]
+				},
+				{
+					"include": "#methods"
 				}
 			]
 		},
@@ -443,6 +459,9 @@
 					"include": "#variables"
 				},
 				{
+					"include": "#variables-local"
+				},
+				{
 					"include": "#objects"
 				},
 				{
@@ -478,9 +497,6 @@
 					},
 					"match": "/\\*\\*/",
 					"name": "comment.block.empty.java"
-				},
-				{
-					"include": "text.html.javadoc"
 				},
 				{
 					"include": "#comments-inline"
@@ -625,6 +641,42 @@
 			"name": "meta.enum.java",
 			"patterns": [
 				{
+					"begin": "\\b(extends)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.extends.java"
+						}
+					},
+					"end": "(?={|\\bimplements\\b)",
+					"name": "meta.definition.class.inherited.classes.java",
+					"patterns": [
+						{
+							"include": "#object-types-inherited"
+						},
+						{
+							"include": "#comments"
+						}
+					]
+				},
+				{
+					"begin": "\\b(implements)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.implements.java"
+						}
+					},
+					"end": "(?={|\\bextends\\b)",
+					"name": "meta.definition.class.implemented.interfaces.java",
+					"patterns": [
+						{
+							"include": "#object-types-inherited"
+						},
+						{
+							"include": "#comments"
+						}
+					]
+				},
+				{
 					"begin": "{",
 					"beginCaptures": {
 						"0": {
@@ -642,6 +694,28 @@
 								},
 								{
 									"include": "#comments"
+								},
+								{
+									"begin": "(\\w+)\\s*({)",
+									"beginCaptures": {
+										"1": {
+											"name": "constant.other.enum.java"
+										},
+										"2": {
+											"name": "punctuation.bracket.curly.java"
+										}
+									},
+									"end": "\\}",
+									"endCaptures": {
+										"0": {
+											"name": "punctuation.bracket.curly.java"
+										}
+									},
+									"patterns": [
+										{
+											"include": "#class-body"
+										}
+									]
 								},
 								{
 									"begin": "(\\w+)\\s*(\\()",
@@ -911,7 +985,7 @@
 							"include": "#parens"
 						},
 						{
-							"include": "#comments-inline"
+							"include": "#comments"
 						}
 					]
 				},
@@ -928,6 +1002,9 @@
 						},
 						{
 							"include": "#parens"
+						},
+						{
+							"include": "#comments"
 						}
 					]
 				},
@@ -1019,12 +1096,12 @@
 					"include": "#generics"
 				},
 				{
-					"begin": "\\b((?:[A-Za-z]\\w*\\s*\\.\\s*)*)([A-Z]\\w*)\\s*(?=\\[)",
+					"begin": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*)([A-Z_]\\w*)\\s*(?=\\[)",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
 								{
-									"match": "[A-Za-z]\\w*",
+									"match": "[A-Za-z_]\\w*",
 									"name": "storage.type.java"
 								},
 								{
@@ -1048,12 +1125,12 @@
 					]
 				},
 				{
-					"match": "\\b((?:[A-Za-z]\\w*\\s*\\.\\s*)*[A-Z]\\w*)\\s*(?=<)",
+					"match": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*[A-Z_]\\w*)\\s*(?=<)",
 					"captures": {
 						"1": {
 							"patterns": [
 								{
-									"match": "[A-Za-z]\\w*",
+									"match": "[A-Za-z_]\\w*",
 									"name": "storage.type.java"
 								},
 								{
@@ -1065,12 +1142,12 @@
 					}
 				},
 				{
-					"match": "\\b((?:[A-Za-z]\\w*\\s*\\.\\s*)*[A-Z]\\w*)\\b((?=\\s*[A-Za-z$_\\n])|(?=\\s*\\.\\.\\.))",
+					"match": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*[A-Z_]\\w*)\\b((?=\\s*[A-Za-z$_\\n])|(?=\\s*\\.\\.\\.))",
 					"captures": {
 						"1": {
 							"patterns": [
 								{
-									"match": "[A-Za-z]\\w*",
+									"match": "[A-Za-z_]\\w*",
 									"name": "storage.type.java"
 								},
 								{
@@ -1428,6 +1505,9 @@
 									"include": "#comments"
 								},
 								{
+									"include": "#storage-modifiers"
+								},
+								{
 									"match": "\\|",
 									"name": "punctuation.catch.separator.java"
 								},
@@ -1496,12 +1576,12 @@
 			]
 		},
 		"variables": {
-			"begin": "(?x)\n(?=\n  (\n    \\b(void|boolean|byte|char|short|int|float|long|double)\\b\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|;)\n)",
-			"end": "(?=\\=|;)",
+			"begin": "(?x)\n(?=\n  (\n    \\b(void|boolean|byte|char|short|int|float|long|double)\\b\n    |\n    (?>(\\w+\\.)*[A-Z_]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  \\s*\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  \\s*\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|:|;)\n)",
+			"end": "(?=\\=|:|;)",
 			"name": "meta.definition.variable.java",
 			"patterns": [
 				{
-					"match": "([A-Za-z$_][\\w$]*)(?=\\s*(\\[\\])*\\s*(;|=|,))",
+					"match": "([A-Za-z$_][\\w$]*)(?=\\s*(\\[\\])*\\s*(;|:|=|,))",
 					"captures": {
 						"1": {
 							"name": "variable.other.definition.java"
@@ -1510,6 +1590,28 @@
 				},
 				{
 					"include": "#all-types"
+				},
+				{
+					"include": "#code"
+				}
+			]
+		},
+		"variables-local": {
+			"begin": "(?=\\b(var)\\b\\s+[A-Za-z_$][\\w$]*\\s*(=|:|;))",
+			"end": "(?=\\=|:|;)",
+			"name": "meta.definition.variable.local.java",
+			"patterns": [
+				{
+					"match": "\\bvar\\b",
+					"name": "storage.type.local.java"
+				},
+				{
+					"match": "([A-Za-z$_][\\w$]*)(?=\\s*(\\[\\])*\\s*(=|:|;))",
+					"captures": {
+						"1": {
+							"name": "variable.other.definition.java"
+						}
+					}
 				},
 				{
 					"include": "#code"

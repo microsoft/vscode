@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { dirname, basename } from 'path';
+import { dirname } from 'vs/base/common/path';
 import * as objects from 'vs/base/common/objects';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
-import * as extfs from 'vs/base/node/extfs';
-import { isWindows } from 'vs/base/common/platform';
+import { statLink } from 'vs/base/node/pfs';
+import { realpath } from 'vs/base/node/extpath';
+import { watchFolder, watchFile } from 'vs/base/node/watcher';
 
 export interface IConfigurationChangeEvent<T> {
 	config: T;
@@ -22,12 +23,11 @@ export interface IConfigWatcher<T> {
 
 	reload(callback: (config: T) => void): void;
 	getConfig(): T;
-	getValue<V>(key: string, fallback?: V): V;
 }
 
 export interface IConfigOptions<T> {
 	onError: (error: Error | string) => void;
-	defaultConfig?: T;
+	defaultConfig: T;
 	changeBufferDelay?: number;
 	parse?: (content: string, errors: any[]) => T;
 	initCallback?: (config: T) => void;
@@ -41,36 +41,31 @@ export interface IConfigOptions<T> {
  * - delayed processing of changes to accomodate for lots of changes
  * - configurable defaults
  */
-export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
-	private cache: T;
-	private parseErrors: json.ParseError[];
-	private disposed: boolean;
-	private loaded: boolean;
-	private timeoutHandle: NodeJS.Timer;
-	private disposables: IDisposable[];
+export class ConfigWatcher<T> extends Disposable implements IConfigWatcher<T> {
+	private cache: T | undefined;
+	private parseErrors: json.ParseError[] | undefined;
+	private disposed: boolean | undefined;
+	private loaded: boolean | undefined;
+	private timeoutHandle: NodeJS.Timer | null | undefined;
 	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
-	private configName: string;
 
-	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null), onError: error => console.error(error) }) {
-		this.disposables = [];
-		this.configName = basename(this._path);
-
-		this._onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent<T>>();
-		this.disposables.push(this._onDidUpdateConfiguration);
+	constructor(private _path: string, private options: IConfigOptions<T> = { defaultConfig: Object.create(null), onError: error => console.error(error) }) {
+		super();
+		this._onDidUpdateConfiguration = this._register(new Emitter<IConfigurationChangeEvent<T>>());
 
 		this.registerWatcher();
 		this.initAsync();
 	}
 
-	public get path(): string {
+	get path(): string {
 		return this._path;
 	}
 
-	public get hasParseErrors(): boolean {
-		return this.parseErrors && this.parseErrors.length > 0;
+	get hasParseErrors(): boolean {
+		return !!this.parseErrors && this.parseErrors.length > 0;
 	}
 
-	public get onDidUpdateConfiguration(): Event<IConfigurationChangeEvent<T>> {
+	get onDidUpdateConfiguration(): Event<IConfigurationChangeEvent<T>> {
 		return this._onDidUpdateConfiguration.event;
 	}
 
@@ -113,11 +108,11 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		try {
 			this.parseErrors = [];
 			res = this.options.parse ? this.options.parse(raw, this.parseErrors) : json.parse(raw, this.parseErrors);
-		} catch (error) {
-			// Ignore parsing errors
-		}
 
-		return res || this.options.defaultConfig;
+			return res || this.options.defaultConfig;
+		} catch (error) {
+			return this.options.defaultConfig; // Ignore parsing errors
+		}
 	}
 
 	private registerWatcher(): void {
@@ -127,65 +122,46 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.watch(parentFolder, true);
 
 		// Check if the path is a symlink and watch its target if so
-		fs.lstat(this._path, (err, stat) => {
-			if (err || stat.isDirectory()) {
-				return; // path is not a valid file
-			}
-
-			// We found a symlink
-			if (stat.isSymbolicLink()) {
-				fs.readlink(this._path, (err, realPath) => {
-					if (err) {
-						return; // path is not a valid symlink
-					}
-
-					this.watch(realPath, false);
-				});
-			}
-		});
+		this.handleSymbolicLink().then(undefined, () => { /* ignore error */ });
 	}
 
-	private watch(path: string, isParentFolder: boolean): void {
+	private async handleSymbolicLink(): Promise<void> {
+		const { stat, isSymbolicLink } = await statLink(this._path);
+		if (isSymbolicLink && !stat.isDirectory()) {
+			const realPath = await realpath(this._path);
+
+			this.watch(realPath, false);
+		}
+	}
+
+	private watch(path: string, isFolder: boolean): void {
 		if (this.disposed) {
 			return; // avoid watchers that will never get disposed by checking for being disposed
 		}
 
-		this.disposables.push(extfs.watch(path,
-			(type, file) => this.onConfigFileChange(type, file, isParentFolder),
-			(error: string) => this.options.onError(error)
-		));
+		if (isFolder) {
+			this._register(watchFolder(path, (type, path) => path === this._path ? this.onConfigFileChange() : undefined, error => this.options.onError(error)));
+		} else {
+			this._register(watchFile(path, () => this.onConfigFileChange(), error => this.options.onError(error)));
+		}
 	}
 
-	private onConfigFileChange(eventType: string, filename: string, isParentFolder: boolean): void {
-		if (isParentFolder) {
-
-			// Windows: in some cases the filename contains artifacts from the absolute path
-			// see https://github.com/nodejs/node/issues/19170
-			// As such, we have to ensure that the filename basename is used for comparison.
-			if (isWindows && filename && filename !== this.configName) {
-				filename = basename(filename);
-			}
-
-			if (filename !== this.configName) {
-				return; // a change to a sibling file that is not our config file
-			}
-		}
-
+	private onConfigFileChange(): void {
 		if (this.timeoutHandle) {
 			global.clearTimeout(this.timeoutHandle);
 			this.timeoutHandle = null;
 		}
 
 		// we can get multiple change events for one change, so we buffer through a timeout
-		this.timeoutHandle = global.setTimeout(() => this.reload(), this.options.changeBufferDelay);
+		this.timeoutHandle = global.setTimeout(() => this.reload(), this.options.changeBufferDelay || 0);
 	}
 
-	public reload(callback?: (config: T) => void): void {
+	reload(callback?: (config: T) => void): void {
 		this.loadAsync(currentConfig => {
 			if (!objects.equals(currentConfig, this.cache)) {
 				this.updateCache(currentConfig);
 
-				this._onDidUpdateConfiguration.fire({ config: this.cache });
+				this._onDidUpdateConfiguration.fire({ config: currentConfig });
 			}
 
 			if (callback) {
@@ -194,22 +170,10 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		});
 	}
 
-	public getConfig(): T {
+	getConfig(): T {
 		this.ensureLoaded();
 
-		return this.cache;
-	}
-
-	public getValue<V>(key: string, fallback?: V): V {
-		this.ensureLoaded();
-
-		if (!key) {
-			return fallback;
-		}
-
-		const value = this.cache ? (this.cache as any)[key] : void 0;
-
-		return typeof value !== 'undefined' ? value : fallback;
+		return this.cache!;
 	}
 
 	private ensureLoaded(): void {
@@ -218,8 +182,8 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.disposed = true;
-		this.disposables = dispose(this.disposables);
+		super.dispose();
 	}
 }

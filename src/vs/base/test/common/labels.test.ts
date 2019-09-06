@@ -55,7 +55,7 @@ suite('Labels', () => {
 		assert.deepEqual(labels.shorten(['a\\b\\c', 'd\\b\\C']), ['…\\c', '…\\C']);
 
 		// empty or null
-		assert.deepEqual(labels.shorten(['', null]), ['.\\', null]);
+		assert.deepEqual(labels.shorten(['', null!]), ['.\\', null]);
 
 		assert.deepEqual(labels.shorten(['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']), ['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']);
 		assert.deepEqual(labels.shorten(['a', 'a\\b', 'b']), ['a', 'a\\b', 'b']);
@@ -103,7 +103,7 @@ suite('Labels', () => {
 		assert.deepEqual(labels.shorten(['a/b/c', 'd/b/C']), ['…/c', '…/C']);
 
 		// empty or null
-		assert.deepEqual(labels.shorten(['', null]), ['./', null]);
+		assert.deepEqual(labels.shorten(['', null!]), ['./', null]);
 
 		assert.deepEqual(labels.shorten(['a', 'a/b', 'a/b/c', 'd/b/c', 'd/b']), ['a', 'a/b', 'a/b/c', 'd/b/c', 'd/b']);
 		assert.deepEqual(labels.shorten(['a', 'a/b', 'b']), ['a', 'a/b', 'b']);
@@ -163,5 +163,20 @@ suite('Labels', () => {
 		assert.equal(labels.getBaseLabel('c:\\'), 'C:');
 		assert.equal(labels.getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
 		assert.equal(labels.getBaseLabel('c:\\some\\folder'), 'folder');
+	});
+
+	test('mnemonicButtonLabel', () => {
+		assert.equal(labels.mnemonicButtonLabel('Hello World'), 'Hello World');
+		assert.equal(labels.mnemonicButtonLabel(''), '');
+		if (platform.isWindows) {
+			assert.equal(labels.mnemonicButtonLabel('Hello & World'), 'Hello && World');
+			assert.equal(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do &not Save && Continue');
+		} else if (platform.isMacintosh) {
+			assert.equal(labels.mnemonicButtonLabel('Hello & World'), 'Hello & World');
+			assert.equal(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do not Save & Continue');
+		} else {
+			assert.equal(labels.mnemonicButtonLabel('Hello & World'), 'Hello & World');
+			assert.equal(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do _not Save & Continue');
+		}
 	});
 });

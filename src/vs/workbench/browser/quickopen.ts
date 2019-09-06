@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -44,21 +43,21 @@ export class QuickOpenHandler {
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
 	 */
-	getResults(searchValue: string, token: CancellationToken): TPromise<IModel<any>> {
+	getResults(searchValue: string, token: CancellationToken): Promise<IModel<any> | null> {
 		return Promise.resolve(null);
 	}
 
 	/**
 	 * The ARIA label to apply when this quick open handler is active in quick open.
 	 */
-	getAriaLabel(): string {
+	getAriaLabel(): string | null {
 		return null;
 	}
 
 	/**
 	 * Extra CSS class name to add to the quick open widget to do custom styling of entries.
 	 */
-	getClass(): string {
+	getClass(): string | null {
 		return null;
 	}
 
@@ -103,7 +102,7 @@ export class QuickOpenHandler {
 	/**
 	 * Allows to return a label that will be placed to the side of the results from this handler or null if none.
 	 */
-	getGroupLabel(): string {
+	getGroupLabel(): string | null {
 		return null;
 	}
 
@@ -130,16 +129,16 @@ export interface QuickOpenHandlerHelpEntry {
 export class QuickOpenHandlerDescriptor {
 	prefix: string;
 	description: string;
-	contextKey: string;
+	contextKey?: string;
 	helpEntries: QuickOpenHandlerHelpEntry[];
 	instantProgress: boolean;
 
 	private id: string;
 	private ctor: IConstructorSignature0<QuickOpenHandler>;
 
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, description: string, instantProgress?: boolean);
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, param: any, instantProgress: boolean = false) {
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, description: string, instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, param: string | QuickOpenHandlerHelpEntry[], instantProgress: boolean = false) {
 		this.ctor = ctor;
 		this.id = id;
 		this.prefix = prefix;
@@ -186,7 +185,7 @@ export interface IQuickOpenRegistry {
 	/**
 	 * Get a specific quick open handler for a given prefix.
 	 */
-	getQuickOpenHandler(prefix: string): QuickOpenHandlerDescriptor;
+	getQuickOpenHandler(prefix: string): QuickOpenHandlerDescriptor | null;
 
 	/**
 	 * Returns the default quick open handler.
@@ -214,8 +213,8 @@ class QuickOpenRegistry implements IQuickOpenRegistry {
 		return this.handlers.slice(0);
 	}
 
-	getQuickOpenHandler(text: string): QuickOpenHandlerDescriptor {
-		return text ? arrays.first(this.handlers, h => strings.startsWith(text, h.prefix), null) : null;
+	getQuickOpenHandler(text: string): QuickOpenHandlerDescriptor | null {
+		return text ? (arrays.first<QuickOpenHandlerDescriptor>(this.handlers, h => strings.startsWith(text, h.prefix)) || null) : null;
 	}
 
 	getDefaultQuickOpenHandler(): QuickOpenHandlerDescriptor {
@@ -230,12 +229,12 @@ export interface IEditorQuickOpenEntry {
 	/**
 	 * The editor input used for this entry when opening.
 	 */
-	getInput(): IResourceInput | IEditorInput;
+	getInput(): IResourceInput | IEditorInput | undefined;
 
 	/**
 	 * The editor options used for this entry when opening.
 	 */
-	getOptions(): IEditorOptions;
+	getOptions(): IEditorOptions | undefined;
 }
 
 /**
@@ -251,12 +250,12 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		return this._editorService;
 	}
 
-	getInput(): IResourceInput | IEditorInput {
-		return null;
+	getInput(): IResourceInput | IEditorInput | undefined {
+		return undefined;
 	}
 
-	getOptions(): IEditorOptions {
-		return null;
+	getOptions(): IEditorOptions | undefined {
+		return undefined;
 	}
 
 	run(mode: Mode, context: IEntryRunContext): boolean {
@@ -265,7 +264,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
 			const sideBySide = context.keymods.ctrlCmd;
 
-			let openOptions: IEditorOptions;
+			let openOptions: IEditorOptions | undefined;
 			if (mode === Mode.OPEN_IN_BACKGROUND) {
 				openOptions = { pinned: true, preserveFocus: true };
 			} else if (context.keymods.alt) {
@@ -281,7 +280,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 					opts = EditorOptions.create(openOptions);
 				}
 
-				this.editorService.openEditor(input, opts, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				this.editorService.openEditor(input, types.withNullAsUndefined(opts), sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			} else {
 				const resourceInput = <IResourceInput>input;
 
@@ -302,12 +301,12 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
  */
 export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IEditorQuickOpenEntry {
 
-	getInput(): IEditorInput | IResourceInput {
-		return null;
+	getInput(): IEditorInput | IResourceInput | undefined {
+		return undefined;
 	}
 
-	getOptions(): IEditorOptions {
-		return null;
+	getOptions(): IEditorOptions | undefined {
+		return undefined;
 	}
 }
 
@@ -318,7 +317,7 @@ export class QuickOpenAction extends Action {
 		id: string,
 		label: string,
 		prefix: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 
@@ -326,11 +325,11 @@ export class QuickOpenAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	run(context?: any): TPromise<void> {
+	run(): Promise<void> {
 
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);
 
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 }

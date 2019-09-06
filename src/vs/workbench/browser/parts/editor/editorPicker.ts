@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorpicker';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -15,19 +13,20 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, IEditorGroup, EditorsOrder, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, EditorsOrder, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, toResource } from 'vs/workbench/common/editor';
+import { EditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	constructor(
 		private editor: EditorInput,
 		private _group: IEditorGroup,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService
+		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 	}
@@ -39,8 +38,8 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		};
 	}
 
-	getLabel(): string {
-		return this.editor.getName();
+	getLabel() {
+		return withNullAsUndefined(this.editor.getName());
 	}
 
 	getIcon(): string {
@@ -51,15 +50,15 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		return this._group;
 	}
 
-	getResource(): URI {
-		return toResource(this.editor, { supportSideBySide: true });
+	getResource() {
+		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}
 
 	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, editor group picker", this.getLabel());
 	}
 
-	getDescription(): string {
+	getDescription() {
 		return this.editor.getDescription();
 	}
 
@@ -91,10 +90,10 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		this.scorerCache = Object.create(null);
 	}
 
-	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel | null> {
 		const editorEntries = this.getEditorEntries();
 		if (!editorEntries.length) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// Prepare search for scoring
@@ -110,7 +109,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 				return false;
 			}
 
-			e.setHighlights(itemScore.labelMatch, itemScore.descriptionMatch);
+			e.setHighlights(itemScore.labelMatch || [], itemScore.descriptionMatch);
 
 			return true;
 		});
@@ -139,7 +138,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 			});
 		}
 
-		return TPromise.as(new QuickOpenModel(entries));
+		return Promise.resolve(new QuickOpenModel(entries));
 	}
 
 	onClose(canceled: boolean): void {

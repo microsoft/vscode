@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { always } from 'vs/base/common/async';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
-export interface CacheResult<T> {
+export interface CacheResult<T> extends IDisposable {
 	promise: Promise<T>;
-	dispose(): void;
 }
 
 export class Cache<T> {
@@ -23,7 +22,7 @@ export class Cache<T> {
 
 		const cts = new CancellationTokenSource();
 		const promise = this.task(cts.token);
-		always(promise, () => cts.dispose());
+		promise.finally(() => cts.dispose());
 
 		this.result = {
 			promise,

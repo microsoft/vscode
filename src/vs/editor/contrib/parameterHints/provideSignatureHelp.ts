@@ -17,14 +17,32 @@ export const Context = {
 	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
 };
 
-export function provideSignatureHelp(model: ITextModel, position: Position, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp | null | undefined> {
+export function provideSignatureHelp(
+	model: ITextModel,
+	position: Position,
+	context: modes.SignatureHelpContext,
+	token: CancellationToken
+): Promise<modes.SignatureHelpResult | null | undefined> {
 
 	const supports = modes.SignatureHelpProviderRegistry.ordered(model);
 
 	return first(supports.map(support => () => {
-		return Promise.resolve(support.provideSignatureHelp(model, position, token, context)).catch(onUnexpectedExternalError);
+		return Promise.resolve(support.provideSignatureHelp(model, position, token, context))
+			.catch<modes.SignatureHelpResult | undefined>(e => onUnexpectedExternalError(e));
 	}));
 }
 
-registerDefaultLanguageCommand('_executeSignatureHelpProvider', (model, position) =>
-	provideSignatureHelp(model, position, { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None));
+registerDefaultLanguageCommand('_executeSignatureHelpProvider', async (model, position, args) => {
+	const result = await provideSignatureHelp(model, position, {
+		triggerKind: modes.SignatureHelpTriggerKind.Invoke,
+		isRetrigger: false,
+		triggerCharacter: args['triggerCharacter']
+	}, CancellationToken.None);
+
+	if (!result) {
+		return undefined;
+	}
+
+	setTimeout(() => result.dispose(), 0);
+	return result.value;
+});

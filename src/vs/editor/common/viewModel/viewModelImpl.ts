@@ -6,12 +6,12 @@
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
+import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -23,6 +23,7 @@ import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollectio
 import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { ITheme } from 'vs/platform/theme/common/themeService';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -31,6 +32,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private readonly editorId: number;
 	private readonly configuration: editorCommon.IConfiguration;
 	private readonly model: ITextModel;
+	private readonly _tokenizeViewportSoon: RunOnceScheduler;
 	private hasFocus: boolean;
 	private viewportStartLine: number;
 	private viewportStartLineTrackedRange: string | null;
@@ -38,7 +40,6 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
-
 	private readonly decorations: ViewModelDecorations;
 
 	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: ITextModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
@@ -47,6 +48,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
+		this._tokenizeViewportSoon = this._register(new RunOnceScheduler(() => this.tokenizeViewport(), 50));
 		this.hasFocus = false;
 		this.viewportStartLine = -1;
 		this.viewportStartLineTrackedRange = null;
@@ -57,21 +59,27 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			this.lines = new IdentityLinesCollection(this.model);
 
 		} else {
-			const conf = this.configuration.editor;
+			const options = this.configuration.options;
+			const wrappingInfo = options.get(EditorOption.wrappingInfo);
+			const fontInfo = options.get(EditorOption.fontInfo);
+			const wordWrapBreakAfterCharacters = options.get(EditorOption.wordWrapBreakAfterCharacters);
+			const wordWrapBreakBeforeCharacters = options.get(EditorOption.wordWrapBreakBeforeCharacters);
+			const wordWrapBreakObtrusiveCharacters = options.get(EditorOption.wordWrapBreakObtrusiveCharacters);
+			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
 			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-				conf.wrappingInfo.wordWrapBreakBeforeCharacters,
-				conf.wrappingInfo.wordWrapBreakAfterCharacters,
-				conf.wrappingInfo.wordWrapBreakObtrusiveCharacters
+				wordWrapBreakBeforeCharacters,
+				wordWrapBreakAfterCharacters,
+				wordWrapBreakObtrusiveCharacters
 			);
 
 			this.lines = new SplitLinesCollection(
 				this.model,
 				hardWrappingLineMapperFactory,
 				this.model.getOptions().tabSize,
-				conf.wrappingInfo.wrappingColumn,
-				conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth,
-				conf.wrappingInfo.wrappingIndent
+				wrappingInfo.wrappingColumn,
+				fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
+				wrappingIndent
 			);
 		}
 
@@ -80,6 +88,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
+			if (e.scrollTopChanged) {
+				this._tokenizeViewportSoon.schedule();
+			}
 			try {
 				const eventsCollector = this._beginEmit();
 				eventsCollector.emit(new viewEvents.ViewScrollChangedEvent(e));
@@ -101,7 +112,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			}
 		}));
 
-		const minimapTokenAlpha = this.configuration.editor.viewInfo.minimap.textAlpha;
+		const minimapTokenAlpha = this.configuration.options.get(EditorOption.minimap).textAlpha;
 		this._register(MinimapTokensColorTracker.getInstance(minimapTokenAlpha).onDidChange(() => {
 			try {
 				const eventsCollector = this._beginEmit();
@@ -121,11 +132,18 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 	}
 
+	public tokenizeViewport(): void {
+		const linesViewportData = this.viewLayout.getLinesViewportData();
+		const startPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
+		const endPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
+		this.model.tokenizeViewport(startPosition.lineNumber, endPosition.lineNumber);
+	}
+
 	public setHasFocus(hasFocus: boolean): void {
 		this.hasFocus = hasFocus;
 	}
 
-	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: IConfigurationChangedEvent): void {
+	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: ConfigurationChangedEvent): void {
 
 		// We might need to restore the current centered view range, so save it (if available)
 		let previousViewportStartModelPosition: Position | null = null;
@@ -135,9 +153,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 		let restorePreviousViewportStart = false;
 
-		const conf = this.configuration.editor;
+		const options = this.configuration.options;
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
+		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
-		if (this.lines.setWrappingSettings(conf.wrappingInfo.wrappingIndent, conf.wrappingInfo.wrappingColumn, conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth)) {
+		if (this.lines.setWrappingSettings(wrappingIndent, wrappingInfo.wrappingColumn, fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
@@ -150,7 +171,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			}
 		}
 
-		if (e.readOnly) {
+		if (e.hasChanged(EditorOption.readOnly)) {
 			// Must read again all decorations due to readOnly filtering
 			this.decorations.reset();
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
@@ -273,6 +294,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				eventsCollector.emit(new viewEvents.ViewTokensChangedEvent(viewRanges));
 			} finally {
 				this._endEmit();
+			}
+
+			if (e.tokenizationSupportChanged) {
+				this._tokenizeViewportSoon.schedule();
 			}
 		}));
 
@@ -433,8 +458,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		};
 	}
 
-	public getTabSize(): number {
+	private getTabSize(): number {
 		return this.model.getOptions().tabSize;
+	}
+
+	public getOptions(): TextModelResolvedOptions {
+		return this.model.getOptions();
 	}
 
 	public getLineCount(): number {
@@ -533,14 +562,23 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
-		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.editor.readOnly, theme);
+		return this.lines.getAllOverviewRulerDecorations(this.editorId, this.configuration.options.get(EditorOption.readOnly), theme);
 	}
 
 	public invalidateOverviewRulerColorCache(): void {
 		const decorations = this.model.getOverviewRulerDecorations();
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const decoration = decorations[i];
+		for (const decoration of decorations) {
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
+			if (opts) {
+				opts.invalidateCachedColor();
+			}
+		}
+	}
+
+	public invalidateMinimapColorCache(): void {
+		const decorations = this.model.getAllDecorations();
+		for (const decoration of decorations) {
+			const opts = <ModelDecorationMinimapOptions>decoration.options.minimap;
 			if (opts) {
 				opts.invalidateCachedColor();
 			}
@@ -612,8 +650,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 
 		let result: string[] = [];
-		for (let i = 0; i < nonEmptyRanges.length; i++) {
-			result.push(this.getValueInRange(nonEmptyRanges[i], forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		for (const nonEmptyRange of nonEmptyRanges) {
+			result.push(this.getValueInRange(nonEmptyRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 		}
 		return result.length === 1 ? result[0] : result;
 	}
@@ -638,14 +676,15 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			range = new Range(lineNumber, this.model.getLineMinColumn(lineNumber), lineNumber, this.model.getLineMaxColumn(lineNumber));
 		}
 
-		const fontInfo = this.configuration.editor.fontInfo;
+		const fontInfo = this.configuration.options.get(EditorOption.fontInfo);
 		const colorMap = this._getColorMap();
+		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
 		return (
 			`<div style="`
 			+ `color: ${colorMap[ColorId.DefaultForeground]};`
 			+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
-			+ `font-family: ${fontInfo.fontFamily};`
+			+ `font-family: ${fontFamily};`
 			+ `font-weight: ${fontInfo.fontWeight};`
 			+ `font-size: ${fontInfo.fontSize}px;`
 			+ `line-height: ${fontInfo.lineHeight}px;`

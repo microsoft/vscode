@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -16,8 +16,9 @@ import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as modes from 'vs/editor/common/modes';
+import { TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 
-class ParameterHintsController implements IEditorContribution {
+class ParameterHintsController extends Disposable implements IEditorContribution {
 
 	private static readonly ID = 'editor.controller.parameterHints';
 
@@ -25,12 +26,13 @@ class ParameterHintsController implements IEditorContribution {
 		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
 	}
 
-	private editor: ICodeEditor;
-	private widget: ParameterHintsWidget;
+	private readonly editor: ICodeEditor;
+	private readonly widget: ParameterHintsWidget;
 
 	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
+		super();
 		this.editor = editor;
-		this.widget = instantiationService.createInstance(ParameterHintsWidget, this.editor);
+		this.widget = this._register(instantiationService.createInstance(ParameterHintsWidget, this.editor));
 	}
 
 	getId(): string {
@@ -49,12 +51,8 @@ class ParameterHintsController implements IEditorContribution {
 		this.widget.next();
 	}
 
-	trigger(context: modes.SignatureHelpContext): void {
+	trigger(context: TriggerContext): void {
 		this.widget.trigger(context);
-	}
-
-	dispose(): void {
-		this.widget = dispose(this.widget);
 	}
 }
 
@@ -75,9 +73,11 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = ParameterHintsController.get(editor);
+		const controller = ParameterHintsController.get(editor);
 		if (controller) {
-			controller.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Invoke });
+			controller.trigger({
+				triggerKind: modes.SignatureHelpTriggerKind.Invoke
+			});
 		}
 	}
 }
@@ -95,7 +95,7 @@ registerEditorCommand(new ParameterHintsCommand({
 	handler: x => x.cancel(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
@@ -106,7 +106,7 @@ registerEditorCommand(new ParameterHintsCommand({
 	handler: x => x.previous(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.UpArrow,
 		secondary: [KeyMod.Alt | KeyCode.UpArrow],
 		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
@@ -118,7 +118,7 @@ registerEditorCommand(new ParameterHintsCommand({
 	handler: x => x.next(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.Alt | KeyCode.DownArrow],
 		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }

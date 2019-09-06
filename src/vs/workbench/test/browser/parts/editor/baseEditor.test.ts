@@ -18,7 +18,6 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 
 const NullThemeService = new TestThemeService();
@@ -87,7 +86,7 @@ class MyResourceInput extends ResourceEditorInput { }
 
 suite('Workbench base editor', () => {
 
-	test('BaseEditor API', function () {
+	test('BaseEditor API', async () => {
 		let e = new MyEditor(NullTelemetryService);
 		let input = new MyOtherInput();
 		let options = new EditorOptions();
@@ -95,25 +94,24 @@ suite('Workbench base editor', () => {
 		assert(!e.isVisible());
 		assert(!e.input);
 		assert(!e.options);
-		return e.setInput(input, options, CancellationToken.None).then(() => {
-			assert.strictEqual(input, e.input);
-			assert.strictEqual(options, e.options);
 
-			const group = new TestEditorGroup(1);
-			e.setVisible(true, group);
-			assert(e.isVisible());
-			assert.equal(e.group, group);
-			input.onDispose(() => {
-				assert(false);
-			});
-			e.dispose();
-			e.clearInput();
-			e.setVisible(false, group);
-			assert(!e.isVisible());
-			assert(!e.input);
-			assert(!e.options);
-			assert(!e.getControl());
+		await e.setInput(input, options, CancellationToken.None);
+		assert.strictEqual(input, e.input);
+		assert.strictEqual(options, e.options);
+		const group = new TestEditorGroup(1);
+		e.setVisible(true, group);
+		assert(e.isVisible());
+		assert.equal(e.group, group);
+		input.onDispose(() => {
+			assert(false);
 		});
+		e.dispose();
+		e.clearInput();
+		e.setVisible(false, group);
+		assert(!e.isVisible());
+		assert(!e.input);
+		assert(!e.options);
+		assert(!e.getControl());
 	});
 
 	test('EditorDescriptor', () => {
@@ -129,7 +127,7 @@ suite('Workbench base editor', () => {
 		let oldEditorsCnt = EditorRegistry.getEditors().length;
 		let oldInputCnt = (<any>EditorRegistry).getEditorInputs().length;
 
-		EditorRegistry.registerEditor(d1, new SyncDescriptor(MyInput));
+		EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyInput)]);
 		EditorRegistry.registerEditor(d2, [new SyncDescriptor(MyInput), new SyncDescriptor(MyOtherInput)]);
 
 		assert.equal(EditorRegistry.getEditors().length, oldEditorsCnt + 2);
@@ -150,15 +148,15 @@ suite('Workbench base editor', () => {
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
 
-		EditorRegistry.registerEditor(d2, new SyncDescriptor(ResourceEditorInput));
-		EditorRegistry.registerEditor(d1, new SyncDescriptor(MyResourceInput));
+		EditorRegistry.registerEditor(d2, [new SyncDescriptor(ResourceEditorInput)]);
+		EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyResourceInput)]);
 
 		let inst = new TestInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'))).instantiate(inst);
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'myEditor');
 
-		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'))).instantiate(inst);
+		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'myOtherEditor');
 
 		(<any>EditorRegistry).setEditors(oldEditors);
@@ -170,18 +168,18 @@ suite('Workbench base editor', () => {
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
 
-		EditorRegistry.registerEditor(d1, new SyncDescriptor(ResourceEditorInput));
+		EditorRegistry.registerEditor(d1, [new SyncDescriptor(ResourceEditorInput)]);
 
 		let inst = new TestInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'))).instantiate(inst);
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual('myOtherEditor', editor.getId());
 
 		(<any>EditorRegistry).setEditors(oldEditors);
 	});
 
 	test('Editor Input Factory', function () {
-		EditorInputRegistry.setInstantiationService(workbenchInstantiationService());
+		workbenchInstantiationService().invokeFunction(accessor => EditorInputRegistry.start(accessor));
 		EditorInputRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
 
 		let factory = EditorInputRegistry.getEditorInputFactory('myInputId');
@@ -212,12 +210,12 @@ suite('Workbench base editor', () => {
 		memento.saveEditorState(testGroup0, URI.file('/A'), { line: 3 });
 		res = memento.loadEditorState(testGroup0, URI.file('/A'));
 		assert.ok(res);
-		assert.equal(res.line, 3);
+		assert.equal(res!.line, 3);
 
 		memento.saveEditorState(testGroup1, URI.file('/A'), { line: 5 });
 		res = memento.loadEditorState(testGroup1, URI.file('/A'));
 		assert.ok(res);
-		assert.equal(res.line, 5);
+		assert.equal(res!.line, 5);
 
 		// Ensure capped at 3 elements
 		memento.saveEditorState(testGroup0, URI.file('/B'), { line: 1 });
@@ -268,7 +266,7 @@ suite('Workbench base editor', () => {
 				super();
 			}
 			public getTypeId() { return 'testEditorInput'; }
-			public resolve(): TPromise<IEditorModel> { return null; }
+			public resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
 
 			public matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
@@ -290,7 +288,7 @@ suite('Workbench base editor', () => {
 		memento.saveEditorState(testGroup0, testInputA, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(res);
-		assert.equal(res.line, 3);
+		assert.equal(res!.line, 3);
 
 		// State removed when input gets disposed
 		testInputA.dispose();

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import { regExpFlags } from 'vs/base/common/strings';
 
 export function stringify(obj: any): string {
 	return JSON.stringify(obj, replacer);
@@ -24,8 +25,8 @@ function replacer(key: string, value: any): any {
 	if (value instanceof RegExp) {
 		return {
 			$mid: 2,
-			source: (<RegExp>value).source,
-			flags: ((<RegExp>value).global ? 'g' : '') + ((<RegExp>value).ignoreCase ? 'i' : '') + ((<RegExp>value).multiline ? 'm' : ''),
+			source: value.source,
+			flags: regExpFlags(value),
 		};
 	}
 	return value;
@@ -40,7 +41,7 @@ export function revive(obj: any, depth: number): any {
 	if (typeof obj === 'object') {
 
 		switch ((<MarshalledObject>obj).$mid) {
-			case 100: return URI.revive(obj);
+			case 1: return URI.revive(obj);
 			case 2: return new RegExp(obj.source, obj.flags);
 		}
 

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/html.tmbundle/commit/390c8870273a2ae80244dae6db6ba064a802f407",
+	"version": "https://github.com/textmate/html.tmbundle/commit/0c3d5ee54de3a993f747f54186b73a4d2d3c44a2",
 	"name": "HTML",
 	"scopeName": "text.html.basic",
 	"injections": {
@@ -222,7 +222,32 @@
 															]
 														}
 													},
-													"match": "[^\\n\"]+"
+													"match": "([^\\n\"/]|/(?![/*]))+"
+												},
+												{
+													"begin": "//",
+													"beginCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.js"
+														}
+													},
+													"end": "(?=\")|\\n",
+													"name": "comment.line.double-slash.js"
+												},
+												{
+													"begin": "/\\*",
+													"beginCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.begin.js"
+														}
+													},
+													"end": "(?=\")|\\*/",
+													"endCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.end.js"
+														}
+													},
+													"name": "comment.block.js"
 												}
 											]
 										},
@@ -255,7 +280,32 @@
 															]
 														}
 													},
-													"match": "[^\\n']+"
+													"match": "([^\\n'/]|/(?![/*]))+"
+												},
+												{
+													"begin": "//",
+													"beginCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.js"
+														}
+													},
+													"end": "(?=')|\\n",
+													"name": "comment.line.double-slash.js"
+												},
+												{
+													"begin": "/\\*",
+													"beginCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.begin.js"
+														}
+													},
+													"end": "(?=')|\\*/",
+													"endCaptures": {
+														"0": {
+															"name": "punctuation.definition.comment.end.js"
+														}
+													},
+													"name": "comment.block.js"
 												}
 											]
 										}

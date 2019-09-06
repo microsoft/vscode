@@ -30,7 +30,7 @@ declare module "vscode-textmate" {
 	 */
 	export interface RegistryOptions {
 		theme?: IRawTheme;
-		loadGrammar(scopeName: string): Thenable<IRawGrammar>;
+		loadGrammar(scopeName: string): Thenable<IRawGrammar | undefined | null>;
 		getInjections?(scopeName: string): string[];
 		getOnigLib?(): Thenable<IOnigLib>;
 	}
@@ -85,7 +85,7 @@ declare module "vscode-textmate" {
 		 * Load the grammar for `scopeName` and all referenced included grammars asynchronously.
 		 */
 		loadGrammar(initialScopeName: string): Thenable<IGrammar>;
-		private _loadGrammar(initialScopeName, initialLanguage, embeddedLanguages, tokenTypes);
+		private _loadGrammar;
 		/**
 		 * Adds a rawGrammar.
 		 */
@@ -102,7 +102,7 @@ declare module "vscode-textmate" {
 		/**
 		 * Tokenize `lineText` using previous line state `prevState`.
 		 */
-		tokenizeLine(lineText: string, prevState: StackElement): ITokenizeLineResult;
+		tokenizeLine(lineText: string, prevState: StackElement | null): ITokenizeLineResult;
 		/**
 		 * Tokenize `lineText` using previous line state `prevState`.
 		 * The result contains the tokens in binary format, resolved with the following information:
@@ -113,7 +113,7 @@ declare module "vscode-textmate" {
 		 *  - background color
 		 * e.g. for getting the languageId: `(metadata & MetadataConsts.LANGUAGEID_MASK) >>> MetadataConsts.LANGUAGEID_OFFSET`
 		 */
-		tokenizeLine2(lineText: string, prevState: StackElement): ITokenizeLineResult2;
+		tokenizeLine2(lineText: string, prevState: StackElement | null): ITokenizeLineResult2;
 	}
 	export interface ITokenizeLineResult {
 		readonly tokens: IToken[];
@@ -182,7 +182,7 @@ declare module "vscode-textmate" {
 		equals(other: StackElement): boolean;
 	}
 	export const INITIAL: StackElement;
-	export const parseRawGrammar: (content: string, filePath: string) => IRawGrammar;
+	export const parseRawGrammar: (content: string, filePath?: string) => IRawGrammar;
 	export interface ILocation {
 		readonly filename: string;
 		readonly line: number;

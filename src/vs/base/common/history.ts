@@ -7,9 +7,9 @@ import { INavigator, ArrayNavigator } from 'vs/base/common/iterator';
 
 export class HistoryNavigator<T> implements INavigator<T> {
 
-	private _history: Set<T>;
+	private _history!: Set<T>;
 	private _limit: number;
-	private _navigator: ArrayNavigator<T>;
+	private _navigator!: ArrayNavigator<T>;
 
 	constructor(history: T[] = [], limit: number = 10) {
 		this._initialize(history);
@@ -66,7 +66,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	private _reduceToLimit() {
-		let data = this._elements;
+		const data = this._elements;
 		if (data.length > this._limit) {
 			this._initialize(data.slice(data.length - this._limit));
 		}

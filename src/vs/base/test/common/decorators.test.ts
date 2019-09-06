@@ -11,7 +11,7 @@ suite('Decorators', () => {
 		class Foo {
 			count = 0;
 
-			constructor(private _answer: number) { }
+			constructor(private _answer: number | null | undefined) { }
 
 			@memoize
 			answer() {
@@ -56,7 +56,7 @@ suite('Decorators', () => {
 		class Foo {
 			count = 0;
 
-			constructor(private _answer: number) { }
+			constructor(private _answer: number | null | undefined) { }
 
 			@memoize
 			get answer() {
@@ -119,7 +119,7 @@ suite('Decorators', () => {
 		assert.equal(foo.answer, 42);
 
 		try {
-			foo['$memoize$answer'] = 1337;
+			(foo as any)['$memoize$answer'] = 1337;
 			assert(false);
 		} catch (e) {
 			assert.equal(foo.answer, 42);

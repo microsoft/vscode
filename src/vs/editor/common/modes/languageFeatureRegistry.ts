@@ -29,8 +29,8 @@ function isExclusive(selector: LanguageSelector): boolean {
 export class LanguageFeatureRegistry<T> {
 
 	private _clock: number = 0;
-	private _entries: Entry<T>[] = [];
-	private readonly _onDidChange: Emitter<number> = new Emitter<number>();
+	private readonly _entries: Entry<T>[] = [];
+	private readonly _onDidChange = new Emitter<number>();
 
 	constructor() {
 	}
@@ -119,8 +119,7 @@ export class LanguageFeatureRegistry<T> {
 
 		this._updateScores(model);
 
-		for (let from = 0; from < this._entries.length; from++) {
-			let entry = this._entries[from];
+		for (const entry of this._entries) {
 			if (entry._score > 0) {
 				callback(entry);
 			}

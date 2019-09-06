@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -18,6 +18,7 @@ import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/commo
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
@@ -29,12 +30,16 @@ import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standal
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
+
+type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
@@ -78,6 +83,7 @@ export function create(domElement: HTMLElement, options?: IEditorConstructionOpt
 			services.get(IStandaloneThemeService),
 			services.get(INotificationService),
 			services.get(IConfigurationService),
+			services.get(IAccessibilityService)
 		);
 	});
 }
@@ -99,7 +105,7 @@ export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): 
  * The editor will read the size of `domElement`.
  */
 export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
-	return withAllStandaloneServices(domElement, override, (services) => {
+	return withAllStandaloneServices(domElement, override || {}, (services) => {
 		return new StandaloneDiffEditor(
 			domElement,
 			options,
@@ -113,6 +119,8 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IStandaloneThemeService),
 			services.get(INotificationService),
 			services.get(IConfigurationService),
+			services.get(IContextMenuService),
+			null
 		);
 	});
 }
@@ -134,8 +142,8 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function doCreateModel(value: string, mode: Promise<modes.IMode>, uri?: URI): ITextModel {
-	return StaticServices.modelService.get().createModel(value, mode, uri);
+function doCreateModel(value: string, languageSelection: ILanguageSelection, uri?: URI): ITextModel {
+	return StaticServices.modelService.get().createModel(value, languageSelection, uri);
 }
 
 /**
@@ -146,24 +154,22 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 	value = value || '';
 
 	if (!language) {
-		let path = uri ? uri.path : null;
-
 		let firstLF = value.indexOf('\n');
 		let firstLine = value;
 		if (firstLF !== -1) {
 			firstLine = value.substring(0, firstLF);
 		}
 
-		return doCreateModel(value, StaticServices.modeService.get().getOrCreateModeByFilepathOrFirstLine(path, firstLine), uri);
+		return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(uri || null, firstLine), uri);
 	}
-	return doCreateModel(value, StaticServices.modeService.get().getOrCreateMode(language), uri);
+	return doCreateModel(value, StaticServices.modeService.get().create(language), uri);
 }
 
 /**
  * Change the language for a model.
  */
 export function setModelLanguage(model: ITextModel, languageId: string): void {
-	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().getOrCreateMode(languageId));
+	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().create(languageId));
 }
 
 /**
@@ -177,8 +183,8 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
 
 /**
  * Get markers for owner and/or resource
- * @returns {IMarker[]} list of markers
- * @param filter
+ *
+ * @returns list of markers
  */
 export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
 	return StaticServices.markerService.get().read(filter);
@@ -259,15 +265,14 @@ export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize
 /**
  * @internal
  */
-function getSafeTokenizationSupport(language: string): modes.ITokenizationSupport {
+function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationSupport, 'tokenize2'> {
 	let tokenizationSupport = modes.TokenizationRegistry.get(language);
 	if (tokenizationSupport) {
 		return tokenizationSupport;
 	}
 	return {
 		getInitialState: () => NULL_STATE,
-		tokenize: (line: string, state: modes.IState, deltaOffset: number) => nullTokenize(language, line, state, deltaOffset),
-		tokenize2: undefined,
+		tokenize: (line: string, state: modes.IState, deltaOffset: number) => nullTokenize(language, line, state, deltaOffset)
 	};
 }
 
@@ -277,7 +282,7 @@ function getSafeTokenizationSupport(language: string): modes.ITokenizationSuppor
 export function tokenize(text: string, languageId: string): Token[][] {
 	let modeService = StaticServices.modeService.get();
 	// Needed in order to get the mode registered for subsequent look-ups
-	modeService.getOrCreateMode(languageId);
+	modeService.triggerMode(languageId);
 
 	let tokenizationSupport = getSafeTokenizationSupport(languageId);
 	let lines = text.split(/\r\n|\r|\n/);
@@ -294,7 +299,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
 }
 
 /**
- * Define a new theme or updte an existing theme.
+ * Define a new theme or update an existing theme.
  */
 export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
 	StaticServices.standaloneThemeService.get().defineTheme(themeName, themeData);
@@ -305,6 +310,13 @@ export function defineTheme(themeName: string, themeData: IStandaloneThemeData):
  */
 export function setTheme(themeName: string): void {
 	StaticServices.standaloneThemeService.get().setTheme(themeName);
+}
+
+/**
+ * Clears all cached font measurements and triggers re-measurement.
+ */
+export function remeasureFonts(): void {
+	clearAllFontInfos();
 }
 
 /**
@@ -336,11 +348,14 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		tokenize: <any>tokenize,
 		defineTheme: <any>defineTheme,
 		setTheme: <any>setTheme,
+		remeasureFonts: remeasureFonts,
 
 		// enums
+		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
+		MinimapPosition: standaloneEnums.MinimapPosition,
 		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
 		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
 		EndOfLineSequence: standaloneEnums.EndOfLineSequence,
@@ -356,14 +371,14 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
 
 		// classes
-		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,
+		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
 		BareFontInfo: <any>BareFontInfo,
 		FontInfo: <any>FontInfo,
 		TextModelResolvedOptions: <any>TextModelResolvedOptions,
 		FindMatch: <any>FindMatch,
 
 		// vars
-		EditorType: editorCommon.EditorType
+		EditorType: editorCommon.EditorType,
 
 	};
 }

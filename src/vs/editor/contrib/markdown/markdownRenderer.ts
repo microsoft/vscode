@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { renderMarkdown, RenderOptions } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown, MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
@@ -13,16 +13,17 @@ import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
 }
 
-export class MarkdownRenderer {
+export class MarkdownRenderer extends Disposable {
 
-	private _onDidRenderCodeBlock = new Emitter<void>();
+	private _onDidRenderCodeBlock = this._register(new Emitter<void>());
 	readonly onDidRenderCodeBlock: Event<void> = this._onDidRenderCodeBlock.event;
 
 	constructor(
@@ -30,9 +31,10 @@ export class MarkdownRenderer {
 		@IModeService private readonly _modeService: IModeService,
 		@optional(IOpenerService) private readonly _openerService: IOpenerService | null = NullOpenerService,
 	) {
+		super();
 	}
 
-	private getOptions(disposeables: IDisposable[]): RenderOptions {
+	private getOptions(disposeables: DisposableStore): MarkdownRenderOptions {
 		return {
 			codeBlockRenderer: (languageAlias, value) => {
 				// In markdown,
@@ -48,14 +50,15 @@ export class MarkdownRenderer {
 					}
 				}
 
-				return this._modeService.getOrCreateMode(modeId || '').then(_ => {
+				this._modeService.triggerMode(modeId || '');
+				return Promise.resolve(true).then(_ => {
 					const promise = TokenizationRegistry.getPromise(modeId || '');
 					if (promise) {
 						return promise.then(support => tokenizeToString(value, support));
 					}
 					return tokenizeToString(value, undefined);
 				}).then(code => {
-					return `<span style="font-family: ${this._editor.getConfiguration().fontInfo.fontFamily}">${code}</span>`;
+					return `<span style="font-family: ${this._editor.getOption(EditorOption.fontInfo).fontFamily}">${code}</span>`;
 				});
 			},
 			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire(),
@@ -76,8 +79,8 @@ export class MarkdownRenderer {
 		};
 	}
 
-	render(markdown: IMarkdownString): IMarkdownRenderResult {
-		let disposeables: IDisposable[] = [];
+	render(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
+		const disposeables = new DisposableStore();
 
 		let element: HTMLElement;
 		if (!markdown) {
@@ -88,7 +91,7 @@ export class MarkdownRenderer {
 
 		return {
 			element,
-			dispose: () => dispose(disposeables)
+			dispose: () => disposeables.dispose()
 		};
 	}
 }

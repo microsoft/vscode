@@ -8,9 +8,9 @@ var Conway;
         return Cell;
     })();
     (function (property, number, property, number, property, boolean) {
-        if (property === void 0) { property = row; }
-        if (property === void 0) { property = col; }
-        if (property === void 0) { property = live; }
+        if (property === undefined) { property = row; }
+        if (property === undefined) { property = col; }
+        if (property === undefined) { property = live; }
     });
     var GameOfLife = (function () {
         function GameOfLife() {

@@ -7,16 +7,18 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export const IContextViewService = createDecorator<IContextViewService>('contextViewService');
 
 export interface IContextViewService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	showContextView(delegate: IContextViewDelegate): void;
 	hideContextView(data?: any): void;
 	layout(): void;
+	anchorAlignment?: AnchorAlignment;
 }
 
 export interface IContextViewDelegate {
@@ -27,13 +29,15 @@ export interface IContextViewDelegate {
 	render(container: HTMLElement): IDisposable;
 	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;
+	focus?(): void;
+	anchorAlignment?: AnchorAlignment;
 }
 
 export const IContextMenuService = createDecorator<IContextMenuService>('contextMenuService');
 
 export interface IContextMenuService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	showContextMenu(delegate: IContextMenuDelegate): void;
 	onDidContextMenu: Event<void>; // TODO@isidor these event should be removed once we get async context menus

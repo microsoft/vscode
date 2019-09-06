@@ -4,6 +4,7 @@
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
@@ -23,13 +24,13 @@
           ".bowerrc",
           ".jshintrc",
           ".jscsrc",
-          ".eslintrc",
-          ".babelrc",
+          ".swcrc",
           ".webmanifest",
           ".js.map",
           ".css.map"
         ],
         "filenames": [
+          "composer.lock",
           ".watchmanconfig",
           ".ember-cli"
         ],
@@ -45,7 +46,11 @@
           "JSON with Comments"
         ],
         "extensions": [
-          ".jsonc"
+          ".hintrc",
+          ".babelrc",
+          ".jsonc",
+          ".eslintrc",
+          ".eslintrc.json"
         ],
         "configuration": "./language-configuration.json"
       }

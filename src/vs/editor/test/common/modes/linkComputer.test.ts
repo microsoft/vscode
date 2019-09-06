@@ -195,4 +195,11 @@ suite('Editor Modes - Link Computer', () => {
 			'                                                                                                                                                 https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx                                  '
 		);
 	});
+
+	test('issue #62278: "Ctrl + click to follow link" for IPv6 URLs', () => {
+		assertLink(
+			'let x = "http://[::1]:5000/connect/token"',
+			'         http://[::1]:5000/connect/token  '
+		);
+	});
 });

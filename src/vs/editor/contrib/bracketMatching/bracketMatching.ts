@@ -21,6 +21,8 @@ import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/edito
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
@@ -30,7 +32,7 @@ class JumpToBracketAction extends EditorAction {
 			id: 'editor.action.jumpToBracket',
 			label: nls.localize('smartSelect.jumpBracket', "Go to Bracket"),
 			alias: 'Go to Bracket',
-			precondition: null,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH,
@@ -54,7 +56,7 @@ class SelectToBracketAction extends EditorAction {
 			id: 'editor.action.selectToBracket',
 			label: nls.localize('smartSelect.selectToBracket', "Select to Bracket"),
 			alias: 'Select to Bracket',
-			precondition: null
+			precondition: undefined
 		});
 	}
 
@@ -91,7 +93,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	private _lastBracketsData: BracketsData[];
 	private _lastVersionId: number;
 	private _decorations: string[];
-	private _updateBracketsSoon: RunOnceScheduler;
+	private readonly _updateBracketsSoon: RunOnceScheduler;
 	private _matchBrackets: boolean;
 
 	constructor(
@@ -103,7 +105,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._lastVersionId = 0;
 		this._decorations = [];
 		this._updateBracketsSoon = this._register(new RunOnceScheduler(() => this._updateBrackets(), 50));
-		this._matchBrackets = this._editor.getConfiguration().contribInfo.matchBrackets;
+		this._matchBrackets = this._editor.getOption(EditorOption.matchBrackets);
 
 		this._updateBracketsSoon.schedule();
 		this._register(editor.onDidChangeCursorPosition((e) => {
@@ -129,7 +131,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			this._updateBracketsSoon.schedule();
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
-			this._matchBrackets = this._editor.getConfiguration().contribInfo.matchBrackets;
+			this._matchBrackets = this._editor.getOption(EditorOption.matchBrackets);
 			if (!this._matchBrackets && this._decorations.length > 0) {
 				// Remove existing decorations if bracket matching is off
 				this._decorations = this._editor.deltaDecorations(this._decorations, []);
@@ -321,4 +323,14 @@ registerThemingParticipant((theme, collector) => {
 	if (bracketMatchBorder) {
 		collector.addRule(`.monaco-editor .bracket-match { border: 1px solid ${bracketMatchBorder}; }`);
 	}
+});
+
+// Go to menu
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '5_infile_nav',
+	command: {
+		id: 'editor.action.jumpToBracket',
+		title: nls.localize({ key: 'miGoToBracket', comment: ['&& denotes a mnemonic'] }, "Go to &&Bracket")
+	},
+	order: 2
 });

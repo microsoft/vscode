@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
@@ -30,27 +30,36 @@ import { Disposable } from 'vs/base/common/lifecycle';
 export abstract class Composite extends Component implements IComposite {
 
 	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
-	get onTitleAreaUpdate(): Event<void> { return this._onTitleAreaUpdate.event; }
+	readonly onTitleAreaUpdate: Event<void> = this._onTitleAreaUpdate.event;
 
-	private _onDidFocus: Emitter<void>;
+	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+
+	private _onDidFocus!: Emitter<void>;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
-			this._registerFocusTrackEvents();
+			this.registerFocusTrackEvents();
 		}
 
 		return this._onDidFocus.event;
 	}
 
-	private _onDidBlur: Emitter<void>;
+	protected fireOnDidFocus(): void {
+		if (this._onDidFocus) {
+			this._onDidFocus.fire();
+		}
+	}
+
+	private _onDidBlur!: Emitter<void>;
 	get onDidBlur(): Event<void> {
 		if (!this._onDidBlur) {
-			this._registerFocusTrackEvents();
+			this.registerFocusTrackEvents();
 		}
 
 		return this._onDidBlur.event;
 	}
 
-	private _registerFocusTrackEvents(): void {
+	private registerFocusTrackEvents(): void {
 		this._onDidFocus = this._register(new Emitter<void>());
 		this._onDidBlur = this._register(new Emitter<void>());
 
@@ -59,14 +68,11 @@ export abstract class Composite extends Component implements IComposite {
 		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
-	protected actionRunner: IActionRunner;
+	protected actionRunner: IActionRunner | undefined;
 
 	private visible: boolean;
-	private parent: HTMLElement;
+	private parent!: HTMLElement;
 
-	/**
-	 * Create a new composite with the given ID and context.
-	 */
 	constructor(
 		id: string,
 		private _telemetryService: ITelemetryService,
@@ -78,8 +84,8 @@ export abstract class Composite extends Component implements IComposite {
 		this.visible = false;
 	}
 
-	getTitle(): string {
-		return null;
+	getTitle(): string | undefined {
+		return undefined;
 	}
 
 	protected get telemetryService(): ITelemetryService {
@@ -118,14 +124,15 @@ export abstract class Composite extends Component implements IComposite {
 	 * is called more than once during workbench lifecycle depending on the user interaction.
 	 * The composite will be on-DOM if visible is set to true and off-DOM otherwise.
 	 *
-	 * The returned promise is complete when the composite is visible. As such it is valid
-	 * to do a long running operation from this call. Typically this operation should be
-	 * fast though because setVisible might be called many times during a session.
+	 * Typically this operation should be fast though because setVisible might be called many times during a session.
+	 * If there is a long running opertaion it is fine to have it running in the background asyncly and return before.
 	 */
-	setVisible(visible: boolean): Promise<void> {
-		this.visible = visible;
+	setVisible(visible: boolean): void {
+		if (this.visible !== !!visible) {
+			this.visible = visible;
 
-		return Promise.resolve(null);
+			this._onDidChangeVisibility.fire(visible);
+		}
 	}
 
 	/**
@@ -143,7 +150,7 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Returns an array of actions to show in the action bar of the composite.
 	 */
-	getActions(): IAction[] {
+	getActions(): ReadonlyArray<IAction> {
 		return [];
 	}
 
@@ -151,24 +158,31 @@ export abstract class Composite extends Component implements IComposite {
 	 * Returns an array of actions to show in the action bar of the composite
 	 * in a less prominent way then action from getActions.
 	 */
-	getSecondaryActions(): IAction[] {
+	getSecondaryActions(): ReadonlyArray<IAction> {
 		return [];
 	}
 
 	/**
 	 * Returns an array of actions to show in the context menu of the composite
 	 */
-	getContextMenuActions(): IAction[] {
+	getContextMenuActions(): ReadonlyArray<IAction> {
 		return [];
 	}
 
 	/**
-	 * For any of the actions returned by this composite, provide an IActionItem in
+	 * For any of the actions returned by this composite, provide an IActionViewItem in
 	 * cases where the implementor of the composite wants to override the presentation
-	 * of an action. Returns null to indicate that the action is not rendered through
+	 * of an action. Returns undefined to indicate that the action is not rendered through
 	 * an action item.
 	 */
-	getActionItem(action: IAction): IActionItem {
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Provide a context to be passed to the toolbar.
+	 */
+	getActionsContext(): unknown {
 		return null;
 	}
 
@@ -202,10 +216,10 @@ export abstract class Composite extends Component implements IComposite {
 	}
 
 	/**
-	 * Returns the underlying composite control or null if it is not accessible.
+	 * Returns the underlying composite control or `undefined` if it is not accessible.
 	 */
-	getControl(): ICompositeControl {
-		return null;
+	getControl(): ICompositeControl | undefined {
+		return undefined;
 	}
 }
 
@@ -213,24 +227,15 @@ export abstract class Composite extends Component implements IComposite {
  * A composite descriptor is a leightweight descriptor of a composite in the workbench.
  */
 export abstract class CompositeDescriptor<T extends Composite> {
-	id: string;
-	name: string;
-	cssClass: string;
-	order: number;
-	keybindingId: string;
-	enabled: boolean;
 
-	private ctor: IConstructorSignature0<T>;
-
-	constructor(ctor: IConstructorSignature0<T>, id: string, name: string, cssClass?: string, order?: number, keybindingId?: string, ) {
-		this.ctor = ctor;
-		this.id = id;
-		this.name = name;
-		this.cssClass = cssClass;
-		this.order = order;
-		this.enabled = true;
-		this.keybindingId = keybindingId;
-	}
+	constructor(
+		private readonly ctor: IConstructorSignature0<T>,
+		readonly id: string,
+		readonly name: string,
+		readonly cssClass?: string,
+		readonly order?: number,
+		readonly keybindingId?: string,
+	) { }
 
 	instantiate(instantiationService: IInstantiationService): T {
 		return instantiationService.createInstance(this.ctor);
@@ -241,6 +246,9 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 
 	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
 	get onDidRegister(): Event<CompositeDescriptor<T>> { return this._onDidRegister.event; }
+
+	private readonly _onDidDeregister: Emitter<CompositeDescriptor<T>> = this._register(new Emitter<CompositeDescriptor<T>>());
+	get onDidDeregister(): Event<CompositeDescriptor<T>> { return this._onDidDeregister.event; }
 
 	private composites: CompositeDescriptor<T>[] = [];
 
@@ -253,7 +261,17 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 		this._onDidRegister.fire(descriptor);
 	}
 
-	getComposite(id: string): CompositeDescriptor<T> {
+	protected deregisterComposite(id: string): void {
+		const descriptor = this.compositeById(id);
+		if (!descriptor) {
+			return;
+		}
+
+		this.composites.splice(this.composites.indexOf(descriptor), 1);
+		this._onDidDeregister.fire(descriptor);
+	}
+
+	getComposite(id: string): CompositeDescriptor<T> | null {
 		return this.compositeById(id);
 	}
 
@@ -261,10 +279,10 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 		return this.composites.slice(0);
 	}
 
-	private compositeById(id: string): CompositeDescriptor<T> {
-		for (let i = 0; i < this.composites.length; i++) {
-			if (this.composites[i].id === id) {
-				return this.composites[i];
+	private compositeById(id: string): CompositeDescriptor<T> | null {
+		for (const composite of this.composites) {
+			if (composite.id === id) {
+				return composite;
 			}
 		}
 

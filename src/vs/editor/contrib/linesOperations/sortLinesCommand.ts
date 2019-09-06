@@ -11,13 +11,14 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 
 export class SortLinesCommand implements editorCommon.ICommand {
 
-	private selection: Selection;
-	private selectionId: string;
-	private descending: boolean;
+	private readonly selection: Selection;
+	private readonly descending: boolean;
+	private selectionId: string | null;
 
 	constructor(selection: Selection, descending: boolean) {
 		this.selection = selection;
 		this.descending = descending;
+		this.selectionId = null;
 	}
 
 	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
@@ -30,10 +31,14 @@ export class SortLinesCommand implements editorCommon.ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId);
+		return helper.getTrackedSelection(this.selectionId!);
 	}
 
-	public static canRun(model: ITextModel, selection: Selection, descending: boolean): boolean {
+	public static canRun(model: ITextModel | null, selection: Selection, descending: boolean): boolean {
+		if (model === null) {
+			return false;
+		}
+
 		let data = getSortData(model, selection, descending);
 
 		if (!data) {

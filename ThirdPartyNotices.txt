@@ -5,47 +5,47 @@ Do Not Translate or Localize
 
 This project incorporates components from the projects listed below. The original copyright notices and the licenses under which Microsoft received such components are set forth below. Microsoft reserves all rights not expressly granted herein, whether by implication, estoppel or otherwise.
 
-1.	atom/language-c (https://github.com/atom/language-c)
-2.	atom/language-clojure (https://github.com/atom/language-clojure)
-3.	atom/language-coffee-script (https://github.com/atom/language-coffee-script)
-4.	atom/language-css (https://github.com/atom/language-css)
-5.	atom/language-java (https://github.com/atom/language-java)
-6.	atom/language-objective-c (https://github.com/atom/language-objective-c)
-7.	atom/language-sass version 0.52.0 (https://github.com/atom/language-sass)
-8.	atom/language-shellscript (https://github.com/atom/language-shellscript)
-9.	atom/language-xml (https://github.com/atom/language-xml)
-10.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
-11.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
-12.	daaain/Handlebars (https://github.com/daaain/Handlebars)
-13.	davidrios/pug-tmbundle (https://github.com/davidrios/pug-tmbundle)
-14.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
-15.	demyte/language-cshtml (https://github.com/demyte/language-cshtml)
-16.	Document Object Model ()
-17.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
-18.	expand-abbreviation version 0.5.8 (https://github.com/emmetio/expand-abbreviation)
-19.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
-20.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
-21.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-22.	Ikuyadeu/vscode-R (https://github.com/Ikuyadeu/vscode-R)
-23.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
-24.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
-25.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
-26.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
-27.	language-docker (https://github.com/moby/moby)
-28.	language-go version 0.39.0 (https://github.com/atom/language-go)
-29.	language-less (https://github.com/atom/language-less)
-30.	language-php (https://github.com/atom/language-php)
-31.	language-rust version 0.4.9 (https://github.com/zargony/atom-language-rust)
-32.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
-33.	marked version 0.5.0 (https://github.com/markedjs/marked)
-34.	mdn-data version 1.1.12 (https://github.com/mdn/data)
-35.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
-36.	Microsoft/vscode-JSON.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
-37.	Microsoft/vscode-mssql (https://github.com/Microsoft/vscode-mssql)
-38.	mmims/language-batchfile (https://github.com/mmims/language-batchfile)
-39.	octicons-code version 3.1.0 (https://octicons.github.com)
-40.	octicons-font version 3.1.0 (https://octicons.github.com)
-41.	PowerShell/EditorSyntax (https://github.com/powershell/editorsyntax)
+1.	atom/language-clojure version 0.22.7 (https://github.com/atom/language-clojure)
+2.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
+3.	atom/language-java version 0.31.3 (https://github.com/atom/language-java)
+4.	atom/language-sass version 0.61.4 (https://github.com/atom/language-sass)
+5.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
+6.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
+7.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
+8.	daaain/Handlebars version 1.8.0 (https://github.com/daaain/Handlebars)
+9.	davidrios/pug-tmbundle (https://github.com/davidrios/pug-tmbundle)
+10.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
+11.	demyte/language-cshtml version 0.3.0 (https://github.com/demyte/language-cshtml)
+12.	Document Object Model version 4.0.0 (https://www.w3.org/DOM/)
+13.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
+14.	expand-abbreviation version 0.5.8 (https://github.com/emmetio/expand-abbreviation)
+15.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
+16.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
+17.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
+18.	Ikuyadeu/vscode-R version 0.5.5 (https://github.com/Ikuyadeu/vscode-R)
+19.	insane version 2.6.2 (https://github.com/bevacqua/insane)
+20.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
+21.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
+22.	jeff-hykin/cpp-textmate-grammar version 1.12.11 (https://github.com/jeff-hykin/cpp-textmate-grammar)
+23.	jeff-hykin/cpp-textmate-grammar version 1.13.2 (https://github.com/jeff-hykin/cpp-textmate-grammar)
+24.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
+25.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
+26.	language-docker (https://github.com/moby/moby)
+27.	language-go version 0.44.3 (https://github.com/atom/language-go)
+28.	language-less version 0.34.2 (https://github.com/atom/language-less)
+29.	language-php version 0.44.1 (https://github.com/atom/language-php)
+30.	language-rust version 0.4.12 (https://github.com/zargony/atom-language-rust)
+31.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
+32.	marked version 0.6.2 (https://github.com/markedjs/marked)
+33.	mdn-data version 1.1.12 (https://github.com/mdn/data)
+34.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
+35.	Microsoft/vscode-JSON.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
+36.	Microsoft/vscode-mssql version 1.6.0 (https://github.com/Microsoft/vscode-mssql)
+37.	mmims/language-batchfile version 0.7.5 (https://github.com/mmims/language-batchfile)
+38.	octicons version 8.3.0 (https://github.com/primer/octicons)
+39.	octref/language-css version 0.42.11 (https://github.com/octref/language-css)
+40.	PowerShell/EditorSyntax version 1.0.0 (https://github.com/PowerShell/EditorSyntax)
+41.	promise-polyfill version 8.0.0 (https://github.com/taylorhakes/promise-polyfill)
 42.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
 43.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
 44.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
@@ -60,51 +60,15 @@ This project incorporates components from the projects listed below. The origina
 53.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
 54.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
 55.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-56.	textmate/toml.tmbundle (https://github.com/textmate/toml.tmbundle)
-57.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-58.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
-59.	Unicode ()
-60.	vscode-logfile-highlighter version 1.2.0 (https://github.com/emilast/vscode-logfile-highlighter)
-61.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
-62.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
+56.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
+57.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
+58.	TypeScript-TmLanguage version 1.0.0 (https://github.com/Microsoft/TypeScript-TmLanguage)
+59.	Unicode version 12.0.0 (http://www.unicode.org/)
+60.	vscode-logfile-highlighter version 2.4.1 (https://github.com/emilast/vscode-logfile-highlighter)
+61.	vscode-octicons-font version 1.3.1 (https://github.com/Microsoft/vscode-octicons-font)
+62.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+63.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
 
-
-%% atom/language-c NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (c) 2014 GitHub Inc.
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
-This package was derived from a TextMate bundle located at
-https://github.com/textmate/c.tmbundle and distributed under the following
-license, located in `README.mdown`:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-=========================================
-END OF atom/language-c NOTICES AND INFORMATION
 
 %% atom/language-clojure NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -213,43 +177,6 @@ OTHER DEALINGS IN THE SOFTWARE.
 =========================================
 END OF atom/language-coffee-script NOTICES AND INFORMATION
 
-%% atom/language-css NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (c) 2014 GitHub Inc.
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
-This package was derived from a TextMate bundle located at
-https://github.com/textmate/css.tmbundle and distributed under the following
-license, located in `README.mdown`:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-=========================================
-END OF atom/language-css NOTICES AND INFORMATION
-
 %% atom/language-java NOTICES AND INFORMATION BEGIN HERE
 =========================================
 The MIT License (MIT)
@@ -286,43 +213,6 @@ express or implied warranty, and with no claim as to its
 suitability for any purpose.
 =========================================
 END OF atom/language-java NOTICES AND INFORMATION
-
-%% atom/language-objective-c NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (c) 2014 GitHub Inc.
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
-This package was derived from a TextMate bundle located at
-https://github.com/textmate/objective-c.tmbundle and distributed under the following
-license, located in `README.mdown`:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-=========================================
-END OF atom/language-objective-c NOTICES AND INFORMATION
 
 %% atom/language-sass NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -450,22 +340,6 @@ express or implied warranty, and with no claim as to its
 suitability for any purpose.
 =========================================
 END OF atom/language-xml NOTICES AND INFORMATION
-
-%% chriskempson/tomorrow-theme NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (C) 2013 Chris Kempson
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
-and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-=========================================
-END OF chriskempson/tomorrow-theme NOTICES AND INFORMATION
 
 %% Colorsublime-Themes NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -738,6 +612,31 @@ SOFTWARE.
 =========================================
 END OF Ikuyadeu/vscode-R NOTICES AND INFORMATION
 
+%% insane NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright © 2015 Nicolas Bevacqua
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+=========================================
+END OF insane NOTICES AND INFORMATION
+
 %% Ionic documentation NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright Drifty Co. http://drifty.com/.
@@ -825,6 +724,32 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 =========================================
 END OF ionide/ionide-fsgrammar NOTICES AND INFORMATION
+
+%% jeff-hykin/cpp-textmate-grammar NOTICES AND INFORMATION BEGIN HERE
+=========================================
+MIT License
+
+Copyright (c) 2019 Jeff Hykin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF jeff-hykin/cpp-textmate-grammar NOTICES AND INFORMATION
 
 %% js-beautify NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1282,7 +1207,49 @@ END OF MagicStack/MagicPython NOTICES AND INFORMATION
 
 %% marked NOTICES AND INFORMATION BEGIN HERE
 =========================================
-Copyright (c) 2011-2018, Christopher Jeffrey. (MIT License)
+information
+
+## Contribution License Agreement
+
+If you contribute code to this project, you are implicitly allowing your code
+to be distributed under the MIT license. You are also implicitly verifying that
+all code is your original work. `</legalese>`
+
+## Marked
+
+Copyright (c) 2011-2018, Christopher Jeffrey (https://github.com/chjj/)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+## Markdown
+
+Copyright © 2004, John Gruber
+http://daringfireball.net/
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+* Neither the name "Markdown" nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+This software is provided by the copyright holders and contributors "as is" and any express or implied warranties, including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose are disclaimed. In no event shall the copyright owner or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of this software, even if advised of the possibility of such damage.
 =========================================
 END OF marked NOTICES AND INFORMATION
 
@@ -1759,11 +1726,11 @@ THE SOFTWARE.
 =========================================
 END OF mmims/language-batchfile NOTICES AND INFORMATION
 
-%% octicons-code NOTICES AND INFORMATION BEGIN HERE
+%% octicons NOTICES AND INFORMATION BEGIN HERE
 =========================================
-The MIT License (MIT)
+MIT License
 
-(c) 2012-2015 GitHub
+Copyright (c) 2019 GitHub Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -1772,109 +1739,55 @@ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 =========================================
-END OF octicons-code NOTICES AND INFORMATION
+END OF octicons NOTICES AND INFORMATION
 
-%% octicons-font NOTICES AND INFORMATION BEGIN HERE
+%% octref/language-css NOTICES AND INFORMATION BEGIN HERE
 =========================================
-(c) 2012-2015 GitHub
+The MIT License (MIT)
 
-SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+Copyright (c) 2014 GitHub Inc.
 
-PREAMBLE
-The goals of the Open Font License (OFL) are to stimulate worldwide
-development of collaborative font projects, to support the font creation
-efforts of academic and linguistic communities, and to provide a free and
-open framework in which fonts may be shared and improved in partnership
-with others.
-
-The OFL allows the licensed fonts to be used, studied, modified and
-redistributed freely as long as they are not sold by themselves. The
-fonts, including any derivative works, can be bundled, embedded,
-redistributed and/or sold with any software provided that any reserved
-names are not used by derivative works. The fonts and derivatives,
-however, cannot be released under any other type of license. The
-requirement for fonts to remain under this license does not apply
-to any document created using the fonts or their derivatives.
-
-DEFINITIONS
-"Font Software" refers to the set of files released by the Copyright
-Holder(s) under this license and clearly marked as such. This may
-include source files, build scripts and documentation.
-
-"Reserved Font Name" refers to any names specified as such after the
-copyright statement(s).
-
-"Original Version" refers to the collection of Font Software components as
-distributed by the Copyright Holder(s).
-
-"Modified Version" refers to any derivative made by adding to, deleting,
-or substituting -- in part or in whole -- any of the components of the
-Original Version, by changing formats or by porting the Font Software to a
-new environment.
-
-"Author" refers to any designer, engineer, programmer, technical
-writer or other person who contributed to the Font Software.
-
-PERMISSION & CONDITIONS
 Permission is hereby granted, free of charge, to any person obtaining
-a copy of the Font Software, to use, study, copy, merge, embed, modify,
-redistribute, and sell modified and unmodified copies of the Font
-Software, subject to the following conditions:
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
 
-1) Neither the Font Software nor any of its individual components,
-in Original or Modified Versions, may be sold by itself.
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
 
-2) Original or Modified Versions of the Font Software may be bundled,
-redistributed and/or sold with any software, provided that each copy
-contains the above copyright notice and this license. These can be
-included either as stand-alone text files, human-readable headers or
-in the appropriate machine-readable metadata fields within text or
-binary files as long as those fields can be easily viewed by the user.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-3) No Modified Version of the Font Software may use the Reserved Font
-Name(s) unless explicit written permission is granted by the corresponding
-Copyright Holder. This restriction only applies to the primary font name as
-presented to the users.
 
-4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
-Software shall not be used to promote, endorse or advertise any
-Modified Version, except to acknowledge the contribution(s) of the
-Copyright Holder(s) and the Author(s) or with their explicit written
-permission.
+This package was derived from a TextMate bundle located at
+https://github.com/textmate/css.tmbundle and distributed under the following
+license, located in `README.mdown`:
 
-5) The Font Software, modified or unmodified, in part or in whole,
-must be distributed entirely under this license, and must not be
-distributed under any other license. The requirement for fonts to
-remain under this license does not apply to any document created
-using the Font Software.
-
-TERMINATION
-This license becomes null and void if any of the above conditions are
-not met.
-
-DISCLAIMER
-THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
-OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
-COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
-DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
-OTHER DEALINGS IN THE FONT SOFTWARE.
+Permission to copy, use, modify, sell and distribute this
+software is granted. This software is provided "as is" without
+express or implied warranty, and with no claim as to its
+suitability for any purpose.
 =========================================
-END OF octicons-font NOTICES AND INFORMATION
+END OF octref/language-css NOTICES AND INFORMATION
 
 %% PowerShell/EditorSyntax NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1903,6 +1816,33 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 =========================================
 END OF PowerShell/EditorSyntax NOTICES AND INFORMATION
+
+%% promise-polyfill NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright (c) 2014 Taylor Hakes
+Copyright (c) 2014 Forbes Lindesay
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+=========================================
+END OF promise-polyfill NOTICES AND INFORMATION
 
 %% seti-ui NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -2180,20 +2120,6 @@ to the base-name name of the original file, and an extension of txt, html, or si
 =========================================
 END OF textmate/ruby.tmbundle NOTICES AND INFORMATION
 
-%% textmate/toml.tmbundle NOTICES AND INFORMATION BEGIN HERE
-=========================================
-Copyright (c) https://github.com/infininight and https://github.com/mojombo
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose
-
-An exception is made for files in readable text which contain their own license information, or files where an accompanying
-file exists (in the same directory) with a "-license" suffix added to the base-name name of the original file, and an extension .
-of txt, html, or similar. For example "tidy" is accompanied by "tidy-license.txt".
-=========================================
-END OF textmate/toml.tmbundle NOTICES AND INFORMATION
-
 %% textmate/yaml.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright (c) 2015 FichteFoll <fichtefoll2@googlemail.com>
@@ -2329,6 +2255,32 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 =========================================
 END OF vscode-logfile-highlighter NOTICES AND INFORMATION
+
+%% vscode-octicons-font NOTICES AND INFORMATION BEGIN HERE
+=========================================
+MIT License
+
+    Copyright (c) Microsoft Corporation. All rights reserved.
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE
+=========================================
+END OF vscode-octicons-font NOTICES AND INFORMATION
 
 %% vscode-swift NOTICES AND INFORMATION BEGIN HERE
 =========================================

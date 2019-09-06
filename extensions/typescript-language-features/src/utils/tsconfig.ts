@@ -8,7 +8,6 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { TypeScriptServiceConfiguration } from './configuration';
 
-
 export function isImplicitProjectConfigFile(configFileName: string) {
 	return configFileName.indexOf('/dev/null/') === 0;
 }

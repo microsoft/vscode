@@ -21,14 +21,14 @@ export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
 	private viewModel: INotificationViewItem[];
-	private isVisible: boolean;
+	private isVisible: boolean | undefined;
 
 	constructor(
 		private container: HTMLElement,
 		private options: IListOptions<INotificationViewItem>,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(themeService);
 
@@ -70,23 +70,29 @@ export class NotificationsList extends Themable {
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
 
 		// List
-		this.list = this._register(<WorkbenchList<INotificationViewItem>>this.instantiationService.createInstance(
+		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList,
+			'NotificationsList',
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
 			{
 				...this.options,
-				setRowLineHeight: false
+				setRowLineHeight: false,
+				horizontalScrolling: false
 			}
 		));
 
 		// Context menu to copy message
 		const copyAction = this._register(this.instantiationService.createInstance(CopyNotificationMessageAction, CopyNotificationMessageAction.ID, CopyNotificationMessageAction.LABEL));
 		this._register((this.list.onContextMenu(e => {
+			if (!e.element) {
+				return;
+			}
+
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
-				getActions: () => Promise.resolve([copyAction]),
+				getAnchor: () => e.anchor!,
+				getActions: () => [copyAction],
 				getActionsContext: () => e.element,
 				actionRunner
 			});
@@ -129,7 +135,7 @@ export class NotificationsList extends Themable {
 		const focusedIndex = this.list.getFocus()[0];
 		const focusedItem = this.viewModel[focusedIndex];
 
-		let focusRelativeTop: number;
+		let focusRelativeTop: number | null = null;
 		if (typeof focusedIndex === 'number') {
 			focusRelativeTop = this.list.getRelativeTop(focusedIndex);
 		}
@@ -214,7 +220,7 @@ export class NotificationsList extends Themable {
 			this.listContainer.style.background = background ? background.toString() : null;
 
 			const outlineColor = this.getColor(contrastBorder);
-			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : null;
+			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : '';
 		}
 	}
 

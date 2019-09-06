@@ -5,15 +5,16 @@
 
 import * as instantiation from './instantiation';
 
-
 export class SyncDescriptor<T> {
 
 	readonly ctor: any;
 	readonly staticArguments: any[];
+	readonly supportsDelayedInstantiation: boolean;
 
-	constructor(ctor: new (...args: any[]) => T, ..._staticArguments: any[]) {
+	constructor(ctor: new (...args: any[]) => T, staticArguments: any[] = [], supportsDelayedInstantiation: boolean = false) {
 		this.ctor = ctor;
-		this.staticArguments = _staticArguments;
+		this.staticArguments = staticArguments;
+		this.supportsDelayedInstantiation = supportsDelayedInstantiation;
 	}
 }
 
@@ -74,7 +75,7 @@ export interface CreateSyncFunc {
 	<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor: instantiation.IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): SyncDescriptor0<T>;
 }
 export const createSyncDescriptor: CreateSyncFunc = <T>(ctor: any, ...staticArguments: any[]): any => {
-	return new SyncDescriptor<T>(ctor, ...staticArguments);
+	return new SyncDescriptor<T>(ctor, staticArguments);
 };
 
 export interface SyncDescriptor0<T> {

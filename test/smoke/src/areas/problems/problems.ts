@@ -39,8 +39,8 @@ export class Problems {
 	}
 
 	public static getSelectorInProblemsView(problemType: ProblemSeverity): string {
-		let selector = problemType === ProblemSeverity.WARNING ? 'warning' : 'error';
-		return `div[id="workbench.panel.markers"] .monaco-tl-contents .icon.${selector}`;
+		let selector = problemType === ProblemSeverity.WARNING ? 'severity-warning' : 'severity-error';
+		return `div[id="workbench.panel.markers"] .monaco-tl-contents .marker-icon.${selector}`;
 	}
 
 	public static getSelectorInEditor(problemType: ProblemSeverity): string {

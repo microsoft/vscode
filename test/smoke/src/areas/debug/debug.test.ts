@@ -61,16 +61,16 @@ export function setup() {
 		it('focus stack frames and variables', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.debug.waitForVariableCount(4);
+			await app.workbench.debug.waitForVariableCount(4, 5);
 
 			await app.workbench.debug.focusStackFrame('layer.js', 'looking for layer.js');
-			await app.workbench.debug.waitForVariableCount(5);
+			await app.workbench.debug.waitForVariableCount(5, 6);
 
 			await app.workbench.debug.focusStackFrame('route.js', 'looking for route.js');
-			await app.workbench.debug.waitForVariableCount(3);
+			await app.workbench.debug.waitForVariableCount(3, 4);
 
 			await app.workbench.debug.focusStackFrame('index.js', 'looking for index.js');
-			await app.workbench.debug.waitForVariableCount(4);
+			await app.workbench.debug.waitForVariableCount(4, 5);
 		});
 
 		it('stepOver, stepIn, stepOut', async function () {

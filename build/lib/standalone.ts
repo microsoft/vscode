@@ -31,14 +31,26 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 }
 
 export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
-	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
-	tsConfig.compilerOptions.noUnusedLocals = false;
-	tsConfig.compilerOptions.preserveConstEnums = false;
-	tsConfig.compilerOptions.declaration = false;
-	delete tsConfig.compilerOptions.types;
-	tsConfig.exclude = [];
+	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
+	let compilerOptions: { [key: string]: any };
+	if (tsConfig.extends) {
+		compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
+		delete tsConfig.extends;
+	} else {
+		compilerOptions = tsConfig.compilerOptions;
+	}
+	tsConfig.compilerOptions = compilerOptions;
 
-	options.compilerOptions = tsConfig.compilerOptions;
+	compilerOptions.noEmit = false;
+	compilerOptions.noUnusedLocals = false;
+	compilerOptions.preserveConstEnums = false;
+	compilerOptions.declaration = false;
+	compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
+
+
+	options.compilerOptions = compilerOptions;
+
+	console.log(`Running with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
 
 	let result = tss.shake(options);
 	for (let fileName in result) {
@@ -88,6 +100,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		}
 	}
 
+	delete tsConfig.compilerOptions.moduleResolution;
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
 
 	[
@@ -127,8 +140,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 	};
 
 	const allFiles = walkDirRecursive(SRC_FOLDER);
-	for (let i = 0; i < allFiles.length; i++) {
-		const file = allFiles[i];
+	for (const file of allFiles) {
 
 		if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
 			continue;
@@ -137,7 +149,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 		if (file === 'tsconfig.json') {
 			const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
 			tsConfig.compilerOptions.module = 'es6';
-			tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs');
+			tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs').replace(/\\/g, '/');
 			write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
 			continue;
 		}
@@ -170,13 +182,14 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 				}
 
 				let relativePath: string;
-				if (importedFilepath === path.dirname(file)) {
+				if (importedFilepath === path.dirname(file).replace(/\\/g, '/')) {
 					relativePath = '../' + path.basename(path.dirname(file));
-				} else if (importedFilepath === path.dirname(path.dirname(file))) {
+				} else if (importedFilepath === path.dirname(path.dirname(file)).replace(/\\/g, '/')) {
 					relativePath = '../../' + path.basename(path.dirname(path.dirname(file)));
 				} else {
 					relativePath = path.relative(path.dirname(file), importedFilepath);
 				}
+				relativePath = relativePath.replace(/\\/g, '/');
 				if (!/(^\.\/)|(^\.\.\/)/.test(relativePath)) {
 					relativePath = './' + relativePath;
 				}
@@ -231,7 +244,6 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 			let mode = 0;
 			for (let i = 0; i < lines.length; i++) {
 				const line = lines[i];
-
 				if (mode === 0) {
 					if (/\/\/ ESM-comment-begin/.test(line)) {
 						mode = 1;

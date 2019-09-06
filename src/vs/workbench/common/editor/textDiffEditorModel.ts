@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -14,7 +13,11 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
  * and the modified version.
  */
 export class TextDiffEditorModel extends DiffEditorModel {
-	private _textDiffEditorModel: IDiffEditorModel;
+
+	protected readonly _originalModel!: BaseTextEditorModel | null;
+	protected readonly _modifiedModel!: BaseTextEditorModel | null;
+
+	private _textDiffEditorModel: IDiffEditorModel | null = null;
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);
@@ -22,24 +25,24 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		this.updateTextDiffEditorModel();
 	}
 
-	get originalModel(): BaseTextEditorModel {
-		return this._originalModel as BaseTextEditorModel;
+	get originalModel(): BaseTextEditorModel | null {
+		return this._originalModel;
 	}
 
-	get modifiedModel(): BaseTextEditorModel {
-		return this._modifiedModel as BaseTextEditorModel;
+	get modifiedModel(): BaseTextEditorModel | null {
+		return this._modifiedModel;
 	}
 
-	load(): TPromise<EditorModel> {
-		return super.load().then(() => {
-			this.updateTextDiffEditorModel();
+	async load(): Promise<EditorModel> {
+		await super.load();
 
-			return this;
-		});
+		this.updateTextDiffEditorModel();
+
+		return this;
 	}
 
 	private updateTextDiffEditorModel(): void {
-		if (this.originalModel.isResolved() && this.modifiedModel.isResolved()) {
+		if (this.originalModel && this.originalModel.isResolved() && this.modifiedModel && this.modifiedModel.isResolved()) {
 
 			// Create new
 			if (!this._textDiffEditorModel) {
@@ -57,7 +60,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		}
 	}
 
-	get textDiffEditorModel(): IDiffEditorModel {
+	get textDiffEditorModel(): IDiffEditorModel | null {
 		return this._textDiffEditorModel;
 	}
 
@@ -66,7 +69,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	}
 
 	isReadonly(): boolean {
-		return this.modifiedModel.isReadonly();
+		return !!this.modifiedModel && this.modifiedModel.isReadonly();
 	}
 
 	dispose(): void {
