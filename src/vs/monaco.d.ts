@@ -3153,6 +3153,23 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * An event describing that the configuration of the editor has changed.
+	 */
+	export class ConfigurationChangedEvent {
+		hasChanged(id: EditorOption): boolean;
+	}
+
+	export interface IComputedEditorOptions {
+		get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
+	}
+
+	export interface IEditorOption<K1 extends EditorOption, V> {
+		readonly id: K1;
+		readonly name: string;
+		readonly defaultValue: V;
+	}
+
+	/**
 	 * The kind of animation in which the editor's cursor should be rendered.
 	 */
 	export enum TextEditorCursorBlinkingStyle {
@@ -3210,36 +3227,6 @@ declare namespace monaco.editor {
 		 * As a thin horizontal line (sitting under a character).
 		 */
 		UnderlineThin = 6
-	}
-
-	/**
-	 * An event describing that the configuration of the editor has changed.
-	 */
-	export class ConfigurationChangedEvent {
-		hasChanged(id: EditorOption): boolean;
-	}
-
-	export interface IEnvironmentalOptions {
-		readonly outerWidth: number;
-		readonly outerHeight: number;
-		readonly fontInfo: FontInfo;
-		readonly extraEditorClassName: string;
-		readonly isDominatedByLongLines: boolean;
-		readonly lineNumbersDigitCount: number;
-		readonly emptySelectionClipboard: boolean;
-		readonly pixelRatio: number;
-		readonly tabFocusMode: boolean;
-		readonly accessibilitySupport: AccessibilitySupport;
-	}
-
-	export interface IComputedEditorOptions {
-		get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
-	}
-
-	export interface IEditorOption<K1 extends EditorOption, V> {
-		readonly id: K1;
-		readonly name: string;
-		readonly defaultValue: V;
 	}
 
 	export interface InternalEditorFindOptions {
@@ -3674,13 +3661,13 @@ declare namespace monaco.editor {
 		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo>;
 	};
 
-	export type EditorOptionsType = typeof EditorOptions;
+	type EditorOptionsType = typeof EditorOptions;
 
-	export type FindEditorOptionsKeyById<T extends EditorOption> = {
+	type FindEditorOptionsKeyById<T extends EditorOption> = {
 		[K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never;
 	}[keyof EditorOptionsType];
 
-	export type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
+	type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
 
 	export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
 

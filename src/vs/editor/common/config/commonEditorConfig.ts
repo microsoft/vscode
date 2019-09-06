@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
-import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, ComputedEditorOptions, ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOptions, EDITOR_MODEL_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, IComputedEditorOptions, ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOptions, EDITOR_MODEL_DEFAULTS, EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -60,6 +60,19 @@ export interface IEnvConfiguration {
 }
 
 const hasOwnProperty = Object.hasOwnProperty;
+
+class ComputedEditorOptions implements IComputedEditorOptions {
+	private readonly _values: any[] = [];
+	public _read<T>(id: EditorOption): T {
+		return this._values[id];
+	}
+	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
+		return this._values[id];
+	}
+	public _write<T>(id: EditorOption, value: T): void {
+		this._values[id] = value;
+	}
+}
 
 class RawEditorOptions {
 	private readonly _values: any[] = [];

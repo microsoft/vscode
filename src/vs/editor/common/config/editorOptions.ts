@@ -757,91 +757,6 @@ export interface IDiffEditorOptions extends IEditorOptions {
 }
 
 /**
- * The kind of animation in which the editor's cursor should be rendered.
- */
-export const enum TextEditorCursorBlinkingStyle {
-	/**
-	 * Hidden
-	 */
-	Hidden = 0,
-	/**
-	 * Blinking
-	 */
-	Blink = 1,
-	/**
-	 * Blinking with smooth fading
-	 */
-	Smooth = 2,
-	/**
-	 * Blinking with prolonged filled state and smooth fading
-	 */
-	Phase = 3,
-	/**
-	 * Expand collapse animation on the y axis
-	 */
-	Expand = 4,
-	/**
-	 * No-Blinking
-	 */
-	Solid = 5
-}
-
-/**
- * The style in which the editor's cursor should be rendered.
- */
-export enum TextEditorCursorStyle {
-	/**
-	 * As a vertical line (sitting between two characters).
-	 */
-	Line = 1,
-	/**
-	 * As a block (sitting on top of a character).
-	 */
-	Block = 2,
-	/**
-	 * As a horizontal line (sitting under a character).
-	 */
-	Underline = 3,
-	/**
-	 * As a thin vertical line (sitting between two characters).
-	 */
-	LineThin = 4,
-	/**
-	 * As an outlined block (sitting on top of a character).
-	 */
-	BlockOutline = 5,
-	/**
-	 * As a thin horizontal line (sitting under a character).
-	 */
-	UnderlineThin = 6
-}
-
-/**
- * @internal
- */
-export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin' {
-	switch (cursorStyle) {
-		case TextEditorCursorStyle.Line: return 'line';
-		case TextEditorCursorStyle.Block: return 'block';
-		case TextEditorCursorStyle.Underline: return 'underline';
-		case TextEditorCursorStyle.LineThin: return 'line-thin';
-		case TextEditorCursorStyle.BlockOutline: return 'block-outline';
-		case TextEditorCursorStyle.UnderlineThin: return 'underline-thin';
-	}
-}
-
-function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin'): TextEditorCursorStyle {
-	switch (cursorStyle) {
-		case 'line': return TextEditorCursorStyle.Line;
-		case 'block': return TextEditorCursorStyle.Block;
-		case 'underline': return TextEditorCursorStyle.Underline;
-		case 'line-thin': return TextEditorCursorStyle.LineThin;
-		case 'block-outline': return TextEditorCursorStyle.BlockOutline;
-		case 'underline-thin': return TextEditorCursorStyle.UnderlineThin;
-	}
-}
-
-/**
  * An event describing that the configuration of the editor has changed.
  */
 export class ConfigurationChangedEvent {
@@ -858,6 +773,9 @@ export class ConfigurationChangedEvent {
 	}
 }
 
+/**
+ * @internal
+ */
 export interface IEnvironmentalOptions {
 	readonly outerWidth: number;
 	readonly outerHeight: number;
@@ -935,27 +853,6 @@ function _float(value: any, defaultValue: number): number {
 	return (isNaN(r) ? defaultValue : r);
 }
 
-function _cursorBlinkingStyleFromString(cursorBlinkingStyle: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid'): TextEditorCursorBlinkingStyle {
-	switch (cursorBlinkingStyle) {
-		case 'blink': return TextEditorCursorBlinkingStyle.Blink;
-		case 'smooth': return TextEditorCursorBlinkingStyle.Smooth;
-		case 'phase': return TextEditorCursorBlinkingStyle.Phase;
-		case 'expand': return TextEditorCursorBlinkingStyle.Expand;
-		case 'solid': return TextEditorCursorBlinkingStyle.Solid;
-	}
-}
-
-function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
-	if (typeof visibility !== 'string') {
-		return defaultValue;
-	}
-	switch (visibility) {
-		case 'hidden': return ScrollbarVisibility.Hidden;
-		case 'visible': return ScrollbarVisibility.Visible;
-		default: return ScrollbarVisibility.Auto;
-	}
-}
-
 /**
  * @internal
  */
@@ -987,36 +884,6 @@ export interface IEditorLayoutProviderOpts {
 	readonly pixelRatio: number;
 }
 
-const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
-const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
-const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace, \'Droid Sans Fallback\'';
-
-/**
- * @internal
- */
-export const EDITOR_FONT_DEFAULTS = {
-	fontFamily: (
-		platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
-	),
-	fontWeight: 'normal',
-	fontSize: (
-		platform.isMacintosh ? 12 : 14
-	),
-	lineHeight: 0,
-	letterSpacing: 0,
-};
-
-/**
- * @internal
- */
-export const EDITOR_MODEL_DEFAULTS = {
-	tabSize: 4,
-	indentSize: 4,
-	insertSpaces: true,
-	detectIndentation: true,
-	trimAutoWhitespace: true,
-	largeFileOptimizations: true
-};
 
 /**
  * @internal
@@ -1043,22 +910,6 @@ export class ValidatedEditorOptions {
 
 export interface IComputedEditorOptions {
 	get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
-}
-
-/**
- * @internal
- */
-export class ComputedEditorOptions implements IComputedEditorOptions {
-	private readonly _values: any[] = [];
-	public _read<T>(id: EditorOption): T {
-		return this._values[id];
-	}
-	public get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
-		return this._values[id];
-	}
-	public _write<T>(id: EditorOption, value: T): void {
-		this._values[id] = value;
-	}
 }
 
 //#region IEditorOption
@@ -1253,6 +1104,109 @@ class EditorAriaLabel<K1 extends EditorOption> extends SimpleEditorOption<K1, st
 			return nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.");
 		}
 		return value;
+	}
+}
+
+//#endregion
+
+//#region cursorBlinking
+
+/**
+ * The kind of animation in which the editor's cursor should be rendered.
+ */
+export const enum TextEditorCursorBlinkingStyle {
+	/**
+	 * Hidden
+	 */
+	Hidden = 0,
+	/**
+	 * Blinking
+	 */
+	Blink = 1,
+	/**
+	 * Blinking with smooth fading
+	 */
+	Smooth = 2,
+	/**
+	 * Blinking with prolonged filled state and smooth fading
+	 */
+	Phase = 3,
+	/**
+	 * Expand collapse animation on the y axis
+	 */
+	Expand = 4,
+	/**
+	 * No-Blinking
+	 */
+	Solid = 5
+}
+
+function _cursorBlinkingStyleFromString(cursorBlinkingStyle: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid'): TextEditorCursorBlinkingStyle {
+	switch (cursorBlinkingStyle) {
+		case 'blink': return TextEditorCursorBlinkingStyle.Blink;
+		case 'smooth': return TextEditorCursorBlinkingStyle.Smooth;
+		case 'phase': return TextEditorCursorBlinkingStyle.Phase;
+		case 'expand': return TextEditorCursorBlinkingStyle.Expand;
+		case 'solid': return TextEditorCursorBlinkingStyle.Solid;
+	}
+}
+
+//#endregion
+
+//#region cursorStyle
+
+/**
+ * The style in which the editor's cursor should be rendered.
+ */
+export enum TextEditorCursorStyle {
+	/**
+	 * As a vertical line (sitting between two characters).
+	 */
+	Line = 1,
+	/**
+	 * As a block (sitting on top of a character).
+	 */
+	Block = 2,
+	/**
+	 * As a horizontal line (sitting under a character).
+	 */
+	Underline = 3,
+	/**
+	 * As a thin vertical line (sitting between two characters).
+	 */
+	LineThin = 4,
+	/**
+	 * As an outlined block (sitting on top of a character).
+	 */
+	BlockOutline = 5,
+	/**
+	 * As a thin horizontal line (sitting under a character).
+	 */
+	UnderlineThin = 6
+}
+
+/**
+ * @internal
+ */
+export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin' {
+	switch (cursorStyle) {
+		case TextEditorCursorStyle.Line: return 'line';
+		case TextEditorCursorStyle.Block: return 'block';
+		case TextEditorCursorStyle.Underline: return 'underline';
+		case TextEditorCursorStyle.LineThin: return 'line-thin';
+		case TextEditorCursorStyle.BlockOutline: return 'block-outline';
+		case TextEditorCursorStyle.UnderlineThin: return 'underline-thin';
+	}
+}
+
+function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin'): TextEditorCursorStyle {
+	switch (cursorStyle) {
+		case 'line': return TextEditorCursorStyle.Line;
+		case 'block': return TextEditorCursorStyle.Block;
+		case 'underline': return TextEditorCursorStyle.Underline;
+		case 'line-thin': return TextEditorCursorStyle.LineThin;
+		case 'block-outline': return TextEditorCursorStyle.BlockOutline;
+		case 'underline-thin': return TextEditorCursorStyle.UnderlineThin;
 	}
 }
 
@@ -1920,6 +1874,17 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalSliderSize: number;
 }
 
+function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
+	if (typeof visibility !== 'string') {
+		return defaultValue;
+	}
+	switch (visibility) {
+		case 'hidden': return ScrollbarVisibility.Hidden;
+		case 'visible': return ScrollbarVisibility.Visible;
+		default: return ScrollbarVisibility.Auto;
+	}
+}
+
 class EditorScrollbar<K1 extends EditorOption, K2 extends PossibleKeyName<IEditorScrollbarOptions>> extends BaseEditorOption<K1, K2, InternalEditorScrollbarOptions> {
 	public validate(_input: any): InternalEditorScrollbarOptions {
 		if (typeof _input !== 'object') {
@@ -2120,6 +2085,37 @@ function _multiCursorModifierFromString(multiCursorModifier: 'ctrlCmd' | 'alt'):
 	return 'altKey';
 }
 
+const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
+const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
+const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace, \'Droid Sans Fallback\'';
+
+/**
+ * @internal
+ */
+export const EDITOR_FONT_DEFAULTS = {
+	fontFamily: (
+		platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
+	),
+	fontWeight: 'normal',
+	fontSize: (
+		platform.isMacintosh ? 12 : 14
+	),
+	lineHeight: 0,
+	letterSpacing: 0,
+};
+
+/**
+ * @internal
+ */
+export const EDITOR_MODEL_DEFAULTS = {
+	tabSize: 4,
+	indentSize: 4,
+	insertSpaces: true,
+	detectIndentation: true,
+	trimAutoWhitespace: true,
+	largeFileOptimizations: true
+};
+
 /**
  * @internal
  */
@@ -2226,6 +2222,7 @@ export const enum EditorOption {
 	wordWrapMinified,
 	wrappingIndent,
 
+	// Leave these at the end (because they have dependencies!)
 	ariaLabel,
 	disableMonospaceOptimizations,
 	editorClassName,
@@ -2390,7 +2387,7 @@ export const EditorOptions = {
 	wrappingInfo: registerEditorOption(new EditorWrappingInfoComputer(EditorOption.wrappingInfo, [EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified, EditorOption.layoutInfo, EditorOption.accessibilitySupport])),
 };
 
-export type EditorOptionsType = typeof EditorOptions;
-export type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];
-export type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
+type EditorOptionsType = typeof EditorOptions;
+type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];
+type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
 export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
