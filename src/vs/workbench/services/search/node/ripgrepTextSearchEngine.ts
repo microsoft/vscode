@@ -151,14 +151,14 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 }
 
 function buildRegexParseError(lines: string[]): string {
-	let errorMessage: string[] = [];
+	let errorMessage: string[] = ['Regex parse error'];
 	errorMessage.push(lines[0].trim());
 	lines.forEach(line => {
 		if (startsWith(line, 'error:') || startsWith(line, 'PCRE2:')) {
 			errorMessage.push(line);
 		}
 	});
-	return errorMessage.join('\n');
+	return errorMessage.join('\r\n');
 }
 
 
