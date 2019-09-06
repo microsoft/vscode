@@ -6,7 +6,7 @@
     "preinstall": "yarn --cwd ../automation",
     "postinstall": "npm run compile",
     "compile": "tsc",
-    "watch": "concurrently \"yarn --cwd ../automation watch\" \"tsc --watch\"",
+    "watch": "concurrently \"yarn --cwd ../automation watch --preserveWatchOutput\" \"tsc --watch --preserveWatchOutput\"",
     "mocha": "mocha"
   },
   "devDependencies": {
