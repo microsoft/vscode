@@ -8,19 +8,30 @@ description: |
 
 grade: stable
 confinement: classic
+base: core18
+
+plugs:
+  gnome-3-28-1804:
+    interface: content
+    target: $SNAP/gnome-platform
+    default-provider: gnome-3-28-1804
 
 parts:
-  gnome:
-    plugin: nil
+  desktop-gnome-platform:
+    source: https://github.com/ubuntu/snapcraft-desktop-helpers.git
+    source-subdir: gtk
+    plugin: make
+    make-parameters: ["FLAVOR=gtk3"]
     build-packages:
-      - software-properties-common
-    override-pull: |
-      add-apt-repository -y ppa:ubuntu-desktop/gnome-3-26
-      apt -y update
+      - build-essential
+      - libgtk-3-dev
+    override-build: |
+      snapcraftctl build
+      mkdir -pv $SNAPCRAFT_PART_INSTALL/gnome-platform
 
   code:
     after:
-      - gnome
+      - desktop-gnome-platform
     plugin: dump
     source: .
     stage-packages:
@@ -40,6 +51,8 @@ parts:
       - libxss1
       - libxtst6
       - zlib1g
+      - libglvnd0
+      - libx11-xcb1
     prime:
       - -usr/share/doc
       - -usr/share/fonts
