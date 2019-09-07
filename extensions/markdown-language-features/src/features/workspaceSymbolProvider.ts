@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
- import { StringDecoder } from 'string_decoder';
+import { StringDecoder } from 'string_decoder';
 
 import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
