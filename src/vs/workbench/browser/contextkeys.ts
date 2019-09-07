@@ -21,6 +21,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isMacintosh, isLinux, isWindows, isWeb } from 'vs/base/common/platform';
 import { PanelPositionContext } from 'vs/workbench/common/panel';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { IFileService } from 'vs/platform/files/common/files';
+import { Schemas } from 'vs/base/common/network';
 
 export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh);
 export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux);
@@ -81,7 +83,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		@IEditorService private editorService: IEditorService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IFileService private fileService: IFileService
 	) {
 		super();
 
@@ -188,7 +191,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		const activeGroup = this.editorGroupService.activeGroup;
 		const activeControl = this.editorService.activeControl;
 		const visibleEditors = this.editorService.visibleControls;
-		const activeTextEditor = this.editorService.activeTextEditorWidget;
 
 		this.textCompareEditorActiveContext.set(!!activeControl && activeControl.getId() === TEXT_DIFF_EDITOR_ID);
 		this.textCompareEditorVisibleContext.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));
@@ -217,13 +219,12 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		if (activeControl) {
 			this.activeEditorContext.set(activeControl.getId());
+
+			const resource = activeControl.input.getResource();
+			const canSave = resource ? this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled : false;
+			this.canSaveActiveEditor.set(canSave);
 		} else {
 			this.activeEditorContext.reset();
-		}
-
-		if (activeTextEditor) {
-			this.canSaveActiveEditor.set(true);
-		} else {
 			this.canSaveActiveEditor.reset();
 		}
 	}

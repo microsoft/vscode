@@ -627,7 +627,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
 		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-		precondition: ContextKeyExpr.and(CanSaveActiveEditorContext, DirtyEditorContext)
+		precondition: CanSaveActiveEditorContext
 	},
 	order: 1
 });
