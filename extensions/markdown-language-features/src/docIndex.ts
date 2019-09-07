@@ -16,6 +16,7 @@ export class DocumentIndex extends Disposable {
 		for (let doc of vscode.workspace.textDocuments) {
 			this._registerDoc(doc);
 		}
+
 		this._register(
 			vscode.workspace.onDidOpenTextDocument((doc) => {
 				this._registerDoc(doc);
@@ -35,14 +36,14 @@ export class DocumentIndex extends Disposable {
 	private _registerDoc(doc: vscode.TextDocument) {
 		const uri = doc.uri.toString();
 		if (this._uriMap.has(uri)) {
-			throw new Error();
+			throw new Error(`The document ${uri} is already registered.`);
 		}
 		this._uriMap.set(uri, doc);
 	}
 
 	private _unregisterDoc(uri: vscode.Uri) {
 		if (!this._uriMap.has(uri.toString())) {
-			throw new Error();
+			throw new Error(`The document ${uri.toString()} is not registered.`);
 		}
 		this._uriMap.delete(uri.toString());
 	}

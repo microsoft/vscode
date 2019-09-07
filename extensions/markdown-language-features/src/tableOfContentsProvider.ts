@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { MarkdownEngine } from './markdownEngine';
 import { Slug, githubSlugifier } from './slugify';
-import { LineData, toLineData } from './lines';
+import { toTextLines } from './lines';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -51,12 +51,12 @@ export class TableOfContentsProvider {
 		const toc: TocEntry[] = [];
 		const tokens = await this.engine.parse(document);
 
-		const lines = toLineData(document.getText());
+		const lines = toTextLines(document.getText());
 		const slugCount = new Map<string, number>();
 
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];
-			const line: LineData = lines[lineNumber];
+			const line = lines[lineNumber];
 
 			let slug = githubSlugifier.fromHeading(line.text);
 			if (slugCount.has(slug.value)) {
@@ -72,9 +72,8 @@ export class TableOfContentsProvider {
 				text: TableOfContentsProvider.getHeaderText(line.text),
 				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
 				line: lineNumber,
-				location: new vscode.Location(document.uri, new vscode.Range(
-					new vscode.Position(lineNumber, 0),
-					new vscode.Position(lineNumber, line.text.length)))
+				location: new vscode.Location(document.uri,
+					new vscode.Range(lineNumber, 0, lineNumber, line.text.length))
 			});
 		}
 
@@ -87,7 +86,7 @@ export class TableOfContentsProvider {
 					break;
 				}
 			}
-			const endLine = typeof end === 'number' ? end : lines.length - 1;
+			const endLine = end !== undefined ? end : lines.length - 1;
 			return {
 				...entry,
 				location: new vscode.Location(document.uri,

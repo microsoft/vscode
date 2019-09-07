@@ -2,22 +2,31 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as vscode from 'vscode';
 
-export type LineSeparator = '\n' | '\r\n' | '';
 
-export interface LineData {
-	readonly lineNo: number;
-	readonly offset: number;
-	readonly text: string;
-	readonly separator: LineSeparator;
+export function createTextLine(line: number, offset: number, text: string, lineBreak: string): vscode.TextLine {
+	let wsRe = /s*/;
+	let firstNws = 0;
+	if (wsRe.test(text)) {
+		firstNws = wsRe.lastIndex;
+	}
+	return {
+		lineNumber: line,
+		text: text,
+		range: new vscode.Range(line, offset, line, offset + text.length),
+		rangeIncludingLineBreak: new vscode.Range(line, offset, line, offset + text.length + lineBreak.length),
+		firstNonWhitespaceCharacterIndex: firstNws,
+		isEmptyOrWhitespace: firstNws === text.length
+	};
 }
 
-export function toLineData(text: string): LineData[] {
+export function toTextLines(text: string): vscode.TextLine[] {
 	let current = 0;
-	let result: LineData[] = [];
+	let result: vscode.TextLine[] = [];
 	while (true) {
 		let nextNewLine = text.indexOf('\r\n', current);
-		let separator: LineSeparator;
+		let separator: string;
 		if (nextNewLine === -1) {
 			nextNewLine = text.indexOf('\n', current);
 			if (nextNewLine !== -1) {
@@ -32,23 +41,9 @@ export function toLineData(text: string): LineData[] {
 		if (nextNewLine === -1) {
 			break;
 		}
-
-		result.push({
-			lineNo: result.length,
-			offset: current,
-			text: text.substring(current, nextNewLine),
-			separator: separator
-		});
-
+		result.push(createTextLine(result.length, current, text.substring(current, nextNewLine), separator));
 		current = nextNewLine + separator.length;
 	}
-
-	result.push({
-		lineNo: result.length,
-		offset: current,
-		text: text.substring(current, text.length),
-		separator: ''
-	});
-
+	result.push(createTextLine(result.length, current, text.substring(current, text.length), ''));
 	return result;
 }

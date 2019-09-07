@@ -29,12 +29,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	private readonly _onDidDeleteMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<vscode.Uri>());
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
-	private _docIndex: DocumentIndex;
-
-	constructor() {
-		super();
-		this._docIndex = this._register(new DocumentIndex());
-	}
+	private _docIndex: DocumentIndex = this._register(new DocumentIndex());
 
 	async getAllMarkdownDocuments() {
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
@@ -90,22 +85,21 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	}
 
 	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		let result = this._docIndex.getByUri(resource);
-		if (result) {
-			return await vscode.workspace.openTextDocument(resource);
+		let existingDocument = this._docIndex.getByUri(resource);
+		if (existingDocument) {
+			return existingDocument;
 		}
 
 		let bytes = await vscode.workspace.fs.readFile(resource);
 		// We assume that markdown is in UTF-8
 		let text = new StringDecoder('utf-8').write(Buffer.from(bytes));
-		return new Promise((resolve) => {
-			resolve({
-				uri: resource,
-				version: 0,
-				getText: () => {
-					return text;
-				}
-			});
+
+		return Promise.resolve({
+			uri: resource,
+			version: 0,
+			getText: () => {
+				return text;
+			}
 		});
 	}
 }
