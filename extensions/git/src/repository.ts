@@ -1653,7 +1653,7 @@ export class Repository implements Disposable {
 	}
 
 	private updateInputBoxPlaceholder(): void {
-		const branchName = this.getBranchName();
+		const branchName = getBranchName(this.HEAD, this.refs);
 
 		if (branchName) {
 			// '{0}' will be replaced by the corresponding key-command later in the process, which is why it needs to stay.
@@ -1663,17 +1663,20 @@ export class Repository implements Disposable {
 		}
 	}
 
-	getBranchName(): string | undefined {
-		const HEAD = this.HEAD;
-		if (HEAD === undefined) {
-			return;
-		}
-		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-		const tagName = tag && tag.name;
-		return HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
-	}
-
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
+}
+
+export function getBranchName(HEAD: Repository['HEAD'], refs: Repository['refs']): string | undefined {
+	if (!HEAD) {
+		return;
+	}
+	const tag = refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+	const tagName = tag && tag.name;
+	const branchName = HEAD.name || tagName || HEAD.commit;
+	if (!branchName) {
+		return;
+	}
+	return branchName.substr(0, 8);
 }
