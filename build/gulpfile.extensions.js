@@ -119,7 +119,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const watchTask = task.define(`watch-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false);
 		const input = pipeline.tsProjectSrc();
-		const watchInput = watcher(src, srcOpts);
+		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
 
 		return watchInput
 			.pipe(util.incremental(pipeline, input))

@@ -99,7 +99,7 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 		const compile = createCompile('src', build);
 
 		const src = gulp.src('src/**', { base: 'src' });
-		const watchSrc = watch('src/**', { base: 'src' });
+		const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
 
 		let generator = new MonacoGenerator(true);
 		generator.execute();
