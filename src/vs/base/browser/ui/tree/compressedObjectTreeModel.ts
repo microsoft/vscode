@@ -305,12 +305,31 @@ export type NodeMapper<T, TFilterData> = (node: ITreeNode<ICompressedTreeNode<T>
 
 export const DefaultElementMapper: ElementMapper<any> = elements => elements[elements.length - 1];
 
-function mapNode<T, TFilterData>(compressedNodeMapper: CompressedNodeMapper<T>, node: ITreeNode<ICompressedTreeNode<T> | null, TFilterData>): ITreeNode<T | null, TFilterData> {
-	return {
-		...node,
-		element: node.element === null ? null : compressedNodeMapper(node.element),
-		children: node.children.map(child => mapNode(compressedNodeMapper, child))
+function createNodeMapper<T, TFilterData>(compressedNodeMapper: CompressedNodeMapper<T>): NodeMapper<T, TFilterData> {
+	const map = new WeakMap<ITreeNode<ICompressedTreeNode<T> | null, TFilterData>, ITreeNode<T | null, TFilterData>>();
+	const nodeMapper: NodeMapper<T, TFilterData> = node => {
+		let result = map.get(node);
+
+		if (!result) {
+			result = new Proxy(node, {
+				get(obj, prop) {
+					if (prop === 'element') {
+						return node.element === null ? null : compressedNodeMapper(node.element);
+					} else if (prop === 'children') {
+						return node.children.map(nodeMapper);
+					}
+
+					return (obj as any)[prop];
+				}
+			}) as ITreeNode<T | null, TFilterData>;
+
+			map.set(node, result);
+		}
+
+		return result;
 	};
+
+	return nodeMapper;
 }
 
 function mapList<T, TFilterData>(nodeMapper: NodeMapper<T, TFilterData>, list: ISpliceable<ITreeNode<T, TFilterData>>): ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>> {
@@ -379,7 +398,7 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 	) {
 		this.elementMapper = options.elementMapper || DefaultElementMapper;
 		const compressedNodeMapper: CompressedNodeMapper<T> = node => this.elementMapper(node.elements);
-		this.nodeMapper = node => mapNode(compressedNodeMapper, node);
+		this.nodeMapper = createNodeMapper(compressedNodeMapper);
 
 		this.model = new CompressedObjectTreeModel(user, mapList(this.nodeMapper, list), mapOptions(compressedNodeMapper, options));
 	}
