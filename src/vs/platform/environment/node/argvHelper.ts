@@ -8,7 +8,7 @@ import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
 import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
-import { parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
+import { parseArgs, ErrorReporter, OPTIONS } from 'vs/platform/environment/node/argv';
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): ParsedArgs {
 	const errorReporter: ErrorReporter = {
@@ -20,7 +20,7 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Parse
 		}
 	};
 
-	const args = parseArgs(cmdLineArgs, undefined, reportWarnings ? errorReporter : undefined);
+	const args = parseArgs(cmdLineArgs, OPTIONS, reportWarnings ? errorReporter : undefined);
 	if (args.goto) {
 		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
 	}

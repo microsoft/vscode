@@ -5,7 +5,7 @@
 
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { assign } from 'vs/base/common/objects';
-import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile, OPTIONS } from 'vs/platform/environment/node/argv';
 import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/node/product';
@@ -47,7 +47,7 @@ export async function main(argv: string[]): Promise<any> {
 	// Help
 	if (args.help) {
 		const executable = `${product.applicationName}${os.platform() === 'win32' ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, pkg.version));
+		console.log(buildHelpMessage(product.nameLong, executable, pkg.version, OPTIONS));
 	}
 
 	// Version Info
