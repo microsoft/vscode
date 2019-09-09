@@ -81,6 +81,19 @@
 	background: url("collapse-all-hc.svg") center center no-repeat;
 }
 
+/* Collapse level */
+.monaco-workbench .explorer-action.collapse-level {
+	background: url('collapse-all-light.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .explorer-action.collapse-level {
+	background: url('collapse-all-dark.svg') center center no-repeat;
+}
+
+.hc-black .monaco-workbench .explorer-action.collapse-level {
+	background: url('collapse-all-hc.svg') center center no-repeat;
+}
+
 /* Split editor vertical */
 .monaco-workbench .quick-open-sidebyside-vertical {
 	background-image: url("split-editor-vertical-light.svg");

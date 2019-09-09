@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
+import { Action, IAction, RadioGroup, IActionViewItem, ActionRunner } from 'vs/base/common/actions';
 import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
@@ -47,6 +47,7 @@ import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { DropdownMenuActionViewItem, IActionProvider } from 'vs/base/browser/ui/dropdown/dropdown';
 
 class RequestState {
 
@@ -248,7 +249,11 @@ export class OutlinePanel extends ViewletPanel {
 	private _treeRenderer!: OutlineElementRenderer;
 	private _treeComparator!: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
-
+	private _collapseAllMenuAction: IAction;
+	private _collapseLevelToggleMenuAction: IAction;
+	private _collapseLevelActionsProvider: IActionProvider;
+	private _collapseLevelActionViewItem: DropdownMenuActionViewItem;
+	private _secondaryActions: IAction[];
 	private _treeFakeUIEvent = new UIEvent('me');
 
 	private readonly _contextKeyFocused: IContextKey<boolean>;
@@ -377,6 +382,17 @@ export class OutlinePanel extends ViewletPanel {
 				this._doUpdate(undefined, undefined);
 			}
 		}));
+
+		this._register(this._tree.onDidChangeCollapseState(e => {
+			if (e.node.depth === 1) {
+				// do this to update Collapse All action.
+				// it only cares about top level nodes
+				this.updateActions();
+			}
+		}));
+
+		// we're just got new tree which collapse/expand actions depend on, so update actions to make use of it
+		this.updateActions();
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -384,30 +400,113 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	getActions(): IAction[] {
+		if (this._tree === undefined) {
+			return [];
+		}
+
+		this._updateCollapseLevelMenuAction();
+		this._updateCollapseAllMenuAction();
+
 		return [
-			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action collapse-explorer', true, () => {
-				return new CollapseAction(this._tree, true, undefined).run();
-			})
+			this._collapseLevelToggleMenuAction,
+			this._collapseAllMenuAction,
 		];
 	}
 
-	getSecondaryActions(): IAction[] {
-		const group = this._register(new RadioGroup([
-			new SimpleToggleAction(this._outlineViewState, localize('sortByPosition', "Sort By: Position"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByPosition, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByPosition),
-			new SimpleToggleAction(this._outlineViewState, localize('sortByName', "Sort By: Name"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByName, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByName),
-			new SimpleToggleAction(this._outlineViewState, localize('sortByKind', "Sort By: Type"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByKind, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByKind),
-		]));
-		const result = [
-			new SimpleToggleAction(this._outlineViewState, localize('followCur', "Follow Cursor"), () => this._outlineViewState.followCursor, action => this._outlineViewState.followCursor = action.checked),
-			new SimpleToggleAction(this._outlineViewState, localize('filterOnType', "Filter on Type"), () => this._outlineViewState.filterOnType, action => this._outlineViewState.filterOnType = action.checked),
-			new Separator(),
-			...group.actions,
-		];
-		for (const r of result) {
-			this._register(r);
+	private _updateCollapseLevelMenuAction() {
+		if (this._collapseLevelActionsProvider === undefined) {
+			this._collapseLevelActionsProvider = {
+				getActions: () => {
+					const collapseLevelActions: IAction[] = [];
+					const levelCollapsedStates = this._tree.getLevelCollapsedStates();
+					for (let i = 0; i < levelCollapsedStates.length; i++) {
+						if (levelCollapsedStates[i] === 'fixed') {
+							continue;
+						}
+
+						const expandOrCollapse = levelCollapsedStates[i] === 'collapsed';
+						const actionLabel = expandOrCollapse ?
+							localize('expandFromLevel', "Expand from level {0}", i + 1) :
+							localize('collapseToLevel', "Collapse to level {0}", i + 1);
+
+						collapseLevelActions[i] = new Action('collapseExpandLevel' + i, actionLabel, undefined, true, () => {
+							if (expandOrCollapse) {
+								this._tree.expandToLevel(i);
+							} else {
+								this._tree.collapseFromLevel(i);
+							}
+
+							return Promise.resolve(undefined);
+						});
+					}
+
+					return collapseLevelActions;
+				}
+			};
 		}
 
-		return result;
+		if (this._collapseLevelToggleMenuAction === undefined) {
+			this._collapseLevelToggleMenuAction = new Action('collapseLevelMenu', localize('collapseOrExpandAll', "Collapse/Expand Level"), undefined, true, () => {
+				return Promise.resolve(undefined);
+			});
+		}
+
+		this._collapseLevelActionViewItem = new DropdownMenuActionViewItem(
+			this._collapseLevelToggleMenuAction,
+			this._collapseLevelActionsProvider,
+			this.contextMenuService,
+			undefined,
+			new ActionRunner(),
+			undefined,
+			'explorer-action collapse-level');
+		this._collapseLevelActionViewItem.setActionContext(this.getActionsContext());
+	}
+
+	private _updateCollapseAllMenuAction() {
+		const levelCollapsedStates = this._tree.getLevelCollapsedStates(0);
+		const topLevelCollapsed = levelCollapsedStates[0] === 'collapsed';
+
+		if (topLevelCollapsed) {
+			this._collapseAllMenuAction = new Action('collapseAll', localize('expand', "Expand All"), 'explorer-action collapse-explorer', true, () => {
+				this._tree.expandAll();
+				return Promise.resolve(undefined);
+			});
+		} else {
+			this._collapseAllMenuAction = new Action('expandAll', localize('collapse', "Collapse All"), 'explorer-action collapse-explorer', true, () => {
+				return new CollapseAction(this._tree, true, undefined).run();
+			});
+		}
+	}
+
+	getSecondaryActions(): IAction[] {
+		if (this._secondaryActions === undefined) {
+			const group = this._register(new RadioGroup([
+				new SimpleToggleAction(this._outlineViewState, localize('sortByPosition', "Sort By: Position"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByPosition, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByPosition),
+				new SimpleToggleAction(this._outlineViewState, localize('sortByName', "Sort By: Name"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByName, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByName),
+				new SimpleToggleAction(this._outlineViewState, localize('sortByKind', "Sort By: Type"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByKind, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByKind),
+			]));
+			const result = [
+				new SimpleToggleAction(this._outlineViewState, localize('followCur', "Follow Cursor"), () => this._outlineViewState.followCursor, action => this._outlineViewState.followCursor = action.checked),
+				new SimpleToggleAction(this._outlineViewState, localize('filterOnType', "Filter on Type"), () => this._outlineViewState.filterOnType, action => this._outlineViewState.filterOnType = action.checked),
+				new Separator(),
+				...group.actions,
+			];
+			for (const r of result) {
+				this._register(r);
+			}
+
+			this._secondaryActions = result;
+		}
+
+		return this._secondaryActions;
+	}
+
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === 'collapseLevelMenu') {
+			return this._collapseLevelActionViewItem;
+		}
+
+		return super.getActionViewItem(action);
 	}
 
 	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {

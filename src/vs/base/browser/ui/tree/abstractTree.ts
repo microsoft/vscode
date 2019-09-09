@@ -1416,6 +1416,79 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model.setCollapsed(this.model.rootRef, true, true);
 	}
 
+	collapseFromLevel(level: number): void {
+		const walkNode = (node: ITreeNode<T, any>) => {
+			if (node.depth === level + 1) {
+				this.model.setCollapsed(this.model.getNodeLocation(node), true, true);
+			} else {
+				for (const child of node.children) {
+					walkNode(child);
+				}
+			}
+		};
+
+		walkNode(this.model.getNode(this.model.rootRef));
+	}
+
+	expandToLevel(level: number): void {
+		const walkNode = (node: ITreeNode<T, any>) => {
+			if (node.depth <= level + 1) {
+				this.model.setCollapsed(this.model.getNodeLocation(node), false, false);
+
+				if (node.depth < level + 1) {
+					for (const child of node.children) {
+						walkNode(child);
+					}
+				}
+			}
+		};
+
+		walkNode(this.model.getNode(this.model.rootRef));
+	}
+
+	getLevelCollapsedStates(maxLevel?: number): ('collapsed' | 'expanded' | 'mixed' | 'fixed')[] {
+		const levels: { hasExpanded: boolean, hasCollapsed: boolean }[] = [];
+
+		const walkNode = (node: ITreeNode<T, any>) => {
+			const level = node.depth - 1;
+			if (level >= 0) {
+				if (levels.length <= level) {
+					levels[level] = { hasExpanded: false, hasCollapsed: false };
+				}
+
+				const loc = this.model.getNodeLocation(node);
+				if (this.isCollapsible(loc)) {
+					if (this.isCollapsed(loc)) {
+						levels[level].hasCollapsed = true;
+					} else {
+						levels[level].hasExpanded = true;
+					}
+				}
+
+			}
+
+			if (maxLevel === undefined || level < maxLevel) {
+				for (const child of node.children) {
+					walkNode(child);
+				}
+			}
+		};
+
+		walkNode(this.model.getNode(this.model.rootRef));
+
+		return levels.map(level => {
+			if (level.hasCollapsed && level.hasExpanded) {
+				return 'mixed';
+			} else if (level.hasCollapsed && !level.hasExpanded) {
+				return 'collapsed';
+			} else if (!level.hasCollapsed && level.hasExpanded) {
+				return 'expanded';
+			} else {
+				return 'fixed';
+			}
+		});
+	}
+
 	isCollapsible(location: TRef): boolean {
 		return this.model.isCollapsible(location);
 	}
