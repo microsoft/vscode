@@ -355,4 +355,38 @@ suite('AsyncDataTree', function () {
 		race = await Promise.race([pExpandA.then(() => 'expand'), timeout(1).then(() => 'timeout')]);
 		assert.equal(race, 'expand', 'expand(a) should now be done');
 	});
+
+	test('issue #78388 - tree should react to hasChildren toggles', async () => {
+		const container = document.createElement('div');
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a'
+			}]
+		});
+
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		assert.equal(container.querySelectorAll('.monaco-list-row').length, 1);
+
+		let twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
+		assert(!hasClass(twistie, 'collapsible'));
+		assert(!hasClass(twistie, 'collapsed'));
+
+		model.get('a').children = [{ id: 'aa' }];
+		await tree.updateChildren(model.get('a'), false);
+		assert.equal(container.querySelectorAll('.monaco-list-row').length, 1);
+		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
+		assert(hasClass(twistie, 'collapsible'));
+		assert(hasClass(twistie, 'collapsed'));
+
+		model.get('a').children = [];
+		await tree.updateChildren(model.get('a'), false);
+		assert.equal(container.querySelectorAll('.monaco-list-row').length, 1);
+		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
+		assert(!hasClass(twistie, 'collapsible'));
+		assert(!hasClass(twistie, 'collapsed'));
+	});
 });
