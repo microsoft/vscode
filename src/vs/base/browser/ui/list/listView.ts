@@ -1176,6 +1176,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.domNode.parentNode.removeChild(this.domNode);
 		}
 
-		this.disposables = dispose(this.disposables);
+		dispose(this.disposables);
 	}
 }
