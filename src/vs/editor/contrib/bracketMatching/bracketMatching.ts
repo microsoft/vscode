@@ -22,6 +22,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
@@ -104,7 +105,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._lastVersionId = 0;
 		this._decorations = [];
 		this._updateBracketsSoon = this._register(new RunOnceScheduler(() => this._updateBrackets(), 50));
-		this._matchBrackets = this._editor.getConfiguration().contribInfo.matchBrackets;
+		this._matchBrackets = this._editor.getOption(EditorOption.matchBrackets);
 
 		this._updateBracketsSoon.schedule();
 		this._register(editor.onDidChangeCursorPosition((e) => {
@@ -130,7 +131,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			this._updateBracketsSoon.schedule();
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
-			this._matchBrackets = this._editor.getConfiguration().contribInfo.matchBrackets;
+			this._matchBrackets = this._editor.getOption(EditorOption.matchBrackets);
 			if (!this._matchBrackets && this._decorations.length > 0) {
 				// Remove existing decorations if bracket matching is off
 				this._decorations = this._editor.deltaDecorations(this._decorations, []);

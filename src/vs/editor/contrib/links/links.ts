@@ -24,6 +24,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 	const executeCmd = link.url && /^command:/i.test(link.url.toString());
@@ -139,9 +140,9 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			this.cleanUpActiveLinkDecoration();
 		}));
 
-		this.enabled = editor.getConfiguration().contribInfo.links;
+		this.enabled = editor.getOption(EditorOption.links);
 		this.listenersToRemove.add(editor.onDidChangeConfiguration((e) => {
-			let enabled = editor.getConfiguration().contribInfo.links;
+			const enabled = editor.getOption(EditorOption.links);
 			if (this.enabled === enabled) {
 				// No change in our configuration option
 				return;
@@ -218,7 +219,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private updateDecorations(links: Link[]): void {
-		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
+		const useMetaKey = (this.editor.getOption(EditorOption.multiCursorModifier) === 'altKey');
 		let oldDecorations: string[] = [];
 		let keys = Object.keys(this.currentOccurrences);
 		for (let i = 0, len = keys.length; i < len; i++) {
@@ -246,7 +247,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent | null): void {
-		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
+		const useMetaKey = (this.editor.getOption(EditorOption.multiCursorModifier) === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
 			const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
@@ -262,7 +263,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private cleanUpActiveLinkDecoration(): void {
-		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
+		const useMetaKey = (this.editor.getOption(EditorOption.multiCursorModifier) === 'altKey');
 		if (this.activeLinkDecorationId) {
 			const occurrence = this.currentOccurrences[this.activeLinkDecorationId];
 			if (occurrence) {

@@ -33,6 +33,7 @@ import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/p
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -84,9 +85,10 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 	}
 
 	private layout(): void {
-		const configuration = this.editor.getConfiguration();
-		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
-		if (!configuration.contribInfo.folding) {
+		const options = this.editor.getOptions();
+		const fontInfo = options.get(EditorOption.fontInfo);
+		this.titleContainer.style.fontSize = fontInfo.fontSize + 'px';
+		if (!options.get(EditorOption.folding)) {
 			this.titleContainer.style.paddingLeft = '6px';
 		}
 	}
@@ -199,17 +201,18 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 
 	private layout(): void {
-		const configuration = this.editor.getConfiguration();
+		const options = this.editor.getOptions();
+		const fontInfo = options.get(EditorOption.fontInfo);
 		const layoutInfo = this.editor.getLayoutInfo();
 		this._domNode.style.width = layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth + 'px';
-		this.titleContainer.style.lineHeight = configuration.lineHeight + 3 + 'px';
-		this.titleContainer.style.height = configuration.lineHeight + 3 + 'px';
-		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
+		this.titleContainer.style.lineHeight = options.get(EditorOption.lineHeight) + 3 + 'px';
+		this.titleContainer.style.height = options.get(EditorOption.lineHeight) + 3 + 'px';
+		this.titleContainer.style.fontSize = fontInfo.fontSize + 'px';
 		this.icon.style.minWidth = `${this.getIconSize(16)}px`;
 	}
 
 	private getIconSize(minSize: number): number {
-		const fontSize = this.editor.getConfiguration().fontInfo.fontSize;
+		const fontSize = this.editor.getOption(EditorOption.fontInfo).fontSize;
 		return fontSize > 8 ? Math.max(fontSize, minSize) : 12;
 	}
 
@@ -391,11 +394,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		this.update();
 
 		if (this._action.checked) {
-			if ((oldFolder || !this._folder)
-				|| (!oldFolder || this._folder)
-				|| (oldFolder && this._folder && (oldFolder as IWorkspaceFolder).uri.toString() === (this._folder as IWorkspaceFolder).uri.toString())) {
-				this._action.run(this._folder);
-			}
+			this._action.run(this._folder);
 		}
 	}
 
@@ -517,7 +516,8 @@ export class SettingsTargetsWidget extends Widget {
 		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
 		this.workspaceSettings.tooltip = this.workspaceSettings.label;
 
-		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false, (folder: IWorkspaceFolder) => this.updateTarget(folder.uri));
+		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false,
+			(folder: IWorkspaceFolder | null) => this.updateTarget(folder ? folder.uri : ConfigurationTarget.USER_LOCAL));
 		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, folderSettingsAction);
 
 		this.update();

@@ -31,6 +31,7 @@ import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeg
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -163,7 +164,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
 				alert(AccessibilityHelpNLS.openingDocs);
 
-				let url = (<IEditorConstructionOptions>this._editor.getRawConfiguration()).accessibilityHelpUrl;
+				let url = (<IEditorConstructionOptions>this._editor.getRawOptions()).accessibilityHelpUrl;
 				if (typeof url === 'undefined') {
 					url = 'https://go.microsoft.com/fwlink/?linkid=852450';
 				}
@@ -223,7 +224,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _buildContent() {
-		let opts = this._editor.getConfiguration();
+		const options = this._editor.getOptions();
 
 		const selections = this._editor.getSelections();
 		let charactersSelected = 0;
@@ -239,14 +240,14 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		let text = getSelectionLabel(selections, charactersSelected);
 
-		if (opts.wrappingInfo.inDiffEditor) {
-			if (opts.readOnly) {
+		if (options.get(EditorOption.inDiffEditor)) {
+			if (options.get(EditorOption.readOnly)) {
 				text += AccessibilityHelpNLS.readonlyDiffEditor;
 			} else {
 				text += AccessibilityHelpNLS.editableDiffEditor;
 			}
 		} else {
-			if (opts.readOnly) {
+			if (options.get(EditorOption.readOnly)) {
 				text += AccessibilityHelpNLS.readonlyEditor;
 			} else {
 				text += AccessibilityHelpNLS.editableEditor;
@@ -258,7 +259,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				? AccessibilityHelpNLS.changeConfigToOnMac
 				: AccessibilityHelpNLS.changeConfigToOnWinLinux
 		);
-		switch (opts.accessibilitySupport) {
+		switch (options.get(EditorOption.accessibilitySupport)) {
 			case AccessibilitySupport.Unknown:
 				text += '\n\n - ' + turnOnMessage;
 				break;
@@ -272,7 +273,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		}
 
 
-		if (opts.tabFocusMode) {
+		if (options.get(EditorOption.tabFocusMode)) {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb);
 		} else {
 			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb);

@@ -13,7 +13,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderMinimap } from 'vs/editor/common/config/editorOptions';
+import { RenderMinimap, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
@@ -107,17 +107,18 @@ class MinimapOptions {
 	public readonly canvasOuterHeight: number;
 
 	constructor(configuration: IConfiguration) {
-		const pixelRatio = configuration.editor.pixelRatio;
-		const layoutInfo = configuration.editor.layoutInfo;
-		const viewInfo = configuration.editor.viewInfo;
-		const fontInfo = configuration.editor.fontInfo;
+		const options = configuration.options;
+		const pixelRatio = options.get(EditorOption.pixelRatio);
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
-		this.scrollBeyondLastLine = viewInfo.scrollBeyondLastLine;
-		this.showSlider = viewInfo.minimap.showSlider;
+		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
+		const minimapOpts = options.get(EditorOption.minimap);
+		this.showSlider = minimapOpts.showSlider;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
-		this.lineHeight = configuration.editor.lineHeight;
+		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.minimapLeft = layoutInfo.minimapLeft;
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
