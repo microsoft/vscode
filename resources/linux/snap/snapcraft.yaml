@@ -50,7 +50,6 @@ parts:
 apps:
   @@NAME@@:
     command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@
-    desktop: usr/share/applications/@@NAME@@.desktop
     common-id: @@NAME@@.desktop
     environment:
       DISABLE_WAYLAND: 1
