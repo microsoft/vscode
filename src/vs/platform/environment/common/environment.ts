@@ -25,7 +25,7 @@ export interface ParsedArgs {
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
-	'prof-startup'?: string;
+	'prof-startup'?: boolean;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
 	verbose?: boolean;
@@ -61,8 +61,8 @@ export interface ParsedArgs {
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
-	'disable-updates'?: string;
-	'disable-crash-reporter'?: string;
+	'disable-updates'?: boolean;
+	'disable-crash-reporter'?: boolean;
 	'skip-add-to-recently-opened'?: boolean;
 	'max-memory'?: string;
 	'file-write'?: boolean;
@@ -76,7 +76,7 @@ export interface ParsedArgs {
 	'force'?: boolean;
 	'gitCredential'?: string;
 	// node flags
-	'js-flags'?: boolean;
+	'js-flags'?: string;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
 
