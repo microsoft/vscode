@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StringDecoder } from 'string_decoder';
-
 import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
@@ -91,8 +89,9 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 		}
 
 		let bytes = await vscode.workspace.fs.readFile(resource);
+
 		// We assume that markdown is in UTF-8
-		let text = new StringDecoder('utf-8').write(Buffer.from(bytes));
+		let text = Buffer.from(bytes).toString('utf-8');
 
 		return Promise.resolve({
 			uri: resource,
