@@ -30,17 +30,16 @@ export interface Option<OptionType> {
 }
 
 export type OptionDescriptions<T> = {
-	[P in keyof T]: Option<TypeName<T[P]>>;
+	[P in keyof T]: Option<OptionTypeName<T[P]>>;
 };
 
-type TypeName<T> =
+type OptionTypeName<T> =
 	T extends boolean ? 'boolean' :
 	T extends string ? 'string' :
 	T extends string[] ? 'string[]' :
 	T extends undefined ? 'undefined' :
 	'unknown';
 
-//_urls
 export const OPTIONS: OptionDescriptions<ParsedArgs> = {
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
@@ -264,11 +263,15 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 		}
 		help.push('');
 	}
-	const optionsByCategory: { [P in keyof typeof helpCategories]: OptionDescriptions<any> } = { e: {}, o: {}, t: {} };
+	const optionsByCategory: { [P in keyof typeof helpCategories]?: OptionDescriptions<any> } = {};
 	for (const optionId in options) {
 		const o = options[optionId];
 		if (o.description && o.cat) {
-			optionsByCategory[o.cat][optionId] = o;
+			let optionsByCat = optionsByCategory[o.cat];
+			if (!optionsByCat) {
+				optionsByCategory[o.cat] = optionsByCat = {};
+			}
+			optionsByCat[optionId] = o;
 		}
 	}
 
@@ -276,7 +279,7 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 		const key = <keyof typeof helpCategories>helpCategoryKey;
 
 		let categoryOptions = optionsByCategory[key];
-		if (categoryOptions.length) {
+		if (categoryOptions) {
 			help.push(helpCategories[key]);
 			help.push(...formatOptions(categoryOptions, columns));
 			help.push('');
