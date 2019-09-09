@@ -11,7 +11,7 @@ import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, 
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult, ITreeModelSpliceEvent, TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult, ITreeModelSpliceEvent, TreeMouseEventTarget, TreeLevelCollapseState } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IDragAndDropData, StaticDND, DragAndDropData } from 'vs/base/browser/dnd';
 import { range, equals, distinctES6 } from 'vs/base/common/arrays';
@@ -1446,7 +1446,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		walkNode(this.model.getNode(this.model.rootRef));
 	}
 
-	getLevelCollapsedStates(maxLevel?: number): ('collapsed' | 'expanded' | 'mixed' | 'fixed')[] {
+	getLevelCollapseStates(maxLevel?: number): TreeLevelCollapseState[] {
 		const levels: { hasExpanded: boolean, hasCollapsed: boolean }[] = [];
 
 		const walkNode = (node: ITreeNode<T, any>) => {
@@ -1478,13 +1478,13 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		return levels.map(level => {
 			if (level.hasCollapsed && level.hasExpanded) {
-				return 'mixed';
+				return TreeLevelCollapseState.Mixed;
 			} else if (level.hasCollapsed && !level.hasExpanded) {
-				return 'collapsed';
+				return TreeLevelCollapseState.Collapsed;
 			} else if (!level.hasCollapsed && level.hasExpanded) {
-				return 'expanded';
+				return TreeLevelCollapseState.Expanded;
 			} else {
-				return 'fixed';
+				return TreeLevelCollapseState.Fixed;
 			}
 		});
 	}

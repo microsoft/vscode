@@ -44,7 +44,7 @@ import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirt
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { basename } from 'vs/base/common/resources';
-import { IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IDataSource, TreeLevelCollapseState } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { DropdownMenuActionViewItem, IActionProvider } from 'vs/base/browser/ui/dropdown/dropdown';
@@ -418,18 +418,18 @@ export class OutlinePanel extends ViewletPanel {
 			this._collapseLevelActionsProvider = {
 				getActions: () => {
 					const collapseLevelActions: IAction[] = [];
-					const levelCollapsedStates = this._tree.getLevelCollapsedStates();
-					for (let i = 0; i < levelCollapsedStates.length; i++) {
-						if (levelCollapsedStates[i] === 'fixed') {
+					const levelCollapseStates = this._tree.getLevelCollapseStates();
+					for (let i = 0; i < levelCollapseStates.length; i++) {
+						if (levelCollapseStates[i] === TreeLevelCollapseState.Fixed) {
 							continue;
 						}
 
-						const expandOrCollapse = levelCollapsedStates[i] === 'collapsed';
+						const expandOrCollapse = levelCollapseStates[i] === TreeLevelCollapseState.Collapsed;
 						const actionLabel = expandOrCollapse ?
 							localize('expandFromLevel', "Expand from level {0}", i + 1) :
 							localize('collapseToLevel', "Collapse to level {0}", i + 1);
 
-						collapseLevelActions[i] = new Action('collapseExpandLevel' + i, actionLabel, undefined, true, () => {
+						collapseLevelActions.push(new Action('collapseExpandLevel' + i, actionLabel, undefined, true, () => {
 							if (expandOrCollapse) {
 								this._tree.expandToLevel(i);
 							} else {
@@ -437,7 +437,7 @@ export class OutlinePanel extends ViewletPanel {
 							}
 
 							return Promise.resolve(undefined);
-						});
+						}));
 					}
 
 					return collapseLevelActions;
@@ -463,8 +463,8 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	private _updateCollapseAllMenuAction() {
-		const levelCollapsedStates = this._tree.getLevelCollapsedStates(0);
-		const topLevelCollapsed = levelCollapsedStates[0] === 'collapsed';
+		const levelCollapseStates = this._tree.getLevelCollapseStates(0);
+		const topLevelCollapsed = levelCollapseStates[0] === TreeLevelCollapseState.Collapsed;
 
 		if (topLevelCollapsed) {
 			this._collapseAllMenuAction = new Action('collapseAll', localize('expand', "Expand All"), 'explorer-action collapse-explorer', true, () => {

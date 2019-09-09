@@ -196,6 +196,21 @@ export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
 }
 
+export const enum TreeLevelCollapseState {
+	/* None of the nodes at this level are collapsible */
+	Fixed,
+
+	/* All nodes at this level are collapsed */
+	Collapsed,
+
+	/* All nodes at this level are expanded */
+	Expanded,
+
+	/* Some nodes at this level are expanded and some are collapsed */
+	Mixed
+}
+
+
 export class TreeError extends Error {
 
 	constructor(user: string, message: string) {
