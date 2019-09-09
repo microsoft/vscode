@@ -8,8 +8,9 @@ import * as _url from 'url';
 import * as _cp from 'child_process';
 import * as _http from 'http';
 import * as _os from 'os';
-import { parseArgs, buildHelpMessage, buildVersionMessage, createWaitMarkerFile, ErrorReporter, Option } from 'vs/platform/environment/node/argv';
+import { parseArgs, buildHelpMessage, buildVersionMessage, createWaitMarkerFile, OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { OpenCommandPipeArgs, RunCommandPipeArgs, StatusPipeArgs } from 'vs/workbench/api/node/extHostCLIServer';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 interface ProductDescription {
 	productName: string;
@@ -18,8 +19,9 @@ interface ProductDescription {
 	executableName: string;
 }
 
-const isSupportedForCmd = (opt: Option) => {
-	switch (opt.id) {
+
+const isSupportedForCmd = (optionId: keyof ParsedArgs) => {
+	switch (optionId) {
 		case 'user-data-dir':
 		case 'extensions-dir':
 		case 'list-extensions':
@@ -35,8 +37,8 @@ const isSupportedForCmd = (opt: Option) => {
 	}
 };
 
-const isSupportedForPipe = (opt: Option) => {
-	switch (opt.id) {
+const isSupportedForPipe = (optionId: keyof ParsedArgs) => {
+	switch (optionId) {
 		case 'version':
 		case 'help':
 		case 'folder-uri':
@@ -47,7 +49,6 @@ const isSupportedForPipe = (opt: Option) => {
 		case 'reuse-window':
 		case 'new-window':
 		case 'status':
-		case 'gitCredential':
 			return true;
 		default:
 			return false;
@@ -59,14 +60,30 @@ const cliCommand = process.env['VSCODE_CLIENT_COMMAND'] as string;
 const cliCommandCwd = process.env['VSCODE_CLIENT_COMMAND_CWD'] as string;
 const remoteAuthority = process.env['VSCODE_CLI_AUTHORITY'] as string;
 
+interface RemoteParsedArgs extends ParsedArgs { 'gitCredential'?: string; }
 
 export function main(desc: ProductDescription, args: string[]): void {
 	if (!cliPipe && !cliCommand) {
 		console.log('Command is only available in WSL or inside a Visual Studio Code terminal.');
 		return;
 	}
-	const errorReporter: ErrorReporter = {
-		onMultipleValues: (id: string, usedValue) => {
+
+	// take the local options and remove the ones that don't apply
+	const options: OptionDescriptions<RemoteParsedArgs> = { ...OPTIONS, };
+	const isSupported = cliCommand ? isSupportedForCmd : isSupportedForPipe;
+	for (const optionId in OPTIONS) {
+		const optId = <keyof typeof OPTIONS>optionId;
+		if (!isSupported(optId)) {
+			delete options[optId];
+		}
+	}
+
+	if (!cliPipe) {
+		options['gitCredential'] = { type: 'string' };
+	}
+
+	const errorReporter = {
+		onMultipleValues: (id: string, usedValue: string) => {
 			console.error(`Option ${id} can only be defined once. Using value ${usedValue}.`);
 		},
 
@@ -75,13 +92,11 @@ export function main(desc: ProductDescription, args: string[]): void {
 		}
 	};
 
-	const isSupported = cliCommand ? isSupportedForCmd : isSupportedForPipe;
-
-	const parsedArgs = parseArgs(args, isSupported, errorReporter);
+	const parsedArgs = parseArgs(args, options, errorReporter);
 	const mapFileUri = remoteAuthority ? mapFileToRemoteUri : (uri: string) => uri;
 
 	if (parsedArgs.help) {
-		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, isSupported, false));
+		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, options, false));
 		return;
 	}
 	if (parsedArgs.version) {
@@ -156,7 +171,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 		}
 	} else {
 		if (args.length === 0) {
-			console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, isSupported, false));
+			console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, options, false));
 			return;
 		}
 		if (parsedArgs.status) {

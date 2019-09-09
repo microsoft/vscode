@@ -4,10 +4,8 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import * as minimist from 'vscode-minimist';
 import * as fs from 'fs';
 import { URI } from 'vs/base/common/uri';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { run as runCli, shouldSpawnCli } from 'vs/server/remoteExtensionManagement';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { RemoteExtensionHostAgentServer } from 'vs/server/remoteExtensionHostAgentServer';
@@ -15,33 +13,61 @@ import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { generateUuid } from 'vs/base/common/uuid';
+import { parseArgs, OPTIONS, OptionDescriptions, ErrorReporter } from 'vs/platform/environment/node/argv';
 
-const minimistArgs = minimist(process.argv.slice(2), {
-	string: [
-		'port',
-		'connectionToken',
-		'host',
-		'folder',
-		'extensions-dir',
-		'install-extension',
-		'uninstall-extension'
-	],
-	boolean: [
-		'list-extensions',
-		'force',
-		'disable-telemetry'
-	]
-});
+const serverOptions: OptionDescriptions<ServerParsedArgs> = {
+	'port': { type: 'string' },
+	'connectionToken': { type: 'string' },
+	'host': { type: 'string' },
+	'folder': { type: 'string' },
+	'workspace': { type: 'string' },
+	'disable-telemetry': OPTIONS['disable-telemetry'],
 
-// ensure array
-['install-extension', 'uninstall-extension'].forEach(key => {
-	const val = minimistArgs[key];
-	if (typeof val === 'string') {
-		minimistArgs[key] = [val];
+	'extensions-dir': OPTIONS['extensions-dir'],
+	'install-extension': OPTIONS['install-extension'],
+	'uninstall-extension': OPTIONS['uninstall-extension'],
+	'locate-extension': OPTIONS['locate-extension'],
+	'list-extensions': OPTIONS['list-extensions'],
+	'force': OPTIONS['force'],
+
+	_: OPTIONS['_']
+};
+
+interface ServerParsedArgs {
+	port?: string;
+	connectionToken?: string;
+	host?: string;
+	'disable-telemetry'?: boolean;
+
+	'extensions-dir'?: string;
+	'install-extension'?: string[];
+	'uninstall-extension'?: string[];
+	'list-extensions'?: boolean;
+	'locate-extension'?: string[];
+
+	force?: boolean; // used by install-extension
+
+	'user-data-dir'?: string;
+
+	'builtin-extensions-dir'?: string;
+
+	workspace: string;
+	folder: string;
+
+	_: string[];
+}
+
+const errorReporter: ErrorReporter = {
+	onMultipleValues: (id: string, usedValue: string) => {
+		console.error(`Option ${id} can only be defined once. Using value ${usedValue}.`);
+	},
+
+	onUnknownOption: (id: string) => {
+		console.error(`Ignoring option ${id}: not supported for server.`);
 	}
-});
+};
 
-const args = minimistArgs as ParsedArgs;
+const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
 
 const REMOTE_DATA_FOLDER = process.env['VSCODE_AGENT_FOLDER'] || path.join(os.homedir(), '.vscode-remote');
 const USER_DATA_PATH = path.join(REMOTE_DATA_FOLDER, 'data');
@@ -52,9 +78,17 @@ args['user-data-dir'] = USER_DATA_PATH;
 const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 const BUILTIN_EXTENSIONS_FOLDER_PATH = path.join(APP_ROOT, 'extensions');
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
-const PORT = minimistArgs['port'] || 8000;
-const CONNECTION_AUTH_TOKEN = minimistArgs['connectionToken'] || generateUuid();
-const HOST = minimistArgs['host'];
+const CONNECTION_AUTH_TOKEN = args['connectionToken'] || generateUuid();
+const HOST = args.host;
+
+let PORT: number = 8000;
+try {
+	if (args.port) {
+		PORT = parseInt(args.port);
+	}
+} catch (e) {
+	console.log('Port is not a number, using 8000 instead.');
+}
 
 args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER, 'extensions');
 

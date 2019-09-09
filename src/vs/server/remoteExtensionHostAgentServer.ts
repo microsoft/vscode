@@ -117,7 +117,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		}
 	}
 
-	public async start(host: string, port: number) {
+	public async start(host: string | undefined, port: number) {
 		await this._createServices();
 		return this._start(host, port);
 	}
@@ -200,7 +200,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		return this._uriTransformerCache[remoteAuthority];
 	}
 
-	private async _start(host: string, port: number) {
+	private async _start(host: string | undefined, port: number) {
 		const ifaces = os.networkInterfaces();
 		const logService = this._logService;
 		Object.keys(ifaces).forEach(function (ifname) {
