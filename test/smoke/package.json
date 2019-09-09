@@ -3,9 +3,8 @@
   "version": "0.1.0",
   "main": "./src/main.js",
   "scripts": {
-    "preinstall": "yarn --cwd ../automation",
     "postinstall": "npm run compile",
-    "compile": "tsc",
+    "compile": "yarn --cwd ../automation compile && tsc",
     "watch": "concurrently \"yarn --cwd ../automation watch --preserveWatchOutput\" \"tsc --watch --preserveWatchOutput\"",
     "mocha": "mocha"
   },
