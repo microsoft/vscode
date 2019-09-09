@@ -188,7 +188,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private currentDragFeedbackDisposable: IDisposable = Disposable.None;
 	private onDragLeaveTimeout: IDisposable = Disposable.None;
 
-	private readonly disposables: DisposableStore;
+	private readonly disposables: DisposableStore = new DisposableStore();
 
 	private _onDidChangeContentHeight = new Emitter<number>();
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event);
@@ -214,7 +214,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.renderers.set(renderer.templateId, renderer);
 		}
 
-		this.disposables = new DisposableStore();
 		this.cache = this.disposables.add(new RowCache(this.renderers));
 
 		this.lastRenderTop = 0;
