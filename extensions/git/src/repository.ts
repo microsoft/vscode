@@ -1669,13 +1669,13 @@ export class Repository implements Disposable {
 }
 
 export function getBranchName(HEAD: Repository['HEAD'], refs: Repository['refs']): string | undefined {
-	if (!HEAD) {
+	if (HEAD === undefined) {
 		return;
 	}
 	const tag = refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
 	const tagName = tag && tag.name;
 	const branchName = HEAD.name || tagName || HEAD.commit;
-	if (!branchName) {
+	if (branchName === undefined) {
 		return;
 	}
 	return branchName.substr(0, 8);
