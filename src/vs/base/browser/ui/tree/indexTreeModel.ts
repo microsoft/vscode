@@ -278,7 +278,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private _setListNodeCollapseState(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, update: CollapseStateUpdate): boolean {
 		const result = this._setNodeCollapseState(node, update, false);
 
-		if (!revealed || !node.visible) {
+		if (!revealed || !node.visible || !result) {
 			return result;
 		}
 
