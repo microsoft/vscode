@@ -18,7 +18,7 @@ export interface IDiffComputationResult {
 }
 
 export interface IEditorWorkerService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	canComputeDiff(original: URI, modified: URI): boolean;
 	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IDiffComputationResult | null>;

@@ -68,7 +68,7 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 					severity: Severity.Info,
 					message: localize('finished installing missing deps', "Finished installing missing dependencies. Please reload the window now."),
 					actions: {
-						primary: [new Action('realod', localize('reload', "Realod Window"), '', true,
+						primary: [new Action('realod', localize('reload', "Reload Window"), '', true,
 							() => this.windowService.reloadWindow())]
 					}
 				});

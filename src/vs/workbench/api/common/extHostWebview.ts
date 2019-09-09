@@ -5,15 +5,15 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import * as modes from 'vs/editor/common/modes';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
+import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import * as vscode from 'vscode';
-import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewState } from './extHost.protocol';
+import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
 import { Disposable } from './extHostTypes';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as modes from 'vs/editor/common/modes';
-import { WebviewInitData, toWebviewResource } from 'vs/workbench/api/common/shared/webview';
-import { generateUuid } from 'vs/base/common/uuid';
 
 type IconPath = URI | { light: URI, dark: URI };
 
@@ -35,8 +35,8 @@ export class ExtHostWebview implements vscode.Webview {
 		this._onMessageEmitter.dispose();
 	}
 
-	public toWebviewResource(resource: vscode.Uri): vscode.Uri {
-		return toWebviewResource(this._initData, this._handle, resource);
+	public asWebviewUri(resource: vscode.Uri): vscode.Uri {
+		return asWebviewUri(this._initData, this._handle, resource);
 	}
 
 	public get cspSource(): string {
@@ -89,10 +89,11 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 
 	private readonly _options: vscode.WebviewPanelOptions;
 	private readonly _webview: ExtHostWebview;
-	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private _visible: boolean = true;
 	private _active: boolean = true;
+
+	_isDisposed: boolean = false;
 
 	readonly _onDisposeEmitter = new Emitter<void>();
 	public readonly onDidDispose: Event<void> = this._onDisposeEmitter.event;
@@ -297,21 +298,45 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	public $onDidChangeWebviewPanelViewState(
-		handle: WebviewPanelHandle,
-		newState: WebviewPanelViewState
+	public $onMissingCsp(
+		_handle: WebviewPanelHandle,
+		extensionId: string
 	): void {
-		const panel = this.getWebviewPanel(handle);
-		if (!panel) {
-			return;
-		}
+		console.warn(`${extensionId} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
+	}
 
-		const viewColumn = typeConverters.ViewColumn.to(newState.position);
-		if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
-			panel._setActive(newState.active);
-			panel._setVisible(newState.visible);
-			panel._setViewColumn(viewColumn);
-			panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
+	public $onDidChangeWebviewPanelViewStates(newStates: WebviewPanelViewStateData): void {
+		const handles = Object.keys(newStates);
+		// Notify webviews of state changes in the following order:
+		// - Non-visible
+		// - Visible
+		// - Active
+		handles.sort((a, b) => {
+			const stateA = newStates[a];
+			const stateB = newStates[b];
+			if (stateA.active) {
+				return 1;
+			}
+			if (stateB.active) {
+				return -1;
+			}
+			return (+stateA.visible) - (+stateB.visible);
+		});
+
+		for (const handle of handles) {
+			const panel = this.getWebviewPanel(handle);
+			if (!panel || panel._isDisposed) {
+				continue;
+			}
+
+			const newState = newStates[handle];
+			const viewColumn = typeConverters.ViewColumn.to(newState.position);
+			if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
+				panel._setActive(newState.active);
+				panel._setVisible(newState.visible);
+				panel._setViewColumn(viewColumn);
+				panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
+			}
 		}
 	}
 

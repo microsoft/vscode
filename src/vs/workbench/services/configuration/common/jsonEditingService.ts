@@ -23,7 +23,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class JSONEditingService implements IJSONEditingService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private queue: Queue<void>;
 

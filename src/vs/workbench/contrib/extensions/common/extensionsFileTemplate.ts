@@ -11,6 +11,7 @@ export const ExtensionsConfigurationSchemaId = 'vscode://schemas/extensions';
 export const ExtensionsConfigurationSchema: IJSONSchema = {
 	id: ExtensionsConfigurationSchemaId,
 	allowComments: true,
+	allowsTrailingCommas: true,
 	type: 'object',
 	title: localize('app.extensions.json.title', "Extensions"),
 	additionalProperties: false,

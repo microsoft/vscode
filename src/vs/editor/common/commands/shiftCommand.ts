@@ -70,13 +70,14 @@ export class ShiftCommand implements ICommand {
 
 	private readonly _opts: IShiftCommandOpts;
 	private readonly _selection: Selection;
-	private _selectionId: string;
+	private _selectionId: string | null;
 	private _useLastEditRangeForCursorEndPosition: boolean;
 	private _selectionStartColumnStaysPut: boolean;
 
 	constructor(range: Selection, opts: IShiftCommandOpts) {
 		this._opts = opts;
 		this._selection = range;
+		this._selectionId = null;
 		this._useLastEditRangeForCursorEndPosition = false;
 		this._selectionStartColumnStaysPut = false;
 	}
@@ -241,7 +242,7 @@ export class ShiftCommand implements ICommand {
 			let lastOp = helper.getInverseEditOperations()[0];
 			return new Selection(lastOp.range.endLineNumber, lastOp.range.endColumn, lastOp.range.endLineNumber, lastOp.range.endColumn);
 		}
-		const result = helper.getTrackedSelection(this._selectionId);
+		const result = helper.getTrackedSelection(this._selectionId!);
 
 		if (this._selectionStartColumnStaysPut) {
 			// The selection start should not move

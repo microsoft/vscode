@@ -41,7 +41,7 @@ export interface IEditableData {
 }
 
 export interface IExplorerService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
 	readonly onDidChangeRoots: Event<void>;
@@ -114,6 +114,7 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 			colors: boolean;
 			badges: boolean;
 		};
+		incrementalNaming: 'simple' | 'smart';
 	};
 	editor: IEditorOptions;
 }

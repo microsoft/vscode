@@ -5,7 +5,7 @@ steps:
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
 
 - task: AzureKeyVault@1
   displayName: 'Azure Key Vault: Get Secrets'

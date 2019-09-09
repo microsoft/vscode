@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions, IModeSupport } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -19,7 +19,7 @@ export const ITextFileService = createDecorator<ITextFileService>('textFileServi
 
 export interface ITextFileService extends IDisposable {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	readonly onWillMove: Event<IWillMoveEvent>;
 
@@ -248,9 +248,14 @@ export const enum ModelState {
 	DIRTY,
 
 	/**
-	 * A model is transitioning from dirty to saved.
+	 * A model is currently being saved but this operation has not completed yet.
 	 */
 	PENDING_SAVE,
+
+	/**
+	 * A model is marked for being saved after a specific timeout.
+	 */
+	PENDING_AUTO_SAVE,
 
 	/**
 	 * A model is in conflict mode when changes cannot be saved because the
@@ -470,7 +475,9 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	hasBackup(): boolean;
 
-	isDirty(): boolean;
+	isDirty(): this is IResolvedTextFileEditorModel;
+
+	makeDirty(): void;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
 
@@ -522,7 +529,7 @@ export function stringToSnapshot(value: string): ITextSnapshot {
 }
 
 export class TextSnapshotReadable implements VSBufferReadable {
-	private preambleHandled: boolean;
+	private preambleHandled = false;
 
 	constructor(private snapshot: ITextSnapshot, private preamble?: string) { }
 

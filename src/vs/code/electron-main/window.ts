@@ -32,7 +32,7 @@ const RUN_TEXTMATE_IN_WORKER = false;
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
-	extensionDevelopmentPath?: string | string[];
+	extensionDevelopmentPath?: string[];
 	isExtensionTestHost?: boolean;
 }
 
@@ -359,17 +359,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this.currentConfig = this.pendingLoadConfig;
 
 				this.pendingLoadConfig = undefined;
-			}
-
-			// To prevent flashing, we set the window visible after the page has finished to load but before Code is loaded
-			if (this._win && !this._win.isVisible()) {
-				if (this.windowState.mode === WindowMode.Maximized) {
-					this._win.maximize();
-				}
-
-				if (!this._win.isVisible()) { // maximize also makes visible
-					this._win.show();
-				}
 			}
 		});
 
@@ -838,17 +827,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private useNativeFullScreen(): boolean {
-		return true; // TODO@ben enable simple fullscreen again (https://github.com/microsoft/vscode/issues/75054)
-		// const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		// if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
-		// 	return true; // default
-		// }
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+			return true; // default
+		}
 
-		// if (windowConfig.nativeTabs) {
-		// 	return true; // https://github.com/electron/electron/issues/16142
-		// }
+		if (windowConfig.nativeTabs) {
+			return true; // https://github.com/electron/electron/issues/16142
+		}
 
-		// return windowConfig.nativeFullScreen !== false;
+		return windowConfig.nativeFullScreen !== false;
 	}
 
 	isMinimized(): boolean {

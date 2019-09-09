@@ -15,7 +15,7 @@ export interface RemoteTunnel {
 }
 
 export interface ITunnelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	openTunnel(remotePort: number): Promise<RemoteTunnel> | undefined;
 }

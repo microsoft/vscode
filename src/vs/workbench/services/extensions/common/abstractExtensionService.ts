@@ -30,7 +30,7 @@ const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	protected readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidRegisterExtensions = this._onDidRegisterExtensions.event;
@@ -170,12 +170,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._startExtensionHostProcess(false, Array.from(this._allRequestedActivateEvents.keys()));
 	}
 
-	public startExtensionHost(): void {
+	protected startExtensionHost(): void {
 		this._startExtensionHostProcess(false, Array.from(this._allRequestedActivateEvents.keys()));
-	}
-
-	public stopExtensionHost(): void {
-		this._stopExtensionHostProcess();
 	}
 
 	public activateByEvent(activationEvent: string): Promise<void> {
@@ -261,6 +257,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	public getInspectPort(): number {
 		return 0;
+	}
+
+	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
+		await this._extensionHostProcessManagers
+			.map(manager => manager.setRemoteEnvironment(env));
 	}
 
 	//#endregion
@@ -442,7 +443,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 class ProposedApiController {
 
-	private readonly enableProposedApiFor: string | string[];
+	private readonly enableProposedApiFor: string[];
 	private readonly enableProposedApiForAll: boolean;
 	private readonly productAllowProposedApi: Set<string>;
 
@@ -450,15 +451,8 @@ class ProposedApiController {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService
 	) {
-		this.enableProposedApiFor = environmentService.args['enable-proposed-api'] || [];
-		if (this.enableProposedApiFor.length) {
-			// Make enabled proposed API be lowercase for case insensitive comparison
-			if (Array.isArray(this.enableProposedApiFor)) {
-				this.enableProposedApiFor = this.enableProposedApiFor.map(id => id.toLowerCase());
-			} else {
-				this.enableProposedApiFor = this.enableProposedApiFor.toLowerCase();
-			}
-		}
+		// Make enabled proposed API be lowercase for case insensitive comparison
+		this.enableProposedApiFor = (environmentService.args['enable-proposed-api'] || []).map(id => id.toLowerCase());
 
 		this.enableProposedApiForAll = !environmentService.isBuilt ||
 			(!!environmentService.extensionDevelopmentLocationURI && productService.nameLong !== 'Visual Studio Code') ||

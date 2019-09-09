@@ -24,8 +24,8 @@ export interface IContextMenuHandlerOptions {
 }
 
 export class ContextMenuHandler {
-	private focusToReturn: HTMLElement;
-	private block: HTMLElement | null;
+	private focusToReturn: HTMLElement | null = null;
+	private block: HTMLElement | null = null;
 	private options: IContextMenuHandlerOptions = { blockMouse: true };
 
 	constructor(
@@ -85,6 +85,10 @@ export class ContextMenuHandler {
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
 				domEvent(window, EventType.MOUSE_DOWN)((e: MouseEvent) => {
+					if (e.defaultPrevented) {
+						return;
+					}
+
 					let event = new StandardMouseEvent(e);
 					let element: HTMLElement | null = event.target;
 

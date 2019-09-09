@@ -9,7 +9,7 @@ import { Command, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
-import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/common/webview';
+import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 
 export class OpenWebviewDeveloperToolsAction extends Action {
 	static readonly ID = 'workbench.action.webview.openDeveloperTools';

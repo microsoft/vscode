@@ -2,11 +2,12 @@ steps:
 - script: |
     mkdir -p .build
     echo -n $BUILD_SOURCEVERSION > .build/commit
+    echo -n $VSCODE_QUALITY > .build/quality
   displayName: Prepare cache flag
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .build/commit'
+    keyfile: 'build/.cachesalt, .build/commit, .build/quality'
     targetfolder: '.build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min'
     vstsFeed: 'npm-vscode'
     platformIndependent: true
@@ -24,7 +25,7 @@ steps:
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
 
 - task: AzureKeyVault@1
   displayName: 'Azure Key Vault: Get Secrets'
@@ -101,10 +102,28 @@ steps:
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
+    # Figure out the full absolute path of the product we just built
+    # including the remote server and configure the integration tests
+    # to run with these builds instead of running out of sources.
     set -e
+    APP_ROOT=$(agent.builddirectory)/VSCode-darwin
+    APP_NAME="`ls $APP_ROOT | head -n 1`"
+    INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
+    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
     ./scripts/test-integration.sh --build --tfs "Integration Tests"
   displayName: Run integration tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+# Web Smoke Tests disabled due to https://github.com/microsoft/vscode/issues/80308
+# - script: |
+#     set -e
+#     cd test/smoke
+#     yarn compile
+#     cd -
+#     yarn smoketest --web --headless
+#   continueOnError: true
+#   displayName: Run web smoke tests
+#   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e

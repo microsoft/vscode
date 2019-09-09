@@ -118,6 +118,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getLastElementAncestor(location?: TRef): T | undefined;
 
 	isCollapsible(location: TRef): boolean;
+	setCollapsible(location: TRef, collapsible?: boolean): boolean;
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
 	expandTo(location: TRef): void;
@@ -190,4 +191,11 @@ export const TreeDragOverReactions = {
 
 export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
+}
+
+export class TreeError extends Error {
+
+	constructor(user: string, message: string) {
+		super(`TreeError [${user}] ${message}`);
+	}
 }

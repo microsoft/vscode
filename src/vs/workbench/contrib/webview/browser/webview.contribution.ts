@@ -15,8 +15,8 @@ import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } fro
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/common/webview';
-import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand } from '../browser/webviewCommands';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from '../browser/webviewEditor';
 import { WebviewEditorInput } from '../browser/webviewEditorInput';
 import { IWebviewEditorService, WebviewEditorService } from '../browser/webviewEditorService';
@@ -55,6 +55,28 @@ function registerWebViewCommands(editorId: string): void {
 			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),
 		kbOpts: {
 			primary: KeyCode.Escape,
+			weight: KeybindingWeight.EditorContrib
+		}
+	})).register();
+
+	(new WebViewEditorFindNextCommand({
+		id: WebViewEditorFindNextCommand.ID,
+		precondition: ContextKeyExpr.and(
+			contextKeyExpr,
+			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+		kbOpts: {
+			primary: KeyCode.Enter,
+			weight: KeybindingWeight.EditorContrib
+		}
+	})).register();
+
+	(new WebViewEditorFindPreviousCommand({
+		id: WebViewEditorFindPreviousCommand.ID,
+		precondition: ContextKeyExpr.and(
+			contextKeyExpr,
+			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+		kbOpts: {
+			primary: KeyMod.Shift | KeyCode.Enter,
 			weight: KeybindingWeight.EditorContrib
 		}
 	})).register();

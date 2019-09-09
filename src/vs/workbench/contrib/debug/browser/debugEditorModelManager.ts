@@ -36,7 +36,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	static readonly STICKINESS = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 	private modelDataMap: Map<string, IDebugEditorModelData>;
 	private toDispose: lifecycle.IDisposable[];
-	private ignoreDecorationsChangedEvent: boolean;
+	private ignoreDecorationsChangedEvent = false;
 
 	constructor(
 		@IModelService private readonly modelService: IModelService,

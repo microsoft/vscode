@@ -140,8 +140,6 @@ export module StaticServices {
 
 	export const notificationService = define(INotificationService, () => new SimpleNotificationService());
 
-	export const accessibilityService = define(IAccessibilityService, () => new BrowserAccessibilityService());
-
 	export const markerService = define(IMarkerService, () => new MarkerService());
 
 	export const modeService = define(IModeService, (o) => new ModeServiceImpl());
@@ -193,6 +191,8 @@ export class DynamicStandaloneServices extends Disposable {
 		};
 
 		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
+
+		ensure(IAccessibilityService, () => new BrowserAccessibilityService(contextKeyService, configurationService));
 
 		ensure(IListService, () => new ListService(contextKeyService));
 

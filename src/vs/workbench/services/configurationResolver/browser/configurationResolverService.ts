@@ -55,7 +55,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				if (activeEditor instanceof DiffEditorInput) {
 					activeEditor = activeEditor.modifiedInput;
 				}
-				const fileResource = toResource(activeEditor, { filterByScheme: Schemas.file });
+				const fileResource = toResource(activeEditor, { filterByScheme: [Schemas.file, Schemas.userData] });
 				if (!fileResource) {
 					return undefined;
 				}
@@ -227,6 +227,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	 */
 	private showUserInput(variable: string, inputInfos: ConfiguredInput[]): Promise<string | undefined> {
 
+		if (!inputInfos) {
+			return Promise.reject(new Error(nls.localize('inputVariable.noInputSection', "Variable '{0}' must be defined in an '{1}' section of the debug or task configuration.", variable, 'input')));
+		}
+
 		// find info for the given input variable
 		const info = inputInfos.filter(item => item.id === variable).pop();
 		if (info) {
@@ -246,7 +250,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						inputOptions.value = info.default;
 					}
 					return this.quickInputService.input(inputOptions).then(resolvedInput => {
-						return resolvedInput ? resolvedInput : undefined;
+						return resolvedInput;
 					});
 				}
 

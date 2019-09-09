@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole, ListError } from './list';
 import { ListView, IListViewOptions, IListViewDragAndDrop, IAriaProvider } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -236,7 +236,7 @@ class KeyboardController<T> implements IDisposable {
 		private view: ListView<T>,
 		options: IListOptions<T>
 	) {
-		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+		const multipleSelectionSupport = options.multipleSelectionSupport !== false;
 
 		this.openController = options.openController || DefaultOpenController;
 
@@ -519,7 +519,7 @@ const DefaultOpenController: IOpenController = {
 export class MouseController<T> implements IDisposable {
 
 	private multipleSelectionSupport: boolean;
-	readonly multipleSelectionController: IMultipleSelectionController<T>;
+	readonly multipleSelectionController: IMultipleSelectionController<T> | undefined;
 	private openController: IOpenController;
 	private mouseSupport: boolean;
 	private readonly disposables = new DisposableStore();
@@ -618,7 +618,7 @@ export class MouseController<T> implements IDisposable {
 		}
 	}
 
-	private onDoubleClick(e: IListMouseEvent<T>): void {
+	protected onDoubleClick(e: IListMouseEvent<T>): void {
 		if (isInputElement(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -652,6 +652,8 @@ export class MouseController<T> implements IDisposable {
 		} else if (this.isSelectionSingleChangeEvent(e)) {
 			const selection = this.list.getSelection();
 			const newSelection = selection.filter(i => i !== focus);
+
+			this.list.setFocus([focus]);
 
 			if (selection.length === newSelection.length) {
 				this.list.setSelection([...newSelection, focus], e.browserEvent);
@@ -1168,6 +1170,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(
+		private user: string,
 		container: HTMLElement,
 		virtualDelegate: IListVirtualDelegate<T>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
@@ -1259,11 +1262,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
 		if (start < 0 || start > this.view.length) {
-			throw new Error(`Invalid start index: ${start}`);
+			throw new ListError(this.user, `Invalid start index: ${start}`);
 		}
 
 		if (deleteCount < 0) {
-			throw new Error(`Invalid delete count: ${deleteCount}`);
+			throw new ListError(this.user, `Invalid delete count: ${deleteCount}`);
 		}
 
 		if (deleteCount === 0 && elements.length === 0) {
@@ -1305,6 +1308,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.view.setScrollTop(scrollTop);
 	}
 
+	get scrollLeft(): number {
+		return this.view.getScrollLeft();
+	}
+
+	set scrollLeft(scrollLeft: number) {
+		this.view.setScrollLeftt(scrollLeft);
+	}
+
 	get scrollHeight(): number {
 		return this.view.scrollHeight;
 	}
@@ -1338,7 +1349,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
@@ -1356,7 +1367,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	setFocus(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
@@ -1508,7 +1519,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	reveal(index: number, relativeTop?: number): void {
 		if (index < 0 || index >= this.length) {
-			throw new Error(`Invalid index ${index}`);
+			throw new ListError(this.user, `Invalid index ${index}`);
 		}
 
 		const scrollTop = this.view.getScrollTop();
@@ -1537,7 +1548,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	 */
 	getRelativeTop(index: number): number | null {
 		if (index < 0 || index >= this.length) {
-			throw new Error(`Invalid index ${index}`);
+			throw new ListError(this.user, `Invalid index ${index}`);
 		}
 
 		const scrollTop = this.view.getScrollTop();
@@ -1564,7 +1575,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	open(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
@@ -1574,7 +1585,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	pin(indexes: number[]): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
-				throw new Error(`Invalid index ${index}`);
+				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 

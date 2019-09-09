@@ -26,6 +26,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class MessageWidget {
 
@@ -122,7 +123,7 @@ class MessageWidget {
 		this._editor.applyFontInfo(this._relatedBlock);
 		if (isNonEmptyArray(relatedInformation)) {
 			const relatedInformationNode = this._relatedBlock.appendChild(document.createElement('div'));
-			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * 0.66)}px`;
+			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getOption(EditorOption.lineHeight) * 0.66)}px`;
 			this._lines += 1;
 
 			for (const related of relatedInformation) {
@@ -146,7 +147,7 @@ class MessageWidget {
 			}
 		}
 
-		const fontInfo = this._editor.getConfiguration().fontInfo;
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		const scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
 		const scrollHeight = fontInfo.lineHeight * this._lines;
 		this._scrollable.setScrollDimensions({ scrollWidth, scrollHeight });
@@ -165,15 +166,15 @@ class MessageWidget {
 
 export class MarkerNavigationWidget extends PeekViewWidget {
 
-	private _parentContainer: HTMLElement;
-	private _container: HTMLElement;
-	private _icon: HTMLElement;
-	private _message: MessageWidget;
+	private _parentContainer!: HTMLElement;
+	private _container!: HTMLElement;
+	private _icon!: HTMLElement;
+	private _message!: MessageWidget;
 	private readonly _callOnDispose = new DisposableStore();
 	private _severity: MarkerSeverity;
 	private _backgroundColor?: Color;
 	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
-	private _heightInPixel: number;
+	private _heightInPixel!: number;
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
 
@@ -228,7 +229,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
-		this._actionbarWidget.push(this.actions, { label: false, icon: true });
+		this._actionbarWidget!.push(this.actions, { label: false, icon: true });
 	}
 
 	protected _fillTitleIcon(container: HTMLElement): void {

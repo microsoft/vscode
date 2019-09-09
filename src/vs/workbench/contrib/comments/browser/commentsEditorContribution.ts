@@ -36,6 +36,8 @@ import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/bro
 import { COMMENTEDITOR_DECORATION_KEY, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export const ID = 'editor.contrib.review';
 
@@ -173,13 +175,18 @@ export class ReviewController implements IEditorContribution {
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		this.editor = editor;
 		this.globalToDispose = [];
 		this.localToDispose = [];
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._pendingCommentCache = {};
 		this._computePromise = null;
+
+		if (editor instanceof EmbeddedCodeEditorWidget) {
+			return;
+		}
+
+		this.editor = editor;
 
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
 
@@ -584,18 +591,19 @@ export class ReviewController implements IEditorContribution {
 		}
 
 		this._commentInfos = commentInfos;
-		let lineDecorationsWidth: number = this.editor.getConfiguration().layoutInfo.decorationsWidth;
+		let lineDecorationsWidth: number = this.editor.getLayoutInfo().decorationsWidth;
 
 		if (this._commentInfos.some(info => Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length))) {
 			if (!this._commentingRangeSpaceReserved) {
 				this._commentingRangeSpaceReserved = true;
 				let extraEditorClassName: string[] = [];
-				const configuredExtraClassName = this.editor.getRawConfiguration().extraEditorClassName;
+				const configuredExtraClassName = this.editor.getRawOptions().extraEditorClassName;
 				if (configuredExtraClassName) {
 					extraEditorClassName = configuredExtraClassName.split(' ');
 				}
 
-				if (this.editor.getConfiguration().contribInfo.folding) {
+				const options = this.editor.getOptions();
+				if (options.get(EditorOption.folding)) {
 					lineDecorationsWidth -= 16;
 				}
 				lineDecorationsWidth += 9;

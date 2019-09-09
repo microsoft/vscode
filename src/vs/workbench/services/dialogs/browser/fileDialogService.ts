@@ -19,10 +19,12 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { isWeb } from 'vs/base/common/platform';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class FileDialogService implements IFileDialogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IWindowService private readonly windowService: IWindowService,
@@ -31,7 +33,8 @@ export class FileDialogService implements IFileDialogService {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
@@ -84,15 +87,20 @@ export class FileDialogService implements IFileDialogService {
 		};
 	}
 
-	private shouldUseSimplified(schema: string): boolean {
-		const setting = this.configurationService.getValue('files.simpleDialog.enable');
+	private shouldUseSimplified(schema: string): { useSimplified: boolean, isSetting: boolean } {
+		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
 
-		return (schema !== Schemas.file) || (setting === true);
+		return { useSimplified: (schema !== Schemas.file) || setting, isSetting: (schema === Schemas.file) && setting };
 	}
 
-	private ensureFileSchema(schema: string): string[] {
+	private addFileSchemaIfNeeded(schema: string): string[] {
+		// Include File schema unless the schema is web
 		// Don't allow untitled schema through.
-		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
+		if (isWeb) {
+			return schema === Schemas.untitled ? [Schemas.file] : [schema];
+		} else {
+			return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
+		}
 	}
 
 	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
@@ -102,9 +110,10 @@ export class FileDialogService implements IFileDialogService {
 			options.defaultUri = this.defaultFilePath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema)) {
+		const shouldUseSimplified = this.shouldUseSimplified(schema);
+		if (shouldUseSimplified.useSimplified) {
 			const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
-			const availableFileSystems = this.ensureFileSchema(schema); // always allow file as well
+			const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
 			const uri = await this.pickRemoteResource({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 
@@ -112,7 +121,11 @@ export class FileDialogService implements IFileDialogService {
 				const stat = await this.fileService.resolve(uri);
 
 				const toOpen: IURIToOpen = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
-				return this.windowService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
+				if (stat.isDirectory || options.forceNewWindow || shouldUseSimplified.isSetting) {
+					return this.windowService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
+				} else {
+					return this.openerService.open(uri);
+				}
 			}
 
 			return;
@@ -128,13 +141,18 @@ export class FileDialogService implements IFileDialogService {
 			options.defaultUri = this.defaultFilePath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema)) {
+		const shouldUseSimplified = this.shouldUseSimplified(schema);
+		if (shouldUseSimplified.useSimplified) {
 			const title = nls.localize('openFile.title', 'Open File');
-			const availableFileSystems = this.ensureFileSchema(schema); // always allow file as well
+			const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
 			const uri = await this.pickRemoteResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 			if (uri) {
-				return this.windowService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
+				if (options.forceNewWindow || shouldUseSimplified.isSetting) {
+					return this.windowService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
+				} else {
+					return this.openerService.open(uri);
+				}
 			}
 
 			return;
@@ -150,9 +168,9 @@ export class FileDialogService implements IFileDialogService {
 			options.defaultUri = this.defaultFolderPath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema)) {
+		if (this.shouldUseSimplified(schema).useSimplified) {
 			const title = nls.localize('openFolder.title', 'Open Folder');
-			const availableFileSystems = this.ensureFileSchema(schema); // always allow file as well
+			const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
 			const uri = await this.pickRemoteResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 			if (uri) {
@@ -172,10 +190,10 @@ export class FileDialogService implements IFileDialogService {
 			options.defaultUri = this.defaultWorkspacePath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema)) {
+		if (this.shouldUseSimplified(schema).useSimplified) {
 			const title = nls.localize('openWorkspace.title', 'Open Workspace');
 			const filters: FileFilter[] = [{ name: nls.localize('filterName.workspace', 'Workspace'), extensions: [WORKSPACE_EXTENSION] }];
-			const availableFileSystems = this.ensureFileSchema(schema); // always allow file as well
+			const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
 			const uri = await this.pickRemoteResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems });
 			if (uri) {
@@ -190,9 +208,9 @@ export class FileDialogService implements IFileDialogService {
 
 	async pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined> {
 		const schema = this.getFileSystemSchema(options);
-		if (this.shouldUseSimplified(schema)) {
+		if (this.shouldUseSimplified(schema).useSimplified) {
 			if (!options.availableFileSystems) {
-				options.availableFileSystems = this.ensureFileSchema(schema); // always allow file as well
+				options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
 			}
 
 			options.title = nls.localize('saveFileAs.title', 'Save As');
@@ -219,9 +237,9 @@ export class FileDialogService implements IFileDialogService {
 
 	async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		const schema = this.getFileSystemSchema(options);
-		if (this.shouldUseSimplified(schema)) {
+		if (this.shouldUseSimplified(schema).useSimplified) {
 			if (!options.availableFileSystems) {
-				options.availableFileSystems = this.ensureFileSchema(schema); // always allow file as well
+				options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
 			}
 
 			return this.saveRemoteResource(options);
@@ -237,9 +255,9 @@ export class FileDialogService implements IFileDialogService {
 
 	async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		const schema = this.getFileSystemSchema(options);
-		if (this.shouldUseSimplified(schema)) {
+		if (this.shouldUseSimplified(schema).useSimplified) {
 			if (!options.availableFileSystems) {
-				options.availableFileSystems = this.ensureFileSchema(schema); // always allow file as well
+				options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
 			}
 
 			const uri = await this.pickRemoteResource(options);

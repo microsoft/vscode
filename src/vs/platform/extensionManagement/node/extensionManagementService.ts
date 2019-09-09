@@ -101,7 +101,7 @@ interface InstallableExtension {
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private systemExtensionsPath: string;
 	private extensionsPath: string;
@@ -159,6 +159,12 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
 		this.logService.trace('ExtensionManagementService#unzip', zipLocation.toString());
 		return this.install(zipLocation, type).then(local => local.identifier);
+	}
+
+	async getManifest(vsix: URI): Promise<IExtensionManifest> {
+		const downloadLocation = await this.downloadVsix(vsix);
+		const zipPath = path.resolve(downloadLocation.fsPath);
+		return getManifest(zipPath);
 	}
 
 	private collectFiles(extension: ILocalExtension): Promise<IFile[]> {

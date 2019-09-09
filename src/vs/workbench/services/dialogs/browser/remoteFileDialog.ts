@@ -46,24 +46,24 @@ enum UpdateResult {
 }
 
 export class RemoteFileDialog {
-	private options: IOpenDialogOptions;
-	private currentFolder: URI;
-	private filePickBox: IQuickPick<FileQuickPickItem>;
-	private hidden: boolean;
-	private allowFileSelection: boolean;
-	private allowFolderSelection: boolean;
+	private options!: IOpenDialogOptions;
+	private currentFolder!: URI;
+	private filePickBox!: IQuickPick<FileQuickPickItem>;
+	private hidden: boolean = false;
+	private allowFileSelection: boolean = true;
+	private allowFolderSelection: boolean = false;
 	private remoteAuthority: string | undefined;
-	private requiresTrailing: boolean;
+	private requiresTrailing: boolean = false;
 	private trailing: string | undefined;
 	private scheme: string = REMOTE_HOST_SCHEME;
 	private contextKey: IContextKey<boolean>;
-	private userEnteredPathSegment: string;
-	private autoCompletePathSegment: string;
-	private activeItem: FileQuickPickItem;
-	private userHome: URI;
+	private userEnteredPathSegment: string = '';
+	private autoCompletePathSegment: string = '';
+	private activeItem: FileQuickPickItem | undefined;
+	private userHome!: URI;
 	private badPath: string | undefined;
-	private remoteAgentEnvironment: IRemoteAgentEnvironment | null;
-	private separator: string;
+	private remoteAgentEnvironment: IRemoteAgentEnvironment | null | undefined;
+	private separator: string = '/';
 	private onBusyChangeEmitter = new Emitter<boolean>();
 	private updatingPromise: CancelablePromise<void> | undefined;
 
@@ -101,7 +101,7 @@ export class RemoteFileDialog {
 	}
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
-		this.scheme = this.getScheme(options.availableFileSystems);
+		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.userHome = await this.getUserHome();
 		const newOptions = await this.getOptions(options);
 		if (!newOptions) {
@@ -112,7 +112,7 @@ export class RemoteFileDialog {
 	}
 
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-		this.scheme = this.getScheme(options.availableFileSystems);
+		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.userHome = await this.getUserHome();
 		this.requiresTrailing = true;
 		const newOptions = await this.getOptions(options, true);
@@ -157,8 +157,14 @@ export class RemoteFileDialog {
 		return resources.toLocalResource(URI.from({ scheme: this.scheme, path }), this.scheme === Schemas.file ? undefined : this.remoteAuthority);
 	}
 
-	private getScheme(available: string[] | undefined): string {
-		return available ? available[0] : Schemas.file;
+	private getScheme(available: string[] | undefined, defaultUri: URI | undefined): string {
+		if (available) {
+			if (defaultUri && (available.indexOf(defaultUri.scheme) >= 0)) {
+				return defaultUri.scheme;
+			}
+			return available[0];
+		}
+		return Schemas.file;
 	}
 
 	private async getRemoteAgentEnvironment(): Promise<IRemoteAgentEnvironment | null> {
@@ -215,7 +221,7 @@ export class RemoteFileDialog {
 			this.filePickBox.autoFocusOnList = false;
 			this.filePickBox.ignoreFocusOut = true;
 			this.filePickBox.ok = true;
-			if (this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
+			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
 				let action;
@@ -762,8 +768,8 @@ export class RemoteFileDialog {
 
 	private pathAppend(uri: URI, additional: string): string {
 		if ((additional === '..') || (additional === '.')) {
-			const basePath = this.pathFromUri(uri);
-			return basePath + this.separator + additional;
+			const basePath = this.pathFromUri(uri, true);
+			return basePath + additional;
 		} else {
 			return this.pathFromUri(resources.joinPath(uri, additional));
 		}

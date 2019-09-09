@@ -39,7 +39,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	private readonly viewletState: MementoObject;
 	private didLayout = false;
-	private dimension: DOM.Dimension;
+	private dimension: DOM.Dimension | undefined;
 	private areExtensionsReady: boolean = false;
 
 	private readonly visibleViewsCountFromCache: number | undefined;
@@ -263,13 +263,11 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	private toggleViewVisibility(viewId: string): void {
 		const visible = !this.viewsModel.isVisible(viewId);
-		/* __GDPR__
-			"views.toggleVisibility" : {
-				"viewId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"visible": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('views.toggledVisibility', { viewId, visible });
+		type ViewsToggleVisibilityClassification = {
+			viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			visible: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this.telemetryService.publicLog2<{ viewId: String, visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
 		this.viewsModel.setVisible(viewId, visible);
 	}
 

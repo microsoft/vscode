@@ -47,7 +47,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/product';
-import { ProductService } from 'vs/platform/product/node/productService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -84,23 +83,14 @@ export class Main {
 	async run(argv: ParsedArgs): Promise<void> {
 		if (argv['install-source']) {
 			await this.setInstallSource(argv['install-source']);
-
 		} else if (argv['list-extensions']) {
 			await this.listExtensions(!!argv['show-versions'], argv['category']);
-
 		} else if (argv['install-extension']) {
-			const arg = argv['install-extension'];
-			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.installExtensions(args, !!argv['force']);
-
+			await this.installExtensions(argv['install-extension'], !!argv['force']);
 		} else if (argv['uninstall-extension']) {
-			const arg = argv['uninstall-extension'];
-			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.uninstallExtension(ids);
+			await this.uninstallExtension(argv['uninstall-extension']);
 		} else if (argv['locate-extension']) {
-			const arg = argv['locate-extension'];
-			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			await this.locateExtension(ids);
+			await this.locateExtension(argv['locate-extension']);
 		} else if (argv['telemetry']) {
 			console.log(buildTelemetryMessage(this.environmentService.appRoot, this.environmentService.extensionsPath ? this.environmentService.extensionsPath : undefined));
 		}
@@ -112,7 +102,13 @@ export class Main {
 
 	private async listExtensions(showVersions: boolean, category?: string): Promise<void> {
 		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		if (category) {
+		// TODO: we should save this array in a common place so that the command and extensionQuery can use it that way changing it is easier
+		const categories = ['"programming languages"', 'snippets', 'linters', 'themes', 'debuggers', 'formatters', 'keymaps', '"scm providers"', 'other', '"extension packs"', '"language packs"'];
+		if (category && category !== '') {
+			if (categories.indexOf(category.toLowerCase()) < 0) {
+				console.log('Invalid category please enter a valid category. To list valid categories run --category without a category specified');
+				return;
+			}
 			extensions = extensions.filter(e => {
 				if (e.manifest.categories) {
 					const lowerCaseCategories: string[] = e.manifest.categories.map(c => c.toLowerCase());
@@ -120,6 +116,12 @@ export class Main {
 				}
 				return false;
 			});
+		} else if (category === '') {
+			console.log('Possible Categories: ');
+			categories.forEach(category => {
+				console.log(category);
+			});
+			return;
 		}
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
@@ -313,7 +315,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IStateService, new SyncDescriptor(StateService));
-	services.set(IProductService, new SyncDescriptor(ProductService));
+	services.set(IProductService, { _serviceBrand: undefined, ...product });
 
 	// Files
 	const fileService = new FileService(logService);
@@ -348,7 +350,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
-				commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), installSourcePath),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
 				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
 			};
 

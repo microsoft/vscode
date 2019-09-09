@@ -41,7 +41,7 @@ import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { memoize } from 'vs/base/common/decorators';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
@@ -57,8 +57,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: lifecycle.IDisposable[];
 	private hoverWidget: DebugHoverWidget;
-	private nonDebugHoverPosition: Position;
-	private hoverRange: Range;
+	private nonDebugHoverPosition: Position | undefined;
+	private hoverRange: Range | null = null;
 	private mouseDown = false;
 
 	private breakpointHintDecoration: string[];
@@ -68,7 +68,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private exceptionWidget: ExceptionWidget | undefined;
 
-	private configurationWidget: FloatingClickWidget;
+	private configurationWidget: FloatingClickWidget | undefined;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -377,7 +377,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get showHoverScheduler(): RunOnceScheduler {
-		const scheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
+		const scheduler = new RunOnceScheduler(() => {
+			if (this.hoverRange) {
+				this.showHover(this.hoverRange, false);
+			}
+		}, HOVER_DELAY);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
@@ -385,7 +389,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get hideHoverScheduler(): RunOnceScheduler {
-		const scheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), 2 * HOVER_DELAY);
+		const scheduler = new RunOnceScheduler(() => {
+			if (!this.hoverWidget.isHovered()) {
+				this.hoverWidget.hide();
+			}
+		}, 2 * HOVER_DELAY);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
@@ -394,7 +402,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	@memoize
 	private get provideNonDebugHoverScheduler(): RunOnceScheduler {
 		const scheduler = new RunOnceScheduler(() => {
-			if (this.editor.hasModel()) {
+			if (this.editor.hasModel() && this.nonDebugHoverPosition) {
 				getHover(this.editor.getModel(), this.nonDebugHoverPosition, CancellationToken.None);
 			}
 		}, HOVER_DELAY);
@@ -532,7 +540,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.configurationWidget) {
 			this.configurationWidget.dispose();
 		}
-		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getConfiguration().readOnly) {
+		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getOption(EditorOption.readOnly)) {
 			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
 			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration()));

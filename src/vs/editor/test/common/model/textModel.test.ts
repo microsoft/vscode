@@ -608,6 +608,46 @@ suite('Editor Model - TextModel', () => {
 		]);
 	});
 
+	test('issue #62143: Broken indentation detection', () => {
+		// works before the fix
+		assertGuess(true, 2, [
+			'x',
+			'x',
+			'  x',
+			'  x'
+		]);
+
+		// works before the fix
+		assertGuess(true, 2, [
+			'x',
+			'  - item2',
+			'  - item3'
+		]);
+
+		// works before the fix
+		testGuessIndentation(true, 2, true, 2, [
+			'x x',
+			'  x',
+			'  x',
+		]);
+
+		// fails before the fix
+		// empty space inline breaks the indentation guess
+		testGuessIndentation(true, 2, true, 2, [
+			'x x',
+			'  x',
+			'  x',
+			'    x'
+		]);
+
+		testGuessIndentation(true, 2, true, 2, [
+			'<!--test1.md -->',
+			'- item1',
+			'  - item2',
+			'    - item3'
+		]);
+	});
+
 	test('validatePosition', () => {
 
 		let m = TextModel.createFromString('line one\nline two');

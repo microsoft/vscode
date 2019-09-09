@@ -47,7 +47,7 @@ export function isRecentFile(curr: IRecent): curr is IRecentFile {
 
 
 export interface IHistoryMainService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onRecentlyOpenedChange: CommonEvent<void>;
 

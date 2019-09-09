@@ -56,11 +56,11 @@ export abstract class BreadcrumbsPicker {
 
 	protected readonly _disposables = new DisposableStore();
 	protected readonly _domNode: HTMLDivElement;
-	protected _arrow: HTMLDivElement;
-	protected _treeContainer: HTMLDivElement;
-	protected _tree: Tree<any, any>;
+	protected _arrow!: HTMLDivElement;
+	protected _treeContainer!: HTMLDivElement;
+	protected _tree!: Tree<any, any>;
 	protected _fakeEvent = new UIEvent('fakeEvent');
-	protected _layoutInfo: ILayoutInfo;
+	protected _layoutInfo!: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<SelectEvent>();
 	readonly onDidPickElement: Event<SelectEvent> = this._onDidPickElement.event;
@@ -374,7 +374,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
 		this._disposables.add(labels);
 
-		return this._instantiationService.createInstance(WorkbenchAsyncDataTree, container, new FileVirtualDelegate(), [this._instantiationService.createInstance(FileRenderer, labels)], this._instantiationService.createInstance(FileDataSource), {
+		return this._instantiationService.createInstance(WorkbenchAsyncDataTree, 'BreadcrumbsFilePicker', container, new FileVirtualDelegate(), [this._instantiationService.createInstance(FileRenderer, labels)], this._instantiationService.createInstance(FileDataSource), {
 			multipleSelectionSupport: false,
 			sorter: new FileSorter(),
 			filter: this._instantiationService.createInstance(FileFilter),
@@ -440,6 +440,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	protected _createTree(container: HTMLElement) {
 		return this._instantiationService.createInstance(
 			WorkbenchDataTree,
+			'BreadcrumbsOutlinePicker',
 			container,
 			new OutlineVirtualDelegate(),
 			[new OutlineGroupRenderer(), this._instantiationService.createInstance(OutlineElementRenderer)],

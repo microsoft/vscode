@@ -37,6 +37,7 @@ import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
@@ -70,6 +71,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 		private readonly _markerDecorationsService: IMarkerDecorationsService
 	) {
 		this._editor = editor;
+		this._result = [];
 	}
 
 	setRange(range: Range): void {
@@ -213,13 +215,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._computer = new ModesContentComputer(this._editor, markerDecorationsService);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
+		this._shouldFocus = false;
+		this._colorPicker = null;
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
 			result => this._withResult(result, true),
 			null,
 			result => this._withResult(result, false),
-			this._editor.getConfiguration().contribInfo.hover.delay
+			this._editor.getOption(EditorOption.hover).delay
 		);
 
 		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
@@ -231,7 +235,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			dom.removeClass(this.getDomNode(), 'colorpicker-hover');
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
-			this._hoverOperation.setHoverTime(this._editor.getConfiguration().contribInfo.hover.delay);
+			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
 		}));
 	}
 
@@ -362,7 +366,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 				// create blank olor picker model and widget first to ensure it's positioned correctly.
 				const model = new ColorPickerModel(color, [], 0);
-				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio, this._themeService);
+				const widget = new ColorPickerWidget(fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService);
 
 				getColorPresentations(editorModel, colorInfo, msg.provider, CancellationToken.None).then(colorPresentations => {
 					model.colorPresentations = colorPresentations || [];

@@ -146,32 +146,6 @@ suite('DecorationsService', function () {
 		assert.equal(typeof deco.tooltip, 'string');
 	});
 
-	test('Overwrite data', function () {
-
-		let someUri = URI.parse('file:///some/path/some/file.txt');
-		let deco = service.getDecoration(someUri, false);
-		assert.equal(deco, undefined);
-
-		deco = service.getDecoration(someUri, false, { tooltip: 'Overwrite' })!;
-		assert.equal(deco.tooltip, 'Overwrite');
-
-		let reg = service.registerDecorationsProvider({
-			label: 'Test',
-			onDidChange: Event.None,
-			provideDecorations(uri: URI) {
-				return { tooltip: 'FromMe', source: 'foo' };
-			}
-		});
-
-		deco = service.getDecoration(someUri, false)!;
-		assert.equal(deco.tooltip, 'FromMe');
-
-		deco = service.getDecoration(someUri, false, { source: 'foo', tooltip: 'O' })!;
-		assert.equal(deco.tooltip, 'O');
-
-		reg.dispose();
-	});
-
 	test('Decorations not showing up for second root folder #48502', async function () {
 
 		let cancelCount = 0;

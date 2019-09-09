@@ -25,7 +25,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { LifecyclePhase, ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, ILifecycleService, WillShutdownEvent, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
@@ -47,11 +47,14 @@ import { Layout } from 'vs/workbench/browser/layout';
 
 export class Workbench extends Layout {
 
-	private readonly _onShutdown = this._register(new Emitter<void>());
-	readonly onShutdown: Event<void> = this._onShutdown.event;
+	private readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
+	readonly onBeforeShutdown: Event<BeforeShutdownEvent> = this._onBeforeShutdown.event;
 
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	readonly onWillShutdown: Event<WillShutdownEvent> = this._onWillShutdown.event;
+
+	private readonly _onShutdown = this._register(new Emitter<void>());
+	readonly onShutdown: Event<void> = this._onShutdown.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -79,11 +82,25 @@ export class Workbench extends Layout {
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
 
 		// Inform user about loading issues from the loader
+		interface AnnotatedLoadingError extends Error {
+			phase: 'loading';
+			moduleId: string;
+			neededBy: string[];
+		}
+		interface AnnotatedFactoryError extends Error {
+			phase: 'factory';
+			moduleId: string;
+		}
+		interface AnnotatedValidationError extends Error {
+			phase: 'configuration';
+		}
+		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
 		(<any>window).require.config({
-			onError: (err: { errorCode: string; }) => {
-				if (err.errorCode === 'load') {
+			onError: (err: AnnotatedError) => {
+				if (err.phase === 'loading') {
 					onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
 				}
+				console.error(err);
 			}
 		});
 	}
@@ -168,7 +185,7 @@ export class Workbench extends Layout {
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.MAIN.TS AND registerSingleton().
+		// CONTRIBUTE IT VIA WORKBENCH.DESKTOP.MAIN.TS AND registerSingleton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services
@@ -211,6 +228,7 @@ export class Workbench extends Layout {
 	): void {
 
 		// Lifecycle
+		this._register(lifecycleService.onBeforeShutdown(event => this._onBeforeShutdown.fire(event)));
 		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
 		this._register(lifecycleService.onShutdown(() => {
 			this._onShutdown.fire();
@@ -224,7 +242,7 @@ export class Workbench extends Layout {
 		this._register(storageService.onWillSaveState(e => this.storeFontInfo(e, storageService)));
 	}
 
-	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto';
+	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
 	private setFontAliasing(configurationService: IConfigurationService) {
 		const aliasing = configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>('workbench.fontAliasing');
 		if (this.fontAliasing === aliasing) {
@@ -280,10 +298,7 @@ export class Workbench extends Layout {
 			'monaco-workbench',
 			platformClass,
 			isWeb ? 'web' : undefined,
-			this.state.sideBar.hidden ? 'nosidebar' : undefined,
-			this.state.panel.hidden ? 'nopanel' : undefined,
-			this.state.statusBar.hidden ? 'nostatusbar' : undefined,
-			this.state.fullscreen ? 'fullscreen' : undefined
+			...this.getLayoutClasses()
 		]);
 
 		addClasses(this.container, ...workbenchClasses);
@@ -414,7 +429,7 @@ export class Workbench extends Layout {
 
 		// Restore Editor Center Mode
 		if (this.state.editor.restoreCentered) {
-			this.centerEditorLayout(true);
+			this.centerEditorLayout(true, true);
 		}
 
 		// Emit a warning after 10s if restore does not complete

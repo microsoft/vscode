@@ -24,7 +24,7 @@ import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -99,7 +99,7 @@ interface IRecentlyClosedFile {
 
 export class HistoryService extends Disposable implements IHistoryService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private static readonly STORAGE_KEY = 'history.entries';
 	private static readonly MAX_HISTORY_ITEMS = 200;
@@ -115,12 +115,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private stack: IStackEntry[];
 	private index: number;
 	private lastIndex: number;
-	private navigatingInStack: boolean;
-	private currentTextEditorState: TextEditorState | null;
+	private navigatingInStack = false;
+	private currentTextEditorState: TextEditorState | null = null;
 
-	private lastEditLocation: IStackEntry;
+	private lastEditLocation: IStackEntry | undefined;
 
-	private history: Array<IEditorInput | IResourceInput>;
+	private history!: Array<IEditorInput | IResourceInput>;
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
@@ -453,7 +453,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.doNavigate(this.stack[this.index], !acrossEditors).finally(() => this.navigatingInStack = false);
 	}
 
-	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor | null> {
+	private doNavigate(location: IStackEntry, withSelection: boolean): Promise<IBaseEditor | undefined> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true // support to navigate across editor groups
 		};

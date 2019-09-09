@@ -11,6 +11,7 @@ import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/dec
 import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { explorerRootErrorEmitter } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 
 export class ExplorerDecorationsProvider implements IDecorationsProvider {
 	readonly label: string = localize('label', "Explorer");
@@ -30,6 +31,9 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 				this._onDidChange.fire([change.item.resource]);
 			}
 		}));
+		this.toDispose.add(explorerRootErrorEmitter.event((resource => {
+			this._onDidChange.fire([resource]);
+		})));
 	}
 
 	get onDidChange(): Event<URI[]> {

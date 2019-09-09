@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -59,7 +59,13 @@ export const enum GroupsArrangement {
 	/**
 	 * Size all groups evenly.
 	 */
-	EVEN
+	EVEN,
+
+	/**
+	 * Will behave like MINIMIZE_OTHERS if the active
+	 * group is not already maximized and EVEN otherwise
+	 */
+	TOGGLE
 }
 
 export interface GroupLayoutArgument {
@@ -143,7 +149,7 @@ export const enum EditorsOrder {
 
 export interface IEditorGroupsService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event for when the active editor group changes. The active editor
@@ -177,9 +183,14 @@ export interface IEditorGroupsService {
 	readonly onDidLayout: Event<IDimension>;
 
 	/**
+	 * An event for when the index of a group changes.
+	 */
+	readonly onDidGroupIndexChange: Event<IEditorGroup>;
+
+	/**
 	 * The size of the editor groups area.
 	 */
-	readonly dimension: IDimension;
+	readonly contentDimension: IDimension;
 
 	/**
 	 * An active group is the default location for new editors to open.
@@ -343,7 +354,7 @@ export const enum GroupChangeKind {
 
 	/* Group Changes */
 	GROUP_ACTIVE,
-	GROUP_LABEL,
+	GROUP_INDEX,
 
 	/* Editor Changes */
 	EDITOR_OPEN,
@@ -373,6 +384,14 @@ export interface IEditorGroup {
 	 * group is moved to different locations.
 	 */
 	readonly id: GroupIdentifier;
+
+	/**
+	 * A number that indicates the position of this group in the visual
+	 * order of groups from left to right and top to bottom. The lowest
+	 * index will likely be top-left while the largest index in most
+	 * cases should be bottom-right, but that depends on the grid.
+	 */
+	readonly index: number;
 
 	/**
 	 * A human readable label for the group. This label can change depending

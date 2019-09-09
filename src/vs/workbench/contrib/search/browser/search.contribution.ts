@@ -213,37 +213,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: Constants.RevealInSideBarForSearchResults,
-	handler: (accessor, fileMatch: FileMatch) => {
-		const viewletService = accessor.get(IViewletService);
-		const explorerService = accessor.get(IExplorerService);
-		const contextService = accessor.get(IWorkspaceContextService);
-		const uri = fileMatch.resource();
-
-		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet: ExplorerViewlet) => {
-			if (uri && contextService.isInsideWorkspace(uri)) {
-				const explorerView = viewlet.getExplorerView();
-				if (explorerView) {
-					explorerView.setExpanded(true);
-					explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
-				}
-			}
-		});
-	}
-});
-
-const RevealInSideBarForSearchResultsCommand: ICommandAction = {
-	id: Constants.RevealInSideBarForSearchResults,
-	title: nls.localize('revealInSideBar', "Reveal in Explorer")
-};
-
-MenuRegistry.appendMenuItem(MenuId.SearchContext, {
-	command: RevealInSideBarForSearchResultsCommand,
-	when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
-	group: '2_files',
-});
-
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	command: {
 		id: Constants.ReplaceActionId,
@@ -305,7 +274,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.CopyPathCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: Constants.FileMatchOrFolderMatchFocusKey,
+	when: Constants.FileMatchOrFolderMatchWithResourceFocusKey,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
@@ -318,7 +287,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 		id: Constants.CopyPathCommandId,
 		title: nls.localize('copyPathLabel', "Copy Path")
 	},
-	when: Constants.FileMatchOrFolderMatchFocusKey,
+	when: Constants.FileMatchOrFolderMatchWithResourceFocusKey,
 	group: 'search_2',
 	order: 2
 });
@@ -341,6 +310,38 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: Constants.ClearSearchHistoryCommandId,
 	handler: clearHistoryCommand
+});
+
+CommandsRegistry.registerCommand({
+	id: Constants.RevealInSideBarForSearchResults,
+	handler: (accessor, fileMatch: FileMatch) => {
+		const viewletService = accessor.get(IViewletService);
+		const explorerService = accessor.get(IExplorerService);
+		const contextService = accessor.get(IWorkspaceContextService);
+		const uri = fileMatch.resource;
+
+		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet: ExplorerViewlet) => {
+			if (uri && contextService.isInsideWorkspace(uri)) {
+				const explorerView = viewlet.getExplorerView();
+				if (explorerView) {
+					explorerView.setExpanded(true);
+					explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
+				}
+			}
+		});
+	}
+});
+
+const RevealInSideBarForSearchResultsCommand: ICommandAction = {
+	id: Constants.RevealInSideBarForSearchResults,
+	title: nls.localize('revealInSideBar', "Reveal in Explorer")
+};
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: RevealInSideBarForSearchResultsCommand,
+	when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
+	group: 'search_3',
+	order: 1
 });
 
 const clearSearchHistoryLabel = nls.localize('clearSearchHistoryLabel', "Clear Search History");

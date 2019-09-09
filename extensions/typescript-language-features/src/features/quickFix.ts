@@ -286,7 +286,13 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		}
 
 		// Make sure there are multiple diagnostics of the same type in the file
-		if (!this.diagnosticsManager.getDiagnostics(document.uri).some(x => x.code === diagnostic.code && x !== diagnostic)) {
+		if (!this.diagnosticsManager.getDiagnostics(document.uri).some(x => {
+			if (x === diagnostic) {
+				return false;
+			}
+			return x.code === diagnostic.code
+				|| (fixAllErrorCodes.has(x.code as number) && fixAllErrorCodes.get(x.code as number) === fixAllErrorCodes.get(diagnostic.code as number));
+		})) {
 			return results;
 		}
 
@@ -304,6 +310,15 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 	}
 }
 
+// Some fix all actions can actually fix multiple differnt diagnostics. Make sure we still show the fix all action
+// in such cases
+const fixAllErrorCodes = new Map<number, number>([
+	// Missing async
+	[2339, 2339],
+	[2345, 2339],
+]);
+
+
 const preferredFixes = new Set([
 	'annotateWithTypeFromJSDoc',
 	'constructorForDerivedNeedSuperCall',
@@ -314,6 +329,7 @@ const preferredFixes = new Set([
 	'forgottenThisPropertyAccess',
 	'spelling',
 	'unusedIdentifier',
+	'addMissingAwait',
 ]);
 function isPreferredFix(tsAction: Proto.CodeFixAction): boolean {
 	return preferredFixes.has(tsAction.fixName);

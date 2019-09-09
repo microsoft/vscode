@@ -11,11 +11,14 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
-import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
+import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
 import { CancellationToken } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status } from './api/git';
+
+// https://github.com/microsoft/vscode/issues/65693
+const MAX_CLI_LENGTH = 30000;
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
@@ -339,7 +342,7 @@ export class Git {
 	}
 
 	async clone(url: string, parentPath: string, cancellationToken?: CancellationToken): Promise<string> {
-		let baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
+		let baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(parentPath, folderName);
 		let count = 1;
@@ -598,13 +601,13 @@ export function parseGitmodules(raw: string): Submodule[] {
 }
 
 export function parseGitCommit(raw: string): Commit | null {
-	const match = /^([0-9a-f]{40})\n(.*)\n(.*)\n([^]*)$/m.exec(raw.trim());
+	const match = /^([0-9a-f]{40})\n(.*)\n(.*)(\n([^]*))?$/m.exec(raw.trim());
 	if (!match) {
 		return null;
 	}
 
 	const parents = match[3] ? match[3].split(' ') : [];
-	return { hash: match[1], message: match[4], parents, authorEmail: match[2] };
+	return { hash: match[1], message: match[5], parents, authorEmail: match[2] };
 }
 
 interface LsTreeElement {
@@ -639,7 +642,7 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 }
 
 export interface CommitOptions {
-	all?: boolean;
+	all?: boolean | 'tracked';
 	amend?: boolean;
 	signoff?: boolean;
 	signCommit?: boolean;
@@ -649,6 +652,7 @@ export interface CommitOptions {
 export interface PullOptions {
 	unshallow?: boolean;
 	tags?: boolean;
+	readonly cancellationToken?: CancellationToken;
 }
 
 export enum ForcePushMode {
@@ -797,7 +801,7 @@ export class Repository {
 			const elements = await this.lsfiles(path);
 
 			if (elements.length === 0) {
-				throw new GitError({ message: 'Error running ls-files' });
+				throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 			}
 
 			const { mode, object } = elements[0];
@@ -810,7 +814,7 @@ export class Repository {
 		const elements = await this.lstree(treeish, path);
 
 		if (elements.length === 0) {
-			throw new GitError({ message: 'Error running ls-files' });
+			throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 		}
 
 		const { mode, object, size } = elements[0];
@@ -1077,8 +1081,16 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async add(paths: string[]): Promise<void> {
-		const args = ['add', '-A', '--'];
+	async add(paths: string[], opts?: { update?: boolean }): Promise<void> {
+		const args = ['add'];
+
+		if (opts && opts.update) {
+			args.push('-u');
+		} else {
+			args.push('-A');
+		}
+
+		args.push('--');
 
 		if (paths && paths.length) {
 			args.push.apply(args, paths);
@@ -1116,15 +1128,21 @@ export class Repository {
 		}
 
 		let mode: string;
+		let add: string = '';
 
 		try {
 			const details = await this.getObjectDetails('HEAD', path);
 			mode = details.mode;
 		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.UnknownPath) {
+				throw err;
+			}
+
 			mode = '100644';
+			add = '--add';
 		}
 
-		await this.run(['update-index', '--cacheinfo', mode, hash, path]);
+		await this.run(['update-index', add, '--cacheinfo', mode, hash, path]);
 	}
 
 	async checkout(treeish: string, paths: string[], opts: { track?: boolean } = Object.create(null)): Promise<void> {
@@ -1138,13 +1156,14 @@ export class Repository {
 			args.push(treeish);
 		}
 
-		if (paths && paths.length) {
-			args.push('--');
-			args.push.apply(args, paths);
-		}
-
 		try {
-			await this.run(args);
+			if (paths && paths.length > 0) {
+				for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+					await this.run([...args, '--', ...chunk]);
+				}
+			} else {
+				await this.run(args);
+			}
 		} catch (err) {
 			if (/Please,? commit your changes or stash them/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
@@ -1275,11 +1294,17 @@ export class Repository {
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
-		const tasks = groups.map(paths => () => this.run(['clean', '-f', '-q', '--'].concat(paths)));
 
-		for (let task of tasks) {
-			await task();
+		const limiter = new Limiter(5);
+		const promises: Promise<any>[] = [];
+
+		for (const paths of groups) {
+			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+				promises.push(limiter.queue(() => this.run(['clean', '-f', '-q', '--', ...chunk])));
+			}
 		}
+
+		await Promise.all(promises);
 	}
 
 	async undo(): Promise<void> {
@@ -1396,7 +1421,7 @@ export class Repository {
 		}
 
 		try {
-			await this.run(args);
+			await this.run(args, options);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -1599,8 +1624,14 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(): Promise<Ref[]> {
-		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)', '--sort', '-committerdate']);
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate' }): Promise<Ref[]> {
+		const args = ['for-each-ref', '--format', '%(refname) %(objectname)'];
+
+		if (opts && opts.sort && opts.sort !== 'alphabetically') {
+			args.push('--sort', `-${opts.sort}`);
+		}
+
+		const result = await this.run(args);
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
@@ -1669,13 +1700,16 @@ export class Repository {
 	async getBranch(name: string): Promise<Branch> {
 		if (name === 'HEAD') {
 			return this.getHEAD();
-		} else if (/^@/.test(name)) {
-			const symbolicFullNameResult = await this.run(['rev-parse', '--symbolic-full-name', name]);
-			const symbolicFullName = symbolicFullNameResult.stdout.trim();
-			name = symbolicFullName || name;
 		}
 
-		const result = await this.run(['rev-parse', name]);
+		let result = await this.run(['rev-parse', name]);
+
+		if (!result.stdout && /^@/.test(name)) {
+			const symbolicFullNameResult = await this.run(['rev-parse', '--symbolic-full-name', name]);
+			name = symbolicFullNameResult.stdout.trim();
+
+			result = await this.run(['rev-parse', name]);
+		}
 
 		if (!result.stdout) {
 			return Promise.reject<Branch>(new Error('No such branch'));
@@ -1732,7 +1766,7 @@ export class Repository {
 			}
 
 			const raw = await readfile(templatePath, 'utf8');
-			return raw.replace(/^\s*#.*$\n?/gm, '').trim();
+			return raw.replace(/^\s*#.*$\n?/gm, '');
 
 		} catch (err) {
 			return '';
@@ -1745,8 +1779,11 @@ export class Repository {
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {
-		const args = ['submodule', 'update', '--', ...paths];
-		await this.run(args);
+		const args = ['submodule', 'update', '--'];
+
+		for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+			await this.run([...args, ...chunk]);
+		}
 	}
 
 	async getSubmodules(): Promise<Submodule[]> {

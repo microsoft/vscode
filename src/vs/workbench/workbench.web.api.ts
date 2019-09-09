@@ -7,8 +7,12 @@ import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents } from 'vs/base/common/uri';
 import { IFileSystemProvider } from 'vs/platform/files/common/files';
-import { IRequestOptions, IRequestContext } from 'vs/platform/request/common/request';
 import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
+import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
+import { IProductConfiguration } from 'vs/platform/product/common/product';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 export interface IWorkbenchConstructionOptions {
 
@@ -16,7 +20,12 @@ export interface IWorkbenchConstructionOptions {
 	 * Experimental: the remote authority is the IP:PORT from where the workbench is served
 	 * from. It is for example being used for the websocket connections as address.
 	 */
-	remoteAuthority: string;
+	remoteAuthority?: string;
+
+	/**
+	 * The connection token to send to the server.
+	 */
+	connectionToken?: string;
 
 	/**
 	 * Experimental: An endpoint to serve iframe content ("webview") from. This is required
@@ -41,15 +50,39 @@ export interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
-	 * Experimental: Optional request handler to handle http requests.
-	 * In case not provided, workbench uses <code>XMLHttpRequest</code>.
-	 */
-	requestHandler?: (requestOptions: IRequestOptions) => Promise<IRequestContext>;
-
-	/**
 	 * A factory for web sockets.
 	 */
 	webSocketFactory?: IWebSocketFactory;
+
+	/**
+	 * Experimental: Whether to enable the smoke test driver.
+	 */
+	driver?: boolean;
+
+	/**
+	 * Experimental: The credentials provider to store and retrieve secrets.
+	 */
+	credentialsProvider?: ICredentialsProvider;
+
+	/**
+	 * Experimental: Add static extensions that cannot be uninstalled but only be disabled.
+	 */
+	staticExtensions?: { packageJSON: IExtensionManifest, extensionLocation: UriComponents }[];
+
+	/**
+	 * Experimental: Support for URL callbacks.
+	 */
+	urlCallbackProvider?: IURLCallbackProvider;
+
+	/**
+	 * Experimental: Support for product configuration.
+	 */
+	productConfiguration?: IProductConfiguration;
+
+	/**
+	 * Current logging level. Default is `LogLevel.Info`.
+	 */
+	logLevel?: LogLevel;
 }
 
 /**

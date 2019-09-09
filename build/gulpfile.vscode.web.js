@@ -41,6 +41,9 @@ const vscodeWebResources = [
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 
+	// Extension Worker
+	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
+
 	// Excludes
 	'!out-build/vs/**/{node,electron-browser,electron-main}/**',
 	'!out-build/vs/editor/standalone/**',
@@ -50,12 +53,13 @@ const vscodeWebResources = [
 
 const buildfile = require('../src/buildfile');
 
-const vscodeWebEntryPoints = [
-	buildfile.workbenchWeb,
-	buildfile.serviceWorker,
+const vscodeWebEntryPoints = _.flatten([
+	buildfile.entrypoint('vs/workbench/workbench.web.api'),
+	buildfile.base,
+	buildfile.workerExtensionHost,
 	buildfile.keyboardMaps,
-	buildfile.base
-];
+	buildfile.workbenchWeb
+]);
 
 const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 	util.rimraf('out-vscode-web'),
@@ -112,6 +116,11 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')));
 
 		const favicon = gulp.src('resources/server/favicon.ico', { base: 'resources/server' });
+		const manifest = gulp.src('resources/server/manifest.json', { base: 'resources/server' });
+		const pwaicons = es.merge(
+			gulp.src('resources/server/code-192.png', { base: 'resources/server' }),
+			gulp.src('resources/server/code-512.png', { base: 'resources/server' })
+		);
 
 		let all = es.merge(
 			packageJsonStream,
@@ -119,7 +128,9 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			license,
 			sources,
 			deps,
-			favicon
+			favicon,
+			manifest,
+			pwaicons
 		);
 
 		let result = all

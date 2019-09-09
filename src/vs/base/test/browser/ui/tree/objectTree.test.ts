@@ -36,7 +36,7 @@ suite('ObjectTree', function () {
 				disposeTemplate(): void { }
 			};
 
-			tree = new ObjectTree<number>(container, delegate, [renderer], { filter: { filter: (el) => filter(el) } });
+			tree = new ObjectTree<number>('test', container, delegate, [renderer], { filter: { filter: (el) => filter(el) } });
 			tree.layout(200);
 		});
 
@@ -208,7 +208,7 @@ suite('ObjectTree', function () {
 			}
 		};
 
-		const tree = new ObjectTree<number>(container, delegate, [renderer], { identityProvider });
+		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider });
 		tree.layout(200);
 
 		tree.setChildren(null, [{ element: 0 }, { element: 1 }, { element: 2 }, { element: 3 }]);
@@ -252,7 +252,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>(container, new Delegate(), [new Renderer()]);
+		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
 		const rows = toArray(container.querySelectorAll('.monaco-tl-contents'));
@@ -264,7 +264,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>(container, new Delegate(), [new Renderer()]);
+		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
 		tree.setChildren(null, [
@@ -288,7 +288,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>(container, new Delegate(), [new Renderer()]);
+		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
 		tree.setChildren(null, Iterator.fromArray([
@@ -345,7 +345,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>(container, new Delegate(), [new Renderer()]);
+		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
 		assert.equal(tree.isCompressionEnabled(), true);

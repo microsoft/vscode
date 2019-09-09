@@ -2532,6 +2532,18 @@ declare module 'vscode' {
 		TypeParameter = 25
 	}
 
+
+	/**
+	 * Symbol tags are extra annotations that tweak the rendering of a symbol.
+	 */
+	export enum SymbolTag {
+
+		/**
+		 * Render a symbol as obsolete, usually using a strike-out.
+		 */
+		Deprecated = 1
+	}
+
 	/**
 	 * Represents information about programming constructs like variables, classes,
 	 * interfaces etc.
@@ -2552,6 +2564,11 @@ declare module 'vscode' {
 		 * The kind of this symbol.
 		 */
 		kind: SymbolKind;
+
+		/**
+		 * Tags for this symbol.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
 
 		/**
 		 * The location of this symbol.
@@ -2603,6 +2620,11 @@ declare module 'vscode' {
 		 * The kind of this symbol.
 		 */
 		kind: SymbolKind;
+
+		/**
+		 * Tags for this symbol.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
 
 		/**
 		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
@@ -2786,7 +2808,7 @@ declare module 'vscode' {
 		 * *Note* that the eol-sequence will be applied to the
 		 * whole document.
 		 */
-		newEol: EndOfLine;
+		newEol?: EndOfLine;
 
 		/**
 		 * Create a new TextEdit.
@@ -3286,6 +3308,17 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Completion item tags are extra annotations that tweak the rendering of a completion
+	 * item.
+	 */
+	export enum CompletionItemTag {
+		/**
+		 * Render a completion as obsolete, usually using a strike-out.
+		 */
+		Deprecated = 1
+	}
+
+	/**
 	 * A completion item represents a text snippet that is proposed to complete text that is being typed.
 	 *
 	 * It is sufficient to create a completion item from just a [label](#CompletionItem.label). In that
@@ -3314,6 +3347,11 @@ declare module 'vscode' {
 		 * an icon is chosen by the editor.
 		 */
 		kind?: CompletionItemKind;
+
+		/**
+		 * Tags for this completion item.
+		 */
+		tags?: ReadonlyArray<CompletionItemTag>;
 
 		/**
 		 * A human-readable string with additional information
@@ -4283,6 +4321,13 @@ declare module 'vscode' {
 		 * instead of fading it out.
 		 */
 		Unnecessary = 1,
+
+		/**
+		 * Deprecated or obsolete code.
+		 *
+		 * Diagnostics with this tag are rendered with a strike through.
+		 */
+		Deprecated = 2,
 	}
 
 	/**
@@ -5201,7 +5246,7 @@ declare module 'vscode' {
 	 */
 	export enum TaskScope {
 		/**
-		 * The task is a global task
+		 * The task is a global task. Global tasks are currrently not supported.
 		 */
 		Global = 1,
 
@@ -5230,7 +5275,7 @@ declare module 'vscode' {
 		 * Creates a new task.
 		 *
 		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
+		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder. Global tasks are currently not supported.
 		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
@@ -5447,7 +5492,7 @@ declare module 'vscode' {
 		 * from `tasks.json` files as well as tasks from task providers
 		 * contributed through extensions.
 		 *
-		 * @param filter a filter to filter the return tasks.
+		 * @param filter Optional filter to select tasks of a certain type or version.
 		 */
 		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
 
@@ -5905,17 +5950,46 @@ declare module 'vscode' {
 
 		/**
 		 * Fired when the webview content posts a message.
+		 *
+		 * Webview content can post strings or json serilizable objects back to a VS Code extension. They cannot
+		 * post `Blob`, `File`, `ImageData` and other DOM specific objects since the extension that receives the
+		 * message does not run in a browser environment.
 		 */
 		readonly onDidReceiveMessage: Event<any>;
 
 		/**
 		 * Post a message to the webview content.
 		 *
-		 * Messages are only delivered if the webview is visible.
+		 * Messages are only delivered if the webview is live (either visible or in the
+		 * background with `retainContextWhenHidden`).
 		 *
-		 * @param message Body of the message.
+		 * @param message Body of the message. This must be a string or other json serilizable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside webviews.
+		 *
+		 * Webviews cannot directly load resources from the workspace or local file system using `file:` uris. The
+		 * `asWebviewUri` function takes a local `file:` uri and converts it into a uri that can be used inside of
+		 * a webview to load the same resource:
+		 *
+		 * ```ts
+		 * webview.html = `<img src="${webview.asWebviewUri(vscode.Uri.file('/Users/codey/workspace/cat.gif'))}">`
+		 * ```
+		 */
+		asWebviewUri(localResource: Uri): Uri;
+
+		/**
+		 * Content security policy source for webview resources.
+		 *
+		 * This is the origin that should be used in a content security policy rule:
+		 *
+		 * ```
+		 * img-src https: ${webview.cspSource} ...;
+		 * ```
+		 */
+		readonly cspSource: string;
 	}
 
 	/**
@@ -6761,25 +6835,34 @@ declare module 'vscode' {
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
 		/**
-		 * Creates a [Terminal](#Terminal). The cwd of the terminal will be the workspace directory
-		 * if it exists, regardless of whether an explicit customStartPath setting exists.
+		 * Creates a [Terminal](#Terminal) with a backing shell process. The cwd of the terminal will be the workspace
+		 * directory if it exists.
 		 *
 		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
 		 * @param shellPath Optional path to a custom shell executable to be used in the terminal.
 		 * @param shellArgs Optional args for the custom shell executable. A string can be used on Windows only which
-		 * allows specifying shell args in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
+		 * allows specifying shell args in
+		 * [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
 		 * @return A new Terminal.
 		 */
 		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): Terminal;
 
 		/**
-		 * Creates a [Terminal](#Terminal). The cwd of the terminal will be the workspace directory
-		 * if it exists, regardless of whether an explicit customStartPath setting exists.
+		 * Creates a [Terminal](#Terminal) with a backing shell process.
 		 *
 		 * @param options A TerminalOptions object describing the characteristics of the new terminal.
 		 * @return A new Terminal.
 		 */
 		export function createTerminal(options: TerminalOptions): Terminal;
+
+		/**
+		 * Creates a [Terminal](#Terminal) where an extension controls its input and output.
+		 *
+		 * @param options An [ExtensionTerminalOptions](#ExtensionTerminalOptions) object describing
+		 * the characteristics of the new terminal.
+		 * @return A new Terminal.
+		 */
+		export function createTerminal(options: ExtensionTerminalOptions): Terminal;
 
 		/**
 		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
@@ -6851,6 +6934,13 @@ declare module 'vscode' {
 		 * Whether to show collapse all action or not.
 		 */
 		showCollapseAll?: boolean;
+
+		/**
+		 * Whether the tree supports multi-select. When the tree supports multi-select and a command is executed from the tree,
+		 * the first argument to the command is the tree item that the command was executed on and the second argument is an
+		 * array containing all selected tree items.
+		 */
+		canSelectMany?: boolean;
 	}
 
 	/**
@@ -7125,6 +7215,169 @@ declare module 'vscode' {
 		 * as normal.
 		 */
 		hideFromUser?: boolean;
+	}
+
+	/**
+	 * Value-object describing what options a virtual process terminal should use.
+	 */
+	export interface ExtensionTerminalOptions {
+		/**
+		 * A human-readable string which will be used to represent the terminal in the UI.
+		 */
+		name: string;
+
+		/**
+		 * An implementation of [Pseudoterminal](#Pseudoterminal) that allows an extension to
+		 * control a terminal.
+		 */
+		pty: Pseudoterminal;
+	}
+
+	/**
+	 * Defines the interface of a terminal pty, enabling extensions to control a terminal.
+	 */
+	interface Pseudoterminal {
+		/**
+		 * An event that when fired will write data to the terminal. Unlike
+		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_
+		 * (the pty "slave"), this will write the text to the terminal itself (the pty "master").
+		 *
+		 * **Example:** Write red text to the terminal
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   open: () => writeEmitter.fire('\x1b[31mHello world\x1b[0m'),
+		 *   close: () => {}
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * ```
+		 *
+		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
+		 * ```typescript
+		 * writeEmitter.fire('\x1b[10;20H*');
+		 * ```
+		 */
+		onDidWrite: Event<string>;
+
+		/**
+		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
+		 * terminal. Note that when set, the overridden dimensions will only take effect when they
+		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
+		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions (fit to
+		 * the size of the panel).
+		 *
+		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
+		 * ```typescript
+		 * const dimensionsEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidOverrideDimensions: dimensionsEmitter.event,
+		 *   open: () => {
+		 *     dimensionsEmitter.fire({
+		 *       columns: 20,
+		 *       rows: 10
+		 *     });
+		 *   },
+		 *   close: () => {}
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * ```
+		 */
+		onDidOverrideDimensions?: Event<TerminalDimensions | undefined>;
+
+		/**
+		 * An event that when fired will signal that the pty is closed and dispose of the terminal.
+		 *
+		 * A number can be used to provide an exit code for the terminal. Exit codes must be
+		 * positive and a non-zero exit codes signals failure which shows a notification for a
+		 * regular terminal and allows dependent tasks to proceed when used with the
+		 * `CustomExecution2` API.
+		 *
+		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const closeEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidClose: closeEmitter.event,
+		 *   open: () => writeEmitter.fire('Press y to exit successfully'),
+		 *   close: () => {},
+		 *   handleInput: data => {
+		 *     if (data !== 'y') {
+		 *       vscode.window.showInformationMessage('Something went wrong');
+		 *     }
+		 *     closeEmitter.fire();
+		 *   }
+		 * };
+		 * vscode.window.createTerminal({ name: 'Exit example', pty });
+		 */
+		onDidClose?: Event<void | number>;
+
+		/**
+		 * Implement to handle when the pty is open and ready to start firing events.
+		 *
+		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
+		 * terminal panel has not been opened before this is called.
+		 */
+		open(initialDimensions: TerminalDimensions | undefined): void;
+
+		/**
+		 * Implement to handle when the terminal is closed by an act of the user.
+		 */
+		close(): void;
+
+		/**
+		 * Implement to handle incoming keystrokes in the terminal or when an extension calls
+		 * [Terminal.sendText](#Terminal.sendText). `data` contains the keystrokes/text serialized into
+		 * their corresponding VT sequence representation.
+		 *
+		 * @param data The incoming data.
+		 *
+		 * **Example:** Echo input in the terminal. The sequence for enter (`\r`) is translated to
+		 * CRLF to go to a new line and move the cursor to the start of the line.
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   open: () => {},
+		 *   close: () => {},
+		 *   handleInput: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
+		 * };
+		 * vscode.window.createTerminal({ name: 'Local echo', pty });
+		 * ```
+		 */
+		handleInput?(data: string): void;
+
+		/**
+		 * Implement to handle when the number of rows and columns that fit into the terminal panel
+		 * changes, for example when font size changes or when the panel is resized. The initial
+		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
+		 * as the size of a terminal isn't know until it shows up in the user interface.
+		 *
+		 * When dimensions are overridden by
+		 * [onDidOverrideDimensions](#Pseudoterminal.onDidOverrideDimensions), `setDimensions` will
+		 * continue to be called with the regular panel dimensions, allowing the extension continue
+		 * to react dimension changes.
+		 *
+		 * @param dimensions The new dimensions.
+		 */
+		setDimensions?(dimensions: TerminalDimensions): void;
+	}
+
+	/**
+	 * Represents the dimensions of a terminal.
+	 */
+	export interface TerminalDimensions {
+		/**
+		 * The number of columns in the terminal.
+		 */
+		readonly columns: number;
+
+		/**
+		 * The number of rows in the terminal.
+		 */
+		readonly rows: number;
 	}
 
 	/**
@@ -7758,7 +8011,7 @@ declare module 'vscode' {
 		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
 		 * @param exclude  A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
-		 * apply. When `null`, no search excludes will apply, but `files.exclude` will still apply.
+		 * apply, when `null` no excludes will apply.
 		 * @param maxResults An upper-bound for the result.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves to an array of resource identifiers. Will return no results if no
@@ -8052,8 +8305,7 @@ declare module 'vscode' {
 		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
 
 		/**
-		 * Get all diagnostics for a given resource. *Note* that this includes diagnostics from
-		 * all extensions but *not yet* from the task framework.
+		 * Get all diagnostics for a given resource.
 		 *
 		 * @param resource A resource
 		 * @returns An array of [diagnostics](#Diagnostic) objects or an empty array.
@@ -8061,8 +8313,7 @@ declare module 'vscode' {
 		export function getDiagnostics(resource: Uri): Diagnostic[];
 
 		/**
-		 * Get all diagnostics. *Note* that this includes diagnostics from
-		 * all extensions but *not yet* from the task framework.
+		 * Get all diagnostics.
 		 *
 		 * @returns An array of uri-diagnostics tuples or an empty array.
 		 */
@@ -8085,9 +8336,14 @@ declare module 'vscode' {
 		 * result. A failing provider (rejected promise or exception) will not fail the whole
 		 * operation.
 		 *
+		 * A completion item provider can be associated with a set of `triggerCharacters`. When trigger
+		 * characters are being typed, completions are requested but only from providers that registered
+		 * the typed character. Because of that trigger characters should be different than [word characters](#LanguageConfiguration.wordPattern),
+		 * a common trigger character is `.` to trigger member completions.
+		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A completion provider.
-		 * @param triggerCharacters Trigger completion when the user types one of the characters, like `.` or `:`.
+		 * @param triggerCharacters Trigger completion when the user types one of the characters.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerCompletionItemProvider(selector: DocumentSelector, provider: CompletionItemProvider, ...triggerCharacters: string[]): Disposable;
@@ -8646,9 +8902,10 @@ declare module 'vscode' {
 		readonly type: string;
 
 		/**
-		 * The debug session's name from the [debug configuration](#DebugConfiguration).
+		 * The debug session's name is initially taken from the [debug configuration](#DebugConfiguration).
+		 * Any changes will be properly reflected in the UI.
 		 */
-		readonly name: string;
+		name: string;
 
 		/**
 		 * The workspace folder of this session or `undefined` for a folderless setup.

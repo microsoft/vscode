@@ -96,7 +96,7 @@ export interface IUntitledWorkspaceInfo {
 }
 
 export interface IWorkspacesMainService extends IWorkspacesService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
@@ -112,7 +112,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 }
 
 export interface IWorkspacesService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 

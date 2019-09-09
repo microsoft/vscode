@@ -45,6 +45,13 @@
 	float: right;
 }
 
+/* MarkupContent Layout */
+.monaco-editor .suggest-widget > .details ul {
+	padding-left: 20px;
+}
+.monaco-editor .suggest-widget > .details ol {
+	padding-left: 20px;
+}
 
 /* Styles for Message element for when widget is loading or is empty */
 .monaco-editor .suggest-widget > .message {
@@ -110,7 +117,9 @@
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
 	background-image: url('./close-light.svg');
-	float: right;
+	position: absolute;
+	top: 0;
+	right: 0;
 	margin-right: 5px;
 }
 
@@ -153,9 +162,17 @@
 }
 
 /** Styles for each row in the list **/
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.deprecated {
+	opacity: 0.66;
+	text-decoration: unset;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.deprecated > .monaco-icon-label-description-container {
+	text-decoration: line-through;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label::before {
 	height: 100%;
-
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {
@@ -251,7 +268,7 @@
 	text-overflow: ellipsis;
 	opacity: 0.7;
 	word-break: break-all;
-	margin: 0;
+	margin: 0 24px 0 0;
 	padding: 4px 0 12px 5px;
 }
 

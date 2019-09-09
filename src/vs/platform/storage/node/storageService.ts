@@ -15,11 +15,10 @@ import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class StorageService extends Disposable implements IStorageService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private static WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static WORKSPACE_META_NAME = 'workspace.json';
@@ -81,7 +80,7 @@ export class StorageService extends Disposable implements IStorageService {
 
 			const useInMemoryStorage = !!this.environmentService.extensionTestsLocationURI; // no storage during extension tests!
 
-			// Create workspace storage and initalize
+			// Create workspace storage and initialize
 			mark('willInitWorkspaceStorage');
 			try {
 				await this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, StorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined).init();

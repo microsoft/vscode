@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
@@ -59,7 +59,7 @@ export interface IStatusbarEntry {
 
 export interface IStatusbarService {
 
-	_serviceBrand: ServiceIdentifier<IStatusbarService>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor

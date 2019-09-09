@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRequestOptions, IRequestContext } from 'vs/platform/request/common/request';
+import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 import { RequestService as NodeRequestService, IRawRequestFunction } from 'vs/platform/request/node/requestService';
 import { assign } from 'vs/base/common/objects';
 import { net } from 'electron';

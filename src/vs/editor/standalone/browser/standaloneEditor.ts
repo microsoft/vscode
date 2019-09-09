@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -30,7 +30,7 @@ import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standal
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -119,6 +119,8 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IStandaloneThemeService),
 			services.get(INotificationService),
 			services.get(IConfigurationService),
+			services.get(IContextMenuService),
+			null
 		);
 	});
 }
@@ -349,6 +351,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		remeasureFonts: remeasureFonts,
 
 		// enums
+		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
@@ -368,14 +371,14 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
 
 		// classes
-		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,
+		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
 		BareFontInfo: <any>BareFontInfo,
 		FontInfo: <any>FontInfo,
 		TextModelResolvedOptions: <any>TextModelResolvedOptions,
 		FindMatch: <any>FindMatch,
 
 		// vars
-		EditorType: editorCommon.EditorType
+		EditorType: editorCommon.EditorType,
 
 	};
 }

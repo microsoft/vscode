@@ -26,7 +26,7 @@ export interface IStoredWorkspace {
 
 export class WorkspacesMainService extends Disposable implements IWorkspacesMainService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly untitledWorkspacesHome: URI; // local URI that contains all untitled workspaces
 

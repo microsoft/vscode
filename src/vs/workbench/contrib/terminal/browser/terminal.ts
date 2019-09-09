@@ -19,7 +19,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
  * dependency on ITerminalService.
  */
 export interface ITerminalInstanceService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	// These events are optional as the requests they make are only needed on the browser side
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
@@ -30,10 +30,10 @@ export interface ITerminalInstanceService {
 	createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess;
 
-	getDefaultShellAndArgs(platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
+	getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
-	panelContainer: HTMLElement;
+	panelContainer: HTMLElement | undefined;
 }

@@ -14,7 +14,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IDecorationsService, IResourceDecorationChangeEvent, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG, IFileService } from 'vs/platform/files/common/files';
 import { ITextModel } from 'vs/editor/common/model';
@@ -34,7 +34,7 @@ export interface IResourceLabelProps {
 
 export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	fileKind?: FileKind;
-	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
+	fileDecorations?: { colors: boolean, badges: boolean };
 	descriptionVerbosity?: Verbosity;
 }
 
@@ -317,38 +317,32 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	notifyFormattersChange(): void {
-		if (this.label && this.label.resource) {
-			this.setFile(this.label.resource, this.options);
-		}
 		this.render(false);
 	}
 
 	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void {
-		const hasResourceChanged = this.hasResourceChanged(label, options);
+		const hasPathLabelChanged = this.hasPathLabelChanged(label, options);
+		const clearIconCache = this.clearIconCache(label, options);
 
 		this.label = label;
 		this.options = options;
 
-		if (hasResourceChanged) {
+		if (hasPathLabelChanged) {
 			this.computedPathLabel = undefined; // reset path label due to resource change
 		}
 
-		this.render(hasResourceChanged);
+		this.render(clearIconCache);
 	}
 
-	private hasResourceChanged(label: IResourceLabelProps, options?: IResourceLabelOptions): boolean {
-		const newResource = label ? label.resource : undefined;
+	private clearIconCache(newLabel: IResourceLabelProps, newOptions?: IResourceLabelOptions): boolean {
+		const newResource = newLabel ? newLabel.resource : undefined;
 		const oldResource = this.label ? this.label.resource : undefined;
 
-		const newFileKind = options ? options.fileKind : undefined;
+		const newFileKind = newOptions ? newOptions.fileKind : undefined;
 		const oldFileKind = this.options ? this.options.fileKind : undefined;
 
 		if (newFileKind !== oldFileKind) {
 			return true; // same resource but different kind (file, folder)
-		}
-
-		if (newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource)) {
-			return true;
 		}
 
 		if (newResource && oldResource) {
@@ -360,6 +354,12 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		return true;
+	}
+
+	private hasPathLabelChanged(newLabel: IResourceLabelProps, newOptions?: IResourceLabelOptions): boolean {
+		const newResource = newLabel ? newLabel.resource : undefined;
+
+		return !!newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource);
 	}
 
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
@@ -460,6 +460,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		}
+
 		if (this.options && this.options.extraClasses) {
 			iconLabelOptions.extraClasses!.push(...this.options.extraClasses);
 		}
@@ -467,8 +468,7 @@ class ResourceLabelWidget extends IconLabel {
 		if (this.options && this.options.fileDecorations && resource) {
 			const deco = this.decorationsService.getDecoration(
 				resource,
-				this.options.fileKind !== FileKind.FILE,
-				this.options.fileDecorations.data
+				this.options.fileKind !== FileKind.FILE
 			);
 
 			if (deco) {

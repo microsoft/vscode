@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -320,7 +320,7 @@ export class Configuration extends CommonEditorConfiguration {
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
 
-		if (this._validatedOptions.automaticLayout) {
+		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
 			this._elementSizeObserver.startObserving();
 		}
 

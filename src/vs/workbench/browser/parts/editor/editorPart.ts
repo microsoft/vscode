@@ -10,8 +10,8 @@ import { Dimension, isAncestor, toggleClass, addClass, $ } from 'vs/base/browser
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
@@ -24,10 +24,8 @@ import { assign } from 'vs/base/common/objects';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
-import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
-import { IView, orthogonal, LayoutPriority, IViewSize } from 'vs/base/browser/ui/grid/gridview';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -83,7 +81,7 @@ class GridWidgetView<T extends IView> implements IView {
 
 export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsAccessor {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
@@ -95,6 +93,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private readonly _onDidActiveGroupChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActiveGroupChange: Event<IEditorGroupView> = this._onDidActiveGroupChange.event;
+
+	private readonly _onDidGroupIndexChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidGroupIndexChange: Event<IEditorGroupView> = this._onDidGroupIndexChange.event;
 
 	private readonly _onDidActivateGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActivateGroup: Event<IEditorGroupView> = this._onDidActivateGroup.event;
@@ -112,12 +113,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
 	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return Event.any(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event); }
 
-	private readonly _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidPreferredSizeChange: Event<void> = this._onDidPreferredSizeChange.event;
+	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
+	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
 
 	//#endregion
-
-	private _preferredSize: Dimension | undefined;
 
 	private readonly workspaceMemento: MementoObject;
 	private readonly globalMemento: MementoObject;
@@ -141,7 +140,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -205,8 +204,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#region IEditorGroupsService
 
-	private _dimension: Dimension;
-	get dimension(): Dimension { return this._dimension; }
+	private _contentDimension: Dimension;
+	get contentDimension(): Dimension { return this._contentDimension; }
 
 	get activeGroup(): IEditorGroupView {
 		return this._activeGroup;
@@ -326,6 +325,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return groupView;
 	}
 
+	restoreGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+		const groupView = this.assertGroupView(group);
+		this.doRestoreGroup(groupView);
+
+		return groupView;
+	}
+
 	getSize(group: IEditorGroupView | GroupIdentifier): { width: number, height: number } {
 		const groupView = this.assertGroupView(group);
 
@@ -338,7 +344,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.gridWidget.resizeView(groupView, size);
 	}
 
-	arrangeGroups(arrangement: GroupsArrangement): void {
+	arrangeGroups(arrangement: GroupsArrangement, target = this.activeGroup): void {
 		if (this.count < 2) {
 			return; // require at least 2 groups to show
 		}
@@ -347,15 +353,36 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			return; // we have not been created yet
 		}
 
-		// Even all group sizes
-		if (arrangement === GroupsArrangement.EVEN) {
-			this.gridWidget.distributeViewSizes();
+		switch (arrangement) {
+			case GroupsArrangement.EVEN:
+				this.gridWidget.distributeViewSizes();
+				break;
+			case GroupsArrangement.MINIMIZE_OTHERS:
+				this.gridWidget.maximizeViewSize(target);
+				break;
+			case GroupsArrangement.TOGGLE:
+				if (this.isGroupMaximized(target)) {
+					this.arrangeGroups(GroupsArrangement.EVEN);
+				} else {
+					this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+				}
+
+				break;
+		}
+	}
+
+	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {
+		for (const group of this.groups) {
+			if (group === targetGroup) {
+				continue; // ignore target group
+			}
+
+			if (!group.isMinimized) {
+				return false; // target cannot be maximized if one group is not minimized
+			}
 		}
 
-		// Maximize the current active group
-		else {
-			this.gridWidget.maximizeViewSize(this.activeGroup);
-		}
+		return true;
 	}
 
 	setGroupOrientation(orientation: GroupOrientation): void {
@@ -366,9 +393,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const newOrientation = (orientation === GroupOrientation.HORIZONTAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 		if (this.gridWidget.orientation !== newOrientation) {
 			this.gridWidget.orientation = newOrientation;
-
-			// Mark preferred size as changed
-			this.resetPreferredSize();
 		}
 	}
 
@@ -418,13 +442,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doCreateGridControlWithState(gridDescriptor, activeGroup.id, currentGroupViews);
 
 		// Layout
-		this.doLayout(this._dimension);
+		this.doLayout(this._contentDimension);
 
 		// Update container
 		this.updateContainer();
-
-		// Mark preferred size as changed
-		this.resetPreferredSize();
 
 		// Events for groups that got added
 		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(groupView => {
@@ -433,8 +454,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			}
 		});
 
-		// Update labels
-		this.updateGroupLabels();
+		// Notify group index change given layout has changed
+		this.notifyGroupIndexChange();
 
 		// Restore focus as needed
 		if (restoreFocus) {
@@ -490,31 +511,25 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Update container
 		this.updateContainer();
 
-		// Mark preferred size as changed
-		this.resetPreferredSize();
-
 		// Event
 		this._onDidAddGroup.fire(newGroupView);
 
-		// Update labels
-		this.updateGroupLabels();
+		// Notify group index change given a new group was added
+		this.notifyGroupIndexChange();
 
 		return newGroupView;
 	}
 
 	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroup | null): IEditorGroupView {
 
-		// Label: just use the number of existing groups as label
-		const label = this.getGroupLabel(this.count + 1);
-
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this, label, this.instantiationService);
+			groupView = EditorGroupView.createCopy(from, this, this.count, this.instantiationService);
 		} else if (isSerializedEditorGroup(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this, label, this.instantiationService);
+			groupView = EditorGroupView.createFromSerialized(from, this, this.count, this.instantiationService);
 		} else {
-			groupView = EditorGroupView.createNew(this, label, this.instantiationService);
+			groupView = EditorGroupView.createNew(this, this.count, this.instantiationService);
 		}
 
 		// Keep in map
@@ -528,8 +543,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Track editor change
 		groupDisposables.add(groupView.onDidGroupChange(e => {
-			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
-				this.updateContainer();
+			switch (e.kind) {
+				case GroupChangeKind.EDITOR_ACTIVE:
+					this.updateContainer();
+					break;
+				case GroupChangeKind.GROUP_INDEX:
+					this._onDidGroupIndexChange.fire(groupView);
+					break;
 			}
 		}));
 
@@ -563,15 +583,19 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		group.setActive(true);
 
 		// Maximize the group if it is currently minimized
-		if (this.gridWidget) {
-			const viewSize = this.gridWidget.getViewSize(group);
-			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
-				this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
-			}
-		}
+		this.doRestoreGroup(group);
 
 		// Event
 		this._onDidActiveGroupChange.fire(group);
+	}
+
+	private doRestoreGroup(group: IEditorGroupView): void {
+		if (this.gridWidget) {
+			const viewSize = this.gridWidget.getViewSize(group);
+			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
+				this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS, group);
+			}
+		}
 	}
 
 	private doUpdateMostRecentActive(group: IEditorGroupView, makeMostRecentlyActive?: boolean): void {
@@ -612,7 +636,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		}
 
 		// Remove empty group
-		if (groupView.isEmpty()) {
+		if (groupView.isEmpty) {
 			return this.doRemoveEmptyGroup(groupView);
 		}
 
@@ -655,14 +679,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			this._activeGroup.focus();
 		}
 
-		// Update labels
-		this.updateGroupLabels();
+		// Notify group index change given a group was removed
+		this.notifyGroupIndexChange();
 
 		// Update container
 		this.updateContainer();
-
-		// Mark preferred size as changed
-		this.resetPreferredSize();
 
 		// Event
 		this._onDidRemoveGroup.fire(groupView);
@@ -689,6 +710,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Event
 		this._onDidMoveGroup.fire(sourceView);
+
+		// Notify group index change given a group was moved
+		this.notifyGroupIndexChange();
 
 		return sourceView;
 	}
@@ -730,7 +754,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		});
 
 		// Remove source if the view is now empty and not already removed
-		if (sourceView.isEmpty() && !sourceView.disposed /* could have been disposed already via workbench.editor.closeEmptyGroups setting */) {
+		if (sourceView.isEmpty && !sourceView.disposed /* could have been disposed already via workbench.editor.closeEmptyGroups setting */) {
 			this.removeGroup(sourceView);
 		}
 
@@ -756,30 +780,16 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#region Part
 
-	get minimumWidth(): number { return this.centeredLayoutWidget.minimumWidth; }
+	// TODO @sbatten @joao find something better to prevent editor taking over #79897
+	get minimumWidth(): number { return Math.min(this.centeredLayoutWidget.minimumWidth, this.layoutService.getMaximumEditorDimensions().width); }
 	get maximumWidth(): number { return this.centeredLayoutWidget.maximumWidth; }
-	get minimumHeight(): number { return this.centeredLayoutWidget.minimumHeight; }
+	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions().height); }
 	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
 
-	get onDidChange(): Event<IViewSize | undefined> { return this.centeredLayoutWidget.onDidChange; }
+	readonly snap = true;
+
+	get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
 	readonly priority: LayoutPriority = LayoutPriority.High;
-
-	get preferredSize(): Dimension {
-		if (!this._preferredSize) {
-			this._preferredSize = new Dimension(this.gridWidget.minimumWidth, this.gridWidget.minimumHeight);
-		}
-
-		return this._preferredSize;
-	}
-
-	private resetPreferredSize(): void {
-
-		// Reset (will be computed upon next access)
-		this._preferredSize = undefined;
-
-		// Event
-		this._onDidPreferredSizeChange.fire();
-	}
 
 	private get gridSeparatorBorder(): Color {
 		return this.theme.getColor(EDITOR_GROUP_BORDER) || this.theme.getColor(contrastBorder) || Color.transparent;
@@ -814,6 +824,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	centerLayout(active: boolean): void {
 		this.centeredLayoutWidget.activate(active);
+
 		this._activeGroup.focus();
 	}
 
@@ -843,6 +854,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Update container
 		this.updateContainer();
+
+		// Notify group index change we created the entire grid
+		this.notifyGroupIndexChange();
 	}
 
 	private doCreateGridControlWithPreviousState(): boolean {
@@ -936,26 +950,15 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private updateContainer(): void {
-		toggleClass(this.container, 'empty', this.isEmpty());
+		toggleClass(this.container, 'empty', this.isEmpty);
 	}
 
-	private updateGroupLabels(): void {
-
-		// Since our labels are created using the index of the
-		// group, adding/removing a group might produce gaps.
-		// So we iterate over all groups and reassign the label
-		// based on the index.
-		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach((group, index) => {
-			group.setLabel(this.getGroupLabel(index + 1));
-		});
+	private notifyGroupIndexChange(): void {
+		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach((group, index) => group.notifyIndexChanged(index));
 	}
 
-	private getGroupLabel(index: number): string {
-		return localize('groupLabel', "Group {0}", index);
-	}
-
-	private isEmpty(): boolean {
-		return this.groupViews.size === 1 && this._activeGroup.isEmpty();
+	private get isEmpty(): boolean {
+		return this.groupViews.size === 1 && this._activeGroup.isEmpty;
 	}
 
 	layout(width: number, height: number): void {
@@ -968,10 +971,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doLayout(dimension: Dimension): void {
-		this._dimension = dimension;
+		this._contentDimension = dimension;
 
 		// Layout Grid
-		this.centeredLayoutWidget.layout(this._dimension.width, this._dimension.height);
+		this.centeredLayoutWidget.layout(this._contentDimension.width, this._contentDimension.height);
 
 		// Event
 		this._onDidLayout.fire(dimension);
@@ -987,7 +990,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				mostRecentActiveGroups: this.mostRecentActiveGroups
 			};
 
-			if (this.isEmpty()) {
+			if (this.isEmpty) {
 				delete this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 			} else {
 				this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
@@ -1020,6 +1023,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	//#endregion
+
+	setVisible(visible: boolean): void {
+		this._onDidVisibilityChange.fire(visible);
+	}
 
 	toJSON(): object {
 		return {

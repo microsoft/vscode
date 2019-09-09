@@ -11,7 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
@@ -105,14 +105,14 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		}));
 
 		const updateFont = () => {
-			const fontInfo = this.editor.getConfiguration().fontInfo;
+			const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 			this.element.style.fontSize = `${fontInfo.fontSize}px`;
 		};
 
 		updateFont();
 
-		this._register(Event.chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
-			.filter(e => e.fontInfo)
+		this._register(Event.chain<ConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
+			.filter(e => e.hasChanged(EditorOption.fontInfo))
 			.on(updateFont, null));
 
 		this._register(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
@@ -177,7 +177,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 		const code = dom.append(this.signature, $('.code'));
 		const hasParameters = signature.parameters.length > 0;
 
-		const fontInfo = this.editor.getConfiguration().fontInfo;
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		code.style.fontSize = `${fontInfo.fontSize}px`;
 		code.style.fontFamily = fontInfo.fontFamily;
 
@@ -206,8 +206,6 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			dom.append(this.docs, $('p', {}, documentation));
 		}
 
-		dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
-
 		if (signature.documentation === undefined) { /** no op */ }
 		else if (typeof signature.documentation === 'string') {
 			dom.append(this.docs, $('p', {}, signature.documentation));
@@ -217,6 +215,23 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget, 
 			this.renderDisposeables.add(renderedContents);
 			dom.append(this.docs, renderedContents.element);
 		}
+
+		let hasDocs = false;
+		if (activeParameter && typeof (activeParameter.documentation) === 'string' && activeParameter.documentation.length > 0) {
+			hasDocs = true;
+		}
+		if (activeParameter && typeof (activeParameter.documentation) === 'object' && activeParameter.documentation.value.length > 0) {
+			hasDocs = true;
+		}
+		if (typeof (signature.documentation) === 'string' && signature.documentation.length > 0) {
+			hasDocs = true;
+		}
+		if (typeof (signature.documentation) === 'object' && signature.documentation.value.length > 0) {
+			hasDocs = true;
+		}
+
+		dom.toggleClass(this.signature, 'has-docs', hasDocs);
+		dom.toggleClass(this.docs, 'empty', !hasDocs);
 
 		let currentOverload = String(hints.activeSignature + 1);
 

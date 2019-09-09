@@ -27,7 +27,7 @@ function getFileEventsExcludes(configurationService: IConfigurationService, root
 }
 
 export class ExplorerService implements IExplorerService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
@@ -158,7 +158,11 @@ export class ExplorerService implements IExplorerService {
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === 'modified' };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
-		const rootUri = workspaceFolder ? workspaceFolder.uri : this.roots[0].resource;
+		if (workspaceFolder === null) {
+			return Promise.resolve(undefined);
+		}
+		const rootUri = workspaceFolder.uri;
+
 		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
 
 		try {
