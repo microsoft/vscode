@@ -194,7 +194,9 @@ function inlineAmdImages(src, result) {
                     const repoLocation = path.join(src, imagePath);
                     const absoluteLocation = path.join(REPO_ROOT_PATH, repoLocation);
                     if (!fs.existsSync(absoluteLocation)) {
-                        throw new Error(`Invalid amd image url in file ${sourceFile.path}: ${imagePath}`);
+                        const message = `Invalid amd image url in file ${sourceFile.path}: ${imagePath}`;
+                        console.log(message);
+                        throw new Error(message);
                     }
                     const fileContents = fs.readFileSync(absoluteLocation);
                     const mime = /\.svg$/.test(imagePath) ? 'image/svg+xml' : 'image/png';
