@@ -51,7 +51,6 @@
 
 .monaco-split-view2.horizontal > .split-view-container > .split-view-view {
 	height: 100%;
-	display: inline-block;
 }
 
 .monaco-split-view2.separator-border > .split-view-container > .split-view-view:not(:first-child)::before {
