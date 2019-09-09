@@ -173,9 +173,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		renderer
 	};
 
-	const allowedSchemes = ['http', 'https', 'mailto', 'data', Schemas.file, Schemas.vscodeRemote];
+	const allowedSchemes = [Schemas.http, Schemas.https, Schemas.mailto, Schemas.data, Schemas.file, Schemas.vscodeRemote];
 	if (markdown.isTrusted) {
-		allowedSchemes.push('command');
+		allowedSchemes.push(Schemas.command);
 	}
 
 	const renderedMarkdown = marked.parse(markdown.value, markedOptions);
