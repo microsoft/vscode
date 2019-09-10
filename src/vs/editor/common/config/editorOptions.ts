@@ -1954,11 +1954,18 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		}
 		if (typeof _input === 'object') {
 			const input = _input as IQuickSuggestionsOptions;
-			return {
+			const opts = {
 				other: EditorBooleanOption.boolean(input.other, this.defaultValue.other),
 				comments: EditorBooleanOption.boolean(input.comments, this.defaultValue.comments),
 				strings: EditorBooleanOption.boolean(input.strings, this.defaultValue.strings),
 			};
+			if (opts.other && opts.comments && opts.strings) {
+				return true; // all on
+			} else if (!opts.other && !opts.comments && !opts.strings) {
+				return false; // all off
+			} else {
+				return opts;
+			}
 		}
 		return this.defaultValue;
 	}
