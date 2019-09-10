@@ -130,9 +130,11 @@ export async function applyCodeAction(
 			await commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
 		} catch (err) {
 			const message = asMessage(err);
-			if (typeof message === 'string') {
-				notificationService.error(message);
-			}
+			notificationService.error(
+				typeof message === 'string'
+					? message
+					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
+
 		}
 	}
 }
