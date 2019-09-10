@@ -954,22 +954,22 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 }
 
-class CompressibleAsyncDataTreeNodeMapper<TInput, T, TFilterData> extends WeakMapper<ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T> | null>, TFilterData>, ITreeNode<ICompressedTreeNode<TInput | T>, TFilterData>> {
+// class CompressibleAsyncDataTreeNodeMapper<TInput, T, TFilterData> extends WeakMapper<ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T> | null>, TFilterData>, ITreeNode<ICompressedTreeNode<TInput | T>, TFilterData>> {
 
-	constructor(private nodeMapper: AsyncDataTreeNodeMapper<TInput, T, TFilterData>) {
-		super();
-	}
+// 	constructor(private nodeMapper: AsyncDataTreeNodeMapper<TInput, T, TFilterData>) {
+// 		super();
+// 	}
 
-	protected getProp(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T> | null>, TFilterData>, prop: string | number | Symbol): any {
-		if (prop === 'element') {
-			return node.element.element;
-		} else if (prop === 'children') {
-			return node.children.map(child => this.map(child));
-		}
+// 	protected getProp(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T> | null>, TFilterData>, prop: string | number | Symbol): any {
+// 		if (prop === 'element') {
+// 			return node.element.element;
+// 		} else if (prop === 'children') {
+// 			return node.children.map(child => this.map(child));
+// 		}
 
-		return (node as any)[prop];
-	}
-}
+// 		return (node as any)[prop];
+// 	}
+// }
 
 class CompressibleDataTreeRenderer<TInput, T, TFilterData, TTemplateData>
 	extends DataTreeRenderer<TInput, T, TFilterData, TTemplateData>
