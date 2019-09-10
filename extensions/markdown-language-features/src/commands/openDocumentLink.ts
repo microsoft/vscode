@@ -13,8 +13,9 @@ import { isMarkdownFile } from '../util/file';
 
 
 export interface OpenDocumentLinkArgs {
-	path: string;
-	fragment: string;
+	readonly path: string;
+	readonly fragment: string;
+	readonly fromResource: any;
 }
 
 enum OpenMarkdownLinks {
@@ -27,10 +28,15 @@ export class OpenDocumentLinkCommand implements Command {
 	public readonly id = OpenDocumentLinkCommand.id;
 
 	public static createCommandUri(
+		fromResource: vscode.Uri,
 		path: string,
-		fragment: string
+		fragment: string,
 	): vscode.Uri {
-		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ path: encodeURIComponent(path), fragment }))}`);
+		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify(<OpenDocumentLinkArgs>{
+			path: encodeURIComponent(path),
+			fragment,
+			fromResource: encodeURIComponent(fromResource.toString(true)),
+		}))}`);
 	}
 
 	public constructor(
@@ -38,19 +44,21 @@ export class OpenDocumentLinkCommand implements Command {
 	) { }
 
 	public execute(args: OpenDocumentLinkArgs) {
-		const p = decodeURIComponent(args.path);
-		return this.tryOpen(p, args).catch(() => {
-			if (p && extname(p) === '') {
-				return this.tryOpen(p + '.md', args);
+		const fromResource = vscode.Uri.parse(decodeURIComponent(args.fromResource));
+		const targetPath = decodeURIComponent(args.path);
+		const column = this.getViewColumn(fromResource);
+		return this.tryOpen(targetPath, args, column).catch(() => {
+			if (targetPath && extname(targetPath) === '') {
+				return this.tryOpen(targetPath + '.md', args, column);
 			}
-			const resource = vscode.Uri.file(p);
+			const targetResource = vscode.Uri.file(targetPath);
 			return Promise.resolve(undefined)
-				.then(() => vscode.commands.executeCommand('vscode.open', resource))
+				.then(() => vscode.commands.executeCommand('vscode.open', targetResource, column))
 				.then(() => undefined);
 		});
 	}
 
-	private async tryOpen(path: string, args: OpenDocumentLinkArgs) {
+	private async tryOpen(path: string, args: OpenDocumentLinkArgs, column: vscode.ViewColumn) {
 		const resource = vscode.Uri.file(path);
 		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
 			if (!path || vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
@@ -58,7 +66,6 @@ export class OpenDocumentLinkCommand implements Command {
 			}
 		}
 
-		const column = this.getViewColumn(resource);
 		return vscode.workspace.openTextDocument(resource)
 			.then(document => vscode.window.showTextDocument(document, column))
 			.then(editor => this.tryRevealLine(editor, args.fragment));
