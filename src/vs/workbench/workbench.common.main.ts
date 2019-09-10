@@ -30,7 +30,6 @@ import 'vs/workbench/browser/parts/quickinput/quickInputActions';
 
 import 'vs/workbench/api/common/menusExtensionPoint';
 import 'vs/workbench/api/common/configurationExtensionPoint';
-import 'vs/workbench/api/common/userDataExtensionPoint';
 import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#endregion
