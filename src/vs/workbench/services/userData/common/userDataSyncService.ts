@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IUserDataProviderService, IUserDataExtension, SyncStatus } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncService, SyncStatus, IRemoteUserDataService } from 'vs/workbench/services/userData/common/userData';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { timeout } from 'vs/base/common/async';
+import { ISettingsSyncService } from 'vs/workbench/services/userData/common/settingsSync';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -28,21 +28,22 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	constructor(
-		@IUserDataProviderService private readonly userDataProviderService: IUserDataProviderService
+		@IRemoteUserDataService private readonly remoteUserDataService: IRemoteUserDataService,
+		@ISettingsSyncService private readonly settingsSyncService: ISettingsSyncService
 	) {
 		super();
 	}
 
 
 	async synchronise(): Promise<void> {
+		if (!this.remoteUserDataService.isEnabled()) {
+			throw new Error('Not enabled');
+		}
 		this.syncStatus = SyncStatus.Syncing;
-		await timeout(5000);
+		await this.settingsSyncService.sync();
 		this.syncStatus = SyncStatus.SyncDone;
 	}
 
-	getExtensions(): Promise<IUserDataExtension[]> {
-		return Promise.resolve([]);
-	}
 
 }
 

@@ -991,9 +991,7 @@ declare module 'vscode' {
 
 	export namespace window {
 
-		export function registerUserLoginProvider(userDataId: string, userLoginProvider: UserLoginProvider): Disposable;
-
-		export function registerUserDataProvider(userDataId: string, userDataProvider: UserDataProvider): Disposable;
+		export function registerUserDataProvider(name: string, userDataProvider: UserDataProvider): Disposable;
 
 	}
 
@@ -1002,16 +1000,6 @@ declare module 'vscode' {
 		read(key: string): Promise<{ version: number, content: string } | null>;
 
 		write(key: string, version: number, content: string): Promise<void>;
-
-	}
-
-	export interface UserLoginProvider {
-
-		isLoggedin(): boolean;
-
-		readonly onDidChange: Event<void>;
-
-		login(): Promise<void>;
 
 	}
 

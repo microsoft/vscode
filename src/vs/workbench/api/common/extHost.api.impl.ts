@@ -125,7 +125,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHosLabelService, new ExtHostLabelService(rpcProtocol));
-	const extHostUserData = rpcProtocol.set(ExtHostContext.ExtHostUserData, new ExtHostUserData(rpcProtocol.getProxy(MainContext.MainThreadUserData), extHostFileSystem));
+	const extHostUserData = rpcProtocol.set(ExtHostContext.ExtHostUserData, new ExtHostUserData(rpcProtocol.getProxy(MainContext.MainThreadUserData), extHostLogService));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
@@ -541,10 +541,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerUserDataProvider: (identity: string, userDataProvider: vscode.UserDataProvider): vscode.Disposable => {
 				checkProposedApiEnabled(extension);
 				return extHostUserData.registerUserDataProvider(identity, userDataProvider);
-			},
-			registerUserLoginProvider: (identity: string, userLoginProvider: vscode.UserLoginProvider): vscode.Disposable => {
-				checkProposedApiEnabled(extension);
-				return extHostUserData.registerUserLoginProvider(identity, userLoginProvider);
 			}
 		};
 

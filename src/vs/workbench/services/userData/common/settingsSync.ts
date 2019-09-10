@@ -25,8 +25,13 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const ISettingsSyncService = createDecorator<ISettingsSyncService>('ISettingsSyncService');
 
 export interface ISettingsSyncService {
+	_serviceBrand: undefined;
 	sync(): Promise<void>;
 }
 
@@ -39,6 +44,7 @@ interface ISyncPreviewResult {
 }
 
 export class SettingsSyncService extends Disposable implements ISettingsSyncService, ITextModelContentProvider {
+	_serviceBrand: undefined;
 
 	private static LAST_SYNC_SETTINGS_STORAGE_KEY: string = 'LAST_SYNC_SETTINGS_CONTENTS';
 	private static EXTERNAL_USER_DATA_SETTINGS_KEY: string = 'settings';
@@ -402,3 +408,5 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 	}
 
 }
+
+registerSingleton(ISettingsSyncService, SettingsSyncService);
