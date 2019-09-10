@@ -3697,10 +3697,10 @@ gulp-symdest@^1.1.1:
     queue "^3.1.0"
     vinyl-fs "^2.4.3"
 
-gulp-tsb@4.0.1:
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/gulp-tsb/-/gulp-tsb-4.0.1.tgz#be2d8900d9227abf0e728a33139891e49b9e85d3"
-  integrity sha512-HHR5qMjj/NyFlYdY6AIql7bWosFAknNfeJumwdkPkNaw6GtHVoaK+hPmWgmyK9Otf9nqcETtI5KI2vIla6Vhdw==
+gulp-tsb@4.0.2:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/gulp-tsb/-/gulp-tsb-4.0.2.tgz#8717a18f1ce032147e010028f0a59863bd552b96"
+  integrity sha512-xF88h0vFH8JkunSnmVrYfrR3LGTMAY+KTkHHF/S9BAOCsdaC83/hv4EmpcLxev7B+2yd3+xcitlsDFMBSo/gSw==
   dependencies:
     ansi-colors "^1.0.1"
     fancy-log "^1.3.2"
@@ -9158,10 +9158,10 @@ xterm-addon-web-links@0.1.0-beta10:
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.1.0-beta10.tgz#610fa9773a2a5ccd41c1c83ba0e2dd2c9eb66a23"
   integrity sha512-xfpjy0V6bB4BR44qIgZQPoCMVakxb65gMscPkHpO//QxvUxKzabV3dxOsIbeZRFkUGsWTFlvz2OoaBLoNtv5gg==
 
-xterm@3.15.0-beta107:
-  version "3.15.0-beta107"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta107.tgz#d1fea6434e66350c227b3993aabd8c5eb3afa427"
-  integrity sha512-a1bGMbh25pQzBT5lBXJaXD+pM9PX69iXfYrKL4PCQ5jgbUIu45SRCI2MnpS5X1WC+hCcOyn09PZuAdqTcpYeFA==
+xterm@3.15.0-beta108:
+  version "3.15.0-beta108"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-3.15.0-beta108.tgz#d113f6d1e4d4b7645ab3ff002c81a4dba8a78a28"
+  integrity sha512-btZXgI9BeawFzitw3EZvFPsH3kfBgJS55LOdz9DjEany3y9FfvmnVhq7wn4x1PmTU/djHobGGhMNemxptk+ryg==
 
 y18n@^3.2.1:
   version "3.2.1"

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as os from 'os';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { join } from 'vs/base/common/path';
 import { mkdirp, RimRafMode, rimraf } from 'vs/base/node/pfs';
@@ -51,7 +51,7 @@ suite('Extension Gallery Service', () => {
 
 	test('marketplace machine id', () => {
 		const args = ['--user-data-dir', marketplaceHome];
-		const environmentService = new EnvironmentService(parseArgs(args), process.execPath);
+		const environmentService = new EnvironmentService(parseArgs(args, OPTIONS), process.execPath);
 
 		return resolveMarketplaceHeaders(pkg.version, environmentService, fileService).then(headers => {
 			assert.ok(isUUID(headers['X-Market-User-Id']));

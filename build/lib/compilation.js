@@ -36,8 +36,8 @@ function getTypeScriptCompilerOptions(src) {
 function createCompile(src, build, emitError) {
     const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
     const overrideOptions = Object.assign(Object.assign({}, getTypeScriptCompilerOptions(src)), { inlineSources: Boolean(build) });
-    const ts = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
-    return function (token) {
+    const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
+    function pipeline(token) {
         const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
         const tsFilter = util.filter(data => /\.ts$/.test(data.path));
         const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
@@ -48,7 +48,7 @@ function createCompile(src, build, emitError) {
             .pipe(utf8Filter.restore)
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
-            .pipe(ts(token))
+            .pipe(compilation(token))
             .pipe(noDeclarationsFilter)
             .pipe(build ? nls() : es.through())
             .pipe(noDeclarationsFilter.restore)
@@ -60,7 +60,11 @@ function createCompile(src, build, emitError) {
             .pipe(tsFilter.restore)
             .pipe(reporter.end(!!emitError));
         return es.duplex(input, output);
+    }
+    pipeline.tsProjectSrc = () => {
+        return compilation.src({ base: src });
     };
+    return pipeline;
 }
 function compileTask(src, out, build) {
     return function () {
@@ -81,7 +85,7 @@ function watchTask(out, build) {
     return function () {
         const compile = createCompile('src', build);
         const src = gulp.src('src/**', { base: 'src' });
-        const watchSrc = watch('src/**', { base: 'src' });
+        const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
         let generator = new MonacoGenerator(true);
         generator.execute();
         return watchSrc

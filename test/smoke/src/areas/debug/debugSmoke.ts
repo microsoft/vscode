@@ -28,7 +28,7 @@ const STACK_FRAME = `${VIEWLET} .monaco-list-row .stack-frame`;
 const SPECIFIC_STACK_FRAME = filename => `${STACK_FRAME} .file[title*="${filename}"]`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-list-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression .value`;
-const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
+const CONSOLE_EVALUATION_RESULT = `.repl .evaluation-result.expression .value`;
 
 const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
 
@@ -132,8 +132,8 @@ export class Debug extends Viewlet {
 		// Wait for the keys to be picked up by the editor model such that repl evalutes what just got typed
 		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
 		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElement(CONSOLE_INPUT_OUTPUT);
-		await this.waitForOutput(output => accept(output[output.length - 1] || ''));
+		await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
+			elements => !!elements.length && accept(elements[elements.length - 1].textContent));
 	}
 
 	// Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count
