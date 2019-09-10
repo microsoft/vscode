@@ -82,13 +82,13 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 
 	return function () {
 		const compile = createCompile(src, build, true);
-
+		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		let generator = new MonacoGenerator(false);
 		if (src === 'src') {
 			generator.execute();
 		}
 
-		return compile.tsProjectSrc()
+		return srcPipe
 			.pipe(generator.stream)
 			.pipe(compile())
 			.pipe(gulp.dest(out));
@@ -100,7 +100,7 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 	return function () {
 		const compile = createCompile('src', build);
 
-		const src = compile.tsProjectSrc();
+		const src = gulp.src('src/**', { base: 'src' });
 		const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
 
 		let generator = new MonacoGenerator(true);
