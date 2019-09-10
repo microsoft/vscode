@@ -222,7 +222,6 @@ import 'vs/workbench/contrib/themes/browser/themes.contribution';
 import 'vs/workbench/contrib/watermark/browser/watermark';
 
 // Welcome
-import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 
 // Call Hierarchy

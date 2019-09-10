@@ -612,9 +612,9 @@
 				]
 			},
 			{
-				"target": "**/test/smoke2/**",
+				"target": "**/test/automation/**",
 				"restrictions": [
-					"**/test/smoke2/**",
+					"**/test/automation/**",
 					"*"
 				]
 			},

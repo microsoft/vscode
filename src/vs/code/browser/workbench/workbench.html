@@ -37,7 +37,6 @@
 
 		<!-- Prefetch to avoid waterfall -->
 		<link rel="prefetch" href="./static/node_modules/semver-umd/lib/semver-umd.js">
-		<link rel="prefetch" href="./static/out/vs/code/browser/workbench/web.main.js"> <!--TODO@ben: Why is it not built -->
 		<link rel="prefetch" href="./static/node_modules/@microsoft/applicationinsights-web/dist/applicationinsights-web.js">
 	</head>
 
@@ -63,7 +62,7 @@
 	<script src="./static/out/vs/loader.js"></script>
 	<script src="./static/out/vs/workbench/workbench.web.api.nls.js"></script>
 	<script src="./static/out/vs/workbench/workbench.web.api.js"></script>
-	<!-- <script src="./static/out/vs/code/browser/workbench/web.main.js"></script> TODO@ben: Why is it not built-->
+	<script src="./static/out/vs/code/browser/workbench/web.main.js"></script>
 	<script>
 		require(['vs/code/browser/workbench/web.main'], function (web) {
 			web.main();
