@@ -258,7 +258,6 @@ export interface IEditorOptions {
 	 * Defaults to '.'.
 	 */
 	wordWrapBreakObtrusiveCharacters?: string;
-
 	/**
 	 * Performance guard: Stop rendering a line after x characters.
 	 * Defaults to 10000.
@@ -303,6 +302,11 @@ export interface IEditorOptions {
 	 * Defaults to true
 	 */
 	multiCursorMergeOverlapping?: boolean;
+	/**
+	 * Configure the behaviour when pasting a text with the line count equal to the cursor count.
+	 * Defaults to 'spread'.
+	 */
+	multiCursorPaste?: 'spread' | 'full';
 	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
@@ -1950,11 +1954,18 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		}
 		if (typeof _input === 'object') {
 			const input = _input as IQuickSuggestionsOptions;
-			return {
+			const opts = {
 				other: EditorBooleanOption.boolean(input.other, this.defaultValue.other),
 				comments: EditorBooleanOption.boolean(input.comments, this.defaultValue.comments),
 				strings: EditorBooleanOption.boolean(input.strings, this.defaultValue.strings),
 			};
+			if (opts.other && opts.comments && opts.strings) {
+				return true; // all on
+			} else if (!opts.other && !opts.comments && !opts.strings) {
+				return false; // all off
+			} else {
+				return opts;
+			}
 		}
 		return this.defaultValue;
 	}
@@ -2671,6 +2682,7 @@ export const enum EditorOption {
 	mouseWheelZoom,
 	multiCursorMergeOverlapping,
 	multiCursorModifier,
+	multiCursorPaste,
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
@@ -2983,6 +2995,18 @@ export const EditorOptions = {
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
 			}, "The modifier to be used to add multiple cursors with the mouse. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier. [Read more](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
+		}
+	)),
+	multiCursorPaste: register(new EditorStringEnumOption(
+		EditorOption.multiCursorPaste, 'multiCursorPaste',
+		'spread' as 'spread' | 'full',
+		['spread', 'full'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text."),
+				nls.localize('multiCursorPaste.full', "Each cursor pastes the full text.")
+			],
+			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
 		}
 	)),
 	occurrencesHighlight: register(new EditorBooleanOption(

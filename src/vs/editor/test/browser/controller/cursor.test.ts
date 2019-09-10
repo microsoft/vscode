@@ -1566,6 +1566,37 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #43722: Multiline paste doesn\'t work anymore', () => {
+		usingCursor({
+			text: [
+				'test',
+				'test',
+				'test',
+				'test'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+				new Selection(4, 1, 4, 5),
+			]);
+
+			cursorCommand(cursor, H.Paste, {
+				text: 'aaa\r\nbbb\r\nccc\r\nddd\r\n',
+				pasteOnNewLine: false,
+				multicursorText: null
+			});
+
+			assert.equal(model.getValue(), [
+				'aaa',
+				'bbb',
+				'ccc',
+				'ddd',
+			].join('\n'));
+		});
+	});
+
 	test('issue #46440: (1) Pasting a multi-line selection pastes entire selection into every insertion point', () => {
 		usingCursor({
 			text: [
