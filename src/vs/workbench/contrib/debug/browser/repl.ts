@@ -44,7 +44,8 @@ import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'v
 import { first } from 'vs/base/common/arrays';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { Variable, Expression, SimpleReplElement, RawObjectReplElement } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -412,7 +413,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			[
 				this.instantiationService.createInstance(VariablesRenderer),
 				this.instantiationService.createInstance(ReplSimpleElementsRenderer),
-				new ReplExpressionsRenderer(),
+				new ReplEvaluationInputsRenderer(),
+				new ReplEvaluationResultsRenderer(),
 				new ReplRawObjectsRenderer()
 			],
 			// https://github.com/microsoft/TypeScript/issues/32526
@@ -568,12 +570,13 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 // Repl tree
 
-interface IExpressionTemplateData {
-	input: HTMLElement;
-	output: HTMLElement;
+interface IReplEvaluationInputTemplateData {
+	label: HighlightedLabel;
+}
+
+interface IReplEvaluationResultTemplateData {
 	value: HTMLElement;
 	annotation: HTMLElement;
-	label: HighlightedLabel;
 }
 
 interface ISimpleReplElementTemplateData {
@@ -593,27 +596,46 @@ interface IRawObjectReplTemplateData {
 	label: HighlightedLabel;
 }
 
-class ReplExpressionsRenderer implements ITreeRenderer<Expression, FuzzyScore, IExpressionTemplateData> {
-	static readonly ID = 'expressionRepl';
+class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluationInput, FuzzyScore, IReplEvaluationInputTemplateData> {
+	static readonly ID = 'replEvaluationInput';
 
 	get templateId(): string {
-		return ReplExpressionsRenderer.ID;
+		return ReplEvaluationInputsRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IExpressionTemplateData {
-		dom.addClass(container, 'input-output-pair');
-		const input = dom.append(container, $('.input.expression'));
+	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
+		const input = dom.append(container, $('.expression'));
 		const label = new HighlightedLabel(input, false);
-		const output = dom.append(container, $('.output.expression'));
+		return { label };
+	}
+
+	renderElement(element: ITreeNode<ReplEvaluationInput, FuzzyScore>, index: number, templateData: IReplEvaluationInputTemplateData): void {
+		const evaluation = element.element;
+		templateData.label.set(evaluation.value, createMatches(element.filterData));
+	}
+
+	disposeTemplate(templateData: IReplEvaluationInputTemplateData): void {
+		// noop
+	}
+}
+
+class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResult, FuzzyScore, IReplEvaluationResultTemplateData> {
+	static readonly ID = 'replEvaluationResult';
+
+	get templateId(): string {
+		return ReplEvaluationResultsRenderer.ID;
+	}
+
+	renderTemplate(container: HTMLElement): IReplEvaluationResultTemplateData {
+		const output = dom.append(container, $('.evaluation-result.expression'));
 		const value = dom.append(output, $('span.value'));
 		const annotation = dom.append(output, $('span'));
 
-		return { input, label, output, value, annotation };
+		return { value, annotation };
 	}
 
-	renderElement(element: ITreeNode<Expression, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
+	renderElement(element: ITreeNode<ReplEvaluationResult, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
 		const expression = element.element;
-		templateData.label.set(expression.name, createMatches(element.filterData));
 		renderExpressionValue(expression, templateData.value, {
 			preserveWhitespace: !expression.hasChildren,
 			showHover: false,
@@ -625,7 +647,7 @@ class ReplExpressionsRenderer implements ITreeRenderer<Expression, FuzzyScore, I
 		}
 	}
 
-	disposeTemplate(templateData: IExpressionTemplateData): void {
+	disposeTemplate(templateData: IReplEvaluationResultTemplateData): void {
 		// noop
 	}
 }
@@ -757,24 +779,23 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 		const rowHeight = Math.ceil(1.4 * fontSize);
 		const wordWrap = config.console.wordWrap;
 		if (!wordWrap) {
-			return element instanceof Expression ? 2 * rowHeight : rowHeight;
+			return rowHeight;
 		}
 
 		// In order to keep scroll position we need to give a good approximation to the tree
 		// For every 150 characters increase the number of lines needed
-		if (element instanceof Expression) {
-			let { name, value } = element;
-			let nameRows = countNumberOfLines(name) + Math.floor(name.length / 150);
+		if (element instanceof ReplEvaluationResult) {
+			let value = element.value;
 
 			if (element.hasChildren) {
-				return (nameRows + 1) * rowHeight;
+				return rowHeight;
 			}
 
 			let valueRows = value ? (countNumberOfLines(value) + Math.floor(value.length / 150)) : 0;
-			return rowHeight * (nameRows + valueRows);
+			return rowHeight * valueRows;
 		}
 
-		if (element instanceof SimpleReplElement) {
+		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput) {
 			let value = element.value;
 			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
 
@@ -788,8 +809,11 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 		if (element instanceof Variable && element.name) {
 			return VariablesRenderer.ID;
 		}
-		if (element instanceof Expression) {
-			return ReplExpressionsRenderer.ID;
+		if (element instanceof ReplEvaluationResult) {
+			return ReplEvaluationResultsRenderer.ID;
+		}
+		if (element instanceof ReplEvaluationInput) {
+			return ReplEvaluationInputsRenderer.ID;
 		}
 		if (element instanceof SimpleReplElement || (element instanceof Variable && !element.name)) {
 			// Variable with no name is a top level variable which should be rendered like a repl element #17404
@@ -836,10 +860,7 @@ class ReplAccessibilityProvider implements IAccessibilityProvider<IReplElement> 
 		if (element instanceof Variable) {
 			return nls.localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", element.name, element.value);
 		}
-		if (element instanceof Expression) {
-			return nls.localize('replExpressionAriaLabel', "Expression {0} has value {1}, read eval print loop, debug", element.name, element.value);
-		}
-		if (element instanceof SimpleReplElement) {
+		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
 			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", element.value);
 		}
 		if (element instanceof RawObjectReplElement) {

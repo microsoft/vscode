@@ -93,6 +93,7 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 		resources: vscodeResources,
 		loaderConfig: common.loaderConfig(nodeModules),
 		out: 'out-vscode',
+		inlineAmdImages: true,
 		bundleInfo: undefined
 	})
 ));

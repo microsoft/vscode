@@ -48,6 +48,7 @@ import { WatchExpressionsView } from 'vs/workbench/contrib/debug/browser/watchEx
 import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
+import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -271,7 +272,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 // Debug toolbar
 
-const registerDebugToolBarItem = (id: string, title: string, icon: string, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
+const registerDebugToolBarItem = (id: string, title: string, iconLightUri: URI, iconDarkUri: URI, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
 	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
 		group: 'navigation',
 		when,
@@ -280,24 +281,24 @@ const registerDebugToolBarItem = (id: string, title: string, icon: string, order
 			id,
 			title,
 			iconLocation: {
-				light: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-light.svg`)),
-				dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}-dark.svg`))
+				light: iconLightUri,
+				dark: iconDarkUri
 			},
 			precondition
 		}
 	});
 };
 
-registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 'continue', 10, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 'pause', 10, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'));
-registerDebugToolBarItem(STOP_ID, STOP_LABEL, 'stop', 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
-registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, 'disconnect', 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
-registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, 'step-over', 20, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, 'step-into', 30, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 'step-out', 40, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 'restart', 60);
-registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"), 'step-back', 50, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), 'reverse-continue', 60, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/continue-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/continue-dark.svg')), 10, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/pause-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/pause-dark.svg')), 10, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'));
+registerDebugToolBarItem(STOP_ID, STOP_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/stop-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/stop-dark.svg')), 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
+registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/disconnect-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/disconnect-dark.svg')), 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
+registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-over-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-over-dark.svg')), 20, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-into-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-into-dark.svg')), 30, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-out-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-out-dark.svg')), 40, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/restart-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/restart-dark.svg')), 60);
+registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-back-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-back-dark.svg')), 50, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/reverse-continue-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/reverse-continue-dark.svg')), 60, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 
 // Debug callstack context menu
 const registerDebugCallstackItem = (id: string, title: string, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr, group = 'navigation') => {
@@ -537,12 +538,12 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 // Touch Bar
 if (isMacintosh) {
 
-	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpr | undefined, icon: string) => {
+	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpr | undefined, iconUri: URI) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
 				id,
 				title,
-				iconLocation: { dark: URI.parse(require.toUrl(`vs/workbench/contrib/debug/browser/media/${icon}`)) }
+				iconLocation: { dark: iconUri }
 			},
 			when,
 			group: '9_debug',
@@ -550,13 +551,13 @@ if (isMacintosh) {
 		});
 	};
 
-	registerTouchBarEntry(StartAction.ID, StartAction.LABEL, 0, CONTEXT_IN_DEBUG_MODE.toNegated(), 'continue-tb.png');
-	registerTouchBarEntry(RunAction.ID, RunAction.LABEL, 1, CONTEXT_IN_DEBUG_MODE.toNegated(), 'continue-without-debugging-tb.png');
-	registerTouchBarEntry(CONTINUE_ID, CONTINUE_LABEL, 0, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), 'continue-tb.png');
-	registerTouchBarEntry(PAUSE_ID, PAUSE_LABEL, 1, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.notEquals('debugState', 'stopped')), 'pause-tb.png');
-	registerTouchBarEntry(STEP_OVER_ID, STEP_OUT_LABEL, 2, CONTEXT_IN_DEBUG_MODE, 'stepover-tb.png');
-	registerTouchBarEntry(STEP_INTO_ID, STEP_INTO_LABEL, 3, CONTEXT_IN_DEBUG_MODE, 'stepinto-tb.png');
-	registerTouchBarEntry(STEP_OUT_ID, STEP_OUT_LABEL, 4, CONTEXT_IN_DEBUG_MODE, 'stepout-tb.png');
-	registerTouchBarEntry(RESTART_SESSION_ID, RESTART_LABEL, 5, CONTEXT_IN_DEBUG_MODE, 'restart-tb.png');
-	registerTouchBarEntry(STOP_ID, STOP_LABEL, 6, CONTEXT_IN_DEBUG_MODE, 'stop-tb.png');
+	registerTouchBarEntry(StartAction.ID, StartAction.LABEL, 0, CONTEXT_IN_DEBUG_MODE.toNegated(), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/continue-tb.png')));
+	registerTouchBarEntry(RunAction.ID, RunAction.LABEL, 1, CONTEXT_IN_DEBUG_MODE.toNegated(), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/continue-without-debugging-tb.png')));
+	registerTouchBarEntry(CONTINUE_ID, CONTINUE_LABEL, 0, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/continue-tb.png')));
+	registerTouchBarEntry(PAUSE_ID, PAUSE_LABEL, 1, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.notEquals('debugState', 'stopped')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/pause-tb.png')));
+	registerTouchBarEntry(STEP_OVER_ID, STEP_OUT_LABEL, 2, CONTEXT_IN_DEBUG_MODE, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/stepover-tb.png')));
+	registerTouchBarEntry(STEP_INTO_ID, STEP_INTO_LABEL, 3, CONTEXT_IN_DEBUG_MODE, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/stepinto-tb.png')));
+	registerTouchBarEntry(STEP_OUT_ID, STEP_OUT_LABEL, 4, CONTEXT_IN_DEBUG_MODE, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/stepout-tb.png')));
+	registerTouchBarEntry(RESTART_SESSION_ID, RESTART_LABEL, 5, CONTEXT_IN_DEBUG_MODE, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/restart-tb.png')));
+	registerTouchBarEntry(STOP_ID, STOP_LABEL, 6, CONTEXT_IN_DEBUG_MODE, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/stop-tb.png')));
 }
