@@ -667,11 +667,7 @@ export type SCMRawResource = [
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/,
-
-	string | undefined /*source*/,
-	string | undefined /*letter*/,
-	ThemeColor | null /*color*/
+	boolean /*faded*/
 ];
 
 export type SCMRawResourceSplice = [
@@ -723,6 +719,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$unregisterDebugConfigurationProvider(handle: number): void;
 	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, parentSessionID: string | undefined): Promise<boolean>;
+	$setDebugSessionName(id: DebugSessionUUID, name: string): void;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$appendDebugConsole(value: string): void;
 	$startBreakpointEvents(): void;
@@ -1199,6 +1196,7 @@ export interface ExtHostTaskShape {
 	$onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }, variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
+	$getDefaultShellAndArgs(): Thenable<{ shell: string, args: string[] | string | undefined }>;
 }
 
 export interface IBreakpointDto {
@@ -1274,6 +1272,7 @@ export interface ExtHostDebugServiceShape {
 	$acceptDebugSessionActiveChanged(session: IDebugSessionDto | undefined): void;
 	$acceptDebugSessionCustomEvent(session: IDebugSessionDto, event: any): void;
 	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
+	$acceptDebugSessionNameChanged(session: IDebugSessionDto, name: string): void;
 }
 
 
@@ -1283,7 +1282,7 @@ export interface DecorationRequest {
 	readonly uri: UriComponents;
 }
 
-export type DecorationData = [number, boolean, string, string, ThemeColor, string];
+export type DecorationData = [number, boolean, string, string, ThemeColor];
 export type DecorationReply = { [id: number]: DecorationData };
 
 export interface ExtHostDecorationsShape {

@@ -104,13 +104,13 @@ export interface IExpressionContainer extends ITreeElement {
 	readonly hasChildren: boolean;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
+	readonly value: string;
+	readonly type?: string;
+	valueChanged?: boolean;
 }
 
-export interface IExpression extends IReplElement, IExpressionContainer {
+export interface IExpression extends IExpressionContainer {
 	name: string;
-	readonly value: string;
-	valueChanged?: boolean;
-	readonly type?: string;
 }
 
 export interface IDebugger {
@@ -157,6 +157,8 @@ export interface IDebugSession extends ITreeElement {
 
 	setSubId(subId: string | undefined): void;
 
+	setName(name: string): void;
+	readonly onDidChangeName: Event<string>;
 	getLabel(): string;
 
 	getSourceForUri(modelUri: uri): Source | undefined;
@@ -308,6 +310,7 @@ export interface IStackFrame extends ITreeElement {
 	restart(): Promise<any>;
 	toString(): string;
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditor | null>;
+	equals(other: IStackFrame): boolean;
 }
 
 export interface IEnablement extends ITreeElement {
@@ -452,6 +455,7 @@ export interface IDebugConfiguration {
 		wordWrap: boolean;
 	};
 	focusWindowOnBreak: boolean;
+	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
 }
 
 export interface IGlobalConfig {

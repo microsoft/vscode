@@ -26,6 +26,7 @@ import { Schemas } from 'vs/base/common/network';
 import { SupportsWorkspacesContext, IsWebContext, RemoteFileDialogContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenLocalFileFolderCommand, OpenFileAction, OpenFolderAction, OpenLocalFileCommand, OpenLocalFolderCommand, OpenWorkspaceAction, SaveLocalFileCommand } from 'vs/workbench/browser/actions/workspaceActions';
+import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
 // Contribute Global Actions
 const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
@@ -223,12 +224,12 @@ function appendEditorTitleContextMenuItem(id: string, title: string, when: Conte
 
 // Editor Title Menu for Conflict Resolution
 appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), {
-	light: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/check-light.svg`)),
-	dark: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/check-dark.svg`))
+	light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/files/browser/media/check-light.svg`)),
+	dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/files/browser/media/check-dark.svg`))
 }, -10, acceptLocalChangesCommand);
 appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to file contents"), {
-	light: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/undo-light.svg`)),
-	dark: URI.parse(require.toUrl(`vs/workbench/contrib/files/browser/media/undo-dark.svg`))
+	light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/files/browser/media/undo-light.svg`)),
+	dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/files/browser/media/undo-dark.svg`))
 }, -9, revertLocalChangesCommand);
 
 function appendSaveConflictEditorTitleAction(id: string, title: string, iconLocation: { dark: URI; light?: URI; }, order: number, command: ICommandHandler): void {

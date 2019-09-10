@@ -69,6 +69,26 @@ suite('Search-integration', function () {
 		return doSearchTest(config, 4);
 	});
 
+	test('Text: GameOfLife (unicode escape sequences)', () => {
+		const config: ITextQuery = {
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'G\\u{0061}m\\u0065OfLife', isRegExp: true }
+		};
+
+		return doSearchTest(config, 4);
+	});
+
+	test('Text: GameOfLife (unicode escape sequences, force PCRE2)', () => {
+		const config: ITextQuery = {
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: '(?<!a)G\\u{0061}m\\u0065OfLife', isRegExp: true }
+		};
+
+		return doSearchTest(config, 4);
+	});
+
 	test('Text: GameOfLife (PCRE2 RegExp)', () => {
 		const config: ITextQuery = {
 			type: QueryType.Text,

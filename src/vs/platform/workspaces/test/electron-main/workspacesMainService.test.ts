@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { WORKSPACE_EXTENSION, IWorkspaceIdentifier, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -47,7 +47,7 @@ suite('WorkspacesMainService', () => {
 		return service.createUntitledWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
-	const environmentService = new TestEnvironmentService(parseArgs(process.argv), process.execPath);
+	const environmentService = new TestEnvironmentService(parseArgs(process.argv, OPTIONS), process.execPath);
 	const logService = new NullLogService();
 
 	let service: TestWorkspacesMainService;

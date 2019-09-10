@@ -47,8 +47,7 @@ export function setup() {
 			const app = this.app as Application;
 			await app.workbench.quickopen.openQuickOpen('*.*');
 
-			// TODO roblourens: Go to files finds welcome page: issue 74875
-			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 6 || names.length === 7);
+			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 6);
 			await app.workbench.quickopen.closeQuickOpen();
 		});
 

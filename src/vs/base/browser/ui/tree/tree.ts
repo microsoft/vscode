@@ -120,6 +120,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	getLastElementAncestor(location?: TRef): T | undefined;
 
 	isCollapsible(location: TRef): boolean;
+	setCollapsible(location: TRef, collapsible?: boolean): boolean;
 	isCollapsed(location: TRef): boolean;
 	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
 	expandTo(location: TRef): void;

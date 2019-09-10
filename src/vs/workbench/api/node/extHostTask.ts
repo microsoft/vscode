@@ -659,6 +659,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return result;
 	}
 
+	public $getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
+		return this._terminalService.$requestDefaultShellAndArgs(true);
+	}
+
 	private nextHandle(): number {
 		return this._handleCounter++;
 	}

@@ -12,12 +12,14 @@ import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/v
 import { DomReadingContext, ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { HorizontalRange, IViewLines, LineVisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Viewport } from 'vs/editor/common/viewModel/viewModel';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class LastRenderedData {
 
@@ -71,7 +73,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	private _typicalHalfwidthCharacterWidth: number;
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
-	private _scrollOff: number;
+	private _selections: Selection[];
+	private _cursorSurroundingLines: number;
 	private _canUseLayerHinting: boolean;
 	private _viewLineOptions: ViewLineOptions;
 
@@ -90,18 +93,22 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this.domNode = this._visibleLines.domNode;
 
 		const conf = this._context.configuration;
+		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
-		this._lineHeight = conf.editor.lineHeight;
-		this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
-		this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
-		this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
-		this._scrollOff = conf.editor.viewInfo.cursorSurroundingLines;
-		this._canUseLayerHinting = conf.editor.canUseLayerHinting;
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
+		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
+		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
+		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
+		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
 		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
+		this._selections = [];
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName('view-lines');
-		Configuration.applyFontInfo(this.domNode, conf.editor.fontInfo);
+		Configuration.applyFontInfo(this.domNode, fontInfo);
 
 		// --- width & height
 		this._maxLineWidth = 0;
@@ -135,35 +142,25 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._visibleLines.onConfigurationChanged(e);
-		if (e.wrappingInfo) {
+		if (e.hasChanged(EditorOption.wrappingInfo)) {
 			this._maxLineWidth = 0;
 		}
 
-		const conf = this._context.configuration;
+		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
-		if (e.lineHeight) {
-			this._lineHeight = conf.editor.lineHeight;
-		}
-		if (e.fontInfo) {
-			this._typicalHalfwidthCharacterWidth = conf.editor.fontInfo.typicalHalfwidthCharacterWidth;
-		}
-		if (e.wrappingInfo) {
-			this._isViewportWrapping = conf.editor.wrappingInfo.isViewportWrapping;
-		}
-		if (e.viewInfo) {
-			this._revealHorizontalRightPadding = conf.editor.viewInfo.revealHorizontalRightPadding;
-			this._scrollOff = conf.editor.viewInfo.cursorSurroundingLines;
-		}
-		if (e.canUseLayerHinting) {
-			this._canUseLayerHinting = conf.editor.canUseLayerHinting;
-		}
-		if (e.fontInfo) {
-			Configuration.applyFontInfo(this.domNode, conf.editor.fontInfo);
-		}
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
+		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
+		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
+		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
+		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
+		Configuration.applyFontInfo(this.domNode, fontInfo);
 
 		this._onOptionsMaybeChanged();
 
-		if (e.layoutInfo) {
+		if (e.hasChanged(EditorOption.layoutInfo)) {
 			this._maxLineWidth = 0;
 		}
 
@@ -188,6 +185,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return false;
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._selections = e.selections;
 		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
 		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
 		let r = false;
@@ -223,7 +221,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		// Using the future viewport here in order to handle multiple
 		// incoming reveal range requests that might all desire to be animated
-		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.range, e.verticalType);
+		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.source, e.range, e.verticalType);
 
 		// validate the new desired scroll top
 		let newScrollPosition = this._context.viewLayout.validateScrollPosition({ scrollTop: desiredScrollTop });
@@ -589,7 +587,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 	}
 
-	private _computeScrollTopToRevealRange(viewport: Viewport, range: Range, verticalType: viewEvents.VerticalRevealType): number {
+	private _computeScrollTopToRevealRange(viewport: Viewport, source: string, range: Range, verticalType: viewEvents.VerticalRevealType): number {
 		const viewportStartY = viewport.top;
 		const viewportHeight = viewport.height;
 		const viewportEndY = viewportStartY + viewportHeight;
@@ -600,9 +598,16 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.startLineNumber);
 		boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
 
-		const context = Math.min((viewportHeight / this._lineHeight) / 2, this._scrollOff);
-		boxStartY -= context * this._lineHeight;
-		boxEndY += Math.max(0, (context - 1)) * this._lineHeight;
+		const shouldIgnoreScrollOff = source === 'mouse' && (
+			this._selections.length > 1 // scroll off might trigger scrolling and mess up with multi cursor
+			|| (this._selections.length > 0 && this._selections[0].isEmpty()) // we don't want to single click triggering selection
+		);
+
+		if (!shouldIgnoreScrollOff) {
+			const context = Math.min((viewportHeight / this._lineHeight) / 2, this._cursorSurroundingLines);
+			boxStartY -= context * this._lineHeight;
+			boxEndY += Math.max(0, (context - 1)) * this._lineHeight;
+		}
 
 		if (verticalType === viewEvents.VerticalRevealType.Simple || verticalType === viewEvents.VerticalRevealType.Bottom) {
 			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom

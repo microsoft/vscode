@@ -46,6 +46,21 @@ export interface IIndexTreeModelOptions<T, TFilterData> {
 	readonly autoExpandSingleChildren?: boolean;
 }
 
+interface CollapsibleStateUpdate {
+	readonly collapsible: boolean;
+}
+
+interface CollapsedStateUpdate {
+	readonly collapsed: boolean;
+	readonly recursive: boolean;
+}
+
+type CollapseStateUpdate = CollapsibleStateUpdate | CollapsedStateUpdate;
+
+function isCollapsibleStateUpdate(update: CollapseStateUpdate): update is CollapsibleStateUpdate {
+	return typeof (update as any).collapsible === 'boolean';
+}
+
 export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
 	readonly rootRef = [];
@@ -205,6 +220,17 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return this.getTreeNode(location).collapsible;
 	}
 
+	setCollapsible(location: number[], collapsible?: boolean): boolean {
+		const node = this.getTreeNode(location);
+
+		if (typeof collapsible === 'undefined') {
+			collapsible = !node.collapsible;
+		}
+
+		const update: CollapsibleStateUpdate = { collapsible };
+		return this.eventBufferer.bufferEvents(() => this._setCollapseState(location, update));
+	}
+
 	isCollapsed(location: number[]): boolean {
 		return this.getTreeNode(location).collapsed;
 	}
@@ -216,15 +242,16 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			collapsed = !node.collapsed;
 		}
 
-		return this.eventBufferer.bufferEvents(() => this._setCollapsed(location, collapsed!, recursive));
+		const update: CollapsedStateUpdate = { collapsed, recursive: recursive || false };
+		return this.eventBufferer.bufferEvents(() => this._setCollapseState(location, update));
 	}
 
-	private _setCollapsed(location: number[], collapsed: boolean, recursive?: boolean): boolean {
+	private _setCollapseState(location: number[], update: CollapseStateUpdate): boolean {
 		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
 
-		const result = this._setListNodeCollapsed(node, listIndex, revealed, collapsed!, recursive || false);
+		const result = this._setListNodeCollapseState(node, listIndex, revealed, update);
 
-		if (node !== this.root && this.autoExpandSingleChildren && !collapsed! && !recursive) {
+		if (node !== this.root && this.autoExpandSingleChildren && result && !isCollapsibleStateUpdate(update) && node.collapsible && !node.collapsed && !update.recursive) {
 			let onlyVisibleChildIndex = -1;
 
 			for (let i = 0; i < node.children.length; i++) {
@@ -241,17 +268,17 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			}
 
 			if (onlyVisibleChildIndex > -1) {
-				this._setCollapsed([...location, onlyVisibleChildIndex], false, false);
+				this._setCollapseState([...location, onlyVisibleChildIndex], update);
 			}
 		}
 
 		return result;
 	}
 
-	private _setListNodeCollapsed(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, collapsed: boolean, recursive: boolean): boolean {
-		const result = this._setNodeCollapsed(node, collapsed, recursive, false);
+	private _setListNodeCollapseState(node: IMutableTreeNode<T, TFilterData>, listIndex: number, revealed: boolean, update: CollapseStateUpdate): boolean {
+		const result = this._setNodeCollapseState(node, update, false);
 
-		if (!revealed || !node.visible) {
+		if (!revealed || !node.visible || !result) {
 			return result;
 		}
 
@@ -263,20 +290,28 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		return result;
 	}
 
-	private _setNodeCollapsed(node: IMutableTreeNode<T, TFilterData>, collapsed: boolean, recursive: boolean, deep: boolean): boolean {
-		let result = node.collapsible && node.collapsed !== collapsed;
+	private _setNodeCollapseState(node: IMutableTreeNode<T, TFilterData>, update: CollapseStateUpdate, deep: boolean): boolean {
+		let result: boolean;
 
-		if (node.collapsible) {
-			node.collapsed = collapsed;
+		if (node === this.root) {
+			result = false;
+		} else {
+			if (isCollapsibleStateUpdate(update)) {
+				result = node.collapsible !== update.collapsible;
+				node.collapsible = update.collapsible;
+			} else {
+				result = node.collapsed !== update.collapsed;
+				node.collapsed = update.collapsed;
+			}
 
 			if (result) {
 				this._onDidChangeCollapseState.fire({ node, deep });
 			}
 		}
 
-		if (recursive) {
+		if (!isCollapsibleStateUpdate(update) && update.recursive) {
 			for (const child of node.children) {
-				result = this._setNodeCollapsed(child, collapsed, true, true) || result;
+				result = this._setNodeCollapseState(child, update, true) || result;
 			}
 		}
 
@@ -292,7 +327,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 				location = location.slice(0, location.length - 1);
 
 				if (node.collapsed) {
-					this._setCollapsed(location, false);
+					this._setCollapseState(location, { collapsed: false, recursive: false });
 				}
 			}
 		});

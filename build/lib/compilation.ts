@@ -12,27 +12,21 @@ import * as bom from 'gulp-bom';
 import * as sourcemaps from 'gulp-sourcemaps';
 import * as tsb from 'gulp-tsb';
 import * as path from 'path';
-import * as _ from 'underscore';
 import * as monacodts from '../monaco/api';
 import * as nls from './nls';
 import { createReporter } from './reporter';
 import * as util from './util';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
+import ts = require('typescript');
 
 const watch = require('./watch');
 
 const reporter = createReporter();
 
-function getTypeScriptCompilerOptions(src: string) {
+function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	const rootDir = path.join(__dirname, `../../${src}`);
-	const tsconfig = require(`../../${src}/tsconfig.json`);
-	let options: { [key: string]: any };
-	if (tsconfig.extends) {
-		options = Object.assign({}, require(path.join(rootDir, tsconfig.extends)).compilerOptions, tsconfig.compilerOptions);
-	} else {
-		options = tsconfig.compilerOptions;
-	}
+	let options: ts.CompilerOptions = {};
 	options.verbose = false;
 	options.sourceMap = true;
 	if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
@@ -41,16 +35,15 @@ function getTypeScriptCompilerOptions(src: string) {
 	options.rootDir = rootDir;
 	options.baseUrl = rootDir;
 	options.sourceRoot = util.toFileUri(rootDir);
-	options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
+	options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
 	return options;
 }
 
 function createCompile(src: string, build: boolean, emitError?: boolean): (token?: util.ICancellationToken) => NodeJS.ReadWriteStream {
-	const opts = _.clone(getTypeScriptCompilerOptions(src));
-	opts.inlineSources = !!build;
-	opts.noFilesystemLookup = true;
+	const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
+	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
 
-	const ts = tsb.create(opts, true, undefined, err => reporter(err.toString()));
+	const ts = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
 
 	return function (token?: util.ICancellationToken) {
 
@@ -72,7 +65,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 			.pipe(sourcemaps.write('.', {
 				addComment: false,
 				includeContent: !!build,
-				sourceRoot: opts.sourceRoot
+				sourceRoot: overrideOptions.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
 			.pipe(reporter.end(!!emitError));
@@ -81,22 +74,12 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 	};
 }
 
-const typesDts = [
-	'node_modules/typescript/lib/*.d.ts',
-	'node_modules/@types/**/*.d.ts',
-	'!node_modules/@types/webpack/**/*',
-	'!node_modules/@types/uglify-js/**/*',
-];
-
 export function compileTask(src: string, out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
 		const compile = createCompile(src, build, true);
 
-		const srcPipe = es.merge(
-			gulp.src(`${src}/**`, { base: `${src}` }),
-			gulp.src(typesDts),
-		);
+		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 
 		let generator = new MonacoGenerator(false);
 		if (src === 'src') {
@@ -115,11 +98,8 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 	return function () {
 		const compile = createCompile('src', build);
 
-		const src = es.merge(
-			gulp.src('src/**', { base: 'src' }),
-			gulp.src(typesDts),
-		);
-		const watchSrc = watch('src/**', { base: 'src' });
+		const src = gulp.src('src/**', { base: 'src' });
+		const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
 
 		let generator = new MonacoGenerator(true);
 		generator.execute();

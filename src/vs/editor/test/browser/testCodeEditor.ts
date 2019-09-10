@@ -91,7 +91,12 @@ export function withTestCodeEditor(text: string | string[] | null, options: Test
 
 export function createTestCodeEditor(options: TestCodeEditorCreationOptions): TestCodeEditor {
 
+	const model = options.model;
+	delete options.model;
+
 	const services: ServiceCollection = options.serviceCollection || new ServiceCollection();
+	delete options.serviceCollection;
+
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	if (!services.has(ICodeEditorService)) {
@@ -119,6 +124,6 @@ export function createTestCodeEditor(options: TestCodeEditorCreationOptions): Te
 		options,
 		codeEditorWidgetOptions
 	);
-	editor.setModel(options.model);
+	editor.setModel(model);
 	return editor;
 }

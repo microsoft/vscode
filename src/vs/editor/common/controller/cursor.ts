@@ -20,6 +20,7 @@ import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { dispose } from 'vs/base/common/lifecycle';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -295,12 +296,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._columnSelectData = columnSelectData;
 	}
 
-	public reveal(horizontal: boolean, target: RevealTarget, scrollType: editorCommon.ScrollType): void {
-		this._revealRange(target, viewEvents.VerticalRevealType.Simple, horizontal, scrollType);
+	public reveal(source: string, horizontal: boolean, target: RevealTarget, scrollType: editorCommon.ScrollType): void {
+		this._revealRange(source, target, viewEvents.VerticalRevealType.Simple, horizontal, scrollType);
 	}
 
-	public revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: editorCommon.ScrollType) {
-		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal, scrollType);
+	public revealRange(source: string, revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: editorCommon.ScrollType) {
+		this.emitCursorRevealRange(source, viewRange, verticalType, revealHorizontal, scrollType);
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
@@ -371,7 +372,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 
 		this.setStates('restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(desiredSelections));
-		this.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Immediate);
+		this.reveal('restoreState', true, RevealTarget.Primary, editorCommon.ScrollType.Immediate);
 	}
 
 	private _onModelContentChanged(hadFlushEvent: boolean): void {
@@ -399,7 +400,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return this._columnSelectData;
 		}
 		const primaryCursor = this._cursors.getPrimaryCursor();
-		const primaryPos = primaryCursor.viewState.position;
+		const primaryPos = primaryCursor.viewState.selectionStart.getStartPosition();
 		const viewLineNumber = primaryPos.lineNumber;
 		const viewVisualColumn = CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos);
 		return {
@@ -543,7 +544,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		return true;
 	}
 
-	private _revealRange(revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+	private _revealRange(source: string, revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
 		const viewPositions = this._cursors.getViewPositions();
 
 		let viewPosition = viewPositions[0];
@@ -568,13 +569,13 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal, scrollType);
+		this.emitCursorRevealRange(source, viewRange, verticalType, revealHorizontal, scrollType);
 	}
 
-	public emitCursorRevealRange(viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
+	public emitCursorRevealRange(source: string, viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
 		try {
 			const eventsCollector = this._beginEmit();
-			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal, scrollType));
+			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, verticalType, revealHorizontal, scrollType));
 		} finally {
 			this._endEmit();
 		}
@@ -673,7 +674,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this._isDoingComposition = false;
 		}
 
-		if (this._configuration.editor.readOnly) {
+		if (this._configuration.options.get(EditorOption.readOnly)) {
 			// All the remaining handlers will try to edit the model,
 			// but we cannot edit when read only...
 			this._onDidAttemptReadOnlyEdit.fire(undefined);
@@ -748,7 +749,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._validateAutoClosedActions();
 
 		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
-			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+			this._revealRange(source, RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 		}
 	}
 

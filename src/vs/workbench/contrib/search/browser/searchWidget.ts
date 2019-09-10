@@ -58,7 +58,7 @@ class ReplaceAllAction extends Action {
 		return ReplaceAllAction.fgInstance;
 	}
 
-	private _searchWidget: SearchWidget;
+	private _searchWidget: SearchWidget | null = null;
 
 	constructor() {
 		super(ReplaceAllAction.ID, '', 'action-replace-all', false);
@@ -84,25 +84,25 @@ export class SearchWidget extends Widget {
 		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb, keyBindingService2);
 	}
 
-	domNode: HTMLElement;
+	domNode!: HTMLElement;
 
-	searchInput: FindInput;
-	searchInputFocusTracker: dom.IFocusTracker;
+	searchInput!: FindInput;
+	searchInputFocusTracker!: dom.IFocusTracker;
 	private searchInputBoxFocused: IContextKey<boolean>;
 
-	private replaceContainer: HTMLElement;
-	replaceInput: HistoryInputBox;
-	private toggleReplaceButton: Button;
-	private replaceAllAction: ReplaceAllAction;
+	private replaceContainer!: HTMLElement;
+	replaceInput!: HistoryInputBox;
+	private toggleReplaceButton!: Button;
+	private replaceAllAction!: ReplaceAllAction;
 	private replaceActive: IContextKey<boolean>;
-	private replaceActionBar: ActionBar;
-	replaceInputFocusTracker: dom.IFocusTracker;
+	private replaceActionBar!: ActionBar;
+	replaceInputFocusTracker!: dom.IFocusTracker;
 	private replaceInputBoxFocused: IContextKey<boolean>;
 	private _replaceHistoryDelayer: Delayer<void>;
-	private _preserveCase: Checkbox;
+	private _preserveCase!: Checkbox;
 
 	private ignoreGlobalFindBufferOnNextFocus = false;
-	private previousGlobalFindBufferValue: string;
+	private previousGlobalFindBufferValue: string | null = null;
 
 	private _onSearchSubmit = this._register(new Emitter<void>());
 	readonly onSearchSubmit: Event<void> = this._onSearchSubmit.event;
@@ -426,7 +426,7 @@ export class SearchWidget extends Widget {
 		}
 		try {
 			// tslint:disable-next-line: no-unused-expression
-			new RegExp(value);
+			new RegExp(value, 'u');
 		} catch (e) {
 			return { content: e.message };
 		}
