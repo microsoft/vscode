@@ -14,6 +14,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteUserDataErrorCode, markAsUserDataError } from 'vs/workbench/services/userData/common/userData';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
@@ -2366,4 +2367,26 @@ export class Decoration {
 	color?: vscode.ThemeColor;
 	priority?: number;
 	bubble?: boolean;
+}
+
+@es5ClassCompat
+export class UserDataError extends Error {
+
+	static VersionExists(message?: string): UserDataError {
+		return new UserDataError(message, RemoteUserDataErrorCode.VersionExists);
+	}
+
+	constructor(message?: string, code: RemoteUserDataErrorCode = RemoteUserDataErrorCode.Unknown) {
+		super(message);
+
+		// mark the error as user data provider error so that
+		// we can extract the error code on the receiving side
+		markAsUserDataError(this, code);
+
+		// workaround when extending builtin objects and when compiling to ES5, see:
+		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		if (typeof (<any>Object).setPrototypeOf === 'function') {
+			(<any>Object).setPrototypeOf(this, UserDataError.prototype);
+		}
+	}
 }

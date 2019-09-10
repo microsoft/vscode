@@ -6,7 +6,7 @@
 import { Disposable, } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IRemoteUserDataService, IRemoteUserDataProvider, IUserData } from 'vs/workbench/services/userData/common/userData';
+import { IRemoteUserDataService, IRemoteUserDataProvider, IUserData, RemoteUserDataError, toUserDataErrorCode } from 'vs/workbench/services/userData/common/userData';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class RemoteUserDataService extends Disposable implements IRemoteUserDataService {
@@ -53,14 +53,16 @@ export class RemoteUserDataService extends Disposable implements IRemoteUserData
 		if (!this.remoteUserDataProvider) {
 			throw new Error('No remote user data provider exists.');
 		}
-		return this.remoteUserDataProvider.read(key);
+		return this.remoteUserDataProvider.read(key)
+			.then(null, error => Promise.reject(new RemoteUserDataError(error.message, toUserDataErrorCode(error))));
 	}
 
 	write(key: string, version: number, content: string): Promise<void> {
 		if (!this.remoteUserDataProvider) {
 			throw new Error('No remote user data provider exists.');
 		}
-		return this.remoteUserDataProvider.write(key, version, content);
+		return this.remoteUserDataProvider.write(key, version, content)
+			.then(null, error => Promise.reject(new RemoteUserDataError(error.message, toUserDataErrorCode(error))));
 	}
 
 }

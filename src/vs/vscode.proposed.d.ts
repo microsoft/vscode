@@ -995,6 +995,16 @@ declare module 'vscode' {
 
 	}
 
+	export class UserDataError extends Error {
+
+		static VersionExists(): FileSystemError;
+
+		/**
+		 * Creates a new userData error.
+		 */
+		constructor();
+	}
+
 	export interface UserDataProvider {
 
 		read(key: string): Promise<{ version: number, content: string } | null>;

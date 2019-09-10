@@ -374,7 +374,7 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		try {
 			await this.remoteUserDataService.write(SettingsSyncService.EXTERNAL_USER_DATA_SETTINGS_KEY, userData.version, userData.content);
 		} catch (e) {
-			if (e instanceof RemoteUserDataError && e.code === RemoteUserDataErrorCode.InvalidVersion) {
+			if (e instanceof RemoteUserDataError && e.code === RemoteUserDataErrorCode.VersionExists) {
 				// Rejected as there is a new version. Sync again
 				return this.sync();
 			}

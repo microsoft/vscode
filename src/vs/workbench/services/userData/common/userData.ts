@@ -12,7 +12,40 @@ export interface IUserData {
 }
 
 export enum RemoteUserDataErrorCode {
-	InvalidVersion = 'InvalidVersion'
+	VersionExists = 'VersionExists',
+	Unknown = 'Unknown'
+}
+
+export function markAsUserDataError(error: Error, code: RemoteUserDataErrorCode): Error {
+	error.name = code ? `${code} (UserDataError)` : `UserDataError`;
+
+	return error;
+}
+
+export function toUserDataErrorCode(error: Error | undefined | null): RemoteUserDataErrorCode {
+
+	// Guard against abuse
+	if (!error) {
+		return RemoteUserDataErrorCode.Unknown;
+	}
+
+	// FileSystemProviderError comes with the code
+	if (error instanceof RemoteUserDataError) {
+		return error.code;
+	}
+
+	// Any other error, check for name match by assuming that the error
+	// went through the markAsFileSystemProviderError() method
+	const match = /^(.+) \(UserDataError\)$/.exec(error.name);
+	if (!match) {
+		return RemoteUserDataErrorCode.Unknown;
+	}
+
+	switch (match[1]) {
+		case RemoteUserDataErrorCode.VersionExists: return RemoteUserDataErrorCode.VersionExists;
+	}
+
+	return RemoteUserDataErrorCode.Unknown;
 }
 
 export class RemoteUserDataError extends Error {
