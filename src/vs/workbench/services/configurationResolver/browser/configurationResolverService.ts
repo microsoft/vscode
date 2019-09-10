@@ -88,7 +88,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
 		// resolve any non-interactive variables and any contributed variables
-		config = await this.resolveAnyIncludeContributed(folder, config);
+		config = await this.resolveAny(folder, config);
 
 		// resolve input variables in the order in which they are encountered
 		return this.resolveWithInteraction(folder, config, section, variables, true).then(mapping => {
@@ -105,7 +105,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, skipContributed: boolean = false): Promise<Map<string, string> | undefined> {
 		// resolve any non-interactive variables and any contributed variables
-		const resolved = skipContributed ? this.resolveAnyMap(folder, config) : await this.resolveAnyMapIncludeContributed(folder, config);
+		const resolved = await this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
 		const allVariableMapping: Map<string, string> = resolved.resolvedVariables;
 
