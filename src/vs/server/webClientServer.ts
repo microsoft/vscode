@@ -211,7 +211,7 @@ export class WebClientServer extends Disposable {
 			return value.replace(/"/g, '&quot;');
 		}
 
-		const filePath = URI.parse(require.toUrl('vs/code/browser/workbench/workbench.html')).fsPath;
+		const filePath = URI.parse(require.toUrl(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html')).fsPath;
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONGIGURATION}}', escapeAttribute(JSON.stringify({
 				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
