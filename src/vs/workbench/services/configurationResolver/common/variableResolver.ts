@@ -53,7 +53,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(root ? root.uri : undefined, value);
 	}
 
-	private resolveAnyBaseInternal(config: any): any {
+	private async resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
 		const result = objects.deepClone(config) as any;
 
 		// hoist platform specific attributes to top level
@@ -69,12 +69,6 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		delete result.windows;
 		delete result.osx;
 		delete result.linux;
-
-		return result;
-	}
-
-	private async resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
-		const result = this.resolveAnyBaseInternal(config);
 
 		// substitute all variables recursively in string values
 		return this.recursiveResolvePromise(workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
