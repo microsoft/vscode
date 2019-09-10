@@ -47,7 +47,7 @@ import { ExtensionActivationError } from 'vs/workbench/services/extensions/commo
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUserDataProvider } from 'vs/workbench/services/userData/common/userData';
+import { IUserData } from 'vs/workbench/services/userData/common/userData';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -142,9 +142,8 @@ export interface MainThreadConfigurationShape extends IDisposable {
 }
 
 export interface MainThreadUserDataShape extends IDisposable {
-	$registerUserLoginProvider(identitiy: string, loggedIn: boolean): void;
-	$updateLoggedIn(identitiy: string, loggedIn: boolean): void;
-	$registerUserDataProvider(identitiy: string, userDataProvider: IUserDataProvider): void;
+	$registerUserDataProvider(name: string): void;
+	$deregisterUserDataProvider(): void;
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
@@ -753,8 +752,8 @@ export interface ExtHostConfigurationShape {
 }
 
 export interface ExtHostUserDataShape {
-	$logIn(identity: string): Promise<void>;
-	$logOut(identity: string): Promise<void>;
+	$read(key: string): Promise<IUserData | null>;
+	$write(key: string, version: number, content: string): Promise<void>;
 }
 
 export interface ExtHostDiagnosticsShape {

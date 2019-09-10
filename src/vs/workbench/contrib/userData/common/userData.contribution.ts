@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserIdentityService, IUserDataProviderService, IUserIdentity, IUserDataSyncService, SyncStatus } from 'vs/workbench/services/userData/common/userData';
-import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
+import { IUserDataSyncService, IRemoteUserDataService } from 'vs/workbench/services/userData/common/userData';
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
@@ -14,12 +13,12 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+const CONTEXT_SYNC_ENABLED = new RawContextKey<boolean>('syncEnabled', false);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
@@ -41,147 +40,55 @@ class AutoSyncUserDataContribution extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUserIdentityService private readonly userIdentityService: IUserIdentityService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
 		this.autoSync();
-		this._register(Event.any<any>(this.userIdentityService.onDidDeregisterUserIdentities, this.configurationService.onDidChangeConfiguration)(() => this.autoSync()));
 	}
 
 	private async autoSync(): Promise<void> {
 		if (this.configurationService.getValue<boolean>('userData.autoSync')) {
-			const userIdentity = this.userIdentityService.getUserIndetities()[0];
-			if (userIdentity) {
-				await this.extensionService.activateByEvent(`onUserData:${userIdentity.identity}`);
-				this.userDataSyncService.synchronise();
-			}
+			this.userDataSyncService.synchronise();
 		}
 	}
 
 }
 
-class UserDataSyncStatusContribution extends Disposable implements IWorkbenchContribution {
+class UserDataSyncContextUpdateContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly userDataSyncStatusAccessor: IStatusbarEntryAccessor;
+	private syncEnablementContext: IContextKey<boolean>;
 
 	constructor(
-		@IUserIdentityService private userIdentityService: IUserIdentityService,
-		@IStatusbarService private statusbarService: IStatusbarService,
-		@IUserDataSyncService private userDataSyncService: IUserDataSyncService,
+		@IRemoteUserDataService remoteUserDataService: IRemoteUserDataService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
-		this.userDataSyncStatusAccessor = this.statusbarService.addEntry({
-			text: '',
-			command: ShowUserDataSyncActions.ID
-		}, 'userDataSyncStatusEntry', localize('user data sync', "Sync User Data"), StatusbarAlignment.LEFT, 10);
-		this.updateUserDataSyncStatusAccessor();
-		this._register(Event.any<any>(
-			this.userIdentityService.onDidRegisterUserIdentities, this.userIdentityService.onDidDeregisterUserIdentities,
-			this.userIdentityService.onDidRegisterUserLoginProvider, this.userIdentityService.onDidDeregisterUserLoginProvider,
-			this.userDataSyncService.onDidChangeSyncStatus)
-			(() => this.updateUserDataSyncStatusAccessor()));
-		this._register(this.userIdentityService.onDidRegisterUserLoginProvider((identity => this.onDidRegisterUserLoginProvider(identity))));
+		this.syncEnablementContext = CONTEXT_SYNC_ENABLED.bindTo(contextKeyService);
+		this.syncEnablementContext.set(remoteUserDataService.isEnabled());
+		this._register(remoteUserDataService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
 	}
 
-	private onDidRegisterUserLoginProvider(identity: string): void {
-		const userLoginProvider = this.userIdentityService.getUserLoginProvider(identity);
-		if (userLoginProvider) {
-			this._register(userLoginProvider.onDidChange(() => this.updateUserDataSyncStatusAccessor()));
-		}
-	}
-
-	private updateUserDataSyncStatusAccessor(): void {
-		const userIdentity = this.userIdentityService.getUserIndetities()[0];
-		if (userIdentity) {
-			const loginProvider = this.userIdentityService.getUserLoginProvider(userIdentity.identity);
-			const neededSignIn = loginProvider && !loginProvider.loggedIn;
-			const text = this.getText(userIdentity, !!neededSignIn);
-			this.userDataSyncStatusAccessor.update({ text, command: ShowUserDataSyncActions.ID });
-			this.statusbarService.updateEntryVisibility('userDataSyncStatusEntry', true);
-		} else {
-			this.statusbarService.updateEntryVisibility('userDataSyncStatusEntry', false);
-		}
-	}
-
-	private getText(userIdentity: IUserIdentity, neededSignIn: boolean): string {
-		if (neededSignIn) {
-			const signinText = localize('sign in', "{0}: Sign in to sync", userIdentity.title);
-			return userIdentity.iconText ? `${userIdentity.iconText} ${signinText}` : signinText;
-		}
-		if (userIdentity.iconText) {
-			const syncText = this.userDataSyncService.syncStatus === SyncStatus.Syncing ? localize('syncing', "{0}: Synchronosing...", userIdentity.title) : localize('sync user data', "{0}: Sync", userIdentity.title);
-			return `${userIdentity.iconText} ${syncText}`;
-		}
-		return userIdentity.title;
-	}
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncStatusContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncContextUpdateContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(AutoSyncUserDataContribution, LifecyclePhase.Ready);
 
-export class ShowUserDataSyncActions extends Action {
+class ShowUserDataSyncActions extends Action {
 
 	public static ID: string = 'workbench.userData.actions.showUserDataSyncActions';
 	public static LABEL: string = localize('workbench.userData.actions.showUserDataSyncActions.label', "Show User Data Sync Actions");
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IUserDataProviderService private readonly userDataProviderService: IUserDataProviderService,
-		@IUserIdentityService private userIdentityService: IUserIdentityService,
 		@ICommandService private commandService: ICommandService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IStorageService private storageService: IStorageService,
-		@IDialogService private dialogService: IDialogService,
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(ShowUserDataSyncActions.ID, ShowUserDataSyncActions.LABEL);
 	}
 
 	async run(): Promise<void> {
-		const userIdentity = this.userIdentityService.getUserIndetities()[0];
-		if (!userIdentity) {
-			return;
-		}
-
-		await this.extensionService.activateByEvent(`onUserData:${userIdentity.identity}`);
-		const userDataProvider = this.userDataProviderService.getUserDataProvider(userIdentity.identity);
-		if (!userDataProvider) {
-			return;
-		}
-
-		const loginProvider = this.userIdentityService.getUserLoginProvider(userIdentity.identity);
-		if (loginProvider && !loginProvider.loggedIn) {
-			if (!await this.promptToSigin(userIdentity)) {
-				return;
-			}
-			await loginProvider.login();
-			if (!loginProvider.loggedIn) {
-				return;
-			}
-		}
 		return this.showSyncActions();
-	}
-
-	private async promptToSigin(userIdentity: IUserIdentity): Promise<boolean> {
-		if (!this.storageService.getBoolean(`workbench.userData.${userIdentity.identity}.donotAskSignIn`, StorageScope.GLOBAL, false)) {
-			const result = await this.dialogService.confirm({
-				message: localize('sign in to start sync', "Sign In to Start Sync"),
-				detail: localize('sign in deatils', "Sign in to {0} to get your settings, keybindings, snippets and extensions.", userIdentity.title),
-				primaryButton: localize('sign in primary', "Sign In"),
-				secondaryButton: localize('no thanks', "No Thanks"),
-				checkbox: {
-					label: localize('doNotAskAgain', "Do not ask me again")
-				},
-			});
-			if (result.confirmed && result.checkboxChecked) {
-				this.storageService.store(`workbench.userData.${userIdentity.identity}.donotAskSignIn`, true, StorageScope.GLOBAL);
-			}
-			return result.confirmed;
-		}
-		return true;
 	}
 
 	private async showSyncActions(): Promise<void> {
@@ -214,4 +121,14 @@ CommandsRegistry.registerCommand('workbench.userData.actions.stopAutoSync', (ser
 CommandsRegistry.registerCommand('workbench.userData.actions.startAutoSync', (serviceAccessor) => {
 	const configurationService = serviceAccessor.get(IConfigurationService);
 	return configurationService.updateValue('userData.autoSync', true);
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '5_sync',
+	command: {
+		id: ShowUserDataSyncActions.ID,
+		title: localize('synchronise user data', "Sync...")
+	},
+	when: CONTEXT_SYNC_ENABLED,
+	order: 1
 });

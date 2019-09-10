@@ -4,95 +4,61 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { Schemas } from 'vs/base/common/network';
 
-export interface IUserLoginProvider {
+export interface IUserData {
+	version: number;
+	content: string;
+}
 
-	readonly loggedIn: boolean;
+export enum RemoteUserDataErrorCode {
+	InvalidVersion = 'InvalidVersion'
+}
 
-	readonly onDidChange: Event<void>;
+export class RemoteUserDataError extends Error {
 
-	login(): Promise<void>;
-
-	logout(): Promise<void>;
+	constructor(message: string, public readonly code: RemoteUserDataErrorCode) {
+		super(message);
+	}
 
 }
 
-export interface IUserIdentity {
-	identity: string;
-	title: string;
-	iconText?: string;
-}
+export interface IRemoteUserDataProvider {
 
-export const IUserIdentityService = createDecorator<IUserIdentityService>('IUserIdentityService');
+	read(key: string): Promise<IUserData | null>;
 
-export interface IUserIdentityService {
-
-	_serviceBrand: any;
-
-	readonly onDidRegisterUserIdentities: Event<IUserIdentity[]>;
-
-	readonly onDidDeregisterUserIdentities: Event<IUserIdentity[]>;
-
-	readonly onDidRegisterUserLoginProvider: Event<string>;
-
-	readonly onDidDeregisterUserLoginProvider: Event<string>;
-
-	registerUserIdentities(userIdentities: IUserIdentity[]): void;
-
-	deregisterUserIdentities(identities: string[]): void;
-
-	registerUserLoginProvider(identity: string, userLoginProvider: IUserLoginProvider): void;
-
-	deregisterUserLoginProvider(identity: string): void;
-
-	getUserIndetities(): ReadonlyArray<IUserIdentity>;
-
-	getUserIdentity(identity: string): IUserIdentity | null;
-
-	getUserLoginProvider(identity: string): IUserLoginProvider | null;
-}
-
-export interface IUserDataProvider {
-
-	userDataScheme: string;
+	write(key: string, version: number, content: string): Promise<void>;
 
 }
 
-export const IUserDataProviderService = createDecorator<IUserDataProviderService>('IUserDataProviderService');
+export const IRemoteUserDataService = createDecorator<IRemoteUserDataService>('IRemoteUserDataService');
 
-export interface IUserDataProviderService {
+export interface IRemoteUserDataService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	registerUserDataProvider(identity: string, userDataProvider: IUserDataProvider): void;
+	readonly onDidChangeEnablement: Event<boolean>;
 
-	deregisterAll(): void;
+	isEnabled(): boolean;
 
-	getUserDataProvider(identity: string): IUserDataProvider | null;
+	registerRemoteUserDataProvider(name: string, remoteUserDataProvider: IRemoteUserDataProvider): void;
 
-}
+	deregisterRemoteUserDataProvider(): void;
 
-export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
+	getName(): string | null;
 
+	read(key: string): Promise<IUserData | null>;
 
-export const USER_DATA_SETTINGS_RESOURCE = URI.file('settings.json').with({ scheme: Schemas.userData });
-export const USER_DATA_KEYBINDINGS_RESOURCE = URI.file('keybindings.json').with({ scheme: Schemas.userData });
-export const USER_DATA_SNIPPETS_RESOURCE = URI.file('snippets').with({ scheme: Schemas.userData });
-export const USER_DATA_EXTENSIONS_RESOURCE = URI.file('extensions.json').with({ scheme: Schemas.userData });
+	write(key: string, version: number, content: string): Promise<void>;
 
-export interface IUserDataExtension {
-	identifier: IExtensionIdentifier;
-	version?: string;
 }
 
 export enum SyncStatus {
 	Syncing = 1,
 	SyncDone
 }
+
+export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 
 export interface IUserDataSyncService {
 
@@ -103,7 +69,5 @@ export interface IUserDataSyncService {
 	readonly onDidChangeSyncStatus: Event<SyncStatus>;
 
 	synchronise(): Promise<void>;
-
-	getExtensions(): Promise<IUserDataExtension[]>;
 
 }

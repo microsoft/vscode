@@ -4,50 +4,45 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtHostUserDataShape, MainThreadUserDataShape } from './extHost.protocol';
-import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
 import * as vscode from 'vscode';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IUserData } from 'vs/workbench/services/userData/common/userData';
 
 export class ExtHostUserData implements ExtHostUserDataShape {
 
-	private readonly loginProviders: Map<string, vscode.UserLoginProvider> = new Map<string, vscode.UserLoginProvider>();
+	private name: string | null = null;
+	private userDataProvider: vscode.UserDataProvider | null = null;
 
 	constructor(
 		private readonly proxy: MainThreadUserDataShape,
-		private readonly extHostFileSystem: ExtHostFileSystem
+		private readonly logService: ILogService,
 	) {
 	}
 
-	registerUserDataProvider(identity: string, userDataProvider: vscode.UserDataProvider): vscode.Disposable {
-		const userDataScheme = `vscode-userdata-${identity}`;
-		const disposable = this.extHostFileSystem.registerFileSystemProvider(userDataScheme, userDataProvider.dataProvider);
-		this.proxy.$registerUserDataProvider(identity, { userDataScheme });
-		return disposable;
-	}
-
-	registerUserLoginProvider(identity: string, loginProvider: vscode.UserLoginProvider): vscode.Disposable {
-		this.loginProviders.set(identity, loginProvider);
-		this.proxy.$registerUserLoginProvider(identity, loginProvider.isLoggedin());
-		const disposable = new DisposableStore();
-		disposable.add(loginProvider.onDidChange(() => this.proxy.$updateLoggedIn(identity, loginProvider.isLoggedin())));
-		disposable.add(toDisposable(() => this.loginProviders.delete(identity)));
-		return disposable;
-	}
-
-	async $logIn(identity: string): Promise<void> {
-		const loginProvider = this.loginProviders.get(identity);
-		if (!loginProvider) {
-			return Promise.reject(new Error(`No login provider found for ${identity}`));
+	registerUserDataProvider(name: string, userDataProvider: vscode.UserDataProvider): vscode.Disposable {
+		if (this.userDataProvider) {
+			this.logService.warn(`A user data provider '${this.name}' already exists hence ignoring the remote user data provider '${name}'.`);
+			return Disposable.None;
 		}
-		await loginProvider.login();
+		this.userDataProvider = userDataProvider;
+		this.name = name;
+		this.proxy.$registerUserDataProvider(name);
+		return toDisposable(() => this.proxy.$deregisterUserDataProvider());
 	}
 
-	$logOut(identity: string): Promise<void> {
-		const loginProvider = this.loginProviders.get(identity);
-		if (!loginProvider) {
-			return Promise.reject(new Error(`No login provider found for ${identity}`));
+	$read(key: string): Promise<IUserData | null> {
+		if (!this.userDataProvider) {
+			throw new Error('No remote user data provider exists.');
 		}
-		return Promise.resolve();
+		return this.userDataProvider.read(key);
+	}
+
+	$write(key: string, version: number, content: string): Promise<void> {
+		if (!this.userDataProvider) {
+			throw new Error('No remote user data provider exists.');
+		}
+		return this.userDataProvider.write(key, version, content);
 	}
 
 }

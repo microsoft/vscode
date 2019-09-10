@@ -1219,7 +1219,9 @@ declare module 'vscode' {
 
 	export interface UserDataProvider {
 
-		dataProvider: FileSystemProvider;
+		read(key: string): Promise<{ version: number, content: string } | null>;
+
+		write(key: string, version: number, content: string): Promise<void>;
 
 	}
 

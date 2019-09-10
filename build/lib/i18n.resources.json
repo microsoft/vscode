@@ -277,6 +277,10 @@
 		{
 			"name": "vs/workbench/services/notification",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/userData",
+			"project": "vscode-workbench"
 		}
 	]
 }
