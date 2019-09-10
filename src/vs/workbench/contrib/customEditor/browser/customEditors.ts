@@ -17,7 +17,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
-import { CustomEditorInfo, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorInfo, ICustomEditorService, CustomEditorDiscretion } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -42,7 +42,7 @@ export class CustomEditorService implements ICustomEditorService {
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
 						filenamePatterns: webviewEditorContribution.filenamePatterns || [],
-						enableByDefault: !!webviewEditorContribution.enableByDefault,
+						discretion: webviewEditorContribution.discretion || CustomEditorDiscretion.default,
 					});
 				}
 			}
@@ -71,8 +71,8 @@ export class CustomEditorService implements ICustomEditorService {
 				id: editorDescriptor.id,
 			}))
 		], {
-				placeHolder: nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", basename(resource)),
-			});
+			placeHolder: nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", basename(resource)),
+		});
 
 		if (!pick) {
 			return;
@@ -151,7 +151,7 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 				return;
 			}
 
-			const defaultEditors = customEditors.filter(editor => editor.enableByDefault);
+			const defaultEditors = customEditors.filter(editor => editor.discretion === CustomEditorDiscretion.default);
 			if (defaultEditors.length === 1) {
 				return {
 					override: this.customEditorService.openWith(resource, defaultEditors[0].id, options, group),

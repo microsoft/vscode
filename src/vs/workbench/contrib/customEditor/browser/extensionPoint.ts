@@ -5,6 +5,7 @@
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
+import { CustomEditorDiscretion } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 
@@ -12,14 +13,14 @@ namespace WebviewEditorContribution {
 	export const viewType = 'viewType';
 	export const displayName = 'displayName';
 	export const filenamePatterns = 'filenamePatterns';
-	export const enableByDefault = 'enableByDefault';
+	export const discretion = 'discretion';
 }
 
 interface IWebviewEditorsExtensionPoint {
 	readonly [WebviewEditorContribution.viewType]: string;
 	readonly [WebviewEditorContribution.displayName]: string;
 	readonly [WebviewEditorContribution.filenamePatterns]?: readonly string[];
-	readonly [WebviewEditorContribution.enableByDefault]?: boolean;
+	readonly [WebviewEditorContribution.discretion]?: CustomEditorDiscretion;
 }
 
 const webviewEditorsContribution: IJSONSchema = {
@@ -45,9 +46,18 @@ const webviewEditorsContribution: IJSONSchema = {
 				type: 'array',
 				description: nls.localize('contributes.filenamePatterns', 'Set of globs that the custom editor is enabled for.'),
 			},
-			[WebviewEditorContribution.enableByDefault]: {
-				type: 'boolean',
-				description: nls.localize('contributes.enableByDefault', 'Should the editor be enabled by default.'),
+			[WebviewEditorContribution.discretion]: {
+				type: 'string',
+				description: nls.localize('contributes.discretion', 'Controls when the custom editor is used. May be overridden by users.'),
+				enum: [
+					CustomEditorDiscretion.default,
+					CustomEditorDiscretion.option
+				],
+				enumDescriptions: [
+					nls.localize('contributes.discretion.default', 'Editor is automatically used for a resource if no other default custom editors are registered for it.'),
+					nls.localize('contributes.discretion.option', 'Editor is not automatically used but can be selected by a user.'),
+				],
+				default: 'default'
 			}
 		}
 	}

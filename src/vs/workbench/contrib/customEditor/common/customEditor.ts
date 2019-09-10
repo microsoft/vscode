@@ -21,8 +21,13 @@ export interface ICustomEditorService {
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 }
 
+export const enum CustomEditorDiscretion {
+	default = 'default',
+	option = 'option',
+}
+
 export interface CustomEditorInfo {
 	readonly id: string;
 	readonly displayName: string;
-	readonly enableByDefault: boolean;
+	readonly discretion: CustomEditorDiscretion;
 }
