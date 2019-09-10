@@ -244,9 +244,6 @@ function uglifyWithCopyrights() {
     const output = input
         .pipe(flatmap((stream, f) => {
         return stream.pipe(minify({
-            compress: {
-                hoist_funs: true // required due to https://github.com/microsoft/vscode/issues/80202
-            },
             output: {
                 comments: preserveComments(f),
                 max_line_len: 1024
