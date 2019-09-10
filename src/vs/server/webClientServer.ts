@@ -19,6 +19,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import product from 'vs/platform/product/node/product';
 import { ServerEnvironmentService } from 'vs/server/remoteExtensionHostAgent';
+import { parsePathArg } from 'vs/platform/environment/node/environmentService';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -211,6 +212,9 @@ export class WebClientServer extends Disposable {
 			return value.replace(/"/g, '&quot;');
 		}
 
+		const webUserDataDir = this._environmentService.args['web-user-data-dir'];
+		const webUserDataHome = URI.file(parsePathArg(webUserDataDir, process) || this._environmentService.userDataPath);
+
 		const filePath = URI.parse(require.toUrl(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html')).fsPath;
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONGIGURATION}}', escapeAttribute(JSON.stringify({
@@ -222,7 +226,7 @@ export class WebClientServer extends Disposable {
 				productConfiguration: product
 			})))
 			.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
-			.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(this._environmentService.webUserDataHome))));
+			.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(webUserDataHome))));
 
 		res.writeHead(200, { 'Content-Type': 'text/html' });
 		return res.end(data);
