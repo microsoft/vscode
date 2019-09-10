@@ -78,8 +78,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		// Make sure the context menu has been dismissed before we prompt.
-		// Otherwise we will sometimes close the prompt instantly when focus does change from the
-		// context menu back to the workbench.
+		// Otherwise with webviews, we will sometimes close the prompt instantly when the webview is
+		// refocused by the workbench
 		setTimeout(() => {
 			customEditorService.promptOpenWith(resource!, undefined, undefined);
 		}, 10);
