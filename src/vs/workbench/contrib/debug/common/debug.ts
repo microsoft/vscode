@@ -104,13 +104,13 @@ export interface IExpressionContainer extends ITreeElement {
 	readonly hasChildren: boolean;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
+	readonly value: string;
+	readonly type?: string;
+	valueChanged?: boolean;
 }
 
-export interface IExpression extends IReplElement, IExpressionContainer {
+export interface IExpression extends IExpressionContainer {
 	name: string;
-	readonly value: string;
-	valueChanged?: boolean;
-	readonly type?: string;
 }
 
 export interface IDebugger {
