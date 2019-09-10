@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { find } from 'vs/base/common/arrays';
 import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
@@ -17,7 +18,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
-import { CustomEditorDiscretion, CustomEditorInfo, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorDiscretion, CustomEditorInfo, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -51,19 +52,7 @@ export class CustomEditorService implements ICustomEditorService {
 
 	public getCustomEditorsForResource(resource: URI): readonly CustomEditorInfo[] {
 		return this.customEditors.filter(customEditor =>
-			customEditor.selector.some(selector => {
-				if (selector.filenamePattern) {
-					if (!glob.match(selector.filenamePattern, basename(resource))) {
-						return false;
-					}
-				}
-				if (selector.scheme) {
-					if (resource.scheme !== selector.scheme) {
-						return false;
-					}
-				}
-				return true;
-			}));
+			customEditor.selector.some(selector => matches(selector, resource)));
 	}
 
 	public async promptOpenWith(
@@ -118,9 +107,9 @@ export class CustomEditorService implements ICustomEditorService {
 	}
 }
 
-export const customEditorsConfigurationKey = 'workbench.experimental.customEditors';
+export const customEditorsAssociationsKey = 'workbench.experimental.editorAssociations';
 
-type CustomEditorsConfiguration = { readonly [glob: string]: string };
+export type CustomEditorsAssociations = readonly (CustomEditorSelector & { readonly viewType: string })[];
 
 export class CustomEditorContribution implements IWorkbenchContribution {
 	constructor(
@@ -132,13 +121,9 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 	}
 
 	private getConfiguredCustomEditor(resource: URI): string | undefined {
-		const config = this.configurationService.getValue<CustomEditorsConfiguration>(customEditorsConfigurationKey) || {};
-		for (const filePattern of Object.keys(config)) {
-			if (glob.match(filePattern, basename(resource))) {
-				return config[filePattern];
-			}
-		}
-		return undefined;
+		const config = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsKey) || [];
+		const match = find(config, association => matches(association, resource));
+		return match ? match.viewType : undefined;
 	}
 
 	private onEditorOpening(
@@ -202,4 +187,18 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 			})()
 		};
 	}
+}
+
+function matches(selector: CustomEditorSelector, resource: URI): boolean {
+	if (selector.filenamePattern) {
+		if (!glob.match(selector.filenamePattern, basename(resource))) {
+			return false;
+		}
+	}
+	if (selector.scheme) {
+		if (resource.scheme !== selector.scheme) {
+			return false;
+		}
+	}
+	return true;
 }

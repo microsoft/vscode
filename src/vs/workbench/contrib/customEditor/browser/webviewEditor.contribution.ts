@@ -17,7 +17,7 @@ import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/c
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import './commands';
 import { CustomFileEditorInput } from './customEditorInput';
-import { CustomEditorContribution, customEditorsConfigurationKey, CustomEditorService } from './customEditors';
+import { CustomEditorContribution, customEditorsAssociationsKey, CustomEditorService } from './customEditors';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
@@ -30,8 +30,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		WebviewEditor.ID,
 		'Webview Editor',
 	), [
-		new SyncDescriptor(CustomFileEditorInput)
-	]);
+	new SyncDescriptor(CustomFileEditorInput)
+]);
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
 	CustomEditoInputFactory.ID,
@@ -44,10 +44,26 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
 		'type': 'object',
 		'properties': {
-			[customEditorsConfigurationKey]: {
-				'type': 'object',
-				'markdownDescription': nls.localize('editor.custom', "Configure which editor to use for resources with a given name (e.g. `\"*.png\": \"imageExtension.imageEditor\"`)."),
-				'default': {}
+			[customEditorsAssociationsKey]: {
+				type: 'array',
+				markdownDescription: nls.localize('editor.editorAssociations', "Configure which editor to use for a resource."),
+				items: {
+					type: 'object',
+					properties: {
+						'viewType': {
+							type: 'string',
+							description: nls.localize('editor.editorAssociations.viewType', "Editor view type."),
+						},
+						'scheme': {
+							type: 'string',
+							description: nls.localize('editor.editorAssociations.scheme', "Uri scheme the editor should be used for."),
+						},
+						'filenamePattern': {
+							type: 'string',
+							description: nls.localize('editor.editorAssociations.filenamePattern', "Glob pattern the the editor should be used for."),
+						}
+					}
+				}
 			}
 		}
 	});
