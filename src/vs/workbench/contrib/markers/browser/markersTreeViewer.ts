@@ -565,7 +565,7 @@ export class MarkerViewModel extends Disposable {
 			true,
 			() => {
 				return this.openFileAtMarker(this.marker)
-					.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
+					.then(() => this.instantiationService.invokeFunction(applyCodeAction, codeAction, this.bulkEditService, this.commandService));
 			}));
 	}
 
