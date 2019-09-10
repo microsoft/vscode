@@ -11,11 +11,11 @@ import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
 import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable } from './driver';
 import { connect as connectPuppeteerDriver, launch } from './puppeteerDriver';
-import { Logger } from '../logger';
+import { Logger } from './logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
 
-const repoPath = path.join(__dirname, '../../../..');
+const repoPath = path.join(__dirname, '../../..');
 
 function getDevElectronPath(): string {
 	const buildPath = path.join(repoPath, '.build');
@@ -237,13 +237,14 @@ export class Code {
 					throw new Error('Invalid usage');
 				}
 
-				if (typeof target[prop] !== 'function') {
-					return target[prop];
+				const targetProp = (target as any)[prop];
+				if (typeof targetProp !== 'function') {
+					return targetProp;
 				}
 
-				return function (...args) {
+				return function (this: any, ...args: any[]) {
 					logger.log(`${prop}`, ...args.filter(a => typeof a === 'string'));
-					return target[prop].apply(this, args);
+					return targetProp.apply(this, args);
 				};
 			}
 		});

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Viewlet } from '../workbench/viewlet';
-import { Code } from '../../vscode/code';
+import { Viewlet } from './viewlet';
+import { Code } from './code';
 
 const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor textarea';
 

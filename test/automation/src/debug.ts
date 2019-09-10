@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Viewlet } from '../workbench/viewlet';
-import { Commands } from '../workbench/workbench';
-import { Code, findElement } from '../../vscode/code';
-import { Editors } from '../editor/editors';
-import { Editor } from '../editor/editor';
-import { IElement } from '../../vscode/driver';
+import { Viewlet } from './viewlet';
+import { Commands } from './workbench';
+import { Code, findElement } from './code';
+import { Editors } from './editors';
+import { Editor } from './editor';
+import { IElement } from '../src/driver';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET} .debug-view-content`;
@@ -25,7 +25,7 @@ const DEBUG_STATUS_BAR = `.statusbar.debugging`;
 const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;
 const TOOLBAR_HIDDEN = `.debug-toolbar[aria-hidden="true"]`;
 const STACK_FRAME = `${VIEWLET} .monaco-list-row .stack-frame`;
-const SPECIFIC_STACK_FRAME = filename => `${STACK_FRAME} .file[title*="${filename}"]`;
+const SPECIFIC_STACK_FRAME = (filename: string) => `${STACK_FRAME} .file[title*="${filename}"]`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-list-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_EVALUATION_RESULT = `.repl .evaluation-result.expression .value`;

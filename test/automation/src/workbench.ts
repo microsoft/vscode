@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Explorer } from '../explorer/explorer';
-import { ActivityBar } from '../activitybar/activityBar';
-import { QuickOpen } from '../quickopen/quickopen';
-import { QuickInput } from '../quickinput/quickinput';
-import { Extensions } from '../extensions/extensions';
-import { Search } from '../search/search';
-import { Editor } from '../editor/editor';
-import { SCM } from '../git/scm';
-import { Debug } from '../debug/debugSmoke';
-import { StatusBar } from '../statusbar/statusbar';
-import { Problems } from '../problems/problems';
-import { SettingsEditor } from '../preferences/settings';
-import { KeybindingsEditor } from '../preferences/keybindings';
-import { Editors } from '../editor/editors';
-import { Code } from '../../vscode/code';
-import { Terminal } from '../terminal/terminal';
+import { Explorer } from './explorer';
+import { ActivityBar } from './activityBar';
+import { QuickOpen } from './quickopen';
+import { QuickInput } from './quickinput';
+import { Extensions } from './extensions';
+import { Search } from './search';
+import { Editor } from './editor';
+import { SCM } from './scm';
+import { Debug } from './debug';
+import { StatusBar } from './statusbar';
+import { Problems } from './problems';
+import { SettingsEditor } from './settings';
+import { KeybindingsEditor } from './keybindings';
+import { Editors } from './editors';
+import { Code } from './code';
+import { Terminal } from './terminal';
 
 export interface Commands {
 	runCommand(command: string): Promise<any>;

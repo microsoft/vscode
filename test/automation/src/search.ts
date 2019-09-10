@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Viewlet } from '../workbench/viewlet';
-import { Code } from '../../vscode/code';
+import { Viewlet } from './viewlet';
+import { Code } from './code';
 
 const VIEWLET = '.search-view';
 const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox textarea`;
 const INCLUDE_INPUT = `${VIEWLET} .query-details .file-types.includes .monaco-inputbox input`;
-const FILE_MATCH = filename => `${VIEWLET} .results .filematch[data-resource$="${filename}"]`;
+const FILE_MATCH = (filename: string) => `${VIEWLET} .results .filematch[data-resource$="${filename}"]`;
 
 async function retry(setup: () => Promise<any>, attempt: () => Promise<any>) {
 	let count = 0;

@@ -5,8 +5,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Workbench } from './areas/workbench/workbench';
-import { Code, spawn, SpawnOptions } from './vscode/code';
+import { Workbench } from './workbench';
+import { Code, spawn, SpawnOptions } from './code';
 import { Logger } from './logger';
 
 export const enum Quality {
@@ -25,7 +25,7 @@ export interface ApplicationOptions extends SpawnOptions {
 export class Application {
 
 	private _code: Code | undefined;
-	private _workbench: Workbench;
+	private _workbench: Workbench | undefined;
 
 	constructor(private options: ApplicationOptions) {
 		this._workspacePathOrFolder = options.workspacePath;
@@ -40,7 +40,7 @@ export class Application {
 	}
 
 	get workbench(): Workbench {
-		return this._workbench;
+		return this._workbench!;
 	}
 
 	get logger(): Logger {
