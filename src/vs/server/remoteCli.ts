@@ -78,7 +78,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 		}
 	}
 
-	if (!cliPipe) {
+	if (cliPipe) {
 		options['gitCredential'] = { type: 'string' };
 	}
 

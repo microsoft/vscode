@@ -17,7 +17,6 @@ import { findFreePort } from 'vs/base/node/ports';
 import * as platform from 'vs/base/common/platform';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ConnectionType, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ExtensionHostConnection } from 'vs/server/extensionHostConnection';
 import { ManagementConnection } from 'vs/server/remoteExtensionManagement';
@@ -67,6 +66,7 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { WebClientServer, serveError, serveFile } from 'vs/server/webClientServer';
 import { URI } from 'vs/base/common/uri';
 import { isEqualOrParent } from 'vs/base/common/extpath';
+import { ServerEnvironmentService } from 'vs/server/remoteExtensionHostAgent';
 
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
@@ -100,7 +100,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 	constructor(
 		private readonly _connectionToken: string,
-		private readonly _environmentService: EnvironmentService,
+		private readonly _environmentService: ServerEnvironmentService,
 		private readonly _logService: ILogService
 	) {
 		super();

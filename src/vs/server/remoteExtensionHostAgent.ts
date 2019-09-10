@@ -21,6 +21,10 @@ const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'host': { type: 'string' },
 	'folder': { type: 'string' },
 	'workspace': { type: 'string' },
+	'client': { type: 'string' },
+	'fileWatcherPolling': { type: 'boolean' },
+	'enable-remote-auto-shutdown': { type: 'boolean' },
+
 	'disable-telemetry': OPTIONS['disable-telemetry'],
 
 	'extensions-dir': OPTIONS['extensions-dir'],
@@ -33,11 +37,13 @@ const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	_: OPTIONS['_']
 };
 
-interface ServerParsedArgs {
+export interface ServerParsedArgs {
 	port?: string;
 	connectionToken?: string;
 	host?: string;
 	'disable-telemetry'?: boolean;
+	fileWatcherPolling?: boolean;
+	'enable-remote-auto-shutdown'?: boolean;
 
 	'extensions-dir'?: string;
 	'install-extension'?: string[];
@@ -53,8 +59,15 @@ interface ServerParsedArgs {
 
 	workspace: string;
 	folder: string;
+	client: string;
 
 	_: string[];
+}
+
+export class ServerEnvironmentService extends EnvironmentService {
+	constructor(public args: ServerParsedArgs, _execPath: string) {
+		super(args, _execPath);
+	}
 }
 
 const errorReporter: ErrorReporter = {
@@ -100,7 +113,7 @@ args['extensions-dir'] = args['extensions-dir'] || path.join(REMOTE_DATA_FOLDER,
 	} catch (err) { console.error(err); }
 });
 
-const environmentService = new EnvironmentService(args, process.execPath);
+const environmentService = new ServerEnvironmentService(args, process.execPath);
 const logService: ILogService = new SpdLogService(RemoteExtensionLogFileName, environmentService.logsPath, getLogLevel(environmentService));
 logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 logService.trace('process arguments:', args);

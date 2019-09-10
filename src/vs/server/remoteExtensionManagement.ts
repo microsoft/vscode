@@ -18,7 +18,6 @@ import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Main as CliMain } from 'vs/code/node/cliProcessMain';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -30,6 +29,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/product';
+import { ServerEnvironmentService } from 'vs/server/remoteExtensionHostAgent';
 
 export interface IExtensionsManagementProcessInitData {
 	args: ParsedArgs;
@@ -96,7 +96,7 @@ export function shouldSpawnCli(argv: ParsedArgs): boolean {
 		|| !!argv['locate-extension'];
 }
 
-export async function run(argv: ParsedArgs, environmentService: EnvironmentService, logService: ILogService): Promise<boolean> {
+export async function run(argv: ParsedArgs, environmentService: ServerEnvironmentService, logService: ILogService): Promise<boolean> {
 	if (!shouldSpawnCli(argv)) {
 		return false;
 	}

@@ -13,17 +13,17 @@ import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { DiskFileSystemProvider, IWatcherOptions } from 'vs/platform/files/node/diskFileSystemProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { posix } from 'vs/base/common/path';
+import { ServerEnvironmentService } from 'vs/server/remoteExtensionHostAgent';
 
 class SessionFileWatcher extends Disposable {
 
 	private readonly _uriTransformer: IURITransformer;
 	private readonly _watcherRequests: Map<number, IDisposable>;
 	private readonly _fileWatcher: DiskFileSystemProvider;
-	private readonly _environmentService: IEnvironmentService;
+	private readonly _environmentService: ServerEnvironmentService;
 
-	constructor(logService: ILogService, environmentService: IEnvironmentService, uriTransformer: IURITransformer, emitter: Emitter<IFileChange[] | string>) {
+	constructor(logService: ILogService, environmentService: ServerEnvironmentService, uriTransformer: IURITransformer, emitter: Emitter<IFileChange[] | string>) {
 		super();
 		this._uriTransformer = uriTransformer;
 		this._environmentService = environmentService;
@@ -45,7 +45,7 @@ class SessionFileWatcher extends Disposable {
 	}
 
 	private getWatcherOptions(): IWatcherOptions | undefined {
-		const pollingInterval = (this._environmentService.args as any)['fileWatcherPolling'];
+		const pollingInterval = this._environmentService.args['fileWatcherPolling'];
 		if (typeof pollingInterval === 'number' && pollingInterval > 0) {
 			return { usePolling: true, pollingInterval };
 		}
@@ -79,13 +79,13 @@ class SessionFileWatcher extends Disposable {
 export class RemoteAgentFileSystemChannel extends Disposable implements IServerChannel<RemoteAgentConnectionContext> {
 
 	private readonly _logService: ILogService;
-	private readonly _environmentService: IEnvironmentService;
+	private readonly _environmentService: ServerEnvironmentService;
 	private readonly _uriTransformerCache: Map<string, IURITransformer>;
 	private readonly _fileWatchers: Map<string, SessionFileWatcher>;
 	private readonly _fsProvider: DiskFileSystemProvider;
 	private readonly _watchRequests: Map<string, IDisposable> = new Map();
 
-	constructor(logService: ILogService, environmentService: IEnvironmentService) {
+	constructor(logService: ILogService, environmentService: ServerEnvironmentService) {
 		super();
 		this._logService = logService;
 		this._environmentService = environmentService;

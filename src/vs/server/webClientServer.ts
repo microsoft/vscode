@@ -14,11 +14,11 @@ import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { findFreePort } from 'vs/base/node/ports';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import product from 'vs/platform/product/node/product';
+import { ServerEnvironmentService } from 'vs/server/remoteExtensionHostAgent';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -77,7 +77,7 @@ export class WebClientServer extends Disposable {
 
 	constructor(
 		private readonly _connectionToken: string,
-		private readonly _environmentService: EnvironmentService,
+		private readonly _environmentService: ServerEnvironmentService,
 		private readonly _logService: ILogService
 	) {
 		super();
@@ -155,7 +155,7 @@ export class WebClientServer extends Disposable {
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
 		const relativeFilePath = path.normalize(normalizedPathname.substr('/static/'.length));
 
-		const client = (this._environmentService.args as any)['client'];
+		const client = this._environmentService.args['client'];
 		if (client && normalizedPathname !== '/static/out/vs/code/browser/workbench/workbench.js') {
 			// use provided path as client root
 			const filePath = path.join(path.normalize(client), relativeFilePath);
@@ -246,7 +246,7 @@ export class WebClientServer extends Disposable {
 			if (queryWorkspace) {
 				workspaceCandidate = URI.from({ scheme: Schemas.file, path: queryWorkspace }).fsPath;
 			} else {
-				workspaceCandidate = (this._environmentService.args as any)['workspace'];
+				workspaceCandidate = this._environmentService.args['workspace'];
 			}
 
 			if (workspaceCandidate && workspaceCandidate.length > 0) {
@@ -262,7 +262,7 @@ export class WebClientServer extends Disposable {
 		if (queryFolder) {
 			folderCandidate = URI.from({ scheme: Schemas.file, path: queryFolder }).fsPath;
 		} else {
-			folderCandidate = (this._environmentService.args as any)['folder'];
+			folderCandidate = this._environmentService.args['folder'];
 		}
 
 		if (folderCandidate && folderCandidate.length > 0) {
