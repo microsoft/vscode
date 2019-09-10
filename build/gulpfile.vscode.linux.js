@@ -215,7 +215,7 @@ function prepareSnapPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ICON@@', `${SNAP}/meta/gui/${product.linuxIconName}.png`))
+			.pipe(replace('@@ICON@@', `\${SNAP}/meta/gui/${product.linuxIconName}.png`))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
 		// An icon that is placed in snap/gui will be placed into meta/gui verbatim.
