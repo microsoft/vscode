@@ -35,7 +35,7 @@ const vscodeWebResources = [
 
 	// Workbench
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png}',
-	'out-build/vs/code/browser/workbench/workbench.html',
+	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/**/markdown.css',
 
