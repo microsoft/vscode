@@ -33,44 +33,50 @@ const RUNTIMES = {
 };
 
 const SELFHOST = process.argv.indexOf('--selfhost') !== -1;
-const HAS_PORT = process.argv.indexOf('--port') !== -1;
 const INSIDERS = process.argv.indexOf('--insiders') !== -1;
 const SKIP_UPDATE = process.argv.indexOf('--disable-update') !== -1;
-const HAS_WORKSPACE = process.argv.indexOf('--folder') !== -1 || process.argv.indexOf('--workspace') !== -1;
 
-// Workspace Config
-if (!HAS_WORKSPACE && SELFHOST) {
-	process.argv.push('--folder', process.cwd());
-}
+const serverArgs = [];
 
 // Port Config
 let PORT = SELFHOST ? 9777 : 9888;
-process.argv.forEach((arg, idx) => {
-	if (arg.indexOf('--port') !== -1 && process.argv.length >= idx + 1) {
-		PORT = Number(process.argv[idx + 1]);
-	}
-});
 
-if (!HAS_PORT) {
-	process.argv.push('--port', String(PORT));
+// Workspace Config
+let FOLDER = undefined;
+let WORKSPACE = undefined;
+
+// Browser Config
+let BROWSER = undefined;
+
+for (let idx = 0; idx < process.argv.length - 2; idx++) {
+	const arg = process.argv[idx];
+	switch (arg) {
+		case '--port': PORT = Number(process.argv[idx + 1]); break;
+		case '--folder': FOLDER = process.argv[idx + 1]; break;
+		case '--workspace': WORKSPACE = process.argv[idx + 1]; break;
+		case '--browser': BROWSER = process.argv[idx + 1]; break;
+	}
+}
+
+serverArgs.push('--port', String(PORT));
+if (FOLDER) {
+	serverArgs.push('--folder', FOLDER);
+}
+if (WORKSPACE) {
+	serverArgs.push('--workspace', WORKSPACE);
+}
+if (!FOLDER && !WORKSPACE && SELFHOST) {
+	serverArgs.push('--folder', process.cwd());
 }
 
 // Insiders Config
 if (INSIDERS) {
-	process.argv.push('--web-user-data-dir', getInsidersUserDataPath());
-	process.argv.push('--extensions-dir', path.join(os.homedir(), '.vscode-insiders', 'extensions'));
+	serverArgs.push('--web-user-data-dir', getInsidersUserDataPath());
+	serverArgs.push('--extensions-dir', path.join(os.homedir(), '.vscode-insiders', 'extensions'));
 }
 
-// Browser Config
-let BROWSER = undefined;
-process.argv.forEach((arg, idx) => {
-	if (arg.indexOf('--browser') !== -1 && process.argv.length >= idx + 1) {
-		BROWSER = process.argv[idx + 1];
-	}
-});
-
 // Connection Token
-process.argv.push('--connectionToken', '00000');
+serverArgs.push('--connectionToken', '00000');
 
 const env = { ...process.env };
 let node;
@@ -249,7 +255,6 @@ function getInsidersUserDataPath() {
 }
 
 function startServer() {
-	const serverArgs = process.argv.slice(2);
 	const proc = cp.spawn(node, [entryPoint, ...serverArgs], { env });
 
 	let launched = false;

@@ -19,9 +19,7 @@ const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'port': { type: 'string' },
 	'connectionToken': { type: 'string' },
 	'host': { type: 'string' },
-	'folder': { type: 'string' },
-	'workspace': { type: 'string' },
-	'client': { type: 'string' },
+
 	'fileWatcherPolling': { type: 'boolean' },
 	'enable-remote-auto-shutdown': { type: 'boolean' },
 
@@ -33,6 +31,11 @@ const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'locate-extension': OPTIONS['locate-extension'],
 	'list-extensions': OPTIONS['list-extensions'],
 	'force': OPTIONS['force'],
+
+	'folder': { type: 'string' },
+	'workspace': { type: 'string' },
+	'client': { type: 'string' },
+	'web-user-data-dir': { type: 'string' },
 
 	_: OPTIONS['_']
 };
@@ -54,12 +57,13 @@ export interface ServerParsedArgs {
 	force?: boolean; // used by install-extension
 
 	'user-data-dir'?: string;
-
 	'builtin-extensions-dir'?: string;
 
+	// web
 	workspace: string;
 	folder: string;
 	client: string;
+	'web-user-data-dir'?: string;
 
 	_: string[];
 }
