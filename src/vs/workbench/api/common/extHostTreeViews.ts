@@ -96,6 +96,10 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				checkProposedApiEnabled(extension);
 				treeView.message = message;
 			},
+			setTitle(title: string) {
+				checkProposedApiEnabled(extension);
+				treeView.setTitle(title);
+			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
 			},
@@ -272,6 +276,10 @@ class ExtHostTreeView<T> extends Disposable {
 	set message(message: string) {
 		this._message = message;
 		this._onDidChangeData.fire({ message: true, element: false });
+	}
+
+	setTitle(name: string) {
+		this.proxy.$setTitle(this.viewId, name);
 	}
 
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
