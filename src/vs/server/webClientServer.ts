@@ -224,7 +224,7 @@ export class WebClientServer extends Disposable {
 			.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
 			.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(this._environmentService.webUserDataHome))));
 
-		res.writeHead(200, { 'Content-Type': textMimeType[path.extname(filePath)] || getMediaMime(filePath) || 'text/plain' });
+		res.writeHead(200, { 'Content-Type': 'text/html' });
 		return res.end(data);
 	}
 
@@ -332,8 +332,7 @@ export class WebClientServer extends Disposable {
 		// add to map of known callbacks
 		this._mapCallbackUriToRequestId.set(requestId, URI.from({ scheme: vscodeScheme || product.urlProtocol, authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }).toJSON());
 
-		res.writeHead(200, { 'Content-Type': 'text/html' });
-		return res.end('Please close this browser tab.');
+		return serveFile(this._logService, req, res, URI.parse(require.toUrl('vs/code/browser/workbench/callback.html')).fsPath, { 'Content-Type': 'text/html' });
 	}
 
 	/**

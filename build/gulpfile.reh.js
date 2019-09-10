@@ -97,7 +97,7 @@ const serverWithWebResources = [
 
 	// Include workbench web
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png}',
-	'out-build/vs/code/browser/workbench/workbench.html',
+	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
 	'out-build/vs/code/browser/workbench/**',
