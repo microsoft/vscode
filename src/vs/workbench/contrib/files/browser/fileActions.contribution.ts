@@ -26,7 +26,7 @@ import { Schemas } from 'vs/base/common/network';
 import { SupportsWorkspacesContext, IsWebContext, RemoteFileDialogContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenLocalFileFolderCommand, OpenFileAction, OpenFolderAction, OpenLocalFileCommand, OpenLocalFolderCommand, OpenWorkspaceAction, SaveLocalFileCommand } from 'vs/workbench/browser/actions/workspaceActions';
-import { CanSaveActiveEditorContext } from 'vs/workbench/common/editor';
+import { ActiveEditorIsSaveableContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
 import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
@@ -629,7 +629,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
 		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-		precondition: ContextKeyExpr.or(CanSaveActiveEditorContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.or(ActiveEditorIsSaveableContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
 	},
 	order: 1
 });
@@ -639,7 +639,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: SAVE_FILE_AS_COMMAND_ID,
 		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."),
-		precondition: ContextKeyExpr.or(CanSaveActiveEditorContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.or(ActiveEditorIsSaveableContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
 	},
 	order: 2
 });
