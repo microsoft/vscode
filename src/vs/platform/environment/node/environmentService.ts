@@ -104,8 +104,6 @@ export class EnvironmentService implements IEnvironmentService {
 		return parseUserDataDir(this._args, process);
 	}
 
-	@memoize
-	get webUserDataHome(): URI { return URI.file(parsePathArg(this._args['web-user-data-dir'], process) || this.userDataPath); }
 
 	get appNameLong(): string { return product.nameLong; }
 
@@ -285,7 +283,7 @@ function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | unde
 	return { port, break: brk, debugId };
 }
 
-function parsePathArg(arg: string | undefined, process: NodeJS.Process): string | undefined {
+export function parsePathArg(arg: string | undefined, process: NodeJS.Process): string | undefined {
 	if (!arg) {
 		return undefined;
 	}
