@@ -863,7 +863,7 @@ class EditorEnumOption<K1 extends EditorOption, T extends string, V> extends Bas
 		if (typeof schema !== 'undefined') {
 			schema.type = 'string';
 			schema.enum = allowedValues;
-			schema.default = defaultValue;
+			schema.default = defaultStringValue;
 		}
 		super(id, name, defaultValue, schema);
 		this._allowedValues = allowedValues;

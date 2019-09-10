@@ -1053,13 +1053,15 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return super.onPointer(e);
 		}
 
-		const model = ((this.tree as any).model as ITreeModel<T, TFilterData, TRef>); // internal
-		const location = model.getNodeLocation(node);
-		const recursive = e.browserEvent.altKey;
-		model.setCollapsed(location, undefined, recursive);
+		if (node.collapsible) {
+			const model = ((this.tree as any).model as ITreeModel<T, TFilterData, TRef>); // internal
+			const location = model.getNodeLocation(node);
+			const recursive = e.browserEvent.altKey;
+			model.setCollapsed(location, undefined, recursive);
 
-		if (expandOnlyOnTwistieClick && onTwistie) {
-			return;
+			if (expandOnlyOnTwistieClick && onTwistie) {
+				return;
+			}
 		}
 
 		super.onPointer(e);
@@ -1416,6 +1418,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	isCollapsible(location: TRef): boolean {
 		return this.model.isCollapsible(location);
+	}
+
+	setCollapsible(location: TRef, collapsible?: boolean): boolean {
+		return this.model.setCollapsible(location, collapsible);
 	}
 
 	isCollapsed(location: TRef): boolean {

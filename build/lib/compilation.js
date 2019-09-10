@@ -81,7 +81,7 @@ function watchTask(out, build) {
     return function () {
         const compile = createCompile('src', build);
         const src = gulp.src('src/**', { base: 'src' });
-        const watchSrc = watch('src/**', { base: 'src' });
+        const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
         let generator = new MonacoGenerator(true);
         generator.execute();
         return watchSrc
