@@ -194,7 +194,7 @@ function matches(selector: CustomEditorSelector, resource: URI): boolean {
 		return false;
 	}
 	if (selector.filenamePattern) {
-		if (!glob.match(selector.filenamePattern, basename(resource))) {
+		if (!glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
 			return false;
 		}
 	}

@@ -25,10 +25,7 @@
         "displayName": "Image Preview",
         "selector": [
           {
-            "filenamePattern": "*.png"
-          },
-          {
-            "filenamePattern": "*.{jpg,jpeg}"
+            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,tga,tif,tiff,webp}"
           }
         ]
       }
