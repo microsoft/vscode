@@ -190,6 +190,9 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 }
 
 function matches(selector: CustomEditorSelector, resource: URI): boolean {
+	if (!selector.filenamePattern && !selector.scheme) {
+		return false;
+	}
 	if (selector.filenamePattern) {
 		if (!glob.match(selector.filenamePattern, basename(resource))) {
 			return false;
