@@ -23,9 +23,13 @@
       {
         "viewType": "imagePreview.previewEditor",
         "displayName": "Image Preview",
-        "filenamePatterns": [
-          "*.png",
-          "*.{jpg,jpeg}"
+        "selector": [
+          {
+            "filenamePattern": "*.png"
+          },
+          {
+            "filenamePattern": "*.{jpg,jpeg}"
+          }
         ]
       }
     ]

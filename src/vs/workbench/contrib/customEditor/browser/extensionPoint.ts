@@ -5,21 +5,21 @@
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
-import { CustomEditorDiscretion } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorDiscretion, CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 
 namespace WebviewEditorContribution {
 	export const viewType = 'viewType';
 	export const displayName = 'displayName';
-	export const filenamePatterns = 'filenamePatterns';
+	export const selector = 'selector';
 	export const discretion = 'discretion';
 }
 
 interface IWebviewEditorsExtensionPoint {
 	readonly [WebviewEditorContribution.viewType]: string;
 	readonly [WebviewEditorContribution.displayName]: string;
-	readonly [WebviewEditorContribution.filenamePatterns]?: readonly string[];
+	readonly [WebviewEditorContribution.selector]?: readonly CustomEditorSelector[];
 	readonly [WebviewEditorContribution.discretion]?: CustomEditorDiscretion;
 }
 
@@ -30,8 +30,9 @@ const webviewEditorsContribution: IJSONSchema = {
 	items: {
 		type: 'object',
 		required: [
-			'viewType',
-			'displayName'
+			WebviewEditorContribution.viewType,
+			WebviewEditorContribution.displayName,
+			WebviewEditorContribution.selector,
 		],
 		properties: {
 			[WebviewEditorContribution.viewType]: {
@@ -42,9 +43,22 @@ const webviewEditorsContribution: IJSONSchema = {
 				type: 'string',
 				description: nls.localize('contributes.displayName', 'Name of the custom editor displayed to users.'),
 			},
-			[WebviewEditorContribution.filenamePatterns]: {
+			[WebviewEditorContribution.selector]: {
 				type: 'array',
-				description: nls.localize('contributes.filenamePatterns', 'Set of globs that the custom editor is enabled for.'),
+				description: nls.localize('contributes.selector', 'Set of globs that the custom editor is enabled for.'),
+				items: {
+					type: 'object',
+					properties: {
+						filenamePattern: {
+							type: 'string',
+							description: nls.localize('contributes.selector.filenamePattern', 'Glob that the custom editor is enabled for.'),
+						},
+						scheme: {
+							type: 'string',
+							description: nls.localize('contributes.selector.scheme', 'File scheme that the custom editor is enabled for.'),
+						}
+					}
+				}
 			},
 			[WebviewEditorContribution.discretion]: {
 				type: 'string',

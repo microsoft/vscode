@@ -26,8 +26,14 @@ export const enum CustomEditorDiscretion {
 	option = 'option',
 }
 
+export interface CustomEditorSelector {
+	readonly scheme?: string;
+	readonly filenamePattern?: string;
+}
+
 export interface CustomEditorInfo {
 	readonly id: string;
 	readonly displayName: string;
 	readonly discretion: CustomEditorDiscretion;
+	readonly selector: readonly CustomEditorSelector[];
 }

@@ -17,7 +17,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
-import { CustomEditorInfo, ICustomEditorService, CustomEditorDiscretion } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorDiscretion, CustomEditorInfo, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -27,7 +27,7 @@ import { CustomFileEditorInput } from './customEditorInput';
 export class CustomEditorService implements ICustomEditorService {
 	_serviceBrand: any;
 
-	private readonly customEditors: Array<CustomEditorInfo & { filenamePatterns: readonly string[] }> = [];
+	private readonly customEditors: Array<CustomEditorInfo> = [];
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -41,7 +41,7 @@ export class CustomEditorService implements ICustomEditorService {
 					this.customEditors.push({
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
-						filenamePatterns: webviewEditorContribution.filenamePatterns || [],
+						selector: webviewEditorContribution.selector || [],
 						discretion: webviewEditorContribution.discretion || CustomEditorDiscretion.default,
 					});
 				}
@@ -51,7 +51,19 @@ export class CustomEditorService implements ICustomEditorService {
 
 	public getCustomEditorsForResource(resource: URI): readonly CustomEditorInfo[] {
 		return this.customEditors.filter(customEditor =>
-			customEditor.filenamePatterns.some(pattern => glob.match(pattern, basename(resource))));
+			customEditor.selector.some(selector => {
+				if (selector.filenamePattern) {
+					if (!glob.match(selector.filenamePattern, basename(resource))) {
+						return false;
+					}
+				}
+				if (selector.scheme) {
+					if (resource.scheme !== selector.scheme) {
+						return false;
+					}
+				}
+				return true;
+			}));
 	}
 
 	public async promptOpenWith(
