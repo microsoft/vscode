@@ -921,7 +921,9 @@ export class DebugSession implements IDebugSession {
 	}
 
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		await this.repl.addReplExpression(stackFrame, name);
+		const expressionEvaluated = this.repl.addReplExpression(stackFrame, name);
+		this._onDidChangeREPLElements.fire();
+		await expressionEvaluated;
 		this._onDidChangeREPLElements.fire();
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 		variableSetEmitter.fire();
