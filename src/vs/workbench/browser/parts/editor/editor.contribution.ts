@@ -52,6 +52,7 @@ import { toLocalResource } from 'vs/base/common/resources';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -412,12 +413,12 @@ editorCommands.setup();
 // Touch Bar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconLocation: { dark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
 		group: 'navigation'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconLocation: { dark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
 		group: 'navigation'
 	});
 }
@@ -447,7 +448,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 
-interface IEditorToolItem { id: string; title: string; iconDark: string; iconLight: string; }
+interface IEditorToolItem { id: string; title: string; iconDark: URI; iconLight: URI; }
 
 function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | undefined, order: number, alternative?: IEditorToolItem): void {
 	const item: IMenuItem = {
@@ -455,8 +456,8 @@ function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | u
 			id: primary.id,
 			title: primary.title,
 			iconLocation: {
-				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconDark}`)),
-				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconLight}`))
+				dark: primary.iconDark,
+				light: primary.iconLight
 			}
 		},
 		group: 'navigation',
@@ -469,8 +470,8 @@ function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | u
 			id: alternative.id,
 			title: alternative.title,
 			iconLocation: {
-				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconDark}`)),
-				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconLight}`))
+				dark: alternative.iconDark,
+				light: alternative.iconLight
 			}
 		};
 	}
@@ -483,16 +484,16 @@ appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconDark: 'split-editor-horizontal-dark.svg',
-		iconLight: 'split-editor-horizontal-light.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-horizontal-dark.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-horizontal-light.svg'))
 	},
 	ContextKeyExpr.not('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_DOWN,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconDark: 'split-editor-vertical-dark.svg',
-		iconLight: 'split-editor-vertical-light.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-vertical-dark.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-vertical-light.svg'))
 	}
 );
 
@@ -500,16 +501,16 @@ appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconDark: 'split-editor-vertical-dark.svg',
-		iconLight: 'split-editor-vertical-light.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-vertical-dark.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-vertical-light.svg'))
 	},
 	ContextKeyExpr.has('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_RIGHT,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconDark: 'split-editor-horizontal-dark.svg',
-		iconLight: 'split-editor-horizontal-light.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-horizontal-dark.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-horizontal-light.svg'))
 	}
 );
 
@@ -518,16 +519,16 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-dark-alt.svg',
-		iconLight: 'close-light-alt.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-dark-alt.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-light-alt.svg'))
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconDark: 'close-all-dark.svg',
-		iconLight: 'close-all-light.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-all-dark.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-all-light.svg'))
 	}
 );
 
@@ -535,16 +536,16 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-dirty-dark-alt.svg',
-		iconLight: 'close-dirty-light-alt.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-dirty-dark-alt.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-dirty-light-alt.svg'))
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconDark: 'close-all-dark.svg',
-		iconLight: 'close-all-light.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-all-dark.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-all-light.svg'))
 	}
 );
 
@@ -553,8 +554,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_PREVIOUS_CHANGE,
 		title: nls.localize('navigate.prev.label', "Previous Change"),
-		iconDark: 'previous-diff-dark.svg',
-		iconLight: 'previous-diff-light.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/previous-diff-dark.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/previous-diff-light.svg'))
 	},
 	TextCompareEditorActiveContext,
 	10
@@ -565,8 +566,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_NEXT_CHANGE,
 		title: nls.localize('navigate.next.label', "Next Change"),
-		iconDark: 'next-diff-dark.svg',
-		iconLight: 'next-diff-light.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/next-diff-dark.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/next-diff-light.svg'))
 	},
 	TextCompareEditorActiveContext,
 	11
@@ -577,8 +578,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Trim Whitespace"),
-		iconDark: 'paragraph-dark.svg',
-		iconLight: 'paragraph-light.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-dark.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-light.svg'))
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
 	20
@@ -589,8 +590,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('showTrimWhitespace.label', "Show Trim Whitespace"),
-		iconDark: 'paragraph-disabled-dark.svg',
-		iconLight: 'paragraph-disabled-light.svg'
+		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-disabled-dark.svg')),
+		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-disabled-light.svg'))
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
 	20

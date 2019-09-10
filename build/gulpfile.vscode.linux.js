@@ -238,7 +238,8 @@ function prepareSnapPackage(arch) {
 
 function buildSnapPackage(arch) {
 	const snapBuildPath = getSnapBuildPath(arch);
-	return shell.task(`cd ${snapBuildPath} && snapcraft build`);
+	// Default target for snapcraft runs: pull, build, stage and prime, and finally assembles the snap.
+	return shell.task(`cd ${snapBuildPath} && snapcraft`);
 }
 
 const BUILD_TARGETS = [

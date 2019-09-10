@@ -12,6 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 function hasModifier(e: { ctrlKey: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean }, modifier: 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey'): boolean {
 	return !!e[modifier];
@@ -116,14 +117,14 @@ export class ClickLinkGesture extends Disposable {
 		super();
 
 		this._editor = editor;
-		this._opts = createOptions(this._editor.getConfiguration().multiCursorModifier);
+		this._opts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
 
 		this.lastMouseMoveEvent = null;
 		this.hasTriggerKeyOnMouseDown = false;
 
 		this._register(this._editor.onDidChangeConfiguration((e) => {
-			if (e.multiCursorModifier) {
-				const newOpts = createOptions(this._editor.getConfiguration().multiCursorModifier);
+			if (e.hasChanged(EditorOption.multiCursorModifier)) {
+				const newOpts = createOptions(this._editor.getOption(EditorOption.multiCursorModifier));
 				if (this._opts.equals(newOpts)) {
 					return;
 				}

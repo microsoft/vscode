@@ -9,7 +9,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
@@ -114,8 +114,8 @@ export class DebugHoverWidget implements IContentWidget {
 				this.hide();
 			}
 		}));
-		this.toDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.fontInfo) {
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this.editor.applyFontInfo(this.domNode);
 			}
 		}));

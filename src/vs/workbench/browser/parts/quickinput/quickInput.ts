@@ -44,6 +44,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
 const $ = dom.$;
 
@@ -51,8 +52,8 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
 	iconPath: {
-		dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/arrow-left-dark.svg')),
-		light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/arrow-left-light.svg'))
+		dark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/quickinput/media/arrow-left-dark.svg')),
+		light: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/quickinput/media/arrow-left-light.svg'))
 	},
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO

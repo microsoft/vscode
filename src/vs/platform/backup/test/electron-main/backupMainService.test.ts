@@ -11,7 +11,7 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI as Uri, URI } from 'vs/base/common/uri';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IBackupWorkspacesFormat, ISerializedWorkspace, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
@@ -32,7 +32,7 @@ suite('BackupMainService', () => {
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
-	const environmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
+	const environmentService = new EnvironmentService(parseArgs(process.argv, OPTIONS), process.execPath);
 
 	class TestBackupMainService extends BackupMainService {
 

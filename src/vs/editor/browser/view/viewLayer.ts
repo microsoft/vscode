@@ -7,6 +7,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 /**
  * Represents a visible line
@@ -269,7 +270,10 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	// ---- begin view event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		return e.layoutInfo;
+		if (e.hasChanged(EditorOption.layoutInfo)) {
+			return true;
+		}
+		return false;
 	}
 
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
