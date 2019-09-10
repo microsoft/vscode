@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ComposedTreeDelegate, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
-import { ObjectTree, IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
+import { ObjectTree, IObjectTreeOptions, CompressibleObjectTree, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -18,6 +18,7 @@ import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors
 import { toggleClass } from 'vs/base/browser/dom';
 import { values } from 'vs/base/common/map';
 import { ScrollEvent } from 'vs/base/common/scrollable';
+import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -101,8 +102,8 @@ class DataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements ITreeRe
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
-		private nodeMapper: NodeMapper<TInput, T, TFilterData>,
+		protected renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
+		protected nodeMapper: NodeMapper<TInput, T, TFilterData>,
 		readonly onDidChangeTwistieState: Event<IAsyncDataTreeNode<TInput, T>>
 	) {
 		this.templateId = renderer.templateId;
@@ -317,9 +318,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly autoExpandSingleChildren: boolean;
 
 	private readonly _onDidRender = new Emitter<void>();
-	private readonly _onDidChangeNodeSlowState = new Emitter<IAsyncDataTreeNode<TInput, T>>();
+	protected readonly _onDidChangeNodeSlowState = new Emitter<IAsyncDataTreeNode<TInput, T>>();
 
-	private readonly nodeMapper = new NodeMapper<TInput, T, TFilterData>();
+	protected readonly nodeMapper = new NodeMapper<TInput, T, TFilterData>();
 
 	protected readonly disposables: IDisposable[] = [];
 
@@ -366,11 +367,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.sorter = options.sorter;
 		this.collapseByDefault = options.collapseByDefault;
 
-		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
-		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this.nodeMapper, this._onDidChangeNodeSlowState.event));
-		const objectTreeOptions = asObjectTreeOptions<TInput, T, TFilterData>(options) || {};
-
-		this.tree = new ObjectTree(user, container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
+		this.tree = this.createTree(user, container, delegate, renderers, options);
 
 		this.root = createAsyncDataTreeNode({
 			element: undefined!,
@@ -388,6 +385,20 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.nodes.set(null, this.root);
 
 		this.tree.onDidChangeCollapseState(this._onDidChangeCollapseState, this, this.disposables);
+	}
+
+	protected createTree(
+		user: string,
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: ITreeRenderer<T, TFilterData, any>[],
+		options: IAsyncDataTreeOptions<T, TFilterData>
+	): ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData> {
+		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
+		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this.nodeMapper, this._onDidChangeNodeSlowState.event));
+		const objectTreeOptions = asObjectTreeOptions<TInput, T, TFilterData>(options) || {};
+
+		return new ObjectTree(user, container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 	}
 
 	updateOptions(options: IAsyncDataTreeOptionsUpdate = {}): void {
@@ -931,5 +942,42 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	dispose(): void {
 		dispose(this.disposables);
+	}
+}
+
+class CompressibleDataTreeRenderer<TInput, T, TFilterData, TTemplateData>
+	extends DataTreeRenderer<TInput, T, TFilterData, TTemplateData>
+	implements ICompressibleTreeRenderer<IAsyncDataTreeNode<TInput, T>, TFilterData, IDataTreeListTemplateData<TTemplateData>>
+{
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T>>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
+		this.renderer.renderElement(this.nodeMapper.mapNode(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
+	}
+}
+
+export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends AsyncDataTree<TInput, T, TFilterData> {
+
+	constructor(
+		user: string,
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
+		dataSource: IAsyncDataSource<TInput, T>,
+		options: IAsyncDataTreeOptions<T, TFilterData> = {}
+	) {
+		super(user, container, delegate, renderers, dataSource, options);
+	}
+
+	protected createTree(
+		user: string,
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: ITreeRenderer<T, TFilterData, any>[],
+		options: IAsyncDataTreeOptions<T, TFilterData>
+	): ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData> {
+		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
+		const objectTreeRenderers = renderers.map(r => new CompressibleDataTreeRenderer(r, this.nodeMapper, this._onDidChangeNodeSlowState.event));
+		const objectTreeOptions = asObjectTreeOptions<TInput, T, TFilterData>(options) || {};
+
+		return new CompressibleObjectTree(user, container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 	}
 }

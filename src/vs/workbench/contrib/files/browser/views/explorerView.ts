@@ -24,7 +24,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
+import { WorkbenchCompressibleAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -55,7 +55,7 @@ export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
-	private tree!: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
+	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 	private filter!: FilesFilter;
 
 	private resourceContext: ResourceContextKey;
@@ -274,7 +274,7 @@ export class ExplorerView extends ViewletPanel {
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), [filesRenderer],
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), [filesRenderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
 			accessibilityProvider: new ExplorerAccessibilityProvider(),
 			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
