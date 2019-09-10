@@ -48,7 +48,7 @@ let WORKSPACE = undefined;
 // Browser Config
 let BROWSER = undefined;
 
-for (let idx = 0; idx < process.argv.length - 2; idx++) {
+for (let idx = 0; idx <= process.argv.length - 2; idx++) {
 	const arg = process.argv[idx];
 	switch (arg) {
 		case '--port': PORT = Number(process.argv[idx + 1]); break;
