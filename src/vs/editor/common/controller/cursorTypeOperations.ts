@@ -124,6 +124,10 @@ export class TypeOperations {
 			if (text.charCodeAt(text.length - 1) === CharCode.LineFeed) {
 				text = text.substr(0, text.length - 1);
 			}
+			// Remove trailing \r if present
+			if (text.charCodeAt(text.length - 1) === CharCode.CarriageReturn) {
+				text = text.substr(0, text.length - 1);
+			}
 			let lines = text.split(/\r\n|\r|\n/);
 			if (lines.length === selections.length) {
 				return lines;
