@@ -30,7 +30,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextFileStreamContent, ITextFileService, IResourceEncoding, IReadTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -91,7 +91,7 @@ export function createFileInput(instantiationService: IInstantiationService, res
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
 }
 
-export const TestEnvironmentService = new WorkbenchEnvironmentService(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
+export const TestEnvironmentService = new WorkbenchEnvironmentService(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath);
 
 export class TestContextService implements IWorkspaceContextService {
 	public _serviceBrand: undefined;

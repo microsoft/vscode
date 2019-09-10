@@ -44,6 +44,7 @@ import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentSe
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { SimpleCommentEditor } from './simpleCommentEditor';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action';
@@ -128,7 +129,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._styleElement = dom.createStyleSheet(this.domNode);
 		this._globalToDispose.add(this.themeService.onThemeChange(this._applyTheme, this));
 		this._globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
-			if (e.fontInfo) {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._applyTheme(this.themeService.getTheme());
 			}
 		}));
@@ -386,7 +387,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._disposables.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 
-		let headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
+		let headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
@@ -692,8 +693,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	_refresh() {
 		if (this._isExpanded && this._bodyElement) {
 			let dimensions = dom.getClientArea(this._bodyElement);
-			const headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
-			const lineHeight = this.editor.getConfiguration().lineHeight;
+			const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
+			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 			const arrowHeight = Math.round(lineHeight / 3);
 			const frameThickness = Math.round(lineHeight / 9) * 2;
 
@@ -854,7 +855,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { color: ${errorForeground}; }`);
 		}
 
-		const fontInfo = this.editor.getConfiguration().fontInfo;
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		content.push(`.monaco-editor .review-widget .body code {
 			font-family: ${fontInfo.fontFamily};
 			font-size: ${fontInfo.fontSize}px;

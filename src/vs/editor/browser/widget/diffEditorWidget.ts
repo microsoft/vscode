@@ -20,7 +20,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, IComputedEditorOptions, EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -213,7 +213,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	constructor(
 		domElement: HTMLElement,
-		options: editorOptions.IDiffEditorOptions,
+		options: IDiffEditorOptions,
 		clipboardService: IClipboardService | null,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -422,7 +422,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._layoutOverviewRulers();
 	}
 
-	private _createLeftHandSideEditor(options: editorOptions.IDiffEditorOptions, instantiationService: IInstantiationService): CodeEditorWidget {
+	private _createLeftHandSideEditor(options: IDiffEditorOptions, instantiationService: IInstantiationService): CodeEditorWidget {
 		const editor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
 
 		this._register(editor.onDidScrollChange((e) => {
@@ -455,7 +455,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return editor;
 	}
 
-	private _createRightHandSideEditor(options: editorOptions.IDiffEditorOptions, instantiationService: IInstantiationService): CodeEditorWidget {
+	private _createRightHandSideEditor(options: IDiffEditorOptions, instantiationService: IInstantiationService): CodeEditorWidget {
 		const editor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
 
 		this._register(editor.onDidScrollChange((e) => {
@@ -480,7 +480,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}));
 
 		this._register(editor.onDidChangeConfiguration((e) => {
-			if (e.fontInfo && editor.getModel()) {
+			if (e.hasChanged(EditorOption.fontInfo) && editor.getModel()) {
 				this._onViewZonesChanged();
 			}
 		}));
@@ -494,7 +494,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return editor;
 	}
 
-	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: editorOptions.IEditorOptions): CodeEditorWidget {
+	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditorWidget {
 		return instantiationService.createInstance(CodeEditorWidget, container, options, {});
 	}
 
@@ -568,7 +568,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this.modifiedEditor;
 	}
 
-	public updateOptions(newOptions: editorOptions.IDiffEditorOptions): void {
+	public updateOptions(newOptions: IDiffEditorOptions): void {
 
 		// Handle side by side
 		let renderSideBySideChanged = false;
@@ -967,8 +967,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}
 	}
 
-	private _adjustOptionsForSubEditor(options: editorOptions.IDiffEditorOptions): editorOptions.IDiffEditorOptions {
-		let clonedOptions: editorOptions.IDiffEditorOptions = objects.deepClone(options || {});
+	private _adjustOptionsForSubEditor(options: IDiffEditorOptions): IDiffEditorOptions {
+		let clonedOptions: IDiffEditorOptions = objects.deepClone(options || {});
 		clonedOptions.inDiffEditor = true;
 		clonedOptions.wordWrap = 'off';
 		clonedOptions.wordWrapMinified = false;
@@ -986,7 +986,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return clonedOptions;
 	}
 
-	private _adjustOptionsForLeftHandSide(options: editorOptions.IDiffEditorOptions, isEditable: boolean): editorOptions.IEditorOptions {
+	private _adjustOptionsForLeftHandSide(options: IDiffEditorOptions, isEditable: boolean): IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
 		result.readOnly = !isEditable;
 		result.overviewRulerLanes = 1;
@@ -994,9 +994,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return result;
 	}
 
-	private _adjustOptionsForRightHandSide(options: editorOptions.IDiffEditorOptions): editorOptions.IEditorOptions {
+	private _adjustOptionsForRightHandSide(options: IDiffEditorOptions): IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
-		result.revealHorizontalRightPadding = editorOptions.EDITOR_DEFAULTS.viewInfo.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
+		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
 		return result;
@@ -1830,7 +1830,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 
 		this.decorationsLeft = dataSource.getOriginalEditor().getLayoutInfo().decorationsLeft;
 
-		this._register(dataSource.getOriginalEditor().onDidLayoutChange((layoutInfo: editorOptions.EditorLayoutInfo) => {
+		this._register(dataSource.getOriginalEditor().onDidLayoutChange((layoutInfo: EditorLayoutInfo) => {
 			if (this.decorationsLeft !== layoutInfo.decorationsLeft) {
 				this.decorationsLeft = layoutInfo.decorationsLeft;
 				dataSource.relayoutEditors();
@@ -1946,14 +1946,14 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 class InlineViewZonesComputer extends ViewZonesComputer {
 
 	private readonly originalModel: ITextModel;
-	private readonly modifiedEditorConfiguration: editorOptions.InternalEditorOptions;
+	private readonly modifiedEditorOptions: IComputedEditorOptions;
 	private readonly modifiedEditorTabSize: number;
 	private readonly renderIndicators: boolean;
 
 	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean) {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
 		this.originalModel = originalEditor.getModel()!;
-		this.modifiedEditorConfiguration = modifiedEditor.getConfiguration();
+		this.modifiedEditorOptions = modifiedEditor.getOptions();
 		this.modifiedEditorTabSize = modifiedEditor.getModel()!.getOptions().tabSize;
 		this.renderIndicators = renderIndicators;
 	}
@@ -1993,13 +1993,16 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let sb = createStringBuilder(10000);
 		let marginHTML: string[] = [];
-		let lineDecorationsWidth = this.modifiedEditorConfiguration.layoutInfo.decorationsWidth;
-		let lineHeight = this.modifiedEditorConfiguration.lineHeight;
-		const typicalHalfwidthCharacterWidth = this.modifiedEditorConfiguration.fontInfo.typicalHalfwidthCharacterWidth;
+		const layoutInfo = this.modifiedEditorOptions.get(EditorOption.layoutInfo);
+		const fontInfo = this.modifiedEditorOptions.get(EditorOption.fontInfo);
+		const lineDecorationsWidth = layoutInfo.decorationsWidth;
+
+		let lineHeight = this.modifiedEditorOptions.get(EditorOption.lineHeight);
+		const typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		let maxCharsPerLine = 0;
 		const originalContent: string[] = [];
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-			maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorTabSize, lineNumber, decorations, sb));
+			maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorOptions, this.modifiedEditorTabSize, lineNumber, decorations, sb));
 			originalContent.push(this.originalModel.getLineContent(lineNumber));
 
 			if (this.renderIndicators) {
@@ -2009,17 +2012,17 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				]);
 			}
 		}
-		maxCharsPerLine += this.modifiedEditorConfiguration.viewInfo.scrollBeyondLastColumn;
+		maxCharsPerLine += this.modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
 
 		let domNode = document.createElement('div');
 		domNode.className = 'view-lines line-delete';
 		domNode.innerHTML = sb.build();
-		Configuration.applyFontInfoSlow(domNode, this.modifiedEditorConfiguration.fontInfo);
+		Configuration.applyFontInfoSlow(domNode, fontInfo);
 
 		let marginDomNode = document.createElement('div');
 		marginDomNode.className = 'inline-deleted-margin-view-zone';
 		marginDomNode.innerHTML = marginHTML.join('');
-		Configuration.applyFontInfoSlow(marginDomNode, this.modifiedEditorConfiguration.fontInfo);
+		Configuration.applyFontInfoSlow(marginDomNode, fontInfo);
 
 		return {
 			shouldNotShrink: true,
@@ -2038,9 +2041,10 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	private _renderOriginalLine(count: number, originalModel: ITextModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): number {
+	private _renderOriginalLine(count: number, originalModel: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): number {
 		const lineTokens = originalModel.getLineTokens(lineNumber);
 		const lineContent = lineTokens.getLineContent();
+		const fontInfo = options.get(EditorOption.fontInfo);
 
 		const actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
@@ -2050,14 +2054,14 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			sb.appendASCIIString(' char-delete');
 		}
 		sb.appendASCIIString('" style="top:');
-		sb.appendASCIIString(String(count * config.lineHeight));
+		sb.appendASCIIString(String(count * options.get(EditorOption.lineHeight)));
 		sb.appendASCIIString('px;width:1000000px;">');
 
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, originalModel.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, originalModel.mightContainRTL());
 		const output = renderViewLine(new RenderLineInput(
-			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
-			config.fontInfo.canUseHalfwidthRightwardsArrow,
+			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations) && !options.get(EditorOption.fontLigatures)),
+			fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
 			isBasicASCII,
@@ -2066,11 +2070,11 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			lineTokens,
 			actualDecorations,
 			tabSize,
-			config.fontInfo.spaceWidth,
-			config.viewInfo.stopRenderingLineAfter,
-			config.viewInfo.renderWhitespace,
-			config.viewInfo.renderControlCharacters,
-			config.viewInfo.fontLigatures,
+			fontInfo.spaceWidth,
+			options.get(EditorOption.stopRenderingLineAfter),
+			options.get(EditorOption.renderWhitespace),
+			options.get(EditorOption.renderControlCharacters),
+			options.get(EditorOption.fontLigatures),
 			null // Send no selections, original line cannot be selected
 		), sb);
 

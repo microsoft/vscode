@@ -12,6 +12,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IDiffLinesChange {
 	readonly originalStartLineNumber: number;
@@ -58,7 +59,7 @@ export class InlineDiffMargin extends Disposable {
 		this._diffActions = document.createElement('div');
 		this._diffActions.className = 'lightbulb-glyph';
 		this._diffActions.style.position = 'absolute';
-		const lineHeight = editor.getConfiguration().lineHeight;
+		const lineHeight = editor.getOption(EditorOption.lineHeight);
 		const lineFeed = editor.getModel()!.getEOL();
 		this._diffActions.style.right = '0px';
 		this._diffActions.style.visibility = 'hidden';
@@ -97,7 +98,7 @@ export class InlineDiffMargin extends Disposable {
 			actions.push(copyLineAction);
 		}
 
-		const readOnly = editor.getConfiguration().readOnly;
+		const readOnly = editor.getOption(EditorOption.readOnly);
 		if (!readOnly) {
 			actions.push(new Action('diff.inline.revertChange', nls.localize('diff.inline.revertChange.label', "Revert this change"), undefined, true, async () => {
 				if (diff.modifiedEndLineNumber === 0) {

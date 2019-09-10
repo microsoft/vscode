@@ -231,6 +231,11 @@ export class CompressedTreeModel<T extends NonNullable<any>, TFilterData extends
 		return this.model.isCollapsible(compressedNode);
 	}
 
+	setCollapsible(location: T | null, collapsible?: boolean): boolean {
+		const compressedNode = this.getCompressedNode(location);
+		return this.model.setCollapsible(compressedNode, collapsible);
+	}
+
 	isCollapsed(location: T | null): boolean {
 		const compressedNode = this.getCompressedNode(location);
 		return this.model.isCollapsed(compressedNode);
@@ -395,6 +400,10 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	isCollapsible(location: T | null): boolean {
 		return this.model.isCollapsible(location);
+	}
+
+	setCollapsible(location: T | null, collapsed?: boolean): boolean {
+		return this.model.setCollapsible(location, collapsed);
 	}
 
 	isCollapsed(location: T | null): boolean {

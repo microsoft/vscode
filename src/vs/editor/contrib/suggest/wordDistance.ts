@@ -10,6 +10,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export abstract class WordDistance {
 
@@ -19,7 +20,7 @@ export abstract class WordDistance {
 
 	static async create(service: IEditorWorkerService, editor: ICodeEditor): Promise<WordDistance> {
 
-		if (!editor.getConfiguration().contribInfo.suggest.localityBonus) {
+		if (!editor.getOption(EditorOption.suggest).localityBonus) {
 			return WordDistance.None;
 		}
 

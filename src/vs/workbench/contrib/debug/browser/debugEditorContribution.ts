@@ -41,7 +41,7 @@ import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { memoize } from 'vs/base/common/decorators';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
@@ -540,7 +540,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.configurationWidget) {
 			this.configurationWidget.dispose();
 		}
-		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getConfiguration().readOnly) {
+		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getOption(EditorOption.readOnly)) {
 			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
 			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration()));

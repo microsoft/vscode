@@ -10,7 +10,7 @@ import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinate
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
@@ -239,10 +239,11 @@ export class HitTestContext {
 
 	constructor(context: ViewContext, viewHelper: IPointerHandlerHelper, lastViewCursorsRenderData: IViewCursorRenderData[]) {
 		this.model = context.model;
-		this.layoutInfo = context.configuration.editor.layoutInfo;
+		const options = context.configuration.options;
+		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
-		this.lineHeight = context.configuration.editor.lineHeight;
-		this.typicalHalfwidthCharacterWidth = context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this.lastViewCursorsRenderData = lastViewCursorsRenderData;
 		this._context = context;
 		this._viewHelper = viewHelper;
@@ -713,9 +714,10 @@ export class MouseTargetFactory {
 	}
 
 	public getMouseColumn(editorPos: EditorPagePosition, pos: PageCoordinates): number {
-		const layoutInfo = this._context.configuration.editor.layoutInfo;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const mouseContentHorizontalOffset = this._context.viewLayout.getCurrentScrollLeft() + pos.x - editorPos.x - layoutInfo.contentLeft;
-		return MouseTargetFactory._getMouseColumn(mouseContentHorizontalOffset, this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth);
+		return MouseTargetFactory._getMouseColumn(mouseContentHorizontalOffset, options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth);
 	}
 
 	public static _getMouseColumn(mouseContentHorizontalOffset: number, typicalHalfwidthCharacterWidth: number): number {
