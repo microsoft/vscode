@@ -6,12 +6,12 @@
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import { SimpleReplElement, DebugModel, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { DebugModel, Expression, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import * as sinon from 'sinon';
 import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
+import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 
@@ -348,9 +348,7 @@ suite('Debug - Model', () => {
 
 		assert.equal(replModel.getReplElements().length, 3);
 		replModel.getReplElements().forEach(re => {
-			assert.equal((<Expression>re).available, false);
-			assert.equal((<Expression>re).name, 'myVariable');
-			assert.equal((<Expression>re).reference, 0);
+			assert.equal((<ReplEvaluationInput>re).value, 'myVariable');
 		});
 
 		replModel.removeReplExpressions();

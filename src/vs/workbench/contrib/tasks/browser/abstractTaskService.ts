@@ -278,6 +278,28 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown())));
 		this._onDidStateChange = this._register(new Emitter());
 		this.registerCommands();
+		this.configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
+			let tasks = await this.getTasksForGroup(TaskGroup.Build);
+			if (tasks.length > 0) {
+				let { defaults, users } = this.splitPerGroupType(tasks);
+				if (defaults.length === 1) {
+					return defaults[0]._label;
+				} else if (defaults.length + users.length > 0) {
+					tasks = defaults.concat(users);
+				}
+			}
+
+			let entry: TaskQuickPickEntry | null | undefined;
+			if (tasks && tasks.length > 0) {
+				entry = await this.showQuickPick(tasks, nls.localize('TaskService.pickBuildTaskForLabel', 'Select the build task'));
+			}
+
+			let task: Task | undefined | null = entry ? entry.task : undefined;
+			if (!task) {
+				return undefined;
+			}
+			return task._label;
+		});
 	}
 
 	public get onDidStateChange(): Event<TaskEvent> {

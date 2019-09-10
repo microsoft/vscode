@@ -158,9 +158,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 				// since a backup did not happen, we have to confirm for the dirty files now
 				return this.confirmBeforeShutdown();
-			}, errors => {
-				const firstError = errors[0];
-				this.notificationService.error(nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
+			}, error => {
+				this.notificationService.error(nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", error.message));
 
 				return true; // veto, the backups failed
 			});

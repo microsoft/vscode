@@ -2705,6 +2705,11 @@ declare namespace monaco.editor {
 		 */
 		multiCursorMergeOverlapping?: boolean;
 		/**
+		 * Configure the behaviour when pasting a text with the line count equal to the cursor count.
+		 * Defaults to 'spread'.
+		 */
+		multiCursorPaste?: 'spread' | 'full';
+		/**
 		 * Configure the editor's accessibility support.
 		 * Defaults to 'auto'. It is best to leave this to 'auto'.
 		 */
