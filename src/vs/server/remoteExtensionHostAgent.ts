@@ -69,9 +69,7 @@ export interface ServerParsedArgs {
 }
 
 export class ServerEnvironmentService extends EnvironmentService {
-	constructor(public args: ServerParsedArgs, _execPath: string) {
-		super(args, _execPath);
-	}
+	readonly args: ServerParsedArgs;
 }
 
 const errorReporter: ErrorReporter = {
