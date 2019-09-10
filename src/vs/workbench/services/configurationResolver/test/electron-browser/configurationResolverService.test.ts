@@ -487,6 +487,19 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(2, mockCommandService.callCount);
 		});
 	});
+	test('contributed variable', () => {
+		const buildTask = 'npm: compile';
+		const variable = 'defaultBuildTask';
+		const configuration = {
+			'name': '${' + variable + '}',
+		};
+		configurationResolverService!.contributeVariable(variable, async () => { return buildTask; });
+		return configurationResolverService!.resolveAny(workspace, configuration).then(result => {
+			assert.deepEqual(result, {
+				'name': `${buildTask}`
+			});
+		});
+	});
 });
 
 

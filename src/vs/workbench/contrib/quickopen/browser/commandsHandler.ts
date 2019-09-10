@@ -62,7 +62,7 @@ class CommandsHistory extends Disposable {
 	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
 	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
 
-	private commandHistoryLength!: number;
+	private commandHistoryLength = 0;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,

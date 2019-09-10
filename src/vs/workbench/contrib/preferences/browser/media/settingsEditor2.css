@@ -486,6 +486,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions .settings-new-extensions-button {
 	margin: auto;
+	margin-bottom: 15px;
 	width: initial;
 	padding: 4px 10px;
 }

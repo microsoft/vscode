@@ -10,7 +10,7 @@ declare module DebugProtocol {
 
 	/** Base class of requests, responses, and events. */
 	export interface ProtocolMessage {
-		/** Sequence number. */
+		/** Sequence number. For protocol messages of type 'request' this number can be used to cancel the request. */
 		seq: number;
 		/** Message type.
 			Values: 'request', 'response', 'event', etc.
@@ -57,6 +57,25 @@ declare module DebugProtocol {
 			/** An optional, structured error message. */
 			error?: Message;
 		};
+	}
+
+	/** Cancel request; value of command field is 'cancel'.
+		This request can be used to cancel another request. Clients should only call this request if the capability 'supportsCancelRequest' is true.
+		A request that got canceled still needs to send a response back. This can either be a partial result or an error response.
+	*/
+	export interface CancelRequest extends Request {
+		// command: 'cancel';
+		arguments?: CancelArguments;
+	}
+
+	/** Arguments for 'cancel' request. */
+	export interface CancelArguments {
+		/** The ID (attribute 'seq') of the request to cancel. */
+		requestId?: number;
+	}
+
+	/** Response to 'cancel' request. This is just an acknowledgement, so no body field is required. */
+	export interface CancelResponse extends Response {
 	}
 
 	/** Event message for 'initialized' event type.
@@ -1330,6 +1349,8 @@ declare module DebugProtocol {
 		supportsReadMemoryRequest?: boolean;
 		/** The debug adapter supports the 'disassemble' request. */
 		supportsDisassembleRequest?: boolean;
+		/** The debug adapter supports the 'cancel' request. */
+		supportsCancelRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */

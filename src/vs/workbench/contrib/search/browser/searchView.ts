@@ -78,9 +78,9 @@ export class SearchView extends ViewletPanel {
 	private static readonly WIDE_VIEW_SIZE = 1000;
 	private static readonly ACTIONS_RIGHT_CLASS_NAME = 'actions-right';
 
-	private isDisposed: boolean;
+	private isDisposed = false;
 
-	private container: HTMLElement;
+	private container!: HTMLElement;
 	private queryBuilder: QueryBuilder;
 	private viewModel: SearchModel;
 	private memento: Memento;
@@ -99,31 +99,31 @@ export class SearchView extends ViewletPanel {
 	private matchFocused: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
 
-	private state: SearchUIState;
+	private state: SearchUIState = SearchUIState.Idle;
 
 	private actions: Array<CollapseDeepestExpandedLevelAction | ClearSearchResultsAction> = [];
 	private cancelAction: CancelSearchAction;
 	private refreshAction: RefreshAction;
-	private contextMenu: IMenu;
+	private contextMenu: IMenu | null = null;
 
-	private tree: WorkbenchObjectTree<RenderableMatch>;
-	private treeLabels: ResourceLabels;
+	private tree!: WorkbenchObjectTree<RenderableMatch>;
+	private treeLabels!: ResourceLabels;
 	private viewletState: MementoObject;
-	private messagesElement: HTMLElement;
+	private messagesElement!: HTMLElement;
 	private messageDisposables: IDisposable[] = [];
-	private searchWidgetsContainerElement: HTMLElement;
-	private searchWidget: SearchWidget;
-	private size: dom.Dimension;
-	private queryDetails: HTMLElement;
-	private toggleQueryDetailsButton: HTMLElement;
-	private inputPatternExcludes: ExcludePatternInputWidget;
-	private inputPatternIncludes: PatternInputWidget;
-	private resultsElement: HTMLElement;
+	private searchWidgetsContainerElement!: HTMLElement;
+	private searchWidget!: SearchWidget;
+	private size!: dom.Dimension;
+	private queryDetails!: HTMLElement;
+	private toggleQueryDetailsButton!: HTMLElement;
+	private inputPatternExcludes!: ExcludePatternInputWidget;
+	private inputPatternIncludes!: PatternInputWidget;
+	private resultsElement!: HTMLElement;
 
 	private currentSelectedFileMatch: FileMatch | undefined;
 
 	private delayedRefresh: Delayer<void>;
-	private changedWhileHidden: boolean;
+	private changedWhileHidden: boolean = false;
 
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
@@ -441,7 +441,7 @@ export class SearchView extends ViewletPanel {
 
 	private refreshAndUpdateCount(event?: IChangeEvent): void {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-		this.updateSearchResultCount(this.viewModel.searchResult.query.userDisabledExcludesAndIgnoreFiles);
+		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles);
 		return this.refreshTree(event);
 	}
 
@@ -711,7 +711,7 @@ export class SearchView extends ViewletPanel {
 		const [selected] = this.tree.getSelection();
 
 		// Expand the initial selected node, if needed
-		if (selected instanceof FileMatch) {
+		if (selected && !(selected instanceof Match)) {
 			if (this.tree.isCollapsed(selected)) {
 				this.tree.expand(selected);
 			}
@@ -721,23 +721,24 @@ export class SearchView extends ViewletPanel {
 
 		let next = navigator.next();
 		if (!next) {
-			// Reached the end - get a new navigator from the root.
-			navigator = this.tree.navigate();
 			next = navigator.first();
 		}
 
-		// Expand and go past FileMatch nodes
+		// Expand until first child is a Match
 		while (!(next instanceof Match)) {
 			if (this.tree.isCollapsed(next)) {
 				this.tree.expand(next);
 			}
 
-			// Select the FileMatch's first child
+			// Select the first child
 			next = navigator.next();
 		}
 
 		// Reveal the newly selected element
 		if (next) {
+			if (next === selected) {
+				this.tree.setFocus([]);
+			}
 			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false));
 			this.tree.reveal(next);
 		}
@@ -749,34 +750,24 @@ export class SearchView extends ViewletPanel {
 
 		let prev = navigator.previous();
 
-		// Expand and go past FileMatch nodes
-		if (!(prev instanceof Match)) {
-			prev = navigator.previous();
-			if (!prev) {
-				// Wrap around
-				prev = navigator.last();
+		// Select previous until find a Match or a collapsed item
+		while (!prev || (!(prev instanceof Match) && !this.tree.isCollapsed(prev))) {
+			prev = prev ? navigator.previous() : navigator.last();
+		}
 
-				// This is complicated because .last will set the navigator to the last FileMatch,
-				// so expand it and FF to its last child
-				this.tree.expand(prev);
-				let tmp: RenderableMatch | null;
-				while (tmp = navigator.next()) {
-					prev = tmp;
-				}
-			}
-
-			if (!(prev instanceof Match)) {
-				// There is a second non-Match result, which must be a collapsed FileMatch.
-				// Expand it then select its last child.
-				const nextItem = navigator.next();
-				this.tree.expand(prev);
-				navigator = this.tree.navigate(nextItem); // recreate navigator because modifying the tree can invalidate it
-				prev = navigator.previous();
-			}
+		// Expand until last child is a Match
+		while (!(prev instanceof Match)) {
+			const nextItem = navigator.next();
+			this.tree.expand(prev);
+			navigator = this.tree.navigate(nextItem); // recreate navigator because modifying the tree can invalidate it
+			prev = nextItem ? navigator.previous() : navigator.last(); // select last child
 		}
 
 		// Reveal the newly selected element
 		if (prev) {
+			if (prev === selected) {
+				this.tree.setFocus([]);
+			}
 			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false));
 			this.tree.reveal(prev);
 		}
@@ -1232,7 +1223,7 @@ export class SearchView extends ViewletPanel {
 				return this.fileService.exists(fq.folder);
 			});
 
-		return Promise.resolve(folderQueriesExistP).then(existResults => {
+		return Promise.all(folderQueriesExistP).then(existResults => {
 			// If no folders exist, show an error message about the first one
 			const existingFolderQueries = query.folderQueries.filter((folderQuery, i) => existResults[i]);
 			if (!query.folderQueries.length || existingFolderQueries.length) {

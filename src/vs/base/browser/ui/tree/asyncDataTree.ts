@@ -24,7 +24,7 @@ interface IAsyncDataTreeNode<TInput, T> {
 	readonly parent: IAsyncDataTreeNode<TInput, T> | null;
 	readonly children: IAsyncDataTreeNode<TInput, T>[];
 	readonly id?: string | null;
-	loading: boolean;
+	refreshPromise: Promise<void> | undefined;
 	hasChildren: boolean;
 	stale: boolean;
 	slow: boolean;
@@ -41,7 +41,7 @@ function createAsyncDataTreeNode<TInput, T>(props: IAsyncDataTreeNodeRequiredPro
 	return {
 		...props,
 		children: [],
-		loading: false,
+		refreshPromise: undefined,
 		stale: true,
 		slow: false,
 		collapsedByDefault: undefined
@@ -66,20 +66,32 @@ interface IDataTreeListTemplateData<T> {
 	templateData: T;
 }
 
-class AsyncDataTreeNodeWrapper<TInput, T, TFilterData> implements ITreeNode<TInput | T, TFilterData> {
+class NodeMapper<TInput, T, TFilterData> {
 
-	get element(): T { return this.node.element!.element as T; }
-	get parent(): ITreeNode<T, TFilterData> | undefined { return this.node.parent && new AsyncDataTreeNodeWrapper(this.node.parent); }
-	get children(): ITreeNode<T, TFilterData>[] { return this.node.children.map(node => new AsyncDataTreeNodeWrapper(node)); }
-	get depth(): number { return this.node.depth; }
-	get visibleChildrenCount(): number { return this.node.visibleChildrenCount; }
-	get visibleChildIndex(): number { return this.node.visibleChildIndex; }
-	get collapsible(): boolean { return this.node.collapsible; }
-	get collapsed(): boolean { return this.node.collapsed; }
-	get visible(): boolean { return this.node.visible; }
-	get filterData(): TFilterData | undefined { return this.node.filterData; }
+	private map = new WeakMap<ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>, ITreeNode<TInput | T, TFilterData>>();
 
-	constructor(private node: ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>) { }
+	mapNode(node: ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>): ITreeNode<TInput | T, TFilterData> {
+		const that = this;
+		let result = this.map.get(node);
+
+		if (!result) {
+			result = new Proxy(node, {
+				get(obj, prop) {
+					if (prop === 'element') {
+						return node.element!.element;
+					} else if (prop === 'children') {
+						return node.children.map(child => that.mapNode(child));
+					}
+
+					return (obj as any)[prop];
+				}
+			}) as unknown as ITreeNode<TInput | T, TFilterData>;
+
+			this.map.set(node, result);
+		}
+
+		return result;
+	}
 }
 
 class DataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements ITreeRenderer<IAsyncDataTreeNode<TInput, T>, TFilterData, IDataTreeListTemplateData<TTemplateData>> {
@@ -90,6 +102,7 @@ class DataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements ITreeRe
 
 	constructor(
 		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
+		private nodeMapper: NodeMapper<TInput, T, TFilterData>,
 		readonly onDidChangeTwistieState: Event<IAsyncDataTreeNode<TInput, T>>
 	) {
 		this.templateId = renderer.templateId;
@@ -101,7 +114,7 @@ class DataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements ITreeRe
 	}
 
 	renderElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		this.renderer.renderElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData, height);
+		this.renderer.renderElement(this.nodeMapper.mapNode(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
 	}
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
@@ -111,7 +124,7 @@ class DataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements ITreeRe
 
 	disposeElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
 		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(new AsyncDataTreeNodeWrapper(node), index, templateData.templateData, height);
+			this.renderer.disposeElement(this.nodeMapper.mapNode(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
 		}
 	}
 
@@ -306,6 +319,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly _onDidRender = new Emitter<void>();
 	private readonly _onDidChangeNodeSlowState = new Emitter<IAsyncDataTreeNode<TInput, T>>();
 
+	private readonly nodeMapper = new NodeMapper<TInput, T, TFilterData>();
+
 	protected readonly disposables: IDisposable[] = [];
 
 	get onDidScroll(): Event<ScrollEvent> { return this.tree.onDidScroll; }
@@ -352,7 +367,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.collapseByDefault = options.collapseByDefault;
 
 		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
-		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeSlowState.event));
+		const objectTreeRenderers = renderers.map(r => new DataTreeRenderer(r, this.nodeMapper, this._onDidChangeNodeSlowState.event));
 		const objectTreeOptions = asObjectTreeOptions<TInput, T, TFilterData>(options) || {};
 
 		this.tree = new ObjectTree(user, container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
@@ -451,7 +466,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		const viewStateContext = viewState && { viewState, focus: [], selection: [] } as IAsyncDataTreeViewStateContext<TInput, T>;
 
-		await this.updateChildren(input, true, viewStateContext);
+		await this._updateChildren(input, true, viewStateContext);
 
 		if (viewStateContext) {
 			this.tree.setFocus(viewStateContext.focus);
@@ -463,13 +478,17 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	async updateChildren(element: TInput | T = this.root.element, recursive = true, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
+	async updateChildren(element: TInput | T = this.root.element, recursive = true): Promise<void> {
+		await this._updateChildren(element, recursive);
+	}
+
+	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
 		if (typeof this.root.element === 'undefined') {
 			throw new TreeError(this.user, 'Tree input not set');
 		}
 
-		if (this.root.loading) {
-			await this.subTreeRefreshPromises.get(this.root)!;
+		if (this.root.refreshPromise) {
+			await this.root.refreshPromise;
 			await Event.toPromise(this._onDidRender.event);
 		}
 
@@ -506,7 +525,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	getNode(element: TInput | T = this.root.element): ITreeNode<TInput | T, TFilterData> {
 		const dataNode = this.getDataNode(element);
 		const node = this.tree.getNode(dataNode === this.root ? null : dataNode);
-		return new AsyncDataTreeNodeWrapper<TInput, T, TFilterData>(node);
+		return this.nodeMapper.mapNode(node);
 	}
 
 	collapse(element: T, recursive: boolean = false): boolean {
@@ -519,21 +538,26 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			throw new TreeError(this.user, 'Tree input not set');
 		}
 
-		if (this.root.loading) {
-			await this.subTreeRefreshPromises.get(this.root)!;
+		if (this.root.refreshPromise) {
+			await this.root.refreshPromise;
 			await Event.toPromise(this._onDidRender.event);
 		}
 
 		const node = this.getDataNode(element);
 
-		if (node !== this.root && !node.loading && !this.tree.isCollapsed(node)) {
+		if (node.refreshPromise) {
+			await this.root.refreshPromise;
+			await Event.toPromise(this._onDidRender.event);
+		}
+
+		if (node !== this.root && !node.refreshPromise && !this.tree.isCollapsed(node)) {
 			return false;
 		}
 
 		const result = this.tree.expand(node === this.root ? null : node, recursive);
 
-		if (node.loading) {
-			await this.subTreeRefreshPromises.get(node)!;
+		if (node.refreshPromise) {
+			await this.root.refreshPromise;
 			await Event.toPromise(this._onDidRender.event);
 		}
 
@@ -677,18 +701,18 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return result;
 		}
 
-		result = this.doRefreshSubTree(node, recursive, viewStateContext);
-		this.subTreeRefreshPromises.set(node, result);
-
-		try {
-			await result;
-		} finally {
-			this.subTreeRefreshPromises.delete(node);
-		}
+		return this.doRefreshSubTree(node, recursive, viewStateContext);
 	}
 
 	private async doRefreshSubTree(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
-		node.loading = true;
+		let done: () => void;
+		node.refreshPromise = new Promise(c => done = c);
+		this.subTreeRefreshPromises.set(node, node.refreshPromise);
+
+		node.refreshPromise.finally(() => {
+			node.refreshPromise = undefined;
+			this.subTreeRefreshPromises.delete(node);
+		});
 
 		try {
 			const childrenToRefresh = await this.doRefreshNode(node, recursive, viewStateContext);
@@ -696,7 +720,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 			await Promise.all(childrenToRefresh.map(child => this.doRefreshSubTree(child, recursive, viewStateContext)));
 		} finally {
-			node.loading = false;
+			done!();
 		}
 	}
 
@@ -869,6 +893,11 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): void {
 		const children = node.children.map(c => asTreeElement(c, viewStateContext));
 		this.tree.setChildren(node === this.root ? null : node, children);
+
+		if (node !== this.root) {
+			this.tree.setCollapsible(node, node.hasChildren);
+		}
+
 		this._onDidRender.fire();
 	}
 

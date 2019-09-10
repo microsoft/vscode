@@ -178,8 +178,9 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 			}
 		});
 	}
-	result = result.replace(/export default/g, 'export');
-	result = result.replace(/export declare/g, 'export');
+	result = result.replace(/export default /g, 'export ');
+	result = result.replace(/export declare /g, 'export ');
+	result = result.replace(/declare /g, '');
 
 	if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
 		result = result.replace(/const enum/, 'enum');

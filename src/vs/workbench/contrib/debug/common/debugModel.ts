@@ -10,13 +10,12 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import severity from 'vs/base/common/severity';
-import { isObject, isString, isUndefinedOrNull } from 'vs/base/common/types';
+import { isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
-	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel, IReplElementSource,
-	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint
+	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
+	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint
 } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
@@ -25,75 +24,13 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextEditor } from 'vs/workbench/common/editor';
 
-export class SimpleReplElement implements IReplElement {
-	constructor(
-		private id: string,
-		public value: string,
-		public severity: severity,
-		public sourceData?: IReplElementSource,
-	) { }
-
-	toString(): string {
-		return this.value;
-	}
-
-	getId(): string {
-		return this.id;
-	}
-}
-
-export class RawObjectReplElement implements IExpression {
-
-	private static readonly MAX_CHILDREN = 1000; // upper bound of children per value
-
-	constructor(private id: string, public name: string, public valueObj: any, public sourceData?: IReplElementSource, public annotation?: string) { }
-
-	getId(): string {
-		return this.id;
-	}
-
-	get value(): string {
-		if (this.valueObj === null) {
-			return 'null';
-		} else if (Array.isArray(this.valueObj)) {
-			return `Array[${this.valueObj.length}]`;
-		} else if (isObject(this.valueObj)) {
-			return 'Object';
-		} else if (isString(this.valueObj)) {
-			return `"${this.valueObj}"`;
-		}
-
-		return String(this.valueObj) || '';
-	}
-
-	get hasChildren(): boolean {
-		return (Array.isArray(this.valueObj) && this.valueObj.length > 0) || (isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0);
-	}
-
-	getChildren(): Promise<IExpression[]> {
-		let result: IExpression[] = [];
-		if (Array.isArray(this.valueObj)) {
-			result = (<any[]>this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
-				.map((v, index) => new RawObjectReplElement(`${this.id}:${index}`, String(index), v));
-		} else if (isObject(this.valueObj)) {
-			result = Object.getOwnPropertyNames(this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
-				.map((key, index) => new RawObjectReplElement(`${this.id}:${index}`, key, this.valueObj[key]));
-		}
-
-		return Promise.resolve(result);
-	}
-
-	toString(): string {
-		return `${this.name}\n${this.value}`;
-	}
-}
-
 export class ExpressionContainer implements IExpressionContainer {
 
 	public static allValues = new Map<string, string>();
 	// Use chunks to support variable paging #9537
 	private static readonly BASE_CHUNK_SIZE = 100;
 
+	public type: string | undefined;
 	public valueChanged = false;
 	private _value: string = '';
 	protected children?: Promise<IExpression[]>;
@@ -195,13 +132,43 @@ export class ExpressionContainer implements IExpressionContainer {
 	toString(): string {
 		return this.value;
 	}
+
+	async evaluateExpression(
+		expression: string,
+		session: IDebugSession | undefined,
+		stackFrame: IStackFrame | undefined,
+		context: string): Promise<boolean> {
+
+		if (!session || (!stackFrame && context !== 'repl')) {
+			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
+			this.reference = 0;
+			return false;
+		}
+
+		this.session = session;
+		try {
+			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+			if (response && response.body) {
+				this.value = response.body.result || '';
+				this.reference = response.body.variablesReference;
+				this.namedVariables = response.body.namedVariables;
+				this.indexedVariables = response.body.indexedVariables;
+				this.type = response.body.type || this.type;
+				return true;
+			}
+			return false;
+		} catch (e) {
+			this.value = e.message || '';
+			this.reference = 0;
+			return false;
+		}
+	}
 }
 
 export class Expression extends ExpressionContainer implements IExpression {
 	static DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
 	public available: boolean;
-	public type: string | undefined;
 
 	constructor(public name: string, id = generateUuid()) {
 		super(undefined, 0, id);
@@ -214,30 +181,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 	}
 
 	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<void> {
-		if (!session || (!stackFrame && context !== 'repl')) {
-			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
-			this.available = false;
-			this.reference = 0;
-
-			return Promise.resolve(undefined);
-		}
-
-		this.session = session;
-		try {
-			const response = await session.evaluate(this.name, stackFrame ? stackFrame.frameId : undefined, context);
-			this.available = !!(response && response.body);
-			if (response && response.body) {
-				this.value = response.body.result || '';
-				this.reference = response.body.variablesReference;
-				this.namedVariables = response.body.namedVariables;
-				this.indexedVariables = response.body.indexedVariables;
-				this.type = response.body.type || this.type;
-			}
-		} catch (e) {
-			this.value = e.message || '';
-			this.available = false;
-			this.reference = 0;
-		}
+		this.available = await this.evaluateExpression(this.name, session, stackFrame, context);
 	}
 
 	toString(): string {
@@ -394,6 +338,10 @@ export class StackFrame implements IStackFrame {
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | null> {
 		return !this.source.available ? Promise.resolve(null) :
 			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
+	}
+
+	equals(other: IStackFrame): boolean {
+		return (this.name === other.name) && (other.thread === this.thread) && (other.source === this.source) && (Range.equalsRange(this.range, other.range));
 	}
 }
 
@@ -901,7 +849,16 @@ export class DebugModel implements IDebugModel {
 					if (!this.schedulers.has(thread.getId())) {
 						this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
 							thread.fetchCallStack(19).then(() => {
-								this._onDidChangeCallStack.fire();
+								const stale = thread.getStaleCallStack();
+								const current = thread.getCallStack();
+								let bottomOfCallStackChanged = stale.length !== current.length;
+								for (let i = 1; i < stale.length && !bottomOfCallStackChanged; i++) {
+									bottomOfCallStackChanged = !stale[i].equals(current[i]);
+								}
+
+								if (bottomOfCallStackChanged) {
+									this._onDidChangeCallStack.fire();
+								}
 								c();
 							});
 						}, 420));

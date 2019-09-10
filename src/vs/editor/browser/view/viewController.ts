@@ -12,6 +12,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IMouseDispatchData {
 	position: Position;
@@ -107,7 +108,7 @@ export class ViewController {
 	}
 
 	private _hasMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.editor.multiCursorModifier) {
+		switch (this.configuration.options.get(EditorOption.multiCursorModifier)) {
 			case 'altKey':
 				return data.altKey;
 			case 'ctrlKey':
@@ -119,7 +120,7 @@ export class ViewController {
 	}
 
 	private _hasNonMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.editor.multiCursorModifier) {
+		switch (this.configuration.options.get(EditorOption.multiCursorModifier)) {
 			case 'altKey':
 				return data.ctrlKey || data.metaKey;
 			case 'ctrlKey':
@@ -132,11 +133,7 @@ export class ViewController {
 
 	public dispatchMouse(data: IMouseDispatchData): void {
 		if (data.middleButton) {
-			if (data.inSelectionMode) {
-				this._columnSelect(data.position, data.mouseColumn, true);
-			} else {
-				this.moveTo(data.position);
-			}
+			this._columnSelect(data.position, data.mouseColumn, data.inSelectionMode);
 		} else if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
 			if (this._hasMulticursorModifier(data)) {
@@ -182,7 +179,7 @@ export class ViewController {
 			if (this._hasMulticursorModifier(data)) {
 				if (!this._hasNonMulticursorModifier(data)) {
 					if (data.shiftKey) {
-						this._columnSelect(data.position, data.mouseColumn, false);
+						this._columnSelect(data.position, data.mouseColumn, true);
 					} else {
 						// Do multi-cursor operations only when purely alt is pressed
 						if (data.inSelectionMode) {
@@ -222,13 +219,13 @@ export class ViewController {
 		this._execMouseCommand(CoreNavigationCommands.MoveToSelect, this._usualArgs(viewPosition));
 	}
 
-	private _columnSelect(viewPosition: Position, mouseColumn: number, setAnchorIfNotSet: boolean): void {
+	private _columnSelect(viewPosition: Position, mouseColumn: number, doColumnSelect: boolean): void {
 		viewPosition = this._validateViewColumn(viewPosition);
 		this._execMouseCommand(CoreNavigationCommands.ColumnSelect, {
 			position: this._convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition,
 			mouseColumn: mouseColumn,
-			setAnchorIfNotSet: setAnchorIfNotSet
+			doColumnSelect: doColumnSelect
 		});
 	}
 

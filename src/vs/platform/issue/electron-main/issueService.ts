@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/node/issue';
 import { BrowserWindow, ipcMain, screen, Event, dialog } from 'electron';
 import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
@@ -372,7 +372,7 @@ export class IssueService implements IIssueService {
 }
 
 function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
-	const environment = parseArgs(process.argv);
+	const environment = parseArgs(process.argv, OPTIONS);
 	const config = objects.assign(environment, windowConfiguration);
 	for (const keyValue of Object.keys(config)) {
 		const key = keyValue as keyof typeof config;

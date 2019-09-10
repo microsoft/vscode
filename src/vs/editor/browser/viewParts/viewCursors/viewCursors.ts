@@ -8,7 +8,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { editorCursorBackground, editorCursorForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -43,10 +43,11 @@ export class ViewCursors extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 
-		this._readOnly = this._context.configuration.editor.readOnly;
-		this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
-		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-		this._cursorSmoothCaretAnimation = this._context.configuration.editor.viewInfo.cursorSmoothCaretAnimation;
+		const options = this._context.configuration.options;
+		this._readOnly = options.get(EditorOption.readOnly);
+		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
+		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
 		this._selectionIsEmpty = true;
 
 		this._isVisible = false;
@@ -84,21 +85,17 @@ export class ViewCursors extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		const options = this._context.configuration.options;
 
-		if (e.readOnly) {
-			this._readOnly = this._context.configuration.editor.readOnly;
-		}
-		if (e.viewInfo) {
-			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
-			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-			this._cursorSmoothCaretAnimation = this._context.configuration.editor.viewInfo.cursorSmoothCaretAnimation;
-		}
+		this._readOnly = options.get(EditorOption.readOnly);
+		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
+		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
+
+		this._updateBlinking();
+		this._updateDomClassName();
 
 		this._primaryCursor.onConfigurationChanged(e);
-		this._updateBlinking();
-		if (e.viewInfo) {
-			this._updateDomClassName();
-		}
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].onConfigurationChanged(e);
 		}

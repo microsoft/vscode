@@ -11,7 +11,7 @@ import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, R
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/product/node/product';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -32,7 +32,7 @@ const RUN_TEXTMATE_IN_WORKER = false;
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
-	extensionDevelopmentPath?: string | string[];
+	extensionDevelopmentPath?: string[];
 	isExtensionTestHost?: boolean;
 }
 
@@ -574,7 +574,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.partsSplashPath = path.join(this.environmentService.userDataPath, 'rapid_render.json');
 
 		// Config (combination of process.argv and window configuration)
-		const environment = parseArgs(process.argv);
+		const environment = parseArgs(process.argv, OPTIONS);
 		const config = objects.assign(environment, windowConfiguration);
 		for (const key in config) {
 			const configValue = (config as any)[key];

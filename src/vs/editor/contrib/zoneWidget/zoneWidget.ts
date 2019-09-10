@@ -11,7 +11,7 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -334,7 +334,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	private _decoratingElementsHeight(): number {
-		let lineHeight = this.editor.getConfiguration().lineHeight;
+		let lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		let result = 0;
 
 		if (this.options.showArrow) {
@@ -364,7 +364,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		// Render the widget as zone (rendering) and widget (lifecycle)
 		const viewZoneDomNode = document.createElement('div');
 		viewZoneDomNode.style.overflow = 'hidden';
-		const lineHeight = this.editor.getConfiguration().lineHeight;
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 
 		// adjust heightInLines to viewport
 		const maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * 0.8;
@@ -505,7 +505,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		this._disposables.add(this._resizeSash.onDidChange((evt: ISashEvent) => {
 			if (data) {
-				let lineDelta = (evt.currentY - data.startY) / this.editor.getConfiguration().lineHeight;
+				let lineDelta = (evt.currentY - data.startY) / this.editor.getOption(EditorOption.lineHeight);
 				let roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);
 				let newHeightInLines = data.heightInLines + roundedLineDelta;
 
