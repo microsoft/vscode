@@ -100,7 +100,7 @@ const serverWithWebResources = [
 	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
-	'out-build/vs/code/browser/workbench/**',
+	'out-build/vs/code/browser/workbench/workbench.html',
 	'out-build/vs/**/markdown.css'
 ];
 
