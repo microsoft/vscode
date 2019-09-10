@@ -21,6 +21,7 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
@@ -216,7 +217,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 			return;
 		}
 
-		const headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
+		const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
 		const bodyHeight = heightInPixel - (headHeight + 2 /* the border-top/bottom width*/);
 
 		this._doLayoutHead(headHeight, widthInPixel);

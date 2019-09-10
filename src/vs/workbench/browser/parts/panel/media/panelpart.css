@@ -13,7 +13,6 @@
 }
 
 .monaco-workbench .part.panel .title {
-	padding-right: 0px;
 	height: 35px;
 	display: flex;
 	flex-direction: row;

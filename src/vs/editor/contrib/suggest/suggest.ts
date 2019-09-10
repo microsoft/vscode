@@ -161,6 +161,10 @@ export function provideSuggestionItems(
 							if (!suggestion.range) {
 								suggestion.range = defaultRange;
 							}
+							// fill in default sortText when missing
+							if (!suggestion.sortText) {
+								suggestion.sortText = suggestion.label;
+							}
 
 							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));
 						}

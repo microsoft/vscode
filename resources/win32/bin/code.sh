@@ -16,7 +16,7 @@ if grep -qi Microsoft /proc/version; then
 		WSL_BUILD=0
 	fi
 
-	if [ $WSL_BUILD -ge 41955 -a $WSL_BUILD -lt 41959 ]; then
+	if [ $WSL_BUILD -ge 17063 ]; then
 		# $WSL_DISTRO_NAME is available since WSL builds 18362, also for WSL2
 		# WSLPATH is available since WSL build 17046
 		# WSLENV is available since WSL build 17063
@@ -26,7 +26,7 @@ if grep -qi Microsoft /proc/version; then
 		# use the Remote WSL extension if installed
 		WSL_EXT_ID="ms-vscode-remote.remote-wsl"
 
-		if [ $WSL_BUILD -ge 41955 ]; then
+		if [ $WSL_BUILD -ge 41955 -a $WSL_BUILD -lt 41959 ]; then
 			# WSL2 in workaround for https://github.com/microsoft/WSL/issues/4337
 			CWD="$(pwd)"
 			cd "$VSCODE_PATH"

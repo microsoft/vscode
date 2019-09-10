@@ -426,7 +426,7 @@ export class SearchWidget extends Widget {
 		}
 		try {
 			// tslint:disable-next-line: no-unused-expression
-			new RegExp(value);
+			new RegExp(value, 'u');
 		} catch (e) {
 			return { content: e.message };
 		}

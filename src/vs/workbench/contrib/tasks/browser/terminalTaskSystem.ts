@@ -60,7 +60,7 @@ interface ActiveTerminalData {
 
 class VariableResolver {
 
-	constructor(public workspaceFolder: IWorkspaceFolder, public taskSystemInfo: TaskSystemInfo | undefined, private _values: Map<string, string>, private _service: IConfigurationResolverService | undefined) {
+	constructor(public workspaceFolder: IWorkspaceFolder | undefined, public taskSystemInfo: TaskSystemInfo | undefined, private _values: Map<string, string>, private _service: IConfigurationResolverService | undefined) {
 	}
 	resolve(value: string): string {
 		return value.replace(/\$\{(.*?)\}/g, (match: string, variable: string) => {
@@ -389,7 +389,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private resolveVariablesFromSet(taskSystemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder, task: CustomTask | ContributedTask, variables: Set<string>): Promise<ResolvedVariables> {
+	private resolveVariablesFromSet(taskSystemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, variables: Set<string>): Promise<ResolvedVariables> {
 		let isProcess = task.command && task.command.runtime === RuntimeType.Process;
 		let options = task.command && task.command.options ? task.command.options : undefined;
 		let cwd = options ? options.cwd : undefined;
@@ -406,7 +406,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 
 		let resolvedVariables: Promise<ResolvedVariables>;
-		if (taskSystemInfo) {
+		if (taskSystemInfo && workspaceFolder) {
 			let resolveSet: ResolveSet = {
 				variables
 			};
@@ -463,10 +463,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): Promise<ITaskSummary> {
 		const workspaceFolder = this.currentTask.workspaceFolder = task.getWorkspaceFolder();
-		if (workspaceFolder === undefined) {
-			return Promise.reject(new Error(`Must have workspace folder${task._label}`));
-		}
-		const systemInfo = this.currentTask.systemInfo = this.taskSystemInfoResolver(workspaceFolder);
+		const systemInfo: TaskSystemInfo | undefined = this.currentTask.systemInfo = workspaceFolder ? this.taskSystemInfoResolver(workspaceFolder) : undefined;
 
 		let variables = new Set<string>();
 		this.collectTaskVariables(variables, task);
@@ -515,7 +512,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private async executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder): Promise<ITaskSummary> {
+	private async executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<ITaskSummary> {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let executedCommand: string | undefined = undefined;
 		let error: TaskError | undefined = undefined;
@@ -761,7 +758,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
-	private createTerminalName(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder): string {
+	private createTerminalName(task: CustomTask | ContributedTask): string {
 		const needsFolderQualification = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		return nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? task.getQualifiedLabel() : task.configurationProperties.name);
 	}
@@ -774,14 +771,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return URI.from({ scheme: Schemas.file, path: this.environmentService.userHome });
 	}
 
-	private async createShellLaunchConfig(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): Promise<IShellLaunchConfig | undefined> {
+	private async createShellLaunchConfig(task: CustomTask | ContributedTask, workspaceFolder: IWorkspaceFolder | undefined, variableResolver: VariableResolver, platform: Platform.Platform, options: CommandOptions, command: CommandString, args: CommandString[], waitOnExit: boolean | string): Promise<IShellLaunchConfig | undefined> {
 		let shellLaunchConfig: IShellLaunchConfig;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		let needsFolderQualification = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
-		let terminalName = this.createTerminalName(task, workspaceFolder);
+		let terminalName = this.createTerminalName(task);
 		let originalCommand = task.command.name;
 		if (isShellCommand) {
-			const defaultConfig = await this.terminalInstanceService.getDefaultShellAndArgs(true, platform);
+			const defaultConfig = variableResolver.taskSystemInfo ? await variableResolver.taskSystemInfo.getDefaultShellAndArgs() : await this.terminalInstanceService.getDefaultShellAndArgs(true, platform);
 			shellLaunchConfig = { name: terminalName, executable: defaultConfig.shell, args: defaultConfig.args, waitOnExit };
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration | undefined = task.command.options && task.command.options.shell;
@@ -846,7 +843,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			shellArgs.push(commandLine);
 			shellLaunchConfig.args = windowsShellArgs ? shellArgs.join(' ') : shellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
-				if (needsFolderQualification) {
+				if (needsFolderQualification && workspaceFolder) {
 					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${commandLine} <\x1b[0m\n`;
 				} else {
 					shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
@@ -875,7 +872,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					}
 					return args.join(' ');
 				};
-				if (needsFolderQualification) {
+				if (needsFolderQualification && workspaceFolder) {
 					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)} <\x1b[0m\n`;
 				} else {
 					shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)} <\x1b[0m\n`;
@@ -886,7 +883,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (options.cwd) {
 			let cwd = options.cwd;
 			if (!path.isAbsolute(cwd)) {
-				let workspaceFolder = task.getWorkspaceFolder();
 				if (workspaceFolder && (workspaceFolder.uri.scheme === 'file')) {
 					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
 				}
@@ -900,7 +896,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return shellLaunchConfig;
 	}
 
-	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
+	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = this.resolveOptions(resolver, task.command.options);
 
@@ -929,7 +925,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this.currentTask.shellLaunchConfig = launchConfigs = {
 				isExtensionTerminal: true,
 				waitOnExit,
-				name: this.createTerminalName(task, workspaceFolder),
+				name: this.createTerminalName(task),
 				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined
 			};
 		} else {

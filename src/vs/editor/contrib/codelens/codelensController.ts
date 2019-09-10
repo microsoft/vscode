@@ -17,6 +17,7 @@ import { CodeLensWidget, CodeLensHelper } from 'vs/editor/contrib/codelens/codel
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
@@ -40,13 +41,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICodeLensCache private readonly _codeLensCache: ICodeLensCache
 	) {
-		this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
+		this._isEnabled = this._editor.getOption(EditorOption.codeLens);
 
 		this._globalToDispose.add(this._editor.onDidChangeModel(() => this._onModelChange()));
 		this._globalToDispose.add(this._editor.onDidChangeModelLanguage(() => this._onModelChange()));
 		this._globalToDispose.add(this._editor.onDidChangeConfiguration(() => {
 			const prevIsEnabled = this._isEnabled;
-			this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
+			this._isEnabled = this._editor.getOption(EditorOption.codeLens);
 			if (prevIsEnabled !== this._isEnabled) {
 				this._onModelChange();
 			}
@@ -204,7 +205,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}));
 		this._localToDispose.add(this._editor.onDidChangeConfiguration(e => {
-			if (e.fontInfo) {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				for (const lens of this._lenses) {
 					lens.updateHeight();
 				}

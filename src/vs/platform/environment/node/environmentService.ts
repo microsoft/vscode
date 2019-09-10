@@ -198,11 +198,6 @@ export class EnvironmentService implements IEnvironmentService {
 				}
 				return URI.file(path.normalize(p));
 			});
-		} else if (s) {
-			if (/^[^:/?#]+?:\/\//.test(s)) {
-				return [URI.parse(s)];
-			}
-			return [URI.file(path.normalize(s))];
 		}
 		return undefined;
 	}
