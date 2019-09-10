@@ -1039,7 +1039,7 @@ class CallHierarchyAdapter {
 					});
 				}
 
-				private _ensureNode(symbol: vscode.CallHierarchySymbol): number {
+				private _ensureNode(symbol: vscode.CallHierarchyItem): number {
 					const id = JSON.stringify(symbol.uri) + JSON.stringify(symbol.range);
 					let res = this._ids.get(id);
 					if (typeof res === 'undefined') {
@@ -1051,7 +1051,7 @@ class CallHierarchyAdapter {
 				}
 
 				// todo@joh move to extHostConverter
-				private _fromSymbol(symbol: vscode.CallHierarchySymbol): extHostProtocol.ICallHierarchySymbolDto {
+				private _fromSymbol(symbol: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchySymbolDto {
 					return {
 						id: JSON.stringify(symbol.uri) + JSON.stringify(symbol.range),
 						name: symbol.name,
