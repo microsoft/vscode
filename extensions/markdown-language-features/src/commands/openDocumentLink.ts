@@ -17,6 +17,11 @@ export interface OpenDocumentLinkArgs {
 	fragment: string;
 }
 
+enum OpenMarkdownLinks {
+	beside = 'beside',
+	currentGroup = 'currentGroup',
+}
+
 export class OpenDocumentLinkCommand implements Command {
 	private static readonly id = '_markdown.openDocumentLink';
 	public readonly id = OpenDocumentLinkCommand.id;
@@ -61,11 +66,11 @@ export class OpenDocumentLinkCommand implements Command {
 
 	private getViewColumn(resource: vscode.Uri): vscode.ViewColumn {
 		const config = vscode.workspace.getConfiguration('markdown', resource);
-		const openLinks = config.get<string>('editor.openMarkdownLinks', 'currentGroup');
+		const openLinks = config.get<OpenMarkdownLinks>('links.openLocation', OpenMarkdownLinks.currentGroup);
 		switch (openLinks) {
-			case 'openToSide':
+			case OpenMarkdownLinks.beside:
 				return vscode.ViewColumn.Beside;
-			case 'currentGroup':
+			case OpenMarkdownLinks.currentGroup:
 			default:
 				return vscode.ViewColumn.Active;
 		}
