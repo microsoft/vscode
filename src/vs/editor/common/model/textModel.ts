@@ -2621,8 +2621,8 @@ class DecorationOptions implements model.IDecorationOptions {
 	readonly darkColor: string | ThemeColor;
 
 	constructor(options: model.IDecorationOptions) {
-		this.color = options.color || strings.empty;
-		this.darkColor = options.darkColor || strings.empty;
+		this.color = options.color || '';
+		this.darkColor = options.darkColor || '';
 
 	}
 }
@@ -2658,7 +2658,7 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 		}
 		let c = color ? theme.getColor(color.id) : null;
 		if (!c) {
-			return strings.empty;
+			return '';
 		}
 		return c.toString();
 	}
