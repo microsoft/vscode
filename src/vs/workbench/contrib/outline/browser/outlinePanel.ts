@@ -426,8 +426,8 @@ export class OutlinePanel extends ViewletPanel {
 
 						const expandOrCollapse = levelCollapseStates[i] === TreeLevelCollapseState.Collapsed;
 						const actionLabel = expandOrCollapse ?
-							localize('expandFromLevel', "Expand from level {0}", i + 1) :
-							localize('collapseToLevel', "Collapse to level {0}", i + 1);
+							localize('expandToLevel', "Expand to level {0}", i + 1) :
+							localize('collapseFromLevel', "Collapse from level {0}", i + 1);
 
 						collapseLevelActions.push(new Action('collapseExpandLevel' + i, actionLabel, undefined, true, () => {
 							if (expandOrCollapse) {
