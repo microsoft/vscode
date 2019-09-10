@@ -203,21 +203,24 @@ function prepareSnapPackage(arch) {
 	const destination = getSnapBuildPath(arch);
 
 	return function () {
+		// A desktop file that is placed in snap/gui will be placed into meta/gui verbatim.
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
-			.pipe(rename(`usr/share/applications/${product.applicationName}.desktop`));
+			.pipe(rename(`snap/gui/${product.applicationName}.desktop`));
 
+		// A desktop file that is placed in snap/gui will be placed into meta/gui verbatim.
 		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
-			.pipe(rename(`usr/share/applications/${product.applicationName}-url-handler.desktop`));
+			.pipe(rename(`snap/gui/${product.applicationName}-url-handler.desktop`));
 
 		const desktops = es.merge(desktop, desktopUrlHandler)
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ICON@@', `/usr/share/pixmaps/${product.linuxIconName}.png`))
+			.pipe(replace('@@ICON@@', `${SNAP}/meta/gui/${product.linuxIconName}.png`))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
+		// An icon that is placed in snap/gui will be placed into meta/gui verbatim.
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
-			.pipe(rename(`usr/share/pixmaps/${product.linuxIconName}.png`));
+			.pipe(rename(`snap/gui/${product.linuxIconName}.png`));
 
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
