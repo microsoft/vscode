@@ -52,8 +52,22 @@ export class OpenDocumentLinkCommand implements Command {
 				return this.tryRevealLine(vscode.window.activeTextEditor, args.fragment);
 			}
 		}
+
+		const config = vscode.workspace.getConfiguration('markdown', resource);
+		const openLinks = config.get<string>('editor.openMarkdownLinks', 'currentGroup');
+
+		let column: vscode.ViewColumn;
+		switch (openLinks) {
+			case 'openToSide':
+				column = vscode.ViewColumn.Beside;
+				break;
+			case 'currentGroup':
+			default:
+				column = vscode.ViewColumn.Active;
+		}
+
 		return vscode.workspace.openTextDocument(resource)
-			.then(vscode.window.showTextDocument)
+			.then(document => vscode.window.showTextDocument(document, column))
 			.then(editor => this.tryRevealLine(editor, args.fragment));
 	}
 
