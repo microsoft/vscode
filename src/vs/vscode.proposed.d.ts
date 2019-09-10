@@ -38,7 +38,7 @@ declare module 'vscode' {
 	 * Represents programming constructs like function, methods etc. that appear in call hierarchies. Call hierarchy
 	 * symbols are edges inside a call hierarchy graph and are connected by [`call hierarchy items`](#CallHierarchyItem).
 	 */
-	export class CallHierarchySymbol {
+	export class CallHierarchyItem {
 		kind: SymbolKind;
 		tags?: ReadonlyArray<SymbolTag>;
 		name: string;
@@ -56,11 +56,11 @@ declare module 'vscode' {
 	 * `target` symbol.
 	 */
 	export class CallHierarchyCall {
-		source: CallHierarchySymbol;
+		source: CallHierarchyItem;
 		souceRange: Range;
-		target: CallHierarchySymbol;
+		target: CallHierarchyItem;
 
-		constructor(source: CallHierarchySymbol, sourceRange: Range, target: CallHierarchySymbol);
+		constructor(source: CallHierarchyItem, sourceRange: Range, target: CallHierarchyItem);
 	}
 
 	/**

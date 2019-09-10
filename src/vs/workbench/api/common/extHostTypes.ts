@@ -1152,7 +1152,7 @@ export enum CallHierarchyDirection {
 	CallsTo = 2,
 }
 
-export class CallHierarchySymbol {
+export class CallHierarchyItem {
 	kind: SymbolKind;
 	tags?: SymbolTag[];
 	name: string;
@@ -1172,11 +1172,11 @@ export class CallHierarchySymbol {
 }
 
 export class CallHierarchyCall {
-	source: CallHierarchySymbol;
+	source: CallHierarchyItem;
 	souceRange: Range;
-	target: CallHierarchySymbol;
+	target: CallHierarchyItem;
 
-	constructor(source: CallHierarchySymbol, sourceRange: Range, target: CallHierarchySymbol) {
+	constructor(source: CallHierarchyItem, sourceRange: Range, target: CallHierarchyItem) {
 		this.source = source;
 		this.souceRange = sourceRange;
 		this.target = target;
