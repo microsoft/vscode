@@ -50,7 +50,7 @@ export class CustomEditorService implements ICustomEditorService {
 		});
 	}
 
-	public getCustomEditorsForResource(resource: URI): readonly CustomEditorInfo[] {
+	public getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[] {
 		return this.customEditors.filter(customEditor =>
 			customEditor.selector.some(selector => matches(selector, resource)));
 	}
@@ -60,7 +60,7 @@ export class CustomEditorService implements ICustomEditorService {
 		options?: ITextEditorOptions,
 		group?: IEditorGroup,
 	): Promise<IEditor | undefined> {
-		const preferredEditors = await this.getCustomEditorsForResource(resource);
+		const preferredEditors = this.getContributedCustomEditors(resource);
 		const defaultEditorId = 'default';
 		const pick = await this.quickInputService.pick([
 			{
@@ -120,7 +120,7 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
 	}
 
-	private getConfiguredCustomEditor(resource: URI): string | undefined {
+	private getUserConfiguredCustomEditor(resource: URI): string | undefined {
 		const config = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsKey) || [];
 		const match = find(config, association => matches(association, resource));
 		return match ? match.viewType : undefined;
@@ -140,8 +140,8 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const userConfiguredViewType = this.getConfiguredCustomEditor(resource);
-		const customEditors = this.customEditorService.getCustomEditorsForResource(resource);
+		const userConfiguredViewType = this.getUserConfiguredCustomEditor(resource);
+		const customEditors = this.customEditorService.getContributedCustomEditors(resource);
 
 		if (!userConfiguredViewType) {
 			if (!customEditors.length) {
