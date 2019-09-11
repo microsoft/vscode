@@ -76,6 +76,13 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 	}
 
+	$setTitle(treeViewId: string, title: string): void {
+		const viewer = this.getTreeView(treeViewId);
+		if (viewer) {
+			viewer.title = title;
+		}
+	}
+
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
 		options = options ? options : { select: false, focus: false };
 		const select = isUndefinedOrNull(options.select) ? false : options.select;
