@@ -506,7 +506,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return {
 						target: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
 						sourceRanges
-					}
+					};
 				});
 			},
 			provideIncomingCalls: async (item, token) => {
@@ -518,7 +518,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return {
 						source: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
 						sourceRanges
-					}
+					};
 				});
 			}
 		}));

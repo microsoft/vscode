@@ -1040,7 +1040,7 @@ class CallHierarchyAdapter {
 		if (!calls) {
 			return undefined;
 		}
-		return calls.map(call => (<[ICallHierarchyItemDto, IRange[]]>[this._fromItem(call.source), call.sourceRanges.map(typeConvert.Range.from)]))
+		return calls.map(call => (<[ICallHierarchyItemDto, IRange[]]>[this._fromItem(call.source), call.sourceRanges.map(typeConvert.Range.from)]));
 	}
 
 	async provideCallsFrom(source: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined> {
@@ -1052,7 +1052,7 @@ class CallHierarchyAdapter {
 		if (!calls) {
 			return undefined;
 		}
-		return calls.map(call => (<[ICallHierarchyItemDto, IRange[]]>[this._fromItem(call.target), call.sourceRanges.map(typeConvert.Range.from)]))
+		return calls.map(call => (<[ICallHierarchyItemDto, IRange[]]>[this._fromItem(call.target), call.sourceRanges.map(typeConvert.Range.from)]));
 	}
 
 	private _fromItem(item: vscode.CallHierarchyItem, _id: number = this._idPool++): callHierarchy.CallHierarchyItem {
