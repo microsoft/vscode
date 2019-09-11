@@ -167,6 +167,7 @@ export interface ITreeNavigator<T> {
 }
 
 export interface IDataSource<TInput, T> {
+	hasChildren?(element: TInput | T): boolean;
 	getChildren(element: TInput | T): T[];
 }
 

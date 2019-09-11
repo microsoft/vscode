@@ -3,8 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResourceGroup, ISCMResource } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup } from 'vs/workbench/contrib/scm/common/scm';
 
-export function isSCMResource(element: ISCMResourceGroup | ISCMResource): element is ISCMResource {
+export function isSCMRepository(element: ISCMRepository | ISCMResourceGroup | ISCMResource): element is ISCMRepository {
+	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
+}
+
+export function isSCMResourceGroup(element: ISCMRepository | ISCMResourceGroup | ISCMResource): element is ISCMRepository {
+	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).elements;
+}
+
+export function isSCMResource(element: ISCMRepository | ISCMResourceGroup | ISCMResource): element is ISCMResource {
 	return !!(element as ISCMResource).sourceUri;
 }
