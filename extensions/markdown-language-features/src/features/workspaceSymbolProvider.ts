@@ -93,7 +93,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 		// We assume that markdown is in UTF-8
 		const text = Buffer.from(bytes).toString('utf-8');
 
-		const lines: SkinnyTextLine[]  = [];
+		const lines: SkinnyTextLine[] = [];
 		const parts = text.split(/(\r?\n)/);
 		const lineCount = Math.floor(parts.length / 2) + 1;
 		for (let line = 0; line < lineCount; line++) {
