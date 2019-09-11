@@ -29,7 +29,7 @@ import { createAndFillInContextMenuActions, ContextAwareMenuEntryActionViewItem,
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionViewItemProvider, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMRepository } from './scmUtil';
+import { isSCMResource, isSCMRepository, isSCMResourceGroup } from './scmUtil';
 import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -50,7 +50,7 @@ import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common
 import { Registry } from 'vs/platform/registry/common/platform';
 import { nextTick } from 'vs/base/common/process';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
-import { ITreeRenderer, ITreeNode, IDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, IDataSource, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { ISequence, ISpliceable, ISplice } from 'vs/base/common/sequence';
 
 export interface ISpliceEvent<T> {
@@ -589,6 +589,19 @@ class SCMTreeDataSource implements IDataSource<ISCMRepository, TreeNode> {
 	}
 }
 
+class SCMTreeFilter implements ITreeFilter<TreeNode> {
+
+	filter(element: TreeNode): boolean {
+		if (typeof element === 'string') {
+			return true;
+		} else if (isSCMResourceGroup(element)) {
+			return element.elements.length > 0 || !element.hideWhenEmpty;
+		} else {
+			return true;
+		}
+	}
+}
+
 const scmResourceIdentityProvider = new class implements IIdentityProvider<ISCMResourceGroup | ISCMResource> {
 	getId(r: ISCMResourceGroup | ISCMResource): string {
 		if (isSCMResource(r)) {
@@ -618,6 +631,7 @@ const scmKeyboardNavigationLabelProvider = new class implements IKeyboardNavigat
 
 interface IGroupItem {
 	readonly group: ISCMResourceGroup;
+	visible: boolean;
 	readonly disposable: IDisposable;
 }
 
@@ -639,7 +653,7 @@ class ResourceGroupSplicer {
 
 		for (const group of toInsert) {
 			const disposable = combinedDisposable(
-				// group.onDidChange(() => this.onDidChangeGroup(group)),
+				group.onDidChange(() => this.onDidChangeGroup(group)),
 				group.onDidSplice(splice => this.onDidSpliceGroup(group, splice))
 			);
 
@@ -655,35 +669,36 @@ class ResourceGroupSplicer {
 		this.tree.updateChildren();
 	}
 
-	// private onDidChangeGroup(group: ISCMResourceGroup): void {
-	// 	const itemIndex = firstIndex(this.items, item => item.group === group);
+	private onDidChangeGroup(group: ISCMResourceGroup): void {
+		this.tree.updateChildren();
+		// 	const itemIndex = firstIndex(this.items, item => item.group === group);
 
-	// 	if (itemIndex < 0) {
-	// 		return;
-	// 	}
+		// 	if (itemIndex < 0) {
+		// 		return;
+		// 	}
 
-	// 	const item = this.items[itemIndex];
-	// 	const visible = isGroupVisible(group);
+		// 	const item = this.items[itemIndex];
+		// 	const visible = isGroupVisible(group);
 
-	// 	if (item.visible === visible) {
-	// 		return;
-	// 	}
+		// 	if (item.visible === visible) {
+		// 		return;
+		// 	}
 
-	// 	let absoluteStart = 0;
+		// 	let absoluteStart = 0;
 
-	// 	for (let i = 0; i < itemIndex; i++) {
-	// 		const item = this.items[i];
-	// 		absoluteStart += (item.visible ? 1 : 0) + item.group.elements.length;
-	// 	}
+		// 	for (let i = 0; i < itemIndex; i++) {
+		// 		const item = this.items[i];
+		// 		absoluteStart += (item.visible ? 1 : 0) + item.group.elements.length;
+		// 	}
 
-	// 	if (visible) {
-	// 		this.spliceable.splice(absoluteStart, 0, [group, ...group.elements]);
-	// 	} else {
-	// 		this.spliceable.splice(absoluteStart, 1 + group.elements.length, []);
-	// 	}
+		// 	if (visible) {
+		// 		this.spliceable.splice(absoluteStart, 0, [group, ...group.elements]);
+		// 	} else {
+		// 		this.spliceable.splice(absoluteStart, 1 + group.elements.length, []);
+		// 	}
 
-	// 	item.visible = visible;
-	// }
+		// 	item.visible = visible;
+	}
 
 	private onDidSpliceGroup(group: ISCMResourceGroup, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
 		this.tree.updateChildren(group);
@@ -881,6 +896,7 @@ export class RepositoryPanel extends ViewletPanel {
 		];
 
 		const dataSource = new SCMTreeDataSource();
+		const filter = new SCMTreeFilter();
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchDataTree,
@@ -892,7 +908,8 @@ export class RepositoryPanel extends ViewletPanel {
 			{
 				identityProvider: scmResourceIdentityProvider,
 				keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
-				horizontalScrolling: false
+				horizontalScrolling: false,
+				filter
 			}) as WorkbenchDataTree<ISCMRepository, TreeNode>;
 
 		this._register(Event.chain(this.tree.onDidOpen)
