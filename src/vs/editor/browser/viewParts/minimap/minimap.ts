@@ -755,8 +755,16 @@ export class Minimap extends ViewPart {
 
 			canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
 
-			// Loop over decorations, ignoring those that don't have the minimap property set and rendering rectangles for each line the decoration spans
 			const lineOffsetMap = new Map<number, number[]>();
+			for (let i = 0; i < this._selections.length; i++) {
+				const selection = this._selections[i];
+
+				for (let line = selection.startLineNumber; line <= selection.endLineNumber; line++) {
+					this.renderDecorationOnLine(canvasContext, lineOffsetMap, selection, this._selectionColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
+				}
+			}
+
+			// Loop over decorations, ignoring those that don't have the minimap property set and rendering rectangles for each line the decoration spans
 			for (let i = 0; i < decorations.length; i++) {
 				const decoration = decorations[i];
 
@@ -767,14 +775,6 @@ export class Minimap extends ViewPart {
 				for (let line = decoration.range.startLineNumber; line <= decoration.range.endLineNumber; line++) {
 					const decorationColor = (<ModelDecorationMinimapOptions>decoration.options.minimap).getColor(this._context.theme);
 					this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
-				}
-			}
-
-			for (let i = 0; i < this._selections.length; i++) {
-				const selection = this._selections[i];
-
-				for (let line = selection.startLineNumber; line <= selection.endLineNumber; line++) {
-					this.renderDecorationOnLine(canvasContext, lineOffsetMap, selection, this._selectionColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
 				}
 			}
 
