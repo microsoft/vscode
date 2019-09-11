@@ -1172,7 +1172,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public hasWidgetFocus(): boolean {
-		return this._focusTracker && this._focusTracker.hasFocus();
+		return (this._editorWidgetFocus.getValue() === BooleanEventValue.True);
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
@@ -1546,6 +1546,10 @@ export class BooleanEventEmitter extends Disposable {
 	constructor() {
 		super();
 		this._value = BooleanEventValue.NotSet;
+	}
+
+	public getValue(): BooleanEventValue {
+		return this._value;
 	}
 
 	public setValue(_value: boolean) {
