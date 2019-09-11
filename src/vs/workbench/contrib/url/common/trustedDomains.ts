@@ -101,11 +101,11 @@ function addDomain(trustedDomains: string[], storageService: IStorageService, qu
 		.input({
 			placeHolder: 'Domain to trust',
 			validateInput: i => {
-				if (!i.match(/^https?:\/\//)) {
+				if (i.match(/^https?:\/\//)) {
 					return Promise.resolve(undefined);
 				}
 
-				return Promise.resolve(i);
+				return Promise.resolve(`${i} should start with http/https`);
 			}
 		})
 		.then(result => {
