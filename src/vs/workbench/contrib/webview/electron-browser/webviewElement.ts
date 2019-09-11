@@ -377,12 +377,17 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 					return;
 			}
 		}));
+
 		this._register(addDisposableListener(this._webview, 'devtools-opened', () => {
 			this._send('devtools-opened');
 		}));
 
 		if (_options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+
+			this._register(addDisposableListener(this._webview, 'found-in-page', e => {
+				this._hasFindResult.fire(e.result.matches > 0);
+			}));
 		}
 
 		this.style(themeService.getTheme());
@@ -576,6 +581,9 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 		});
 	}
 
+	private readonly _hasFindResult = this._register(new Emitter<boolean>());
+	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
+
 	public startFind(value: string, options?: Electron.FindInPageOptions) {
 		if (!value || !this._webview) {
 			return;
@@ -623,6 +631,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 	}
 
 	public stopFind(keepSelection?: boolean): void {
+		this._hasFindResult.fire(false);
 		if (!this._webview) {
 			return;
 		}
