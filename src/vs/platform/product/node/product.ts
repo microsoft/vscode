@@ -7,17 +7,22 @@ import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { IProductConfiguration } from 'vs/platform/product/common/product';
 import pkg from 'vs/platform/product/node/package';
+import { assign } from 'vs/base/common/objects';
 
 const rootPath = path.dirname(getPathFromAmdModule(require, ''));
 const productJsonPath = path.join(rootPath, 'product.json');
 const product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
 
 if (process.env['VSCODE_DEV']) {
-	product.nameShort += ' Dev';
-	product.nameLong += ' Dev';
-	product.dataFolderName += '-dev';
+	assign(product, {
+		nameShort: `${product.nameShort} Dev`,
+		nameLong: `${product.nameLong} Dev`,
+		dataFolderName: `${product.dataFolderName}-dev`
+	});
 }
 
-product.version = pkg.version;
+assign(product, {
+	version: pkg.version
+});
 
 export default product;

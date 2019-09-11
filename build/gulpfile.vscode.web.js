@@ -18,20 +18,24 @@ const json = require('gulp-json-editor');
 const _ = require('underscore');
 const deps = require('./dependencies');
 const vfs = require('vinyl-fs');
+const fs = require('fs');
 const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 
 const REPO_ROOT = path.dirname(__dirname);
-const commit = util.getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
+
+const commit = util.getVersion(REPO_ROOT);
+const quality = product.quality;
+const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
 const productionDependencies = deps.getProductionDependencies(WEB_FOLDER);
 
 const nodeModules = Object.keys(product.dependencies || {})
 	.concat(_.uniq(productionDependencies.map(d => d.name)));
 
-const vscodeWebResources = [
+const vscodeWebResourceIncludes = [
 
 	// Workbench
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png}',
@@ -43,7 +47,14 @@ const vscodeWebResources = [
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 
 	// Extension Worker
-	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
+	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js'
+];
+exports.vscodeWebResourceIncludes = vscodeWebResourceIncludes;
+
+const vscodeWebResources = [
+
+	// Includes
+	...vscodeWebResourceIncludes,
 
 	// Excludes
 	'!out-build/vs/**/{node,electron-browser,electron-main}/**',
@@ -61,6 +72,7 @@ const vscodeWebEntryPoints = _.flatten([
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb
 ]);
+exports.vscodeWebEntryPoints = vscodeWebEntryPoints;
 
 const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 	util.rimraf('out-vscode-web'),
@@ -75,7 +87,22 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 	})
 ));
 
+const vscodeWebPatchProductTask = () => {
+	const fullpath = path.join(process.cwd(), 'out-build', 'vs', 'platform', 'product', 'browser', 'product.js');
+	const contents = fs.readFileSync(fullpath).toString();
+	const productConfiguration = JSON.stringify({
+		...product,
+		version,
+		commit,
+		date: new Date().toISOString()
+	});
+	const newContents = contents.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
+	fs.writeFileSync(fullpath, newContents);
+};
+exports.vscodeWebPatchProductTask = vscodeWebPatchProductTask;
+
 const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
+	vscodeWebPatchProductTask,
 	optimizeVSCodeWebTask,
 	util.rimraf('out-vscode-web-min'),
 	common.minifyTask('out-vscode-web', `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
@@ -92,21 +119,9 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const sources = es.merge(src);
 
-		let version = packageJson.version;
-		const quality = product.quality;
-
-		if (quality && quality !== 'stable') {
-			version += '-' + quality;
-		}
-
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })
 			.pipe(json({ name, version }));
-
-		const date = new Date().toISOString();
-
-		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date }));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote' });
 
@@ -125,7 +140,6 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		let all = es.merge(
 			packageJsonStream,
-			productJsonStream,
 			license,
 			sources,
 			deps,

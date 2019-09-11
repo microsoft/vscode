@@ -28,6 +28,7 @@ const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
+const { vscodeWebEntryPoints, vscodeWebResourceIncludes, vscodeWebPatchProductTask } = require('./gulpfile.vscode.web');
 const remote = require('gulp-remote-retry-src');
 const cp = require('child_process');
 
@@ -86,20 +87,11 @@ const serverResources = [
 
 const serverWithWebResources = [
 
-	// Include all of server
+	// Include all of server...
 	...serverResources,
 
-	// Workbench
-	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png}',
-	'out-build/vs/code/browser/workbench/*.html',
-	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
-	'out-build/vs/**/markdown.css',
-
-	// Webview
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-
-	// Extension Worker
-	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js'
+	// ...and all of web
+	...vscodeWebResourceIncludes
 ];
 
 const serverEntryPoints = [
@@ -125,20 +117,13 @@ const serverEntryPoints = [
 	}
 ];
 
-const buildfile = require('../src/buildfile');
 const serverWithWebEntryPoints = [
 
 	// Include all of server
 	...serverEntryPoints,
 
 	// Include workbench web
-	..._.flatten([
-		buildfile.entrypoint('vs/workbench/workbench.web.api'),
-		buildfile.base,
-		buildfile.workerExtensionHost,
-		buildfile.keyboardMaps,
-		buildfile.workbenchWeb
-	])
+	...vscodeWebEntryPoints
 ];
 
 function getNodeVersion() {
@@ -386,6 +371,7 @@ function packagePkgTask(platform, arch, pkgTarget) {
 	));
 
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
+		vscodeWebPatchProductTask,
 		optimizeTask,
 		util.rimraf(`out-vscode-${type}-min`),
 		common.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
