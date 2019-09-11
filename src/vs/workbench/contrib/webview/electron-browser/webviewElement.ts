@@ -24,7 +24,7 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
-import { WebviewFindWidget } from '../browser/webviewFindWidget';
+import { WebviewFindWidget, WebviewFindDelegate } from '../browser/webviewFindWidget';
 
 interface IKeydownEvent {
 	key: string;
@@ -220,7 +220,7 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
-export class ElectronWebviewBasedWebview extends Disposable implements Webview {
+export class ElectronWebviewBasedWebview extends Disposable implements Webview, WebviewFindDelegate {
 	private _webview: Electron.WebviewTag | undefined;
 	private _ready: Promise<void>;
 
