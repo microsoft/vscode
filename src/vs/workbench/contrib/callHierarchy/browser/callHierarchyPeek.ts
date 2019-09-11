@@ -292,7 +292,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 					}
 					node = parent;
 				}
-				this.setMetaTitle(localize('meta', " – {0}", names.join(' → ')));
+				this.setTitle(this._tree.getInput()!.name, names.join(' → '));
 			}
 		}));
 
@@ -376,10 +376,9 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			if (!viewState) {
 				this._tree.setFocus([firstChild]);
 			}
-			this.setTitle(
-				item.name,
-				item.detail || '',
-			);
+			this.setMetaTitle(this._direction === CallHierarchyDirection.CallsFrom
+				? localize('callFrom', " – Calls")
+				: localize('callsTo', " – Callers"));
 		}
 
 		if (!this._changeDirectionAction) {
