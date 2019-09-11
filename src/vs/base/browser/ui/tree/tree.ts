@@ -199,3 +199,21 @@ export class TreeError extends Error {
 		super(`TreeError [${user}] ${message}`);
 	}
 }
+
+export class WeakMapper<K extends object, V> {
+
+	constructor(private fn: (k: K) => V) { }
+
+	private _map = new WeakMap<K, V>();
+
+	map(key: K): V {
+		let result = this._map.get(key);
+
+		if (!result) {
+			result = this.fn(key);
+			this._map.set(key, result);
+		}
+
+		return result;
+	}
+}

@@ -6,7 +6,7 @@
 import { ComposedTreeDelegate, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree, IObjectTreeOptions, CompressibleObjectTree, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError, WeakMapper } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
@@ -65,24 +65,6 @@ function intersects<TInput, T>(node: IAsyncDataTreeNode<TInput, T>, other: IAsyn
 
 interface IDataTreeListTemplateData<T> {
 	templateData: T;
-}
-
-class WeakMapper<K extends object, V> {
-
-	constructor(private fn: (k: K) => V) { }
-
-	private _map = new WeakMap<K, V>();
-
-	map(key: K): V {
-		let result = this._map.get(key);
-
-		if (!result) {
-			result = this.fn(key);
-			this._map.set(key, result);
-		}
-
-		return result;
-	}
 }
 
 type AsyncDataTreeNodeMapper<TInput, T, TFilterData> = WeakMapper<ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>, ITreeNode<TInput | T, TFilterData>>;
