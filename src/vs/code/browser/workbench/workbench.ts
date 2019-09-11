@@ -14,14 +14,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { request } from 'vs/base/parts/request/browser/request';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 
-export function main(): void {
-	const options: IWorkbenchConstructionOptions = JSON.parse(document.getElementById('vscode-workbench-web-configuration')!.getAttribute('data-settings')!);
-	options.urlCallbackProvider = new PollingURLCallbackProvider();
-	options.credentialsProvider = new LocalStorageCredentialsProvider();
-
-	create(document.body, options);
-}
-
 interface ICredential {
 	service: string;
 	account: string;
@@ -208,3 +200,9 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		return URI.parse(window.location.href).with({ path, query });
 	}
 }
+
+const options: IWorkbenchConstructionOptions = JSON.parse(document.getElementById('vscode-workbench-web-configuration')!.getAttribute('data-settings')!);
+options.urlCallbackProvider = new PollingURLCallbackProvider();
+options.credentialsProvider = new LocalStorageCredentialsProvider();
+
+create(document.body, options);

@@ -146,10 +146,21 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNewsletterSignupUrlAction, OpenNewsletterSignupUrlAction.ID, OpenNewsletterSignupUrlAction.LABEL), 'Help: Tips and Tricks', helpCategory);
 		}
 
-		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenTwitterUrlAction, OpenTwitterUrlAction.ID, OpenTwitterUrlAction.LABEL), 'Help: Join Us on Twitter', helpCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRequestFeatureUrlAction, OpenRequestFeatureUrlAction.ID, OpenRequestFeatureUrlAction.LABEL), 'Help: Search Feature Requests', helpCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLicenseUrlAction, OpenLicenseUrlAction.ID, OpenLicenseUrlAction.LABEL), 'Help: View License', helpCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPrivacyStatementUrlAction, OpenPrivacyStatementUrlAction.ID, OpenPrivacyStatementUrlAction.LABEL), 'Help: Privacy Statement', helpCategory);
+		if (OpenTwitterUrlAction.AVAILABLE) {
+			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenTwitterUrlAction, OpenTwitterUrlAction.ID, OpenTwitterUrlAction.LABEL), 'Help: Join Us on Twitter', helpCategory);
+		}
+
+		if (OpenRequestFeatureUrlAction.AVAILABLE) {
+			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRequestFeatureUrlAction, OpenRequestFeatureUrlAction.ID, OpenRequestFeatureUrlAction.LABEL), 'Help: Search Feature Requests', helpCategory);
+		}
+
+		if (OpenLicenseUrlAction.AVAILABLE) {
+			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLicenseUrlAction, OpenLicenseUrlAction.ID, OpenLicenseUrlAction.LABEL), 'Help: View License', helpCategory);
+		}
+
+		if (OpenPrivacyStatementUrlAction.AVAILABE) {
+			registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPrivacyStatementUrlAction, OpenPrivacyStatementUrlAction.ID, OpenPrivacyStatementUrlAction.LABEL), 'Help: Privacy Statement', helpCategory);
+		}
 	})();
 })();
 
@@ -255,14 +266,16 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 
 	// Help
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '1_welcome',
-		command: {
-			id: OpenDocumentationUrlAction.ID,
-			title: nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")
-		},
-		order: 3
-	});
+	if (OpenDocumentationUrlAction.AVAILABLE) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '1_welcome',
+			command: {
+				id: OpenDocumentationUrlAction.ID,
+				title: nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")
+			},
+			order: 3
+		});
+	}
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '1_welcome',
@@ -274,51 +287,61 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 	});
 
 	// Reference
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '2_reference',
-		command: {
-			id: KeybindingsReferenceAction.ID,
-			title: nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")
-		},
-		order: 1
-	});
+	if (KeybindingsReferenceAction.AVAILABLE) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '2_reference',
+			command: {
+				id: KeybindingsReferenceAction.ID,
+				title: nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")
+			},
+			order: 1
+		});
+	}
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '2_reference',
-		command: {
-			id: OpenIntroductoryVideosUrlAction.ID,
-			title: nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")
-		},
-		order: 2
-	});
+	if (OpenIntroductoryVideosUrlAction.AVAILABLE) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '2_reference',
+			command: {
+				id: OpenIntroductoryVideosUrlAction.ID,
+				title: nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")
+			},
+			order: 2
+		});
+	}
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '2_reference',
-		command: {
-			id: OpenTipsAndTricksUrlAction.ID,
-			title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips and Tri&&cks")
-		},
-		order: 3
-	});
+	if (OpenTipsAndTricksUrlAction.AVAILABLE) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '2_reference',
+			command: {
+				id: OpenTipsAndTricksUrlAction.ID,
+				title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips and Tri&&cks")
+			},
+			order: 3
+		});
+	}
 
 	// Feedback
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '3_feedback',
-		command: {
-			id: OpenTwitterUrlAction.ID,
-			title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join Us on Twitter")
-		},
-		order: 1
-	});
+	if (OpenTwitterUrlAction.AVAILABLE) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '3_feedback',
+			command: {
+				id: OpenTwitterUrlAction.ID,
+				title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join Us on Twitter")
+			},
+			order: 1
+		});
+	}
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '3_feedback',
-		command: {
-			id: OpenRequestFeatureUrlAction.ID,
-			title: nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")
-		},
-		order: 2
-	});
+	if (OpenRequestFeatureUrlAction.AVAILABLE) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '3_feedback',
+			command: {
+				id: OpenRequestFeatureUrlAction.ID,
+				title: nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")
+			},
+			order: 2
+		});
+	}
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '3_feedback',
@@ -330,23 +353,27 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 	});
 
 	// Legal
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '4_legal',
-		command: {
-			id: OpenLicenseUrlAction.ID,
-			title: nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")
-		},
-		order: 1
-	});
+	if (OpenLicenseUrlAction.AVAILABLE) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '4_legal',
+			command: {
+				id: OpenLicenseUrlAction.ID,
+				title: nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")
+			},
+			order: 1
+		});
+	}
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '4_legal',
-		command: {
-			id: OpenPrivacyStatementUrlAction.ID,
-			title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "Privac&&y Statement")
-		},
-		order: 2
-	});
+	if (OpenPrivacyStatementUrlAction.AVAILABE) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+			group: '4_legal',
+			command: {
+				id: OpenPrivacyStatementUrlAction.ID,
+				title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "Privac&&y Statement")
+			},
+			order: 2
+		});
+	}
 
 	// Tools
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {

@@ -346,7 +346,7 @@ export class ElectronWindow extends Disposable {
 
 		// Crash reporter (if enabled)
 		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp && this.configurationService.getValue('telemetry.enableCrashReporter')) {
-			this.setupCrashReporter();
+			this.setupCrashReporter(product.crashReporter.companyName, product.crashReporter.productName, product.hockeyApp);
 		}
 	}
 
@@ -449,13 +449,16 @@ export class ElectronWindow extends Disposable {
 		}
 	}
 
-	private async setupCrashReporter(): Promise<void> {
+	private async setupCrashReporter(companyName: string, productName: string, hockeyAppConfig: typeof product.hockeyApp): Promise<void> {
+		if (!hockeyAppConfig) {
+			return;
+		}
 
 		// base options with product info
 		const options = {
-			companyName: product.crashReporter.companyName,
-			productName: product.crashReporter.productName,
-			submitURL: isWindows ? product.hockeyApp[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? product.hockeyApp[`linux-x64`] : product.hockeyApp.darwin,
+			companyName,
+			productName,
+			submitURL: isWindows ? hockeyAppConfig[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? hockeyAppConfig[`linux-x64`] : hockeyAppConfig.darwin,
 			extra: {
 				vscode_version: pkg.version,
 				vscode_commit: product.commit

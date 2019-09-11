@@ -134,7 +134,8 @@ export class ProductContribution implements IWorkbenchContribution {
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 
 			// was there an update? if so, open release notes
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
+			const releaseNotesUrl = product.releaseNotesUrl;
+			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 				showReleaseNotes(instantiationService, pkg.version)
 					.then(undefined, () => {
 						notificationService.prompt(
@@ -143,7 +144,7 @@ export class ProductContribution implements IWorkbenchContribution {
 							[{
 								label: nls.localize('releaseNotes', "Release Notes"),
 								run: () => {
-									const uri = URI.parse(product.releaseNotesUrl);
+									const uri = URI.parse(releaseNotesUrl);
 									openerService.open(uri);
 								}
 							}],
