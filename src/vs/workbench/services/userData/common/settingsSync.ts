@@ -95,15 +95,18 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 
 		this.setStatus(SyncStatus.Syncing);
 
-		const result = await this.getPreview();
-
-		if (result.hasConflicts) {
-			this.setStatus(SyncStatus.HasConflicts);
-			return false;
+		try {
+			const result = await this.getPreview();
+			if (result.hasConflicts) {
+				this.setStatus(SyncStatus.HasConflicts);
+				return false;
+			}
+			await this.apply();
+			return true;
+		} catch (e) {
+			this.setStatus(SyncStatus.Idle);
+			throw e;
 		}
-
-		await this.apply();
-		return true;
 	}
 
 	resolveConflicts(): void {
