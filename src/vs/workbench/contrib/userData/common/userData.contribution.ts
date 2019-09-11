@@ -49,7 +49,7 @@ class AutoSyncUserData extends Disposable implements IWorkbenchContribution {
 
 	private loopAutoSync(): void {
 		this.autoSync()
-			.then(() => timeout(1000 * 10)) // every five minutes
+			.then(() => timeout(1000 * 60 * 5)) // every five minutes
 			.then(() => this.loopAutoSync());
 	}
 
