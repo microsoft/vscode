@@ -670,16 +670,15 @@ export class DebugService implements IDebugService {
 		return Promise.resolve(config);
 	}
 
-	private showError(message: string, errorActions: ReadonlyArray<IAction> = []): Promise<void> {
+	private async showError(message: string, errorActions: ReadonlyArray<IAction> = []): Promise<void> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 		const actions = [...errorActions, configureAction];
-		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
-			if (choice < actions.length) {
-				return actions[choice].run();
-			}
+		const { choice } = await this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length });
+		if (choice < actions.length) {
+			return actions[choice].run();
+		}
 
-			return undefined;
-		});
+		return undefined;
 	}
 
 	//---- task management

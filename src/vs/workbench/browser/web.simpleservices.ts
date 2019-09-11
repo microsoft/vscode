@@ -632,9 +632,9 @@ export class SimpleWindowsService implements IWindowsService {
 			navigator.userAgent
 		);
 
-		const result = await this.dialogService.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail });
+		const { choice } = await this.dialogService.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail });
 
-		if (result === 0) {
+		if (choice === 0) {
 			this.clipboardService.writeText(detail);
 		}
 	}

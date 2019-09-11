@@ -101,8 +101,8 @@ class InstallAction extends Action {
 		return new Promise<void>((resolve, reject) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
-			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, { cancelId: 1 }).then(choice => {
-				switch (choice) {
+			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, { cancelId: 1 }).then(result => {
+				switch (result.choice) {
 					case 0 /* OK */:
 						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'' + getSource() + '\' \'' + this.target + '\'\\" with administrator privileges"';
 
@@ -165,23 +165,22 @@ class UninstallAction extends Action {
 	}
 
 	private deleteSymlinkAsAdmin(): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
+		return new Promise<void>(async (resolve, reject) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
-			this.dialogService.show(Severity.Info, nls.localize('warnEscalationUninstall', "Code will now prompt with 'osascript' for Administrator privileges to uninstall the shell command."), buttons, { cancelId: 1 }).then(choice => {
-				switch (choice) {
-					case 0 /* OK */:
-						const command = 'osascript -e "do shell script \\"rm \'' + this.target + '\'\\" with administrator privileges"';
+			const { choice } = await this.dialogService.show(Severity.Info, nls.localize('warnEscalationUninstall', "Code will now prompt with 'osascript' for Administrator privileges to uninstall the shell command."), buttons, { cancelId: 1 });
+			switch (choice) {
+				case 0 /* OK */:
+					const command = 'osascript -e "do shell script \\"rm \'' + this.target + '\'\\" with administrator privileges"';
 
-						promisify(cp.exec)(command, {})
-							.then(undefined, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
-							.then(resolve, reject);
-						break;
-					case 1 /* Cancel */:
-						reject(new Error(nls.localize('aborted', "Aborted")));
-						break;
-				}
-			});
+					promisify(cp.exec)(command, {})
+						.then(undefined, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
+						.then(resolve, reject);
+					break;
+				case 1 /* Cancel */:
+					reject(new Error(nls.localize('aborted', "Aborted")));
+					break;
+			}
 		});
 	}
 }
