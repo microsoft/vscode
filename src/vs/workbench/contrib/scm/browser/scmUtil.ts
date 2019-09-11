@@ -9,7 +9,7 @@ export function isSCMRepository(element: ISCMRepository | ISCMResourceGroup | IS
 	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
 }
 
-export function isSCMResourceGroup(element: ISCMRepository | ISCMResourceGroup | ISCMResource): element is ISCMRepository {
+export function isSCMResourceGroup(element: ISCMRepository | ISCMResourceGroup | ISCMResource): element is ISCMResourceGroup {
 	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).elements;
 }
 
