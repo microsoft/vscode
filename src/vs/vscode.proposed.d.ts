@@ -19,11 +19,40 @@ declare module 'vscode' {
 	//#region Joh - call hierarchy
 
 	export class CallHierarchyItem {
-		kind: SymbolKind;
+		/**
+		 * The name of this item.
+		 */
 		name: string;
+
+		/**
+		 * The kind of this item.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * Tags for this item.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
+
+		/**
+		 * More detail for this item, e.g. the signature of a function.
+		 */
 		detail?: string;
+
+		/**
+		 * The resource identifier of this item.
+		 */
 		uri: Uri;
+
+		/**
+		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
+		 */
 		range: Range;
+
+		/**
+		 * The range that should be selected and reveal when this symbol is being picked, e.g. the name of a function.
+		 * Must be contained by the [`range`](#CallHierarchyItem.range).
+		 */
 		selectionRange: Range;
 
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
@@ -43,11 +72,27 @@ declare module 'vscode' {
 
 	export interface CallHierarchyItemProvider {
 
+		/**
+		 * Provide a list of callers for the provided item, e.g. all function calling a function.
+		 *
+		 * @param target
+		 * @param token
+		 * @returns
+		 */
 		provideCallHierarchyIncomingCalls(target: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
 
+		/**
+		 * Provide a list of calls for the provided item, e.g. all functions call from a function.
+		 *
+		 * @param source
+		 * @param token
+		 * @returns
+		 */
 		provideCallHierarchyOutgoingCalls(source: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
 
 		/**
+		 * todo@joh not needed?
+		 *
 		 * Given a document and position compute a call hierarchy item. This is justed as
 		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
 		 */
