@@ -20,6 +20,7 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 
 	private name?: string;
 	private _hasResolved = false;
+	private readonly _editorResource: URI;
 
 	constructor(
 		resource: URI,
@@ -33,12 +34,21 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 		@IExtensionService
 		private readonly _extensionService: IExtensionService
 	) {
-		super(id, viewType, '', undefined, webview, resource);
+		super(id, viewType, '', undefined, webview);
+		this._editorResource = resource;
+	}
+
+	public getTypeId(): string {
+		return CustomFileEditorInput.typeId;
+	}
+
+	public getResource(): URI {
+		return this._editorResource;
 	}
 
 	getName(): string {
 		if (!this.name) {
-			this.name = basename(this.labelService.getUriLabel(this.editorResource));
+			this.name = basename(this.labelService.getUriLabel(this.getResource()));
 		}
 		return this.name;
 	}
@@ -46,7 +56,7 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 	matches(other: IEditorInput): boolean {
 		return this === other || (other instanceof CustomFileEditorInput
 			&& this.viewType === other.viewType
-			&& this.editorResource.toString() === other.editorResource.toString());
+			&& this.getResource().toString() === other.getResource().toString());
 	}
 
 	@memoize
@@ -56,15 +66,15 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 
 	@memoize
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this.editorResource, { relative: true });
+		return this.labelService.getUriLabel(this.getResource(), { relative: true });
 	}
 
 	@memoize
 	private get longTitle(): string {
-		return this.labelService.getUriLabel(this.editorResource);
+		return this.labelService.getUriLabel(this.getResource());
 	}
 
-	getTitle(verbosity: Verbosity): string {
+	getTitle(verbosity?: Verbosity): string {
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				return this.shortTitle;

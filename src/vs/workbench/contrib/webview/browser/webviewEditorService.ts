@@ -208,7 +208,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 			const promise = new Promise<void>(r => { resolve = r; });
 			this._revivalPool.add(webview, resolve!);
 			return promise;
-		}, new UnownedDisposable(webview), null!/*TODO*/);
+		}, new UnownedDisposable(webview));
 
 		webviewInput.iconPath = iconPath;
 

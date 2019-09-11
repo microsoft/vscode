@@ -71,8 +71,7 @@ export class WebviewEditorInput extends EditorInput {
 			readonly location: URI;
 			readonly id: ExtensionIdentifier;
 		},
-		webview: Unowned<WebviewEditorOverlay>,
-		public readonly editorResource: URI,
+		webview: Unowned<WebviewEditorOverlay>
 	) {
 		super();
 
@@ -89,8 +88,7 @@ export class WebviewEditorInput extends EditorInput {
 	public getResource(): URI {
 		return URI.from({
 			scheme: WebviewPanelResourceScheme,
-			path: `webview-panel/webview-${this.id}`,
-			query: this.editorResource ? encodeURIComponent(this.editorResource.toString(true)) : ''
+			path: `webview-panel/webview-${this.id}`
 		});
 	}
 
@@ -157,10 +155,9 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 			readonly id: ExtensionIdentifier
 		},
 		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
-		webview: Unowned<WebviewEditorOverlay>,
-		public readonly editorResource: URI,
+		webview: Unowned<WebviewEditorOverlay>
 	) {
-		super(id, viewType, name, extension, webview, editorResource);
+		super(id, viewType, name, extension, webview);
 	}
 
 	public async resolve(): Promise<IEditorModel> {

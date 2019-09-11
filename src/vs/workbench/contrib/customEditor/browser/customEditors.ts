@@ -157,7 +157,7 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		}
 
 		for (const input of group.editors) {
-			if (input instanceof CustomFileEditorInput && input.editorResource.toString() === resource.toString()) {
+			if (input instanceof CustomFileEditorInput && input.getResource().toString() === resource.toString()) {
 				return {
 					override: group.openEditor(input, options).then(withNullAsUndefined)
 				};

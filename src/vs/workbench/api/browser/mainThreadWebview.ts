@@ -99,7 +99,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		// This should trigger the real reviver to be registered from the extension host side.
 		this._register(_webviewEditorService.registerResolver({
 			canResolve: (webview: WebviewEditorInput) => {
-				if (!webview.webview.state && !webview.editorResource) {
+				if (!webview.webview.state && webview.getTypeId() === WebviewEditorInput.typeId) { // TODO: The typeid check is a workaround for the CustomFileEditorInput case
 					return false;
 				}
 
@@ -252,16 +252,16 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		this._editorProviders.set(viewType, this._webviewEditorService.registerResolver({
 			canResolve: (webviewEditorInput) => {
-				return !!webviewEditorInput.editorResource && webviewEditorInput.viewType === viewType;
+				return webviewEditorInput.getTypeId() !== WebviewEditorInput.typeId && webviewEditorInput.viewType === viewType;
 			},
-			resolveWebview: async (webview: WebviewEditorInput) => {
+			resolveWebview: async (webview) => {
 				const handle = `resolved-${MainThreadWebviews.revivalPool++}`;
 				this._webviewEditorInputs.add(handle, webview);
 				this.hookupWebviewEventDelegate(handle, webview);
 
 				try {
 					await this._proxy.$resolveWebviewEditor(
-						webview.editorResource,
+						webview.getResource(),
 						handle,
 						viewType,
 						webview.getTitle(),

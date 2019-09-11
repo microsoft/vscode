@@ -25,7 +25,7 @@ export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 	public serialize(input: CustomFileEditorInput): string | undefined {
 		const data = {
 			...this.toJson(input),
-			editorResource: input.editorResource.toJSON()
+			editorResource: input.getResource().toJSON()
 		};
 
 		try {
