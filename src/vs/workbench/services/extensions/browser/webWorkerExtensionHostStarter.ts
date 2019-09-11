@@ -51,7 +51,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			const emitter = new Emitter<VSBuffer>();
 
 			const url = getWorkerBootstrapUrl(require.toUrl('../worker/extensionHostWorkerMain.js'), 'WorkerExtensionHost');
-			const worker = new Worker(url);
+			const worker = new Worker(url, { name: 'WorkerExtensionHost' });
 
 			worker.onmessage = (event) => {
 				const { data } = event;

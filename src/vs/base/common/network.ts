@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 
 export namespace Schemas {
@@ -60,16 +60,22 @@ class RemoteAuthoritiesImpl {
 	private readonly _ports: { [authority: string]: number; };
 	private readonly _connectionTokens: { [authority: string]: string; };
 	private _preferredWebSchema: 'http' | 'https';
+	private _delegate: ((uri: URI) => UriComponents) | null;
 
 	constructor() {
 		this._hosts = Object.create(null);
 		this._ports = Object.create(null);
 		this._connectionTokens = Object.create(null);
 		this._preferredWebSchema = 'http';
+		this._delegate = null;
 	}
 
 	public setPreferredWebSchema(schema: 'http' | 'https') {
 		this._preferredWebSchema = schema;
+	}
+
+	public setDelegate(delegate: (uri: URI) => UriComponents): void {
+		this._delegate = delegate;
 	}
 
 	public set(authority: string, host: string, port: number): void {
@@ -81,7 +87,12 @@ class RemoteAuthoritiesImpl {
 		this._connectionTokens[authority] = connectionToken;
 	}
 
-	public rewrite(authority: string, path: string): URI {
+	public rewrite(uri: URI): URI {
+		if (this._delegate) {
+			const result = this._delegate(uri);
+			return URI.revive(result);
+		}
+		const authority = uri.authority;
 		const host = this._hosts[authority];
 		const port = this._ports[authority];
 		const connectionToken = this._connectionTokens[authority];
@@ -89,7 +100,7 @@ class RemoteAuthoritiesImpl {
 			scheme: platform.isWeb ? this._preferredWebSchema : Schemas.vscodeRemoteResource,
 			authority: `${host}:${port}`,
 			path: `/vscode-remote-resource`,
-			query: `path=${encodeURIComponent(path)}&tkn=${encodeURIComponent(connectionToken)}`
+			query: `path=${encodeURIComponent(uri.path)}&tkn=${encodeURIComponent(connectionToken)}`
 		});
 	}
 }
