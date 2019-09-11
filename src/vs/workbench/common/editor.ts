@@ -774,6 +774,11 @@ export class EditorOptions implements IEditorOptions {
 	ignoreError: boolean | undefined;
 
 	/**
+	 * Does not use editor overrides while opening the editor.
+	 */
+	ignoreOverrides: boolean | undefined;
+
+	/**
 	 * Overwrites option values from the provided bag.
 	 */
 	overwrite(options: IEditorOptions): EditorOptions {
@@ -811,6 +816,10 @@ export class EditorOptions implements IEditorOptions {
 
 		if (typeof options.index === 'number') {
 			this.index = options.index;
+		}
+
+		if (typeof options.ignoreOverrides === 'boolean') {
+			this.ignoreOverrides = options.ignoreOverrides;
 		}
 
 		return this;

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-resource-viewer:focus {
-	outline: none !important;
-}
+//@ts-check
 
-.monaco-resource-viewer {
-	padding: 5px 0 0 10px;
-	box-sizing: border-box;
-}
+'use strict';
 
-.monaco-resource-viewer .embedded-link,
-.monaco-resource-viewer .embedded-link:hover {
-	cursor: pointer;
-	text-decoration: underline;
-	margin-left: 5px;
-}
+const withDefaults = require('../shared.webpack.config');
+
+module.exports = withDefaults({
+	context: __dirname,
+	resolve: {
+		mainFields: ['module', 'main']
+	},
+	entry: {
+		extension: './src/extension.ts',
+	}
+});

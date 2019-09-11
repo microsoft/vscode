@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as modes from 'vs/editor/common/modes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -241,6 +241,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	private readonly _proxy: MainThreadWebviewsShape;
 	private readonly _webviewPanels = new Map<WebviewPanelHandle, ExtHostWebviewPanel>();
 	private readonly _serializers = new Map<string, vscode.WebviewPanelSerializer>();
+	private readonly _editorProviders = new Map<string, vscode.WebviewEditorProvider>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -285,6 +286,23 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return new Disposable(() => {
 			this._serializers.delete(viewType);
 			this._proxy.$unregisterSerializer(viewType);
+		});
+	}
+
+	public registerWebviewEditorProvider(
+		viewType: string,
+		provider: vscode.WebviewEditorProvider
+	): vscode.Disposable {
+		if (this._editorProviders.has(viewType)) {
+			throw new Error(`Editor provider for '${viewType}' already registered`);
+		}
+
+		this._editorProviders.set(viewType, provider);
+		this._proxy.$registerEditorProvider(viewType);
+
+		return new Disposable(() => {
+			this._editorProviders.delete(viewType);
+			this._proxy.$unregisterEditorProvider(viewType);
 		});
 	}
 
@@ -371,6 +389,27 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewPanel | undefined {
 		return this._webviewPanels.get(handle);
 	}
+
+	async $resolveWebviewEditor(
+		resource: UriComponents,
+		webviewHandle: WebviewPanelHandle,
+		viewType: string,
+		title: string,
+		state: any,
+		position: EditorViewColumn,
+		options: modes.IWebviewOptions & modes.IWebviewPanelOptions
+	): Promise<void> {
+		const provider = this._editorProviders.get(viewType);
+		if (!provider) {
+			return Promise.reject(new Error(`No provider found for '${viewType}'`));
+		}
+
+		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData);
+		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
+		this._webviewPanels.set(webviewHandle, revivedPanel);
+		return Promise.resolve(provider.resolveWebviewEditor(URI.revive(resource), revivedPanel));
+	}
+
 }
 
 function convertWebviewOptions(
