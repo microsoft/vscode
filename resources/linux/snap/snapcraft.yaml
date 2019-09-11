@@ -5,16 +5,28 @@ description: |
   Visual Studio Code is a new choice of tool that combines the
   simplicity of a code editor with what developers need for the core
   edit-build-debug cycle.
-
+base: core18
 grade: stable
 confinement: classic
-base: core18
 
 plugs:
   gnome-3-28-1804:
     interface: content
     target: $SNAP/gnome-platform
     default-provider: gnome-3-28-1804
+  gtk-3-themes:
+    interface: content
+    target: $SNAP/data-dir/themes
+    default-provider: gtk-common-themes
+  icon-themes:
+    interface: content
+    target: $SNAP/data-dir/icons
+    default-provider: gtk-common-themes
+  sound-themes:
+    interface: content
+    target: $SNAP/data-dir/sounds
+    default-provider: gtk-common-themes
+
 
 parts:
   desktop-gnome-platform:
@@ -30,8 +42,6 @@ parts:
       mkdir -pv $SNAPCRAFT_PART_INSTALL/gnome-platform
 
   code:
-    after:
-      - desktop-gnome-platform
     plugin: dump
     source: .
     stage-packages:
@@ -59,17 +69,18 @@ parts:
       - -usr/share/icons
       - -usr/share/lintian
       - -usr/share/man
+    after: [desktop-gnome-platform]
 
 apps:
   @@NAME@@:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@
+    command: bin/desktop-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@
     common-id: @@NAME@@.desktop
     environment:
       DISABLE_WAYLAND: 1
       GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas
 
   url-handler:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url
+    command: bin/desktop-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url
     environment:
       DISABLE_WAYLAND: 1
       GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas

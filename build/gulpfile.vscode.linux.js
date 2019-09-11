@@ -233,10 +233,7 @@ function prepareSnapPackage(arch) {
 			.pipe(replace('@@VERSION@@', commit.substr(0, 8)))
 			.pipe(rename('snap/snapcraft.yaml'));
 
-		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
-			.pipe(rename('electron-launch'));
-
-		const all = es.merge(desktops, icon, code, snapcraft, electronLaunch);
+		const all = es.merge(desktops, icon, code, snapcraft);
 
 		return all.pipe(vfs.dest(destination));
 	};
