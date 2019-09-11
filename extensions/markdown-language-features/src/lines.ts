@@ -23,27 +23,15 @@ export function createTextLine(line: number, offset: number, text: string, lineB
 
 export function toTextLines(text: string): vscode.TextLine[] {
 	let current = 0;
-	let result: vscode.TextLine[] = [];
-	while (true) {
-		let nextNewLine = text.indexOf('\r\n', current);
-		let separator: string;
-		if (nextNewLine === -1) {
-			nextNewLine = text.indexOf('\n', current);
-			if (nextNewLine !== -1) {
-				separator = '\n';
-			} else {
-				separator = '';
-			}
-		} else {
-			separator = '\r\n';
-		}
-
-		if (nextNewLine === -1) {
-			break;
-		}
-		result.push(createTextLine(result.length, current, text.substring(current, nextNewLine), separator));
-		current = nextNewLine + separator.length;
+	const result: vscode.TextLine[] = [];
+	const parts = text.split(/(\r?\n)/);
+	const lines = Math.floor(parts.length / 2) + 1;
+	for (let line = 0; line < lines; line++) {
+		const lineText = parts[line * 2];
+		const separatorIndex = line * 2 + 1;
+		const separator = separatorIndex < parts.length ? parts[line * 2 + 1] : '';
+		result.push(createTextLine(result.length, current, lineText, separator));
+		current += lineText.length + separator.length;
 	}
-	result.push(createTextLine(result.length, current, text.substring(current, text.length), ''));
 	return result;
 }

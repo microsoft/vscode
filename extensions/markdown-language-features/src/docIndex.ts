@@ -8,7 +8,7 @@ import { Disposable } from './util/dispose';
 
 
 export class DocumentIndex extends Disposable {
-	private _uriMap: Map<string, vscode.TextDocument> = new Map();
+	private readonly _uriMap = new Map();
 
 	constructor() {
 		super();

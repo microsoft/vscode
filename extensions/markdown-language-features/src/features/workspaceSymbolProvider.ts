@@ -11,6 +11,7 @@ import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { SkinnyTextDocument } from '../tableOfContentsProvider';
 import { flatten } from '../util/arrays';
 import { DocumentIndex } from '../docIndex';
+import { toTextLines } from '../lines';
 
 export interface WorkspaceMarkdownDocumentProvider {
 	getAllMarkdownDocuments(): Thenable<Iterable<SkinnyTextDocument>>;
@@ -83,19 +84,23 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	}
 
 	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		let existingDocument = this._docIndex.getByUri(resource);
+		const existingDocument = this._docIndex.getByUri(resource);
 		if (existingDocument) {
 			return existingDocument;
 		}
 
-		let bytes = await vscode.workspace.fs.readFile(resource);
+		const bytes = await vscode.workspace.fs.readFile(resource);
 
 		// We assume that markdown is in UTF-8
-		let text = Buffer.from(bytes).toString('utf-8');
-
+		const text = Buffer.from(bytes).toString('utf-8');
+		const lines = toTextLines(text);
 		return Promise.resolve({
 			uri: resource,
 			version: 0,
+			lineCount: lines.length,
+			lineAt: (index) => {
+				return lines[index];
+			},
 			getText: () => {
 				return text;
 			}

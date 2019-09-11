@@ -6,7 +6,6 @@
 import * as vscode from 'vscode';
 import { MarkdownEngine } from './markdownEngine';
 import { Slug, githubSlugifier } from './slugify';
-import { toTextLines } from './lines';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -19,6 +18,9 @@ export interface TocEntry {
 export interface SkinnyTextDocument {
 	readonly uri: vscode.Uri;
 	readonly version: number;
+	readonly lineCount: number;
+
+	lineAt(line: number): vscode.TextLine;
 	getText(): string;
 }
 
@@ -51,12 +53,11 @@ export class TableOfContentsProvider {
 		const toc: TocEntry[] = [];
 		const tokens = await this.engine.parse(document);
 
-		const lines = toTextLines(document.getText());
 		const slugCount = new Map<string, number>();
 
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];
-			const line = lines[lineNumber];
+			const line = document.lineAt(lineNumber);
 
 			let slug = githubSlugifier.fromHeading(line.text);
 			if (slugCount.has(slug.value)) {
@@ -86,13 +87,13 @@ export class TableOfContentsProvider {
 					break;
 				}
 			}
-			const endLine = end !== undefined ? end : lines.length - 1;
+			const endLine = end !== undefined ? end : document.lineCount - 1;
 			return {
 				...entry,
 				location: new vscode.Location(document.uri,
 					new vscode.Range(
 						entry.location.range.start,
-						new vscode.Position(endLine, lines[endLine].text.length)))
+						new vscode.Position(endLine, document.lineAt(endLine).text.length)))
 			};
 		});
 	}
