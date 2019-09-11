@@ -32,7 +32,7 @@ const productionDependencies = deps.getProductionDependencies(WEB_FOLDER);
 const nodeModules = Object.keys(product.dependencies || {})
 	.concat(_.uniq(productionDependencies.map(d => d.name)));
 
-const vscodeWebResources = [
+const vscodeWebResourceIncludes = [
 
 	// Workbench
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png}',
@@ -44,7 +44,14 @@ const vscodeWebResources = [
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 
 	// Extension Worker
-	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
+	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js'
+];
+exports.vscodeWebResourceIncludes = vscodeWebResourceIncludes;
+
+const vscodeWebResources = [
+
+	// Includes
+	...vscodeWebResourceIncludes,
 
 	// Excludes
 	'!out-build/vs/**/{node,electron-browser,electron-main}/**',
@@ -62,6 +69,7 @@ const vscodeWebEntryPoints = _.flatten([
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb
 ]);
+exports.vscodeWebEntryPoints = vscodeWebEntryPoints;
 
 const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 	util.rimraf('out-vscode-web'),
@@ -76,20 +84,20 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 	})
 ));
 
+const vscodeWebPatchProductTask = () => {
+	const fullpath = path.join(process.cwd(), 'out-build', 'vs', 'platform', 'product', 'browser', 'product.js');
+	const contents = fs.readFileSync(fullpath).toString();
+	const productConfiguration = JSON.stringify({
+		...product,
+		version: packageJson.version
+	});
+	const newContents = contents.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
+	fs.writeFileSync(fullpath, newContents);
+};
+exports.vscodeWebPatchProductTask = vscodeWebPatchProductTask;
+
 const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
-	() => {
-		const marker = '{ /*BUILD->INSERT_PRODUCT_CONFIGURATION*/}';
-		const fullpath = path.join(process.cwd(), 'out-build', 'vs', 'platform', 'product', 'browser', 'product.js');
-		const contents = fs.readFileSync(fullpath).toString();
-		if (contents.indexOf(marker) === -1) {
-			throw new Error(`Web build: unable to find ${marker} in ${fullpath} (${contents})`);
-		}
-		const newContents = contents.replace(marker, JSON.stringify({
-			...product,
-			version: packageJson.version
-		}));
-		fs.writeFileSync(fullpath, newContents);
-	},
+	vscodeWebPatchProductTask,
 	optimizeVSCodeWebTask,
 	util.rimraf('out-vscode-web-min'),
 	common.minifyTask('out-vscode-web', `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
