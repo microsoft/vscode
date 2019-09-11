@@ -727,7 +727,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const containerWidth = container.clientWidth;
 		const midContainerWidth = containerWidth / 2;
 		const width = this.domNode.clientWidth;
-		const disposables  = new DisposableStore();
+		const disposables = new DisposableStore();
 		let positionClassName = this.positionClassName;
 
 		const updatePosition = () => {
