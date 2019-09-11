@@ -30,7 +30,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			'userConfiguration.autoSync': {
 				type: 'boolean',
-				description: localize('userData.autoSync', "When enabled, automatically synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
+				description: localize('userConfiguration.autoSync', "When enabled, automatically synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
 				default: false,
 				scope: ConfigurationScope.APPLICATION
 			}
@@ -45,6 +45,11 @@ class AutoSyncUserData extends Disposable implements IWorkbenchContribution {
 	) {
 		super();
 		this.loopAutoSync();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('userConfiguration.autoSync') && this.configurationService.getValue<boolean>('userConfiguration.autoSync')) {
+				this.autoSync();
+			}
+		}));
 	}
 
 	private loopAutoSync(): void {
@@ -54,7 +59,7 @@ class AutoSyncUserData extends Disposable implements IWorkbenchContribution {
 	}
 
 	private autoSync(): Promise<any> {
-		if (this.userDataSyncService.status === SyncStatus.Idle && this.configurationService.getValue<boolean>('userData.autoSync')) {
+		if (this.userDataSyncService.status === SyncStatus.Idle && this.configurationService.getValue<boolean>('userConfiguration.autoSync')) {
 			return this.userDataSyncService.sync();
 		}
 		return Promise.resolve();
@@ -104,24 +109,24 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 
 		// Global Activity Actions
 
-		CommandsRegistry.registerCommand('workbench.userData.actions.turnOnSync', serviceAccessor => serviceAccessor.get(IConfigurationService).updateValue('userData.autoSync', true));
+		CommandsRegistry.registerCommand('workbench.userData.actions.turnOnAutoSync', serviceAccessor => serviceAccessor.get(IConfigurationService).updateValue('userConfiguration.autoSync', true));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.turnOnAutoSync',
 				title: localize('turn on auto sync', "Sync: Turn On")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userData.autoSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.autoSync')),
 		});
 
-		CommandsRegistry.registerCommand('workbench.userData.actions.turnOffSync', serviceAccessor => serviceAccessor.get(IConfigurationService).updateValue('userData.autoSync', false));
+		CommandsRegistry.registerCommand('workbench.userData.actions.turnOffSync', serviceAccessor => serviceAccessor.get(IConfigurationService).updateValue('userConfiguration.autoSync', false));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.turnOffAutoSync',
 				title: localize('turn off auto sync', "Sync: Turn Off")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userData.autoSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.autoSync')),
 		});
 
 		CommandsRegistry.registerCommand('sync.resolveConflicts', serviceAccessor => serviceAccessor.get(IUserDataSyncService).resolveConflicts());
@@ -153,7 +158,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 				id: 'workbench.userData.actions.startSync',
 				title: localize('start sync', "Sync: Start")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Idle), ContextKeyExpr.not('config.userData.autoSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Idle), ContextKeyExpr.not('config.userConfiguration.autoSync')),
 		});
 	}
 }
