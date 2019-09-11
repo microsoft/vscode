@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { isURLDomainTrusted } from 'vs/workbench/contrib/url/common/url.contribution';
+import { isURLDomainTrusted } from 'vs/workbench/contrib/url/common/trustedDomainsValidator';
 import { URI } from 'vs/base/common/uri';
 
 suite('Link protection domain matching', () => {
