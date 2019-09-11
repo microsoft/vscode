@@ -15,7 +15,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IDisposable, Disposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -47,27 +47,17 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Emitter } from 'vs/base/common/event';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 
-export class ExplorerListVirtualDelegate implements IListVirtualDelegate<ExplorerItem> {
+export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
 	static readonly ITEM_HEIGHT = 22;
 
-	getHeight(): number {
-		return ExplorerListVirtualDelegate.ITEM_HEIGHT;
+	getHeight(element: ExplorerItem): number {
+		return ExplorerDelegate.ITEM_HEIGHT;
 	}
 
-	getTemplateId(): string {
+	getTemplateId(element: ExplorerItem): string {
 		return FilesRenderer.ID;
-	}
-}
-
-export class ExplorerTreeCompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {
-
-	isIncompressible(element: ExplorerItem): boolean {
-		return !element.isDirectory;
 	}
 }
 
@@ -126,7 +116,7 @@ export interface IFileTemplateData {
 	container: HTMLElement;
 }
 
-export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IDisposable {
+export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IDisposable {
 	static readonly ID = 'file';
 
 	private config: IFilesConfiguration;
@@ -271,47 +261,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		});
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, [number, number, number]>, index: number, templateData: IFileTemplateData, height: number | undefined): void {
-		templateData.elementDisposable.dispose();
-		const stat = node.element.elements[node.element.elements.length - 1];
-		const editableData = this.explorerService.getEditableData(stat);
-
-		// File Label
-		if (!editableData) {
-			templateData.label.element.style.display = 'flex';
-			const extraClasses = ['explorer-item'];
-			if (this.explorerService.isCut(stat)) {
-				extraClasses.push('cut');
-			}
-			templateData.label.setFile(stat.resource, {
-				hidePath: true,
-				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-				extraClasses,
-				fileDecorations: this.config.explorer.decorations,
-				matches: createMatches(node.filterData)
-			});
-
-			templateData.elementDisposable = templateData.label.onDidRender(() => {
-				try {
-					this.updateWidth(stat);
-				} catch (e) {
-					// noop since the element might no longer be in the tree, no update of width necessery
-				}
-			});
-		}
-
-		// Input Box
-		else {
-			templateData.label.element.style.display = 'none';
-			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
-		}
-	}
-
-	disposeElement?(_element: ITreeNode<ExplorerItem, FuzzyScore>, _index: number, templateData: IFileTemplateData): void {
-		templateData.elementDisposable.dispose();
-	}
-
-	disposeCompressedElements?(_node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, _index: number, templateData: IFileTemplateData): void {
+	disposeElement?(element: ITreeNode<ExplorerItem, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
 		templateData.elementDisposable.dispose();
 	}
 
