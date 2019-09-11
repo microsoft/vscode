@@ -23,7 +23,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewLineData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, minimapSelection } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
@@ -454,7 +454,6 @@ export class Minimap extends ViewPart {
 
 	private _options: MinimapOptions;
 	private _lastRenderData: RenderData | null;
-	private _lastDecorations: ViewModelDecoration[] | undefined;
 	private _selections: Selection[] = [];
 	private _selectionColor: Color | undefined;
 	private _renderDecorations: boolean = false;
@@ -776,8 +775,6 @@ export class Minimap extends ViewPart {
 					this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
 				}
 			}
-
-			this._lastDecorations = decorations;
 		}
 	}
 
