@@ -911,7 +911,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		const { stat } = getContext(list);
 		let folder: ExplorerItem;
 		if (stat) {
-			folder = stat.isDirectory ? stat : stat.parent!;
+			folder = stat.isDirectory ? stat : (stat.parent || explorerService.roots[0]);
 		} else {
 			folder = explorerService.roots[0];
 		}
