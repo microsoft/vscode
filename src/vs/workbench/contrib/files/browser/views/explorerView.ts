@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
-import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView, CollapseExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
@@ -68,6 +68,7 @@ export class ExplorerView extends ViewletPanel {
 	private shouldRefresh = true;
 	private dragHandler!: DelayedDragHandler;
 	private autoReveal = false;
+	private actions: IAction[] | undefined;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -170,7 +171,12 @@ export class ExplorerView extends ViewletPanel {
 		}));
 
 		this._register(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
-		this._register(this.explorerService.onDidChangeItem(e => this.refresh(e.recursive, e.item)));
+		this._register(this.explorerService.onDidChangeItem(e => {
+			if (this.explorerService.isEditable(undefined)) {
+				this.tree.domFocus();
+			}
+			this.refresh(e.recursive, e.item);
+		}));
 		this._register(this.explorerService.onDidChangeEditable(async e => {
 			const isEditing = !!this.explorerService.getEditableData(e);
 
@@ -218,14 +224,16 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	getActions(): IAction[] {
-		const actions: Action[] = [];
-
-		actions.push(this.instantiationService.createInstance(NewFileAction));
-		actions.push(this.instantiationService.createInstance(NewFolderAction));
-		actions.push(this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL));
-		actions.push(this.instantiationService.createInstance(CollapseExplorerView, CollapseExplorerView.ID, CollapseExplorerView.LABEL));
-
-		return actions;
+		if (!this.actions) {
+			this.actions = [
+				this.instantiationService.createInstance(NewFileAction),
+				this.instantiationService.createInstance(NewFolderAction),
+				this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL),
+				this.instantiationService.createInstance(CollapseExplorerView, CollapseExplorerView.ID, CollapseExplorerView.LABEL)
+			];
+			this.actions.forEach(a => this._register(a));
+		}
+		return this.actions;
 	}
 
 	focus(): void {
@@ -333,6 +341,13 @@ export class ExplorerView extends ViewletPanel {
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+
+		this._register(this.tree.onDidScroll(e => {
+			let editable = this.explorerService.getEditable();
+			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
+				editable.data.onFinish('', false);
+			}
+		}));
 
 		// save view state on shutdown
 		this._register(this.storageService.onWillSaveState(() => {

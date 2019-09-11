@@ -548,6 +548,9 @@ export interface MainThreadWebviewsShape extends IDisposable {
 
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
+
+	$registerEditorProvider(viewType: string): void;
+	$unregisterEditorProvider(viewType: string): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -564,6 +567,7 @@ export interface ExtHostWebviewsShape {
 	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

@@ -118,36 +118,41 @@ export class Menubar {
 		this.fallbackMenuHandlers['workbench.action.clearRecentFiles'] = () => this.historyMainService.clearRecentlyOpened();
 
 		// Help Menu Items
-		if (product.twitterUrl) {
-			this.fallbackMenuHandlers['workbench.action.openTwitterUrl'] = () => this.openUrl(product.twitterUrl, 'openTwitterUrl');
+		const twitterUrl = product.twitterUrl;
+		if (twitterUrl) {
+			this.fallbackMenuHandlers['workbench.action.openTwitterUrl'] = () => this.openUrl(twitterUrl, 'openTwitterUrl');
 		}
 
-		if (product.requestFeatureUrl) {
-			this.fallbackMenuHandlers['workbench.action.openRequestFeatureUrl'] = () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl');
+		const requestFeatureUrl = product.requestFeatureUrl;
+		if (requestFeatureUrl) {
+			this.fallbackMenuHandlers['workbench.action.openRequestFeatureUrl'] = () => this.openUrl(requestFeatureUrl, 'openUserVoiceUrl');
 		}
 
-		if (product.reportIssueUrl) {
-			this.fallbackMenuHandlers['workbench.action.openIssueReporter'] = () => this.openUrl(product.reportIssueUrl, 'openReportIssues');
+		const reportIssueUrl = product.reportIssueUrl;
+		if (reportIssueUrl) {
+			this.fallbackMenuHandlers['workbench.action.openIssueReporter'] = () => this.openUrl(reportIssueUrl, 'openReportIssues');
 		}
 
-		if (product.licenseUrl) {
+		const licenseUrl = product.licenseUrl;
+		if (licenseUrl) {
 			this.fallbackMenuHandlers['workbench.action.openLicenseUrl'] = () => {
 				if (language) {
-					const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-					this.openUrl(`${product.licenseUrl}${queryArgChar}lang=${language}`, 'openLicenseUrl');
+					const queryArgChar = licenseUrl.indexOf('?') > 0 ? '&' : '?';
+					this.openUrl(`${licenseUrl}${queryArgChar}lang=${language}`, 'openLicenseUrl');
 				} else {
-					this.openUrl(product.licenseUrl, 'openLicenseUrl');
+					this.openUrl(licenseUrl, 'openLicenseUrl');
 				}
 			};
 		}
 
-		if (product.privacyStatementUrl) {
+		const privacyStatementUrl = product.privacyStatementUrl;
+		if (privacyStatementUrl && licenseUrl) {
 			this.fallbackMenuHandlers['workbench.action.openPrivacyStatementUrl'] = () => {
 				if (language) {
-					const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-					this.openUrl(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
+					const queryArgChar = licenseUrl.indexOf('?') > 0 ? '&' : '?';
+					this.openUrl(`${privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
 				} else {
-					this.openUrl(product.privacyStatementUrl, 'openPrivacyStatement');
+					this.openUrl(privacyStatementUrl, 'openPrivacyStatement');
 				}
 			};
 		}

@@ -174,6 +174,11 @@ export interface IEditorOptions {
 	 * message as needed. By default, an error will be presented as notification if opening was not possible.
 	 */
 	readonly ignoreError?: boolean;
+
+	/**
+	 * Does not use editor overrides while opening the editor
+	 */
+	readonly ignoreOverrides?: boolean;
 }
 
 export interface ITextEditorSelection {

@@ -67,41 +67,39 @@ interface IDataTreeListTemplateData<T> {
 	templateData: T;
 }
 
-abstract class WeakMapper<T extends object, R> {
+class WeakMapper<K extends object, V> {
 
-	private _map = new WeakMap<T, R>();
+	constructor(private fn: (k: K) => V) { }
 
-	map(obj: T): R {
-		const that = this;
-		let result = this._map.get(obj);
+	private _map = new WeakMap<K, V>();
+
+	map(key: K): V {
+		let result = this._map.get(key);
 
 		if (!result) {
-			result = new Proxy(obj, {
-				get(obj, prop) {
-					return that.getProp(obj, prop);
-				}
-			}) as unknown as R;
-
-			this._map.set(obj, result);
+			result = this.fn(key);
+			this._map.set(key, result);
 		}
 
 		return result;
 	}
-
-	protected abstract getProp(obj: T, prop: string | number | symbol): any;
 }
 
-class AsyncDataTreeNodeMapper<TInput, T, TFilterData> extends WeakMapper<ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>, ITreeNode<TInput | T, TFilterData>> {
+type AsyncDataTreeNodeMapper<TInput, T, TFilterData> = WeakMapper<ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>, ITreeNode<TInput | T, TFilterData>>;
 
-	protected getProp(node: ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>, prop: string | number | symbol): any {
-		if (prop === 'element') {
-			return node.element!.element;
-		} else if (prop === 'children') {
-			return node.children.map(child => this.map(child));
-		}
+class AsyncDataTreeNodeWrapper<TInput, T, TFilterData> implements ITreeNode<TInput | T, TFilterData> {
 
-		return (node as any)[prop];
-	}
+	get element(): T { return this.node.element!.element as T; }
+	get children(): ITreeNode<T, TFilterData>[] { return this.node.children.map(node => new AsyncDataTreeNodeWrapper(node)); }
+	get depth(): number { return this.node.depth; }
+	get visibleChildrenCount(): number { return this.node.visibleChildrenCount; }
+	get visibleChildIndex(): number { return this.node.visibleChildIndex; }
+	get collapsible(): boolean { return this.node.collapsible; }
+	get collapsed(): boolean { return this.node.collapsed; }
+	get visible(): boolean { return this.node.visible; }
+	get filterData(): TFilterData | undefined { return this.node.filterData; }
+
+	constructor(private node: ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>) { }
 }
 
 class DataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements ITreeRenderer<IAsyncDataTreeNode<TInput, T>, TFilterData, IDataTreeListTemplateData<TTemplateData>> {
@@ -329,7 +327,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly _onDidRender = new Emitter<void>();
 	protected readonly _onDidChangeNodeSlowState = new Emitter<IAsyncDataTreeNode<TInput, T>>();
 
-	protected readonly nodeMapper = new AsyncDataTreeNodeMapper<TInput, T, TFilterData>();
+	protected readonly nodeMapper: AsyncDataTreeNodeMapper<TInput, T, TFilterData> = new WeakMapper(node => new AsyncDataTreeNodeWrapper(node));
 
 	protected readonly disposables: IDisposable[] = [];
 

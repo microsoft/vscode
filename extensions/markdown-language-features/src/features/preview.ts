@@ -540,7 +540,7 @@ export class MarkdownPreview extends Disposable {
 			}
 		}
 
-		vscode.commands.executeCommand('_markdown.openDocumentLink', { path, fragment });
+		vscode.commands.executeCommand('_markdown.openDocumentLink', { path, fragment, fromResource: this.resource });
 	}
 
 	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number }[]) {
