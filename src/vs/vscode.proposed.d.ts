@@ -853,14 +853,14 @@ declare module 'vscode' {
 		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
 		 * @param callback The callback that will be called when the task is started by a user.
 		 */
-		constructor(callback: (thisArg?: any) => Thenable<Pseudoterminal>);
+		constructor(callback: () => Thenable<Pseudoterminal>);
 
 		/**
 		 * The callback used to execute the task. Cancellation should be handled using
 		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
 		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
 		 */
-		callback: (thisArg?: any) => Thenable<Pseudoterminal>;
+		callback: () => Thenable<Pseudoterminal>;
 	}
 
 	/**
