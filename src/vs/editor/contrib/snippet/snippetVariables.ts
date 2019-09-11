@@ -12,9 +12,10 @@ import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snip
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { URI } from 'vs/base/common/uri';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -264,7 +265,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 	}
 
 	resolve(variable: Variable): string | undefined {
-		if ((variable.name !== 'WORKSPACE_NAME' && variable.name !== 'WORKSPACE_FOLDER') || !this._workspaceService) {
+		if (!this._workspaceService) {
 			return undefined;
 		}
 
@@ -273,32 +274,35 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			return undefined;
 		}
 
-		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			if (variable.name === 'WORKSPACE_NAME') {
-				return path.basename(workspaceIdentifier.path);
-			}
-			if (variable.name === 'WORKSPACE_FOLDER') {
-				return normalizeDriveLetter(workspaceIdentifier.fsPath);
-			}
-			return undefined;
-		}
-
-		let filename = path.basename(workspaceIdentifier.configPath.path);
-		if (variable.name === 'WORKSPACE_FOLDER') {
-			let folderpath = workspaceIdentifier.configPath.fsPath;
-			if (endsWith(folderpath, filename)) {
-				folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
-			}
-			return (folderpath ? normalizeDriveLetter(folderpath) : '/');
-		}
-
-		if (endsWith(filename, WORKSPACE_EXTENSION)) {
-			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
-		}
 		if (variable.name === 'WORKSPACE_NAME') {
-			return filename;
+			return this._resolveWorkspaceName(workspaceIdentifier);
+		} else if (variable.name === 'WORKSPACE_FOLDER') {
+			return this._resoveWorkspacePath(workspaceIdentifier);
 		}
 
 		return undefined;
+	}
+	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return path.basename(workspaceIdentifier.path);
+		}
+
+		let filename = path.basename(workspaceIdentifier.configPath.path);
+		if (endsWith(filename, WORKSPACE_EXTENSION)) {
+			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		}
+		return filename;
+	}
+	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return normalizeDriveLetter(workspaceIdentifier.fsPath);
+		}
+
+		let filename = path.basename(workspaceIdentifier.configPath.path);
+		let folderpath = workspaceIdentifier.configPath.fsPath;
+		if (endsWith(folderpath, filename)) {
+			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
+		}
+		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
 	}
 }
