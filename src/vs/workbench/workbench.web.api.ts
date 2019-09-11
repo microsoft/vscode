@@ -5,7 +5,7 @@
 
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
-import { UriComponents } from 'vs/base/common/uri';
+import { UriComponents, URI } from 'vs/base/common/uri';
 import { IFileSystemProvider } from 'vs/platform/files/common/files';
 import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
@@ -52,6 +52,11 @@ export interface IWorkbenchConstructionOptions {
 	 * A factory for web sockets.
 	 */
 	webSocketFactory?: IWebSocketFactory;
+
+	/**
+	 * A provider for resource URIs.
+	 */
+	resourceUriProvider?: (uri: URI) => UriComponents;
 
 	/**
 	 * Experimental: Whether to enable the smoke test driver.
