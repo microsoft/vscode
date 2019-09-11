@@ -194,7 +194,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		addClass(treeContainer, 'tree');
 		container.appendChild(treeContainer);
 		const options: IAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
-			identityProvider: new callHTree.IdentityProvider(),
+			identityProvider: new callHTree.IdentityProvider(() => this._direction),
 			ariaLabel: localize('tree.aria', "Call Hierarchy"),
 			expandOnlyOnTwistieClick: true,
 		};
@@ -387,6 +387,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				if (this._direction !== newDirection) {
 					this._treeViewStates.set(this._direction, this._tree.getViewState());
 					this._direction = newDirection;
+					this._tree.setFocus([]);
 					this.showItem(item);
 				}
 			};

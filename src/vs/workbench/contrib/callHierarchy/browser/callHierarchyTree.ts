@@ -86,8 +86,13 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 }
 
 export class IdentityProvider implements IIdentityProvider<Call> {
+
+	constructor(
+		public getDirection: () => CallHierarchyDirection
+	) { }
+
 	getId(element: Call): { toString(): string; } {
-		return hash(element.item.uri.toString(), hash(JSON.stringify(element.item.range))).toString() + (element.parent ? this.getId(element.parent) : '');
+		return this.getDirection() + hash(element.item.uri.toString(), hash(JSON.stringify(element.item.range))).toString() + (element.parent ? this.getId(element.parent) : '');
 	}
 }
 
