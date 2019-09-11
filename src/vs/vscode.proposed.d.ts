@@ -809,7 +809,7 @@ declare module 'vscode' {
 		/**
 		 * The name of the tree view. It is set from the extension package.json and can be changed later.
 		 */
-		setTitle(name: string): void;
+		title?: string;
 	}
 
 	/**

@@ -96,9 +96,10 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				checkProposedApiEnabled(extension);
 				treeView.message = message;
 			},
-			setTitle(title: string) {
+			get title() { return treeView.title; },
+			set title(title: string) {
 				checkProposedApiEnabled(extension);
-				treeView.setTitle(title);
+				treeView.title = title;
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
@@ -199,6 +200,15 @@ class ExtHostTreeView<T> extends Disposable {
 
 	constructor(private viewId: string, options: vscode.TreeViewOptions<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, private logService: ILogService, private extension: IExtensionDescription) {
 		super();
+		if (extension.contributes && extension.contributes.views) {
+			for (const location in extension.contributes.views) {
+				for (const view of extension.contributes.views[location]) {
+					if (view.id === viewId) {
+						this._title = view.name;
+					}
+				}
+			}
+		}
 		this.dataProvider = options.treeDataProvider;
 		this.proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany });
 		if (this.dataProvider.onDidChangeTreeData) {
@@ -278,8 +288,14 @@ class ExtHostTreeView<T> extends Disposable {
 		this._onDidChangeData.fire({ message: true, element: false });
 	}
 
-	setTitle(name: string) {
-		this.proxy.$setTitle(this.viewId, name);
+	private _title: string = '';
+	get title(): string {
+		return this._title;
+	}
+
+	set title(title: string) {
+		this._title = title;
+		this.proxy.$setTitle(this.viewId, title);
 	}
 
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
