@@ -74,19 +74,11 @@ declare module 'vscode' {
 
 		/**
 		 * Provide a list of callers for the provided item, e.g. all function calling a function.
-		 *
-		 * @param target
-		 * @param token
-		 * @returns
 		 */
 		provideCallHierarchyIncomingCalls(target: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
 
 		/**
 		 * Provide a list of calls for the provided item, e.g. all functions call from a function.
-		 *
-		 * @param source
-		 * @param token
-		 * @returns
 		 */
 		provideCallHierarchyOutgoingCalls(source: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
 
