@@ -691,9 +691,8 @@ export class Minimap extends ViewPart {
 	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		this._context.model.invalidateMinimapColorCache();
 		this._selectionColor = this._context.theme.getColor(minimapSelection);
-		// Only bother calling render if decorations are currently shown
-		this._renderDecorations = !!this._lastDecorations || !!this._selections.length;
-		return this._renderDecorations;
+		this._renderDecorations = true;
+		return true;
 	}
 
 	// --- end event handlers
