@@ -222,8 +222,7 @@ export class WebClientServer extends Disposable {
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				remoteAuthority,
 				webviewEndpoint,
-				driver: this._environmentService.driverHandle === 'web' ? true : undefined,
-				productConfiguration: product
+				driver: this._environmentService.driverHandle === 'web' ? true : undefined
 			})))
 			.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
 			.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(webUserDataHome))));

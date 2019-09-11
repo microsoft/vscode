@@ -391,7 +391,7 @@ function packagePkgTask(platform, arch, pkgTarget) {
 			const fullpath = path.join(process.cwd(), 'out-build', 'vs', 'platform', 'product', 'browser', 'product.js');
 			const contents = fs.readFileSync(fullpath).toString();
 			if (contents.indexOf(marker) === -1) {
-				throw new Error(`Web build: unable to find ${marker} in ${fullpath}`);
+				throw new Error(`Web build: unable to find ${marker} in ${fullpath} (${contents})`);
 			}
 			const newContents = contents.replace(marker, JSON.stringify({
 				...product,
