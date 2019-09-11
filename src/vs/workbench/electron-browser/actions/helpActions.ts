@@ -28,7 +28,9 @@ export class KeybindingsReferenceAction extends Action {
 	}
 
 	run(): Promise<void> {
-		this.openerService.open(URI.parse(KeybindingsReferenceAction.URL));
+		if (KeybindingsReferenceAction.URL) {
+			this.openerService.open(URI.parse(KeybindingsReferenceAction.URL));
+		}
 
 		return Promise.resolve();
 	}
@@ -51,7 +53,9 @@ export class OpenDocumentationUrlAction extends Action {
 	}
 
 	run(): Promise<void> {
-		this.openerService.open(URI.parse(OpenDocumentationUrlAction.URL));
+		if (OpenDocumentationUrlAction.URL) {
+			this.openerService.open(URI.parse(OpenDocumentationUrlAction.URL));
+		}
 
 		return Promise.resolve();
 	}
@@ -74,7 +78,9 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 	}
 
 	run(): Promise<void> {
-		this.openerService.open(URI.parse(OpenIntroductoryVideosUrlAction.URL));
+		if (OpenIntroductoryVideosUrlAction.URL) {
+			this.openerService.open(URI.parse(OpenIntroductoryVideosUrlAction.URL));
+		}
 
 		return Promise.resolve();
 	}
@@ -97,7 +103,10 @@ export class OpenTipsAndTricksUrlAction extends Action {
 	}
 
 	run(): Promise<void> {
-		this.openerService.open(URI.parse(OpenTipsAndTricksUrlAction.URL));
+		if (OpenTipsAndTricksUrlAction.URL) {
+			this.openerService.open(URI.parse(OpenTipsAndTricksUrlAction.URL));
+		}
+
 		return Promise.resolve();
 	}
 }
@@ -106,31 +115,29 @@ export class OpenNewsletterSignupUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openNewsletterSignupUrl';
 	static readonly LABEL = nls.localize('newsletterSignup', "Signup for the VS Code Newsletter");
-	private telemetryService: ITelemetryService;
-	private static readonly URL = product.newsletterSignupUrl;
-	static readonly AVAILABLE = !!OpenNewsletterSignupUrlAction.URL;
+	static readonly AVAILABLE = !!product.newsletterSignupUrl;
 
 	constructor(
 		id: string,
 		label: string,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(id, label);
-		this.telemetryService = telemetryService;
 	}
 
 	async run(): Promise<void> {
 		const info = await this.telemetryService.getTelemetryInfo();
 
-		this.openerService.open(URI.parse(`${OpenNewsletterSignupUrlAction.URL}?machineId=${encodeURIComponent(info.machineId)}`));
+		this.openerService.open(URI.parse(`${product.newsletterSignupUrl}?machineId=${encodeURIComponent(info.machineId)}`));
 	}
 }
 
 export class OpenTwitterUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openTwitterUrl';
-	static LABEL = nls.localize('openTwitterUrl', "Join Us on Twitter", product.applicationName);
+	static readonly LABEL = nls.localize('openTwitterUrl', "Join Us on Twitter", product.applicationName);
+	static readonly AVAILABLE = !!product.twitterUrl;
 
 	constructor(
 		id: string,
@@ -152,7 +159,8 @@ export class OpenTwitterUrlAction extends Action {
 export class OpenRequestFeatureUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openRequestFeatureUrl';
-	static LABEL = nls.localize('openUserVoiceUrl', "Search Feature Requests");
+	static readonly LABEL = nls.localize('openUserVoiceUrl', "Search Feature Requests");
+	static readonly AVAILABLE = !!product.requestFeatureUrl;
 
 	constructor(
 		id: string,
@@ -174,7 +182,8 @@ export class OpenRequestFeatureUrlAction extends Action {
 export class OpenLicenseUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openLicenseUrl';
-	static LABEL = nls.localize('openLicenseUrl', "View License");
+	static readonly LABEL = nls.localize('openLicenseUrl', "View License");
+	static readonly AVAILABLE = !!product.licenseUrl;
 
 	constructor(
 		id: string,
@@ -201,7 +210,8 @@ export class OpenLicenseUrlAction extends Action {
 export class OpenPrivacyStatementUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openPrivacyStatementUrl';
-	static LABEL = nls.localize('openPrivacyStatement', "Privacy Statement");
+	static readonly LABEL = nls.localize('openPrivacyStatement', "Privacy Statement");
+	static readonly AVAILABE = !!product.privacyStatementUrl;
 
 	constructor(
 		id: string,

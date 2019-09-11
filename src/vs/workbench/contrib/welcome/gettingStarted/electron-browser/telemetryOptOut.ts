@@ -56,18 +56,21 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 				return;
 			}
 
-			const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", this.privacyUrl, product.telemetryOptOutUrl);
-			const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", this.privacyUrl, product.telemetryOptOutUrl);
+			const telemetryOptOutUrl = product.telemetryOptOutUrl;
+			if (telemetryOptOutUrl) {
+				const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", this.privacyUrl, product.telemetryOptOutUrl);
+				const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", this.privacyUrl, product.telemetryOptOutUrl);
 
-			notificationService.prompt(
-				Severity.Info,
-				telemetryService.isOptedIn ? optOutNotice : optInNotice,
-				[{
-					label: localize('telemetryOptOut.readMore', "Read More"),
-					run: () => openerService.open(URI.parse(product.telemetryOptOutUrl))
-				}],
-				{ sticky: true }
-			);
+				notificationService.prompt(
+					Severity.Info,
+					telemetryService.isOptedIn ? optOutNotice : optInNotice,
+					[{
+						label: localize('telemetryOptOut.readMore', "Read More"),
+						run: () => openerService.open(URI.parse(telemetryOptOutUrl))
+					}],
+					{ sticky: true }
+				);
+			}
 		})
 			.then(undefined, onUnexpectedError);
 	}
