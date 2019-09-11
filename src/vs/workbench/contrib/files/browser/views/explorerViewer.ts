@@ -49,17 +49,25 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Emitter } from 'vs/base/common/event';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 
-export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
+export class ExplorerListVirtualDelegate implements IListVirtualDelegate<ExplorerItem> {
 
 	static readonly ITEM_HEIGHT = 22;
 
-	getHeight(element: ExplorerItem): number {
-		return ExplorerDelegate.ITEM_HEIGHT;
+	getHeight(): number {
+		return ExplorerListVirtualDelegate.ITEM_HEIGHT;
 	}
 
-	getTemplateId(element: ExplorerItem): string {
+	getTemplateId(): string {
 		return FilesRenderer.ID;
+	}
+}
+
+export class ExplorerTreeCompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {
+
+	isIncompressible(element: ExplorerItem): boolean {
+		return !element.isDirectory;
 	}
 }
 

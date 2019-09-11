@@ -10,7 +10,7 @@ import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, IColla
 import { ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Event } from 'vs/base/common/event';
-import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 
 export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	sorter?: ITreeSorter<T>;
@@ -141,6 +141,10 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		const compressibleRenderers = renderers.map(r => new CompressibleRenderer(r));
 		super(user, container, delegate, compressibleRenderers, options);
 		compressibleRenderers.forEach(r => r.compressedTreeNodeProvider = this);
+	}
+
+	setChildren(element: T | null, children?: ISequence<ICompressedTreeElement<T>>): void {
+		this.model.setChildren(element, children);
 	}
 
 	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {

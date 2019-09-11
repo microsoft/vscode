@@ -18,7 +18,7 @@ import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors
 import { toggleClass } from 'vs/base/browser/dom';
 import { values } from 'vs/base/common/map';
 import { ScrollEvent } from 'vs/base/common/scrollable';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -261,25 +261,6 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		),
 		ariaProvider: undefined,
 		additionalScrollHeight: options.additionalScrollHeight
-	};
-}
-
-function asTreeElement<TInput, T>(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): ITreeElement<IAsyncDataTreeNode<TInput, T>> {
-	let collapsed: boolean | undefined;
-
-	if (viewStateContext && viewStateContext.viewState.expanded && node.id && viewStateContext.viewState.expanded.indexOf(node.id) > -1) {
-		collapsed = false;
-	} else {
-		collapsed = node.collapsedByDefault;
-	}
-
-	node.collapsedByDefault = undefined;
-
-	return {
-		element: node,
-		children: node.hasChildren ? Iterator.map(Iterator.fromArray(node.children), child => asTreeElement(child, viewStateContext)) : [],
-		collapsible: node.hasChildren,
-		collapsed
 	};
 }
 
@@ -909,7 +890,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): void {
-		const children = node.children.map(c => asTreeElement(c, viewStateContext));
+		const children = node.children.map(node => this.asTreeElement(node, viewStateContext));
 		this.tree.setChildren(node === this.root ? null : node, children);
 
 		if (node !== this.root) {
@@ -917,6 +898,25 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		this._onDidRender.fire();
+	}
+
+	protected asTreeElement(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): ITreeElement<IAsyncDataTreeNode<TInput, T>> {
+		let collapsed: boolean | undefined;
+
+		if (viewStateContext && viewStateContext.viewState.expanded && node.id && viewStateContext.viewState.expanded.indexOf(node.id) > -1) {
+			collapsed = false;
+		} else {
+			collapsed = node.collapsedByDefault;
+		}
+
+		node.collapsedByDefault = undefined;
+
+		return {
+			element: node,
+			children: node.hasChildren ? Iterator.map(Iterator.fromArray(node.children), child => this.asTreeElement(child, viewStateContext)) : [],
+			collapsible: node.hasChildren,
+			collapsed
+		};
 	}
 
 	// view state
@@ -984,7 +984,7 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 	constructor(
 		protected renderer: ICompressibleTreeRenderer<T, TFilterData, TTemplateData>,
 		protected nodeMapper: AsyncDataTreeNodeMapper<TInput, T, TFilterData>,
-		protected compressibleNodeMapper: CompressibleAsyncDataTreeNodeMapper<TInput, T, TFilterData>,
+		private compressibleNodeMapperProvider: () => CompressibleAsyncDataTreeNodeMapper<TInput, T, TFilterData>,
 		readonly onDidChangeTwistieState: Event<IAsyncDataTreeNode<TInput, T>>
 	) {
 		this.templateId = renderer.templateId;
@@ -1000,7 +1000,7 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T>>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		this.renderer.renderCompressedElements(this.compressibleNodeMapper.map(node) as ITreeNode<ICompressedTreeNode<T>, TFilterData>, index, templateData.templateData, height);
+		this.renderer.renderCompressedElements(this.compressibleNodeMapperProvider().map(node) as ITreeNode<ICompressedTreeNode<T>, TFilterData>, index, templateData.templateData, height);
 	}
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
@@ -1024,6 +1024,10 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 	}
 }
 
+export interface ITreeCompressionDelegate<T> {
+	isIncompressible(element: T): boolean;
+}
+
 export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends AsyncDataTree<TInput, T, TFilterData> {
 
 	protected readonly compressibleNodeMapper: CompressibleAsyncDataTreeNodeMapper<TInput, T, TFilterData> = new WeakMapper(node => new CompressibleAsyncDataTreeNodeWrapper(node));
@@ -1031,12 +1035,13 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	constructor(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		virtualDelegate: IListVirtualDelegate<T>,
+		private compressionDelegate: ITreeCompressionDelegate<T>,
 		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
 		dataSource: IAsyncDataSource<TInput, T>,
 		options: IAsyncDataTreeOptions<T, TFilterData> = {}
 	) {
-		super(user, container, delegate, renderers, dataSource, options);
+		super(user, container, virtualDelegate, renderers, dataSource, options);
 	}
 
 	protected createTree(
@@ -1047,9 +1052,16 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 		options: IAsyncDataTreeOptions<T, TFilterData>
 	): ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData> {
 		const objectTreeDelegate = new ComposedTreeDelegate<TInput | T, IAsyncDataTreeNode<TInput, T>>(delegate);
-		const objectTreeRenderers = renderers.map(r => new CompressibleAsyncDataTreeRenderer(r, this.nodeMapper, this.compressibleNodeMapper, this._onDidChangeNodeSlowState.event));
+		const objectTreeRenderers = renderers.map(r => new CompressibleAsyncDataTreeRenderer(r, this.nodeMapper, () => this.compressibleNodeMapper, this._onDidChangeNodeSlowState.event));
 		const objectTreeOptions = asObjectTreeOptions<TInput, T, TFilterData>(options) || {};
 
 		return new CompressibleObjectTree(user, container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
+	}
+
+	protected asTreeElement(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): ICompressedTreeElement<IAsyncDataTreeNode<TInput, T>> {
+		return {
+			incompressible: this.compressionDelegate.isIncompressible(node.element as T),
+			...super.asTreeElement(node, viewStateContext)
+		};
 	}
 }
