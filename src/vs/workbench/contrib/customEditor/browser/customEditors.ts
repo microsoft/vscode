@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { find } from 'vs/base/common/arrays';
+import { coalesce, distinct } from 'vs/base/common/arrays';
 import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
@@ -28,18 +28,19 @@ import { CustomFileEditorInput } from './customEditorInput';
 export class CustomEditorService implements ICustomEditorService {
 	_serviceBrand: any;
 
-	private readonly customEditors: Array<CustomEditorInfo> = [];
+	private readonly customEditors = new Map<string, CustomEditorInfo>();
 
 	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IWebviewService private readonly webviewService: IWebviewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWebviewService private readonly webviewService: IWebviewService,
 	) {
 		webviewEditorsExtensionPoint.setHandler(extensions => {
 			for (const extension of extensions) {
 				for (const webviewEditorContribution of extension.value) {
-					this.customEditors.push({
+					this.customEditors.set(webviewEditorContribution.viewType, {
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
 						selector: webviewEditorContribution.selector || [],
@@ -51,8 +52,15 @@ export class CustomEditorService implements ICustomEditorService {
 	}
 
 	public getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[] {
-		return this.customEditors.filter(customEditor =>
+		return Array.from(this.customEditors.values()).filter(customEditor =>
 			customEditor.selector.some(selector => matches(selector, resource)));
+	}
+
+	public getUserConfiguredCustomEditors(resource: URI): readonly CustomEditorInfo[] {
+		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsKey) || [];
+		return coalesce(rawAssociations
+			.filter(association => matches(association, resource))
+			.map(association => this.customEditors.get(association.viewType)));
 	}
 
 	public async promptOpenWith(
@@ -60,14 +68,18 @@ export class CustomEditorService implements ICustomEditorService {
 		options?: ITextEditorOptions,
 		group?: IEditorGroup,
 	): Promise<IEditor | undefined> {
-		const preferredEditors = this.getContributedCustomEditors(resource);
+		const customEditors = distinct([
+			...this.getUserConfiguredCustomEditors(resource),
+			...this.getContributedCustomEditors(resource),
+		], editor => editor.id);
+
 		const defaultEditorId = 'default';
 		const pick = await this.quickInputService.pick([
 			{
 				label: nls.localize('promptOpenWith.defaultEditor', "Default built-in editor"),
 				id: defaultEditorId,
 			},
-			...preferredEditors.map((editorDescriptor): IQuickPickItem => ({
+			...customEditors.map((editorDescriptor): IQuickPickItem => ({
 				label: editorDescriptor.displayName,
 				id: editorDescriptor.id,
 			}))
@@ -93,7 +105,7 @@ export class CustomEditorService implements ICustomEditorService {
 		options?: ITextEditorOptions,
 		group?: IEditorGroup,
 	): Promise<IEditor | undefined> {
-		if (!this.customEditors.some(x => x.id === viewType)) {
+		if (!this.customEditors.has(viewType)) {
 			return this.promptOpenWith(resource, options, group);
 		}
 
@@ -114,16 +126,9 @@ export type CustomEditorsAssociations = readonly (CustomEditorSelector & { reado
 export class CustomEditorContribution implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 	) {
 		this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
-	}
-
-	private getUserConfiguredCustomEditor(resource: URI): string | undefined {
-		const config = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsKey) || [];
-		const match = find(config, association => matches(association, resource));
-		return match ? match.viewType : undefined;
 	}
 
 	private onEditorOpening(
@@ -140,15 +145,15 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const userConfiguredViewType = this.getUserConfiguredCustomEditor(resource);
-		const customEditors = this.customEditorService.getContributedCustomEditors(resource);
+		const userConfiguredEditors = this.customEditorService.getUserConfiguredCustomEditors(resource);
+		const contributedEditors = this.customEditorService.getContributedCustomEditors(resource);
 
-		if (!userConfiguredViewType) {
-			if (!customEditors.length) {
+		if (!userConfiguredEditors.length) {
+			if (!contributedEditors.length) {
 				return;
 			}
 
-			const defaultEditors = customEditors.filter(editor => editor.discretion === CustomEditorDiscretion.default);
+			const defaultEditors = contributedEditors.filter(editor => editor.discretion === CustomEditorDiscretion.default);
 			if (defaultEditors.length === 1) {
 				return {
 					override: this.customEditorService.openWith(resource, defaultEditors[0].id, options, group),
@@ -164,9 +169,9 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 			}
 		}
 
-		if (userConfiguredViewType) {
+		if (userConfiguredEditors.length) {
 			return {
-				override: this.customEditorService.openWith(resource, userConfiguredViewType, options, group),
+				override: this.customEditorService.openWith(resource, userConfiguredEditors[0].id, options, group),
 			};
 		}
 
