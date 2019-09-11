@@ -142,7 +142,7 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IProductService, productService);
 
 		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(this.configuration.resourceUriProvider);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
