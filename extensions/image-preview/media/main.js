@@ -85,7 +85,6 @@
 			image.style.minWidth = 'auto';
 			image.style.width = 'auto';
 			vscode.setState(undefined);
-			// InlineImageView.imageStateCache.delete(cacheKey);
 		} else {
 			const oldWidth = image.width;
 			const oldHeight = image.height;
@@ -116,7 +115,6 @@
 			// });
 
 			vscode.setState({ scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
-			// InlineImageView.imageStateCache.set(cacheKey, { scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
 		}
 
 		vscode.postMessage({
