@@ -21,7 +21,10 @@
 	"markdown.trace.desc": "Enable debug logging for the markdown extension.",
 	"markdown.preview.refresh.title": "Refresh Preview",
 	"markdown.preview.toggleLock.title": "Toggle Preview Locking",
-	"configuration.markdown.preview.openMarkdownLinks.description": "How should clicking on links to markdown files be handled in the preview.",
+	"configuration.markdown.preview.openMarkdownLinks.description": "Controls how links to other markdown files in the markdown preview should be opened.",
 	"configuration.markdown.preview.openMarkdownLinks.inEditor": "Try to open links in the editor",
-	"configuration.markdown.preview.openMarkdownLinks.inPreview": "Try to open links in the markdown preview"
+	"configuration.markdown.preview.openMarkdownLinks.inPreview": "Try to open links in the markdown preview",
+	"configuration.markdown.links.openLocation.description": "Controls where links in markdown files should be opened.",
+	"configuration.markdown.links.openLocation.currentGroup": "Open links in the active editor group.",
+	"configuration.markdown.links.openLocation.beside": "Open links beside the active editor."
 }

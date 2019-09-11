@@ -269,6 +269,20 @@
 						"%configuration.markdown.preview.openMarkdownLinks.inEditor%"
 					]
 				},
+				"markdown.links.openLocation": {
+					"type": "string",
+					"default": "currentGroup",
+					"description": "%configuration.markdown.links.openLocation.description%",
+					"scope": "resource",
+					"enum": [
+						"currentGroup",
+						"beside"
+					],
+					"enumDescriptions": [
+						"%configuration.markdown.links.openLocation.currentGroup%",
+						"%configuration.markdown.links.openLocation.beside%"
+					]
+				},
 				"markdown.trace": {
 					"type": "string",
 					"enum": [
