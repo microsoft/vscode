@@ -77,9 +77,6 @@ const serverResources = [
 	// Uri transformer
 	'out-build/vs/server/uriTransformer.js',
 
-	// Webview
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',
@@ -92,16 +89,17 @@ const serverWithWebResources = [
 	// Include all of server
 	...serverResources,
 
-	// Extension Worker
-	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
-
-	// Include workbench web
+	// Workbench
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png}',
 	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
-	'out-build/vs/workbench/contrib/welcome/walkThrough/**/*.md',
-	'out-build/vs/code/browser/workbench/workbench.html',
-	'out-build/vs/**/markdown.css'
+	'out-build/vs/**/markdown.css',
+
+	// Webview
+	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
+
+	// Extension Worker
+	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js'
 ];
 
 const serverEntryPoints = [
