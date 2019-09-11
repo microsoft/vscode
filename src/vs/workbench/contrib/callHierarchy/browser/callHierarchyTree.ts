@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyProvider } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import { CallHierarchyItem, CallHierarchyProvider, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
@@ -12,6 +12,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { hash } from 'vs/base/common/hash';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export class Call {
 	constructor(
@@ -34,21 +35,55 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 
 	async getChildren(element: CallHierarchyItem | Call): Promise<Call[]> {
 		if (element instanceof Call) {
-			try {
-				const direction = this.getDirection();
-				const calls = await this.provider.resolveCallHierarchyItem(element.item, direction, CancellationToken.None);
-				if (!calls) {
-					return [];
-				}
-				return calls.map(([item, locations]) => new Call(item, locations, element));
-			} catch {
-				return [];
+			const results: Call[] = [];
+			if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
+				await this._getCallsFrom(element, results);
+			} else {
+				await this._getCallsTo(element, results);
 			}
+			return results;
 		} else {
 			// 'root'
 			return [new Call(element, [{ uri: element.uri, range: Range.lift(element.range).collapseToStart() }], undefined)];
 		}
 	}
+
+	private async _getCallsFrom(source: Call, bucket: Call[]): Promise<void> {
+		try {
+			const callsFrom = await this.provider.provideCallsFrom(source.item, CancellationToken.None);
+			if (!callsFrom) {
+				return;
+			}
+			for (const callFrom of callsFrom) {
+				bucket.push(new Call(
+					callFrom.target,
+					callFrom.sourceRanges.map(range => ({ range, uri: source.item.uri })),
+					source
+				));
+			}
+		} catch (e) {
+			onUnexpectedExternalError(e);
+		}
+	}
+
+	private async _getCallsTo(target: Call, bucket: Call[]): Promise<void> {
+		try {
+			const callsTo = await this.provider.provideCallsTo(target.item, CancellationToken.None);
+			if (!callsTo) {
+				return;
+			}
+			for (const callTo of callsTo) {
+				bucket.push(new Call(
+					callTo.source,
+					callTo.sourceRanges.map(range => ({ range, uri: callTo.source.uri })),
+					target
+				));
+			}
+		} catch (e) {
+			onUnexpectedExternalError(e);
+		}
+	}
+
 }
 
 export class IdentityProvider implements IIdentityProvider<Call> {

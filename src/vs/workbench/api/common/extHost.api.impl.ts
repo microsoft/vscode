@@ -893,7 +893,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed
-			CallHierarchyDirection: extHostTypes.CallHierarchyDirection,
+			CallsFrom: extHostTypes.CallsFrom,
+			CallsTo: extHostTypes.CallsTo,
 			CallHierarchyItem: extHostTypes.CallHierarchyItem,
 			Decoration: extHostTypes.Decoration
 		};

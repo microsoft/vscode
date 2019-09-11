@@ -18,11 +18,6 @@ declare module 'vscode' {
 
 	//#region Joh - call hierarchy
 
-	export enum CallHierarchyDirection {
-		CallsFrom = 1,
-		CallsTo = 2,
-	}
-
 	export class CallHierarchyItem {
 		kind: SymbolKind;
 		name: string;
@@ -34,33 +29,29 @@ declare module 'vscode' {
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
+	export class CallsTo {
+		source: CallHierarchyItem;
+		sourceRanges: Range[];
+		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
+	}
+
+	export class CallsFrom {
+		sourceRanges: Range[];
+		target: CallHierarchyItem;
+		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
+	}
+
 	export interface CallHierarchyItemProvider {
 
 		/**
 		 * Given a document and position compute a call hierarchy item. This is justed as
 		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
 		 */
-		provideCallHierarchyItem(
-			document: TextDocument,
-			position: Position,
-			token: CancellationToken
-		): ProviderResult<CallHierarchyItem>;
+		resolveCallHierarchyItem(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
 
-		/**
-		 * Resolve a call hierarchy item, e.g. compute all calls from or to a function.
-		 * The result is an array of item/location-tuples. The location in the returned tuples
-		 * is always relative to the "caller" with the caller either being the provided item or
-		 * the returned item.
-		 *
-		 * @param item A call hierarchy item previously returned from `provideCallHierarchyItem` or `resolveCallHierarchyItem`
-		 * @param direction Resolve calls from a function or calls to a function
-		 * @param token A cancellation token
-		 */
-		resolveCallHierarchyItem(
-			item: CallHierarchyItem,
-			direction: CallHierarchyDirection,
-			token: CancellationToken
-		): ProviderResult<[CallHierarchyItem, Location[]][]>;
+		provideCallsTo(target: CallHierarchyItem, token: CancellationToken): ProviderResult<CallsTo[]>;
+
+		provideCallsFrom(source: CallHierarchyItem, token: CancellationToken): ProviderResult<CallsFrom[]>;
 	}
 
 	export namespace languages {
