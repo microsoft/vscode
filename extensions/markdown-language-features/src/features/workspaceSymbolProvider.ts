@@ -8,10 +8,9 @@ import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Lazy, lazy } from '../util/lazy';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
-import { SkinnyTextDocument } from '../tableOfContentsProvider';
+import { SkinnyTextDocument, SkinnyTextLine } from '../tableOfContentsProvider';
 import { flatten } from '../util/arrays';
 import { DocumentIndex } from '../docIndex';
-import { toTextLines } from '../lines';
 
 export interface WorkspaceMarkdownDocumentProvider {
 	getAllMarkdownDocuments(): Thenable<Iterable<SkinnyTextDocument>>;
@@ -93,11 +92,20 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 
 		// We assume that markdown is in UTF-8
 		const text = Buffer.from(bytes).toString('utf-8');
-		const lines = toTextLines(text);
+
+		const lines: SkinnyTextLine[]  = [];
+		const parts = text.split(/(\r?\n)/);
+		const lineCount = Math.floor(parts.length / 2) + 1;
+		for (let line = 0; line < lineCount; line++) {
+			lines.push({
+				text: parts[line * 2]
+			});
+		}
+
 		return Promise.resolve({
 			uri: resource,
 			version: 0,
-			lineCount: lines.length,
+			lineCount: lineCount,
 			lineAt: (index) => {
 				return lines[index];
 			},
