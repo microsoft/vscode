@@ -10,7 +10,7 @@ declare module DebugProtocol {
 
 	/** Base class of requests, responses, and events. */
 	export interface ProtocolMessage {
-		/** Sequence number. For protocol messages of type 'request' this number can be used to cancel the request. */
+		/** Sequence number (also known as message ID). For protocol messages of type 'request' this ID can be used to cancel the request. */
 		seq: number;
 		/** Message type.
 			Values: 'request', 'response', 'event', etc.
@@ -41,11 +41,20 @@ declare module DebugProtocol {
 		// type: 'response';
 		/** Sequence number of the corresponding request. */
 		request_seq: number;
-		/** Outcome of the request. */
+		/** Outcome of the request.
+			If true, the request was successful and the 'body' attribute may contain the result of the request.
+			If the value is false, the attribute 'message' contains the error in short form and the 'body' may contain additional information (see 'ErrorResponse.body.error').
+		*/
 		success: boolean;
 		/** The command requested. */
 		command: string;
-		/** Contains error message if success == false. */
+		/** Contains the raw error in short form if 'success' is false.
+			This raw error might be interpreted by the frontend and is not shown in the UI.
+			Some predefined values exist.
+			Values:
+			'cancelled': request was cancelled.
+			etc.
+		*/
 		message?: string;
 		/** Contains request result if success is true and optional error details if success is false. */
 		body?: any;
@@ -60,8 +69,13 @@ declare module DebugProtocol {
 	}
 
 	/** Cancel request; value of command field is 'cancel'.
-		This request can be used to cancel another request. Clients should only call this request if the capability 'supportsCancelRequest' is true.
-		A request that got canceled still needs to send a response back. This can either be a partial result or an error response.
+		The 'cancel' request is used by the frontend to indicate that it is no longer interested in the result produced by a specific request issued earlier.
+		This request has a hint characteristic: a debug adapter can only be expected to make a 'best effort' in honouring this request but there are no guarantees.
+		The 'cancel' request may return an error if it could not cancel an operation but a frontend should refrain from presenting this error to end users.
+		A frontend client should only call this request if the capability 'supportsCancelRequest' is true.
+		The request that got canceled still needs to send a response back.
+		This can either be a normal result ('success' attribute true) or an error response ('success' attribute false and the 'message' set to 'cancelled').
+		Returning partial results from a cancelled request is possible but please note that a frontend client has no generic way for detecting that a response is partial or not.
 	*/
 	export interface CancelRequest extends Request {
 		// command: 'cancel';

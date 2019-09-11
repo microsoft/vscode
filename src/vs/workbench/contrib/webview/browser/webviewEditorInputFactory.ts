@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { generateUuid } from 'vs/base/common/uuid';
 
 interface SerializedIconPath {
 	light: string | UriComponents;
@@ -35,24 +35,12 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService
 	) { }
 
-	public serialize(
-		input: WebviewEditorInput
-	): string | undefined {
+	public serialize(input: WebviewEditorInput): string | undefined {
 		if (!this._webviewService.shouldPersist(input)) {
 			return undefined;
 		}
 
-		const data: SerializedWebview = {
-			viewType: input.viewType,
-			title: input.getName(),
-			options: { ...input.webview.options, ...input.webview.contentOptions },
-			extensionLocation: input.extension ? input.extension.location : undefined,
-			extensionId: input.extension && input.extension.id ? input.extension.id.value : undefined,
-			state: input.webview.state,
-			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
-			group: input.group
-		};
-
+		const data = this.toJson(input);
 		try {
 			return JSON.stringify(data);
 		} catch {
@@ -64,16 +52,35 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		_instantiationService: IInstantiationService,
 		serializedEditorInput: string
 	): WebviewEditorInput {
-		const data: SerializedWebview = JSON.parse(serializedEditorInput);
-		const extensionLocation = reviveUri(data.extensionLocation);
-		const extensionId = data.extensionId ? new ExtensionIdentifier(data.extensionId) : undefined;
-		const iconPath = reviveIconPath(data.iconPath);
-		const state = reviveState(data.state);
-
-		return this._webviewService.reviveWebview(generateUuid(), data.viewType, data.title, iconPath, state, data.options, extensionLocation ? {
-			location: extensionLocation,
-			id: extensionId
+		const data = this.fromJson(serializedEditorInput);
+		return this._webviewService.reviveWebview(generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation ? {
+			location: data.extensionLocation,
+			id: data.extensionId
 		} : undefined, data.group);
+	}
+
+	protected fromJson(serializedEditorInput: string) {
+		const data: SerializedWebview = JSON.parse(serializedEditorInput);
+		return {
+			...data,
+			extensionLocation: reviveUri(data.extensionLocation),
+			extensionId: data.extensionId ? new ExtensionIdentifier(data.extensionId) : undefined,
+			iconPath: reviveIconPath(data.iconPath),
+			state: reviveState(data.state),
+		};
+	}
+
+	protected toJson(input: WebviewEditorInput): SerializedWebview {
+		return {
+			viewType: input.viewType,
+			title: input.getName(),
+			options: { ...input.webview.options, ...input.webview.contentOptions },
+			extensionLocation: input.extension ? input.extension.location : undefined,
+			extensionId: input.extension && input.extension.id ? input.extension.id.value : undefined,
+			state: input.webview.state,
+			iconPath: input.iconPath ? { light: input.iconPath.light, dark: input.iconPath.dark, } : undefined,
+			group: input.group
+		};
 	}
 }
 

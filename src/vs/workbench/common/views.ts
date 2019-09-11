@@ -314,6 +314,8 @@ export interface ITreeView extends IDisposable {
 
 	message?: string;
 
+	title: string;
+
 	readonly visible: boolean;
 
 	readonly onDidExpandItem: Event<ITreeItem>;
@@ -325,6 +327,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeVisibility: Event<boolean>;
 
 	readonly onDidChangeActions: Event<void>;
+
+	readonly onDidChangeTitle: Event<string>;
 
 	refresh(treeItems?: ITreeItem[]): Promise<void>;
 

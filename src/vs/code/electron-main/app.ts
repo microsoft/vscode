@@ -331,8 +331,9 @@ export class CodeApplication extends Disposable {
 		// This will help Windows to associate the running program with
 		// any shortcut that is pinned to the taskbar and prevent showing
 		// two icons in the taskbar for the same app.
-		if (isWindows && product.win32AppUserModelId) {
-			app.setAppUserModelId(product.win32AppUserModelId);
+		const win32AppUserModelId = product.win32AppUserModelId;
+		if (isWindows && win32AppUserModelId) {
+			app.setAppUserModelId(win32AppUserModelId);
 		}
 
 		// Fix native tabs on macOS 10.13

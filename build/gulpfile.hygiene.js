@@ -57,6 +57,7 @@ const indentationFilter = [
 	'!test/assert.js',
 
 	// except specific folders
+	'!test/automation/out/**',
 	'!test/smoke/out/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
@@ -152,6 +153,7 @@ const tslintCoreFilter = [
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'!extensions/**/*.ts',
+	'!test/automation/**',
 	'!test/smoke/**',
 	...tslintBaseFilter
 ];
@@ -160,6 +162,7 @@ const tslintExtensionsFilter = [
 	'extensions/**/*.ts',
 	'!src/**/*.ts',
 	'!test/**/*.ts',
+	'test/automation/**/*.ts',
 	...tslintBaseFilter
 ];
 
