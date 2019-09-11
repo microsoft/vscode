@@ -11,7 +11,6 @@ import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFacto
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import { IProductConfiguration } from 'vs/platform/product/common/product';
 import { LogLevel } from 'vs/platform/log/common/log';
 
 export interface IWorkbenchConstructionOptions {
@@ -73,11 +72,6 @@ export interface IWorkbenchConstructionOptions {
 	 * Experimental: Support for URL callbacks.
 	 */
 	urlCallbackProvider?: IURLCallbackProvider;
-
-	/**
-	 * Experimental: Support for product configuration.
-	 */
-	productConfiguration?: IProductConfiguration;
 
 	/**
 	 * Current logging level. Default is `LogLevel.Info`.
