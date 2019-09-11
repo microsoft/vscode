@@ -535,6 +535,7 @@
 		"badge.background": "#705697AA",
 		"progressBar.background": "#705697",
 		"walkThrough.embeddedEditorBackground": "#00000014",
-		"editorIndentGuide.activeBackground": "#777777"
+		"editorIndentGuide.background": "#aaaaaa60",
+		"editorIndentGuide.activeBackground": "#777777b0"
 	}
 }
