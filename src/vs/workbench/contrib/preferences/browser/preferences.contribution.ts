@@ -820,8 +820,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 		title: nls.localize('openSettingsJson', "Open Settings (JSON)"),
 		iconLocation: {
-			dark: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg')),
-			light: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg'))
+			dark: PREFERENCES_EDITOR_DARK_ICON_URI,
+			light: PREFERENCES_EDITOR_LIGHT_ICON_URI
 		}
 	},
 	group: 'navigation',

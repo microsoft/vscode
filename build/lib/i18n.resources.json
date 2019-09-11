@@ -171,6 +171,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/customEditor",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/welcome",
 			"project": "vscode-workbench"
 		},
