@@ -14,7 +14,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
 import { asPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, IRawColorInfo, IMainContext, IdObject, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILanguageConfigurationDto, IWorkspaceSymbolDto, ISuggestResultDto, IWorkspaceSymbolsDto, ICodeActionDto, IDocumentFilterDto, IWorkspaceEditDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICodeLensDto, ISuggestDataDto, ILinksListDto, ChainedCacheId, ICodeLensListDto, ICodeActionListDto, ISignatureHelpDto, ISignatureHelpContextDto } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, IRawColorInfo, IMainContext, IdObject, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILanguageConfigurationDto, IWorkspaceSymbolDto, ISuggestResultDto, IWorkspaceSymbolsDto, ICodeActionDto, IDocumentFilterDto, IWorkspaceEditDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICodeLensDto, ISuggestDataDto, ILinksListDto, ChainedCacheId, ICodeLensListDto, ICodeActionListDto, ISignatureHelpDto, ISignatureHelpContextDto, ICallHierarchyItemDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
@@ -1011,8 +1011,8 @@ class SelectionRangeAdapter {
 
 class CallHierarchyAdapter {
 
-	// todo@joh keep object (heap service, lifecycle)
-	private readonly _cache = new LRUCache<number, vscode.CallHierarchyItem>(1000, 0.8);
+	// todo@joh keep object (add managed lifecycle)
+	private readonly _cache = new LRUCache<number, vscode.CallHierarchyItem>(3000, 0.8);
 	private _idPool = 0;
 
 	constructor(
@@ -1020,33 +1020,39 @@ class CallHierarchyAdapter {
 		private readonly _provider: vscode.CallHierarchyItemProvider
 	) { }
 
-	provideCallHierarchyItem(resource: URI, pos: IPosition, token: CancellationToken): Promise<undefined | callHierarchy.CallHierarchyItem> {
+	async resolveCallHierarchyItem(resource: URI, pos: IPosition, token: CancellationToken): Promise<undefined | callHierarchy.CallHierarchyItem> {
 		const document = this._documents.getDocument(resource);
 		const position = typeConvert.Position.to(pos);
 
-		return asPromise(() => this._provider.provideCallHierarchyItem(document, position, token)).then(item => {
-			if (!item) {
-				return undefined;
-			}
-			return this._fromItem(item);
-		});
+		const item = await this._provider.resolveCallHierarchyItem(document, position, token);
+		if (!item) {
+			return undefined;
+		}
+		return this._fromItem(item);
 	}
 
-	resolveCallHierarchyItem(item: callHierarchy.CallHierarchyItem, direction: callHierarchy.CallHierarchyDirection, token: CancellationToken): Promise<[callHierarchy.CallHierarchyItem, modes.Location[]][]> {
-		return asPromise(() => this._provider.resolveCallHierarchyItem(
-			this._cache.get(item._id)!,
-			direction as number, token) // todo@joh proper convert
-		).then(data => {
-			if (!data) {
-				return [];
-			}
-			return data.map(tuple => {
-				return <[callHierarchy.CallHierarchyItem, modes.Location[]]>[
-					this._fromItem(tuple[0]),
-					tuple[1].map(typeConvert.location.from)
-				];
-			});
-		});
+	async provideCallsTo(target: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined> {
+		const item = this._cache.get(target._id);
+		if (!item) {
+			return undefined;
+		}
+		const calls = await this._provider.provideCallHierarchyIncomingCalls(item, token);
+		if (!calls) {
+			return undefined;
+		}
+		return calls.map(call => (<[ICallHierarchyItemDto, IRange[]]>[this._fromItem(call.source), call.sourceRanges.map(typeConvert.Range.from)]))
+	}
+
+	async provideCallsFrom(source: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined> {
+		const item = this._cache.get(source._id);
+		if (!item) {
+			return undefined;
+		}
+		const calls = await this._provider.provideCallHierarchyOutgoingCalls(item, token);
+		if (!calls) {
+			return undefined;
+		}
+		return calls.map(call => (<[ICallHierarchyItemDto, IRange[]]>[this._fromItem(call.target), call.sourceRanges.map(typeConvert.Range.from)]))
 	}
 
 	private _fromItem(item: vscode.CallHierarchyItem, _id: number = this._idPool++): callHierarchy.CallHierarchyItem {
@@ -1496,12 +1502,16 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCallHierarchyItem(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<undefined | callHierarchy.CallHierarchyItem> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallHierarchyItem(URI.revive(resource), position, token), undefined);
+	$resolveCallHierarchyItem(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ICallHierarchyItemDto | undefined> {
+		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.resolveCallHierarchyItem(URI.revive(resource), position, token), undefined);
 	}
 
-	$resolveCallHierarchyItem(handle: number, item: callHierarchy.CallHierarchyItem, direction: callHierarchy.CallHierarchyDirection, token: CancellationToken): Promise<[callHierarchy.CallHierarchyItem, modes.Location[]][]> {
-		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.resolveCallHierarchyItem(item, direction, token), []);
+	$provideCallHierarchyIncomingCalls(handle: number, target: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined> {
+		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsTo(target, token), undefined);
+	}
+
+	$provideCallHierarchyOutgoingCalls(handle: number, source: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined> {
+		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsFrom(source, token), undefined);
 	}
 
 	// --- configuration

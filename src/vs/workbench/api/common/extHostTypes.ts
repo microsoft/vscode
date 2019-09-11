@@ -1146,12 +1146,6 @@ export class SelectionRange {
 	}
 }
 
-
-export enum CallHierarchyDirection {
-	CallsFrom = 1,
-	CallsTo = 2,
-}
-
 export class CallHierarchyItem {
 	kind: SymbolKind;
 	name: string;
@@ -1167,6 +1161,27 @@ export class CallHierarchyItem {
 		this.uri = uri;
 		this.range = range;
 		this.selectionRange = selectionRange;
+	}
+}
+
+export class CallHierarchyIncomingCall {
+
+	source: CallHierarchyItem;
+	sourceRanges: Range[];
+
+	constructor(item: CallHierarchyItem, sourceRanges: Range[]) {
+		this.sourceRanges = sourceRanges;
+		this.source = item;
+	}
+}
+export class CallHierarchyOutgoingCall {
+
+	target: CallHierarchyItem;
+	sourceRanges: Range[];
+
+	constructor(item: CallHierarchyItem, sourceRanges: Range[]) {
+		this.sourceRanges = sourceRanges;
+		this.target = item;
 	}
 }
 
