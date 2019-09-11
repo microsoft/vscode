@@ -54,7 +54,7 @@ class WebviewIconsManager {
 
 export class WebviewEditorInput extends EditorInput {
 
-	public static readonly typeId = 'workbench.editors.webviewInput';
+	public static typeId = 'workbench.editors.webviewInput';
 
 	private static readonly iconsManager = new WebviewIconsManager();
 

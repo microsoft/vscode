@@ -16,6 +16,8 @@ import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webv
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class CustomFileEditorInput extends WebviewEditorInput {
+	public static typeId = 'workbench.editors.webviewEditor';
+
 	private name?: string;
 	private _hasResolved = false;
 
