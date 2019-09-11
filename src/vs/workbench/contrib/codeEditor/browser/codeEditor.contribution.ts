@@ -15,4 +15,3 @@ import './toggleRenderControlCharacter';
 import './toggleRenderWhitespace';
 import './toggleWordWrap';
 import './workbenchReferenceSearch';
-import './selectionDecorations';
