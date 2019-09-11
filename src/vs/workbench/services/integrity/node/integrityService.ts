@@ -86,22 +86,32 @@ export class IntegrityServiceImpl implements IIntegrityService {
 			return; // Do not prompt
 		}
 
-		this.notificationService.prompt(
-			Severity.Warning,
-			nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort),
-			[
-				{
-					label: nls.localize('integrity.moreInformation', "More Information"),
-					run: () => this.openerService.open(URI.parse(product.checksumFailMoreInfoUrl))
-				},
-				{
-					label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),
-					isSecondary: true,
-					run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
-				}
-			],
-			{ sticky: true }
-		);
+		const checksumFailMoreInfoUrl = product.checksumFailMoreInfoUrl;
+		const message = nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort);
+		if (checksumFailMoreInfoUrl) {
+			this.notificationService.prompt(
+				Severity.Warning,
+				message,
+				[
+					{
+						label: nls.localize('integrity.moreInformation', "More Information"),
+						run: () => this.openerService.open(URI.parse(checksumFailMoreInfoUrl))
+					},
+					{
+						label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),
+						isSecondary: true,
+						run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
+					}
+				],
+				{ sticky: true }
+			);
+		} else {
+			this.notificationService.notify({
+				severity: Severity.Warning,
+				message,
+				sticky: true
+			});
+		}
 	}
 
 	isPure(): Promise<IntegrityTestResult> {

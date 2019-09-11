@@ -809,7 +809,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onWillOpenEditor.fire(event);
 		const prevented = event.isPrevented();
 		if (prevented) {
-			return prevented().then(withUndefinedAsNull);
+			return withUndefinedAsNull(await prevented());
 		}
 
 		// Proceed with opening

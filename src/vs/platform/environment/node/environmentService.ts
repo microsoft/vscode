@@ -104,7 +104,6 @@ export class EnvironmentService implements IEnvironmentService {
 		return parseUserDataDir(this._args, process);
 	}
 
-
 	get appNameLong(): string { return product.nameLong; }
 
 	get appQuality(): string | undefined { return product.quality; }

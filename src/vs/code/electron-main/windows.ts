@@ -210,10 +210,11 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	}
 
 	private installWindowsMutex(): void {
-		if (isWindows) {
+		const win32MutexName = product.win32MutexName;
+		if (isWindows && win32MutexName) {
 			try {
 				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
-				const mutex = new WindowsMutex(product.win32MutexName);
+				const mutex = new WindowsMutex(win32MutexName);
 				once(this.lifecycleService.onWillShutdown)(() => mutex.release());
 			} catch (e) {
 				this.logService.error(e);
