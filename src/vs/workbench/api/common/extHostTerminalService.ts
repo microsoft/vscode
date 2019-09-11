@@ -281,24 +281,24 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 	readonly _serviceBrand: undefined;
 
-	private _proxy: MainThreadTerminalServiceShape;
-	private _activeTerminal: ExtHostTerminal | undefined;
-	private _terminals: ExtHostTerminal[] = [];
-	private _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
-	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
+	protected _proxy: MainThreadTerminalServiceShape;
+	protected _activeTerminal: ExtHostTerminal | undefined;
+	protected _terminals: ExtHostTerminal[] = [];
+	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
+	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
 
-	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
+	protected readonly _onDidCloseTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
 	public get onDidCloseTerminal(): Event<vscode.Terminal> { return this._onDidCloseTerminal && this._onDidCloseTerminal.event; }
-	private readonly _onDidOpenTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
+	protected readonly _onDidOpenTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
 	public get onDidOpenTerminal(): Event<vscode.Terminal> { return this._onDidOpenTerminal && this._onDidOpenTerminal.event; }
-	private readonly _onDidChangeActiveTerminal: Emitter<vscode.Terminal | undefined> = new Emitter<vscode.Terminal | undefined>();
+	protected readonly _onDidChangeActiveTerminal: Emitter<vscode.Terminal | undefined> = new Emitter<vscode.Terminal | undefined>();
 	public get onDidChangeActiveTerminal(): Event<vscode.Terminal | undefined> { return this._onDidChangeActiveTerminal && this._onDidChangeActiveTerminal.event; }
-	private readonly _onDidChangeTerminalDimensions: Emitter<vscode.TerminalDimensionsChangeEvent> = new Emitter<vscode.TerminalDimensionsChangeEvent>();
+	protected readonly _onDidChangeTerminalDimensions: Emitter<vscode.TerminalDimensionsChangeEvent> = new Emitter<vscode.TerminalDimensionsChangeEvent>();
 	public get onDidChangeTerminalDimensions(): Event<vscode.TerminalDimensionsChangeEvent> { return this._onDidChangeTerminalDimensions && this._onDidChangeTerminalDimensions.event; }
-	private readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
+	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
 	constructor(
@@ -311,19 +311,13 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		});
 	}
 
-	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, name);
-		terminal.create(shellPath, shellArgs);
-		this._terminals.push(terminal);
-		return terminal;
-	}
-
-	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, options.name);
-		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
-		this._terminals.push(terminal);
-		return terminal;
-	}
+	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
+	public abstract createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal;
+	public abstract getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
+	public abstract $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void>;
+	public abstract $requestAvailableShells(): Promise<IShellDefinitionDto[]>;
+	public abstract $requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
+	public abstract $acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options.name);
@@ -341,8 +335,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		const p = new ExtHostPseudoterminal(pty);
 		this._setupExtHostProcessListeners(id, p);
 	}
-
-	public abstract getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
 
 	public async $acceptActiveTerminalChanged(id: number | null): Promise<void> {
 		const original = this._activeTerminal;
@@ -454,8 +446,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 	}
 
-	public abstract $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void>;
-
 	public async $startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
 		// Make sure the ExtHostTerminal exists so onDidOpenTerminal has fired before we call
 		// Pseudoterminal.start
@@ -494,7 +484,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 	}
 
-	private _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
+	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
 		p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd));
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 		p.onProcessData(data => this._proxy.$sendProcessData(id, data));
@@ -535,9 +525,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public $acceptProcessRequestLatency(id: number): number {
 		return id;
 	}
-
-	public abstract $requestAvailableShells(): Promise<IShellDefinitionDto[]>;
-	public abstract $requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 
 	private _onProcessExit(id: number, exitCode: number): void {
 		// Remove process reference
@@ -598,13 +585,17 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		});
 		return index;
 	}
-
-	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
-		// No-op for web worker ext host
-	}
 }
 
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
+	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
+		throw new Error('Not implemented');
+	}
+
+	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
+		throw new Error('Not implemented');
+	}
+
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
 		throw new Error('Not implemented');
 	}
@@ -619,5 +610,9 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public async $requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
 		throw new Error('Not implemented');
+	}
+
+	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
+		// No-op for web worker ext host as workspace permissions aren't used
 	}
 }
