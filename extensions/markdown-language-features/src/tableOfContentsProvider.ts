@@ -15,12 +15,16 @@ export interface TocEntry {
 	readonly location: vscode.Location;
 }
 
+export interface SkinnyTextLine {
+	text: string;
+}
+
 export interface SkinnyTextDocument {
 	readonly uri: vscode.Uri;
 	readonly version: number;
 	readonly lineCount: number;
 
-	lineAt(line: number): vscode.TextLine;
+	lineAt(line: number): SkinnyTextLine;
 	getText(): string;
 }
 
