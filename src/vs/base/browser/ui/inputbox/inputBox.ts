@@ -581,6 +581,19 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public insertAtCursor(text: string): void {
+		const inputElement = this.inputElement;
+		const start = inputElement.selectionStart;
+		const end = inputElement.selectionEnd;
+		const content = inputElement.value;
+
+		if (start !== null && end !== null) {
+			this.value = content.substr(0, start) + text + content.substr(end);
+			inputElement.setSelectionRange(start + 1, start + 1);
+			this.layout();
+		}
+	}
+
 	public dispose(): void {
 		this._hideMessage();
 
