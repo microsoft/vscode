@@ -386,6 +386,19 @@ function packagePkgTask(platform, arch, pkgTarget) {
 	));
 
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
+		() => {
+			const marker = '{ /*BUILD->INSERT_PRODUCT_CONFIGURATION*/}';
+			const fullpath = path.join(process.cwd(), 'out-build', 'vs', 'platform', 'product', 'browser', 'product.js');
+			const contents = fs.readFileSync(fullpath).toString();
+			if (contents.indexOf(marker) === -1) {
+				throw new Error(`Web build: unable to find ${marker} in ${fullpath}`);
+			}
+			const newContents = contents.replace(marker, JSON.stringify({
+				...product,
+				version: packageJson.version
+			}));
+			fs.writeFileSync(fullpath, newContents);
+		},
 		optimizeTask,
 		util.rimraf(`out-vscode-${type}-min`),
 		common.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
