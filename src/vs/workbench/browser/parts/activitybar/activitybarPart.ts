@@ -35,6 +35,7 @@ import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/a
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 
 interface ICachedViewlet {
 	id: string;
@@ -64,6 +65,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private globalActivityAction: ActivityAction;
 	private globalActivityActionBar: ActionBar;
+
+	private customMenubar: CustomMenubarControl;
 
 	private cachedViewlets: ICachedViewlet[] = [];
 
@@ -187,6 +190,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const content = document.createElement('div');
 		addClass(content, 'content');
 		parent.appendChild(content);
+
+		const menu = document.createElement('div');
+		addClass(menu, 'menubar');
+		content.appendChild(menu);
+
+		// Menubar: install a custom menu bar depending on configuration
+		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+		this.customMenubar.create(menu);
 
 		// Viewlets action bar
 		this.compositeBar.create(content);

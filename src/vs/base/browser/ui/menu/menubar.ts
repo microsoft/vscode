@@ -29,6 +29,7 @@ export interface IMenuBarOptions {
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
+	compact?: boolean;
 }
 
 export interface MenuBarMenu {
@@ -92,6 +93,9 @@ export class MenuBar extends Disposable {
 		super();
 
 		this.container.setAttribute('role', 'menubar');
+		if (this.options.compact) {
+			DOM.addClass(this.container, 'compact');
+		}
 
 		this.menuCache = [];
 		this.mnemonics = new Map<string, number>();
@@ -292,7 +296,7 @@ export class MenuBar extends Disposable {
 	}
 
 	createOverflowMenu(): void {
-		const label = nls.localize('mMore', "...");
+		const label = this.options.compact ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', "...");
 		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': label, 'aria-haspopup': true });
 		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more', { 'role': 'none', 'aria-hidden': true });
 
@@ -421,7 +425,7 @@ export class MenuBar extends Disposable {
 
 		const sizeAvailable = this.container.offsetWidth;
 		let currentSize = 0;
-		let full = false;
+		let full = this.options.compact;
 		const prevNumMenusShown = this.numMenusShown;
 		this.numMenusShown = 0;
 		for (let menuBarMenu of this.menuCache) {
@@ -884,8 +888,14 @@ export class MenuBar extends Disposable {
 		const menuHolder = $('div.menubar-menu-items-holder');
 
 		DOM.addClass(customMenu.buttonElement, 'open');
-		menuHolder.style.top = `${this.container.clientHeight}px`;
-		menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
+
+		if (this.options.compact) {
+			menuHolder.style.top = `0px`;
+			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left + this.container.clientWidth}px`;
+		} else {
+			menuHolder.style.top = `${this.container.clientHeight}px`;
+			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
+		}
 
 		customMenu.buttonElement.appendChild(menuHolder);
 
