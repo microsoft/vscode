@@ -152,16 +152,15 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 
 export function buildRegexParseError(lines: string[]): string {
 	let errorMessage: string[] = ['Regex parse error'];
-	errorMessage.push(lines[0].trim());
 	lines.forEach(line => {
-		if (startsWith(line, 'error:')) {
-			errorMessage.push(line);
-		} else if (startsWith(line, 'PCRE2:')) {
+		if (startsWith(line, 'PCRE2:')) {
 			// Just show the error without PCRE2 label
-			errorMessage.push(line.replace('PCRE2:', ''));
+			let pcre2ErrorMessage = line.replace('PCRE2:', '');
+			let pcre2ActualErrorMessage = pcre2ErrorMessage.split(':')[1];
+			errorMessage.push(pcre2ActualErrorMessage);
 		}
 	});
-	return errorMessage.join(' ; ');
+	return errorMessage.join(' : ');
 }
 
 
