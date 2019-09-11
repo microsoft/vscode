@@ -143,6 +143,10 @@ export const IDialogService = createDecorator<IDialogService>('dialogService');
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
+	checkbox?: {
+		label: string;
+		checked?: boolean;
+	};
 }
 
 /**

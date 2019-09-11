@@ -137,11 +137,13 @@ class NativeDialogService implements IDialogService {
 			buttons,
 			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
 			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
-			detail: dialogOptions ? dialogOptions.detail : undefined
+			detail: dialogOptions ? dialogOptions.detail : undefined,
+			checkboxLabel: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.label : undefined,
+			checkboxChecked: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.checked : undefined
 		});
 
 		const result = await this.windowService.showMessageBox(options);
-		return { choice: buttonIndexMap[result.button] };
+		return { choice: buttonIndexMap[result.button], checkboxChecked: result.checkboxChecked };
 	}
 
 	private massageMessageBoxOptions(options: Electron.MessageBoxOptions): IMassagedMessageBoxOptions {

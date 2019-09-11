@@ -97,7 +97,9 @@ export class DialogService implements IDialogService {
 							EventHelper.stop(event, true);
 						}
 					}
-				}
+				},
+				checkboxLabel: options && options.checkbox ? options.checkbox.label : undefined,
+				checkboxChecked: options && options.checkbox ? options.checkbox.checked : undefined
 			});
 
 		dialogDisposables.add(dialog);
@@ -107,7 +109,8 @@ export class DialogService implements IDialogService {
 		dialogDisposables.dispose();
 
 		return {
-			choice: result.button
+			choice: result.button,
+			checkboxChecked: result.checkboxChecked
 		};
 	}
 }
