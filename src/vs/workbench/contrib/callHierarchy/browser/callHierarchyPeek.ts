@@ -22,15 +22,13 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { registerThemingParticipant, themeColorFromId, IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import * as referencesWidget from 'vs/editor/contrib/referenceSearch/referencesWidget';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
 import { TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
@@ -110,7 +108,6 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		@IPeekViewService private readonly _peekViewService: IPeekViewService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@ILabelService private readonly _labelService: ILabelService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -239,15 +236,15 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		}));
 
 		// session state
-		let localDispose: IDisposable[] = [];
-		this._disposables.add({ dispose() { dispose(localDispose); } });
+		const localDispose = new DisposableStore();
+		this._disposables.add(localDispose);
 
 		// update editor
 		this._disposables.add(this._tree.onDidChangeFocus(e => {
 			const [element] = e.elements;
-			if (element && isNonEmptyArray(element.locations)) {
+			if (element) {
 
-				localDispose = dispose(localDispose);
+				localDispose.clear();
 
 				const options: IModelDecorationOptions = {
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -257,20 +254,28 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 						position: OverviewRulerLane.Center
 					},
 				};
-				let decorations: IModelDeltaDecoration[] = [];
-				let fullRange: IRange | undefined;
-				for (const { range } of element.locations) {
-					decorations.push({ range, options });
-					fullRange = !fullRange ? range : Range.plusRange(range, fullRange);
-				}
 
 				this._textModelService.createModelReference(element.item.uri).then(value => {
 					this._editor.setModel(value.object.textEditorModel);
-					this._editor.revealRangeInCenter(fullRange!, ScrollType.Smooth);
-					this._editor.revealLine(element.item.range.startLineNumber, ScrollType.Smooth);
-					const ids = this._editor.deltaDecorations([], decorations);
-					localDispose.push({ dispose: () => this._editor.deltaDecorations(ids, []) });
-					localDispose.push(value);
+
+					// set decorations for caller ranges (if in the same file)
+					let decorations: IModelDeltaDecoration[] = [];
+					let fullRange: IRange | undefined;
+					for (const loc of element.locations) {
+						if (loc.uri.toString() === element.item.uri.toString()) {
+							decorations.push({ range: loc.range, options });
+							fullRange = !fullRange ? loc.range : Range.plusRange(loc.range, fullRange);
+						}
+					}
+					if (fullRange) {
+						this._editor.revealRange(fullRange, ScrollType.Immediate);
+						const ids = this._editor.deltaDecorations([], decorations);
+						localDispose.add(toDisposable(() => this._editor.deltaDecorations(ids, [])));
+					}
+
+					// reveal the actual element
+					this._editor.revealRange(element.item.range, ScrollType.Smooth);
+					localDispose.add(value);
 				});
 
 				let node: callHTree.Call | CallHierarchyItem = element;
@@ -313,11 +318,11 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				return;
 			}
 
-			if (e.element && isNonEmptyArray(e.element.locations)) {
+			if (e.element) {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: e.element.item.uri,
-					options: { selection: e.element.locations[0].range }
+					options: { selection: e.element.item.selectionRange }
 				});
 			}
 		}));
@@ -325,11 +330,11 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._disposables.add(this._tree.onDidChangeSelection(e => {
 			const [element] = e.elements;
 			// don't close on click
-			if (element && isNonEmptyArray(element.locations) && e.browserEvent instanceof KeyboardEvent) {
+			if (element && e.browserEvent instanceof KeyboardEvent) {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: element.item.uri,
-					options: { selection: element.locations[0].range }
+					options: { selection: element.item.selectionRange }
 				});
 			}
 		}));
@@ -373,7 +378,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			}
 			this.setTitle(
 				item.name,
-				item.detail || this._labelService.getUriLabel(item.uri, { relative: true }),
+				item.detail || '',
 			);
 		}
 

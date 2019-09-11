@@ -10,7 +10,6 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
-import { Range } from 'vs/editor/common/core/range';
 import { hash } from 'vs/base/common/hash';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
@@ -44,7 +43,7 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 			return results;
 		} else {
 			// 'root'
-			return [new Call(element, [{ uri: element.uri, range: Range.lift(element.range).collapseToStart() }], undefined)];
+			return [new Call(element, [], undefined)];
 		}
 	}
 

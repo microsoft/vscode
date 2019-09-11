@@ -81,7 +81,7 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 			this._editor,
 			position,
 			provider,
-			CallHierarchyDirection.CallsTo
+			CallHierarchyDirection.CallsFrom
 		);
 
 		widget.showLoading();
