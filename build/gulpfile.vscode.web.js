@@ -23,9 +23,12 @@ const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 
 const REPO_ROOT = path.dirname(__dirname);
-const commit = util.getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
+
+const commit = util.getVersion(REPO_ROOT);
+const quality = product.quality;
+const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
 const productionDependencies = deps.getProductionDependencies(WEB_FOLDER);
 
@@ -89,7 +92,9 @@ const vscodeWebPatchProductTask = () => {
 	const contents = fs.readFileSync(fullpath).toString();
 	const productConfiguration = JSON.stringify({
 		...product,
-		version: packageJson.version
+		version,
+		commit,
+		date: new Date().toISOString()
 	});
 	const newContents = contents.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
 	fs.writeFileSync(fullpath, newContents);
@@ -114,21 +119,9 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const sources = es.merge(src);
 
-		let version = packageJson.version;
-		const quality = product.quality;
-
-		if (quality && quality !== 'stable') {
-			version += '-' + quality;
-		}
-
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })
 			.pipe(json({ name, version }));
-
-		const date = new Date().toISOString();
-
-		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date }));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote' });
 
@@ -147,7 +140,6 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		let all = es.merge(
 			packageJsonStream,
-			productJsonStream,
 			license,
 			sources,
 			deps,
