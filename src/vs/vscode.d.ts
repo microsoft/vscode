@@ -8051,6 +8051,14 @@ declare module 'vscode' {
 		export const textDocuments: TextDocument[];
 
 		/**
+		 * Find a text document known to the system and return it or undefined if there's no such
+		 * a document.
+		 *
+		 * @param uri Identifies the resource to open.
+		 */
+		export function findDocument(uri: Uri): TextDocument | undefined;
+
+		/**
 		 * Opens a document. Will return early if this document is already open. Otherwise
 		 * the document is loaded and the [didOpen](#workspace.onDidOpenTextDocument)-event fires.
 		 *

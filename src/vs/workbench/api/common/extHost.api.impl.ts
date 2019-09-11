@@ -617,6 +617,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			set textDocuments(value) {
 				throw errors.readonly();
 			},
+			findDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
+				const documentData = extHostDocuments.getDocumentData(uri);
+				return documentData ? documentData.document : undefined;
+			},
 			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; }) {
 				let uriPromise: Thenable<URI>;
 
