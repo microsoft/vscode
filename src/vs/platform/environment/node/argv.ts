@@ -110,6 +110,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
 	'disable-inspect': { type: 'boolean' },
+	'force-user-env': { type: 'boolean' },
 
 	'js-flags': { type: 'string' }, // chrome js flags
 	'nolazy': { type: 'boolean' }, // node inspect
