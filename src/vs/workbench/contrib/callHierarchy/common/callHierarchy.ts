@@ -25,12 +25,12 @@ export interface CallHierarchyItem {
 	selectionRange: IRange;
 }
 
-export interface CallsTo {
+export interface IncomingCall {
 	source: CallHierarchyItem,
 	sourceRanges: IRange[]
 }
 
-export interface CallsFrom {
+export interface OutgoingCall {
 	sourceRanges: IRange[],
 	target: CallHierarchyItem
 }
@@ -39,9 +39,9 @@ export interface CallHierarchyProvider {
 
 	resolveCallHierarchyItem(document: ITextModel, postion: IPosition, token: CancellationToken): ProviderResult<CallHierarchyItem>;
 
-	provideCallsTo(target: CallHierarchyItem, token: CancellationToken): ProviderResult<CallsTo[]>;
+	provideIncomingCalls(target: CallHierarchyItem, token: CancellationToken): ProviderResult<IncomingCall[]>;
 
-	provideCallsFrom(source: CallHierarchyItem, token: CancellationToken): ProviderResult<CallsFrom[]>;
+	provideOutgoingCalls(source: CallHierarchyItem, token: CancellationToken): ProviderResult<OutgoingCall[]>;
 }
 
 export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();

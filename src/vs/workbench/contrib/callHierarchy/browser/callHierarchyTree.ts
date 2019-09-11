@@ -49,7 +49,7 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 
 	private async _getCallsFrom(source: Call, bucket: Call[]): Promise<void> {
 		try {
-			const callsFrom = await this.provider.provideCallsFrom(source.item, CancellationToken.None);
+			const callsFrom = await this.provider.provideOutgoingCalls(source.item, CancellationToken.None);
 			if (!callsFrom) {
 				return;
 			}
@@ -67,7 +67,7 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 
 	private async _getCallsTo(target: Call, bucket: Call[]): Promise<void> {
 		try {
-			const callsTo = await this.provider.provideCallsTo(target.item, CancellationToken.None);
+			const callsTo = await this.provider.provideIncomingCalls(target.item, CancellationToken.None);
 			if (!callsTo) {
 				return;
 			}

@@ -497,24 +497,24 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			resolveCallHierarchyItem: (document, position, token) => {
 				return this._proxy.$resolveCallHierarchyItem(handle, document.uri, position, token).then(MainThreadLanguageFeatures._reviveCallHierarchyItemDto);
 			},
-			provideCallsFrom: async (item, token) => {
-				const callsFrom = await this._proxy.$provideCallHierarchyItemsFrom(handle, item, token);
-				if (!callsFrom) {
-					return callsFrom;
+			provideOutgoingCalls: async (item, token) => {
+				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, item, token);
+				if (!outgoing) {
+					return outgoing;
 				}
-				return callsFrom.map(([item, sourceRanges]): callh.CallsFrom => {
+				return outgoing.map(([item, sourceRanges]): callh.OutgoingCall => {
 					return {
 						target: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
 						sourceRanges
 					}
 				});
 			},
-			provideCallsTo: async (item, token) => {
-				const callsTo = await this._proxy.$provideCallHierarchyItemsTo(handle, item, token);
-				if (!callsTo) {
-					return callsTo;
+			provideIncomingCalls: async (item, token) => {
+				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, item, token);
+				if (!incoming) {
+					return incoming;
 				}
-				return callsTo.map(([item, sourceRanges]): callh.CallsTo => {
+				return incoming.map(([item, sourceRanges]): callh.IncomingCall => {
 					return {
 						source: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
 						sourceRanges

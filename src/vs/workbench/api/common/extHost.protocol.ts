@@ -1112,8 +1112,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined>;
 	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]>;
 	$resolveCallHierarchyItem(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ICallHierarchyItemDto | undefined>;
-	$provideCallHierarchyItemsTo(handle: number, target: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
-	$provideCallHierarchyItemsFrom(handle: number, source: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
+	$provideCallHierarchyIncomingCalls(handle: number, target: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
+	$provideCallHierarchyOutgoingCalls(handle: number, source: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
 }
 
 export interface ExtHostQuickOpenShape {

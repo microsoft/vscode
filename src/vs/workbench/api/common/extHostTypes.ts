@@ -1164,7 +1164,7 @@ export class CallHierarchyItem {
 	}
 }
 
-export class CallsTo {
+export class CallHierarchyIncomingCall {
 
 	source: CallHierarchyItem;
 	sourceRanges: Range[];
@@ -1174,7 +1174,7 @@ export class CallsTo {
 		this.source = item;
 	}
 }
-export class CallsFrom {
+export class CallHierarchyOutgoingCall {
 
 	target: CallHierarchyItem;
 	sourceRanges: Range[];

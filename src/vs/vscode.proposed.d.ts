@@ -29,13 +29,13 @@ declare module 'vscode' {
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
-	export class CallsTo {
+	export class CallHierarchyIncomingCall {
 		source: CallHierarchyItem;
 		sourceRanges: Range[];
 		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
 	}
 
-	export class CallsFrom {
+	export class CallHierarchyOutgoingCall {
 		sourceRanges: Range[];
 		target: CallHierarchyItem;
 		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
@@ -43,15 +43,15 @@ declare module 'vscode' {
 
 	export interface CallHierarchyItemProvider {
 
+		provideCallHierarchyIncomingCalls(target: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
+
+		provideCallHierarchyOutgoingCalls(source: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
+
 		/**
 		 * Given a document and position compute a call hierarchy item. This is justed as
 		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
 		 */
 		resolveCallHierarchyItem(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
-
-		provideCallsTo(target: CallHierarchyItem, token: CancellationToken): ProviderResult<CallsTo[]>;
-
-		provideCallsFrom(source: CallHierarchyItem, token: CancellationToken): ProviderResult<CallsFrom[]>;
 	}
 
 	export namespace languages {

@@ -1036,7 +1036,7 @@ class CallHierarchyAdapter {
 		if (!item) {
 			return undefined;
 		}
-		const calls = await this._provider.provideCallsTo(item, token);
+		const calls = await this._provider.provideCallHierarchyIncomingCalls(item, token);
 		if (!calls) {
 			return undefined;
 		}
@@ -1048,7 +1048,7 @@ class CallHierarchyAdapter {
 		if (!item) {
 			return undefined;
 		}
-		const calls = await this._provider.provideCallsFrom(item, token);
+		const calls = await this._provider.provideCallHierarchyOutgoingCalls(item, token);
 		if (!calls) {
 			return undefined;
 		}
@@ -1506,11 +1506,11 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.resolveCallHierarchyItem(URI.revive(resource), position, token), undefined);
 	}
 
-	$provideCallHierarchyItemsTo(handle: number, target: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined> {
+	$provideCallHierarchyIncomingCalls(handle: number, target: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined> {
 		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsTo(target, token), undefined);
 	}
 
-	$provideCallHierarchyItemsFrom(handle: number, source: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined> {
+	$provideCallHierarchyOutgoingCalls(handle: number, source: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined> {
 		return this._withAdapter(handle, CallHierarchyAdapter, adapter => adapter.provideCallsFrom(source, token), undefined);
 	}
 
