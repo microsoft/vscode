@@ -87,20 +87,26 @@ export interface IRemoteUserDataService {
 }
 
 export enum SyncStatus {
-	Syncing = 1,
-	SyncDone
+	Uninitialized = 'uninitialized',
+	Idle = 'idle',
+	Syncing = 'syncing',
+	HasConflicts = 'hasConflicts',
+}
+
+export interface ISynchroniser {
+	readonly status: SyncStatus;
+	readonly onDidChangeStatus: Event<SyncStatus>;
+	sync(): Promise<boolean>;
+	resolveConflicts(): void;
+	apply(): void;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 
 export interface IUserDataSyncService {
-
 	_serviceBrand: any;
-
-	readonly syncStatus: SyncStatus;
-
-	readonly onDidChangeSyncStatus: Event<SyncStatus>;
-
-	synchronise(): Promise<void>;
-
+	readonly status: SyncStatus;
+	readonly onDidChangeStatus: Event<SyncStatus>;
+	sync(): Promise<void>;
+	resolveConflicts(): void;
 }
