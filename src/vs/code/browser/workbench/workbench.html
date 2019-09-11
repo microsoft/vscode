@@ -14,7 +14,7 @@
 				default-src 'self';
 				img-src 'self' https: data: blob:;
 				media-src 'none';
-				script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https: 'sha256-4DqvCTjCHj2KW4QxC/Yt6uBwMRyYiEg7kOoykSEkonQ=' 'sha256-4i4ZKOTzR9VPdhew0hOqnhvy09L6eRM2iyzJlc5loi4=';
+				script-src 'self' https://az416426.vo.msecnd.net 'unsafe-eval' https: 'sha256-4DqvCTjCHj2KW4QxC/Yt6uBwMRyYiEg7kOoykSEkonQ=';
 				child-src 'self';
 				frame-src 'self' {{WEBVIEW_ENDPOINT}} https://*.vscode-webview-test.com;
 				worker-src 'self';
@@ -63,10 +63,4 @@
 	<script src="./static/out/vs/workbench/workbench.web.api.nls.js"></script>
 	<script src="./static/out/vs/workbench/workbench.web.api.js"></script>
 	<script src="./static/out/vs/code/browser/workbench/workbench.js"></script>
-	<script>
-		// NOTE: Changes to inline scripts require update of content security policy
-		require(['vs/code/browser/workbench/workbench'], function (web) {
-			web.main();
-		});
-	</script>
 </html>
