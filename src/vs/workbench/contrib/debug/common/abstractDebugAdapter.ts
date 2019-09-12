@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDebugAdapter } from 'vs/workbench/contrib/debug/common/debug';
+import { timeout } from 'vs/base/common/async';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -136,22 +137,22 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		this.sendMessage(message);
 	}
 
-	protected cancelPending() {
-		const pending = this.pendingRequests;
+	async cancelPending(): Promise<void> {
+		const pending = new Map<number, (e: DebugProtocol.Response) => void>();
+		this.pendingRequests.forEach((value, key) => pending.set(key, value));
 		this.pendingRequests.clear();
-		setTimeout(_ => {
-			pending.forEach((callback, request_seq) => {
-				const err: DebugProtocol.Response = {
-					type: 'response',
-					seq: 0,
-					request_seq,
-					success: false,
-					command: 'canceled',
-					message: 'canceled'
-				};
-				callback(err);
-			});
-		}, 1000);
+		await timeout(1000);
+		pending.forEach((callback, request_seq) => {
+			const err: DebugProtocol.Response = {
+				type: 'response',
+				seq: 0,
+				request_seq,
+				success: false,
+				command: 'canceled',
+				message: 'canceled'
+			};
+			callback(err);
+		});
 	}
 
 	dispose(): void {
