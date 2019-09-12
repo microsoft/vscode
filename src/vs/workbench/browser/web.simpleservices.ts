@@ -342,6 +342,7 @@ export class SimpleWindowsService implements IWindowsService {
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 	}
+
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(true);
 	}
@@ -560,7 +561,7 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	getActiveWindowId(): Promise<number | undefined> {
-		return Promise.resolve(undefined);
+		return Promise.resolve(0);
 	}
 
 	// This needs to be handled from browser process to prevent

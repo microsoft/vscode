@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IUpdateService, State, UpdateType, IUpdate } from 'vs/platform/update/common/update';
+import { IUpdateService, State, UpdateType } from 'vs/platform/update/common/update';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
+
+export interface IUpdate {
+	version: string;
+}
 
 export interface IUpdateProvider {
 
@@ -63,7 +67,7 @@ export class UpdateService extends Disposable implements IUpdateService {
 			const update = await updateProvider.checkForUpdate();
 			if (update) {
 				// State -> Downloaded
-				this.state = State.Ready(update);
+				this.state = State.Ready({ version: update.version, productVersion: update.version });
 			} else {
 				// State -> Idle
 				this.state = State.Idle(UpdateType.Archive);
