@@ -10,7 +10,6 @@ import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUpdateService, State } from 'vs/platform/update/common/update';
 import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
@@ -33,40 +32,6 @@ import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 // tslint:disable-next-line: import-patterns
 import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
-
-//#region Update
-
-export class SimpleUpdateService implements IUpdateService {
-
-	_serviceBrand: undefined;
-
-	onStateChange = Event.None;
-	state!: State;
-
-	checkForUpdates(context: any): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	downloadUpdate(): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	applyUpdate(): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	quitAndInstall(): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	isLatestVersion(): Promise<boolean> {
-		return Promise.resolve(true);
-	}
-}
-
-registerSingleton(IUpdateService, SimpleUpdateService);
-
-//#endregion
 
 //#region Window
 
