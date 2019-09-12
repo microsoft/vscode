@@ -25,6 +25,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Position } from 'vs/editor/common/core/position';
 import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -57,12 +58,13 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IHistoryService private readonly historyService: IHistoryService,
 	) {
 		super();
 
 		const settingsPreviewScheme = 'vscode-in-memory';
-		this.settingsPreviewResource = this.workbenchEnvironmentService.settingsResource.with({ scheme: settingsPreviewScheme });
+		this.settingsPreviewResource = URI.file('Settings-Preview').with({ scheme: settingsPreviewScheme });
 		this.fileService.registerProvider(settingsPreviewScheme, new InMemoryFileSystemProvider());
 	}
 
@@ -97,15 +99,17 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 
 	resolveConflicts(): void {
 		if (this.status === SyncStatus.HasConflicts) {
-			this.editorService.openEditor({
+			const resourceInput = {
 				resource: this.settingsPreviewResource,
 				label: localize('settings preview', "Settings Preview"),
 				options: {
 					preserveFocus: false,
-					pinned: true,
-					revealIfVisible: true
-				}
-			});
+					pinned: false,
+					revealIfVisible: true,
+				},
+				mode: 'jsonc'
+			};
+			this.editorService.openEditor(resourceInput).then(() => this.historyService.remove(resourceInput));
 		}
 	}
 
