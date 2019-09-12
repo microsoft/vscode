@@ -28,8 +28,8 @@ export class MainThreadUserData extends Disposable implements MainThreadUserData
 			read(key: string): Promise<IUserData | null> {
 				return proxy.$read(key);
 			},
-			write(key: string, version: number, content: string): Promise<void> {
-				return proxy.$write(key, version, content);
+			write(key: string, content: string, ref: string): Promise<string> {
+				return proxy.$write(key, content, ref);
 			}
 		});
 	}
