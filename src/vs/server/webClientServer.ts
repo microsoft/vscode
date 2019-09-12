@@ -146,6 +146,7 @@ export class WebClientServer extends Disposable {
 	 */
 	private async _handleStatic(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		const headers: Record<string, string> = Object.create(null);
+
 		// Allow all service worker requests to control the "max" scope
 		// see: https://www.w3.org/TR/service-workers-1/#extended-http-headers
 		if (req.headers['service-worker']) {
@@ -155,13 +156,6 @@ export class WebClientServer extends Disposable {
 		// Strip `/static/` from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
 		const relativeFilePath = path.normalize(normalizedPathname.substr('/static/'.length));
-
-		const client = this._environmentService.args['client'];
-		if (client && normalizedPathname !== '/static/out/vs/code/browser/workbench/workbench.js') {
-			// use provided path as client root
-			const filePath = path.join(path.normalize(client), relativeFilePath);
-			return serveFile(this._logService, req, res, filePath, headers);
-		}
 
 		const filePath = path.join(APP_ROOT, relativeFilePath);
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {

@@ -34,7 +34,6 @@ const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	'folder': { type: 'string' },
 	'workspace': { type: 'string' },
-	'client': { type: 'string' },
 	'web-user-data-dir': { type: 'string' },
 
 	_: OPTIONS['_']
@@ -62,7 +61,6 @@ export interface ServerParsedArgs {
 	// web
 	workspace: string;
 	folder: string;
-	client: string;
 	'web-user-data-dir'?: string;
 
 	_: string[];

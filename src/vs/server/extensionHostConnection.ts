@@ -154,15 +154,13 @@ export class ExtensionHostConnection {
 
 			// Lifecycle
 			this._extensionHostProcess.on('error', (err) => {
-				console.log(`EXTHOST: PROCESS ERRORD`);
+				console.log(`EXTHOST: PROCESS ERROR`);
 				console.log(err);
 				this._cleanResources();
 			});
 
 			this._extensionHostProcess.on('exit', (code: number, signal: string) => {
-				console.log(`EXTHOST: PROCESS EXITED`);
-				console.log(code);
-				console.log(signal);
+				console.log(`EXTHOST: PROCESS EXITED (Code: ${code}, Signal: ${signal})`);
 				this._cleanResources();
 			});
 
