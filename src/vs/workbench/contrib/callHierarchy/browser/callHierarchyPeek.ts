@@ -298,8 +298,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				}
 
 				const title = this._direction === CallHierarchyDirection.CallsFrom
-					? localize('callFrom', "Calls from: {0}", this._tree.getInput()!.word)
-					: localize('callsTo', "Callers of: {0}", this._tree.getInput()!.word);
+					? localize('callFrom', "Calls from '{0}'", this._tree.getInput()!.word)
+					: localize('callsTo', "Callers of '{0}'", this._tree.getInput()!.word);
 
 				this.setTitle(title, names.join(' → '));
 			}
@@ -374,7 +374,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			//
 			this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
 				? localize('empt.callsFrom', "No calls from '{0}'", item.word)
-				: localize('empt.callsTo', "No calls to '{0}'", item.word));
+				: localize('empt.callsTo', "No callers of '{0}'", item.word));
 
 		} else {
 			this._parent.dataset['state'] = State.Data;
