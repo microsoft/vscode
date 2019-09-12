@@ -92,7 +92,18 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 			await this.apply();
 			return true;
 		} catch (e) {
+			this.syncPreviewResultPromise = null;
 			this.setStatus(SyncStatus.Idle);
+			if (e instanceof RemoteUserDataError && e.code === RemoteUserDataErrorCode.Rejected) {
+				// Rejected as there is a new remote version. Syncing again,
+				this.logService.info('Failed to Synchronise settings as there is a new remote version available. Synchronising again...');
+				return this.sync();
+			}
+			if (e instanceof FileSystemProviderError && e.code === FileSystemProviderErrorCode.FileExists) {
+				// Rejected as there is a new local version. Syncing again.
+				this.logService.info('Failed to Synchronise settings as there is a new local version available. Synchronising again...');
+				return this.sync();
+			}
 			throw e;
 		}
 	}
@@ -414,38 +425,17 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 	}
 
 	private async writeToRemote(content: string, ref: string | null): Promise<string> {
-		try {
-			return await this.remoteUserDataService.write(SettingsSyncService.EXTERNAL_USER_DATA_SETTINGS_KEY, content, ref);
-		} catch (e) {
-			if (e instanceof RemoteUserDataError && e.code === RemoteUserDataErrorCode.Rejected) {
-				// Rejected as there is a new version. Sync again
-			}
-			// An unknown error
-			throw e;
-		}
+		return this.remoteUserDataService.write(SettingsSyncService.EXTERNAL_USER_DATA_SETTINGS_KEY, content, ref);
 	}
 
 	private async writeToLocal(newContent: string, oldContent: IFileContent | null): Promise<void> {
 		if (oldContent) {
-			try {
-				// file exists before
-				await this.fileService.writeFile(this.workbenchEnvironmentService.settingsResource, VSBuffer.fromString(newContent), oldContent);
-			} catch (error) {
-				// Error to check for dirty to sync again
-				throw error;
-			}
+			// file exists already
+			await this.fileService.writeFile(this.workbenchEnvironmentService.settingsResource, VSBuffer.fromString(newContent), oldContent);
 		} else {
-			try {
-				// file does not exist before
-				await this.fileService.createFile(this.workbenchEnvironmentService.settingsResource, VSBuffer.fromString(newContent), { overwrite: false });
-			} catch (error) {
-				if (error instanceof FileSystemProviderError && error.code === FileSystemProviderErrorCode.FileExists) {
-					await this.sync();
-				}
-				throw error;
-			}
+			// file does not exist
+			await this.fileService.createFile(this.workbenchEnvironmentService.settingsResource, VSBuffer.fromString(newContent), { overwrite: false });
 		}
-
 	}
 
 	private updateLastSyncValue(remoteUserData: IUserData): void {
