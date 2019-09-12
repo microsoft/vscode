@@ -23,11 +23,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
-interface OldMainThreadWebviewState {
-	readonly viewType: string;
-	state: any;
-}
-
 /**
  * Bi-directional map between webview handles and inputs.
  */
@@ -210,16 +205,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				let state = undefined;
 				if (webviewEditorInput.webview.state) {
 					try {
-						// Check for old-style webview state first which stored state inside another state object
-						// TODO: remove this after 1.37 ships.
-						if (
-							typeof (webviewEditorInput.webview.state as unknown as OldMainThreadWebviewState).viewType === 'string' &&
-							'state' in (webviewEditorInput.webview.state as unknown as OldMainThreadWebviewState)
-						) {
-							state = JSON.parse((webviewEditorInput.webview.state as any).state);
-						} else {
-							state = JSON.parse(webviewEditorInput.webview.state);
-						}
+						state = JSON.parse(webviewEditorInput.webview.state);
 					} catch {
 						// noop
 					}
