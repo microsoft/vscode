@@ -122,14 +122,16 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 	async apply(): Promise<void> {
 		if (this.syncPreviewResultPromise) {
 			const result = await this.syncPreviewResultPromise;
+			let remoteUserData = result.remoteUserData;
 			if (result.hasRemoteChanged) {
-				await this.writeToRemote({ version: result.remoteUserData ? result.remoteUserData.version + 1 : 1, content: result.settingsPreviewModel.getValue() });
+				remoteUserData = { version: result.remoteUserData ? result.remoteUserData.version + 1 : 1, content: result.settingsPreviewModel.getValue() };
+				await this.writeToRemote(remoteUserData);
 			}
 			if (result.hasLocalChanged) {
 				await this.writeToLocal(result.settingsPreviewModel.getValue(), result.fileContent);
 			}
-			if (result.remoteUserData) {
-				this.updateLastSyncValue(result.remoteUserData);
+			if (remoteUserData) {
+				this.updateLastSyncValue(remoteUserData);
 			}
 		}
 		this.syncPreviewResultPromise = null;
@@ -271,6 +273,9 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 
 		// Removed settings in Remote
 		for (const key of baseToRemote.removed.keys()) {
+			if (conflicts.has(key)) {
+				continue;
+			}
 			// Got updated in local
 			if (baseToLocal.updated.has(key)) {
 				conflicts.add(key);
@@ -281,6 +286,9 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 
 		// Added settings in Local
 		for (const key of baseToLocal.added.keys()) {
+			if (conflicts.has(key)) {
+				continue;
+			}
 			// Got added in remote
 			if (baseToRemote.added.has(key)) {
 				// Has different value
@@ -292,6 +300,9 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 
 		// Added settings in remote
 		for (const key of baseToRemote.added.keys()) {
+			if (conflicts.has(key)) {
+				continue;
+			}
 			// Got added in local
 			if (baseToLocal.added.has(key)) {
 				// Has different value
@@ -305,6 +316,9 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 
 		// Updated settings in Local
 		for (const key of baseToLocal.updated.keys()) {
+			if (conflicts.has(key)) {
+				continue;
+			}
 			// Got updated in remote
 			if (baseToRemote.updated.has(key)) {
 				// Has different value
@@ -316,6 +330,9 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 
 		// Updated settings in Remote
 		for (const key of baseToRemote.updated.keys()) {
+			if (conflicts.has(key)) {
+				continue;
+			}
 			// Got updated in local
 			if (baseToLocal.updated.has(key)) {
 				// Has different value
@@ -328,18 +345,26 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 		}
 
 		for (const key of conflicts.keys()) {
-			const value = remote[key];
 			const tree = parseTree(settingsPreviewModel.getValue());
 			const valueNode = findNodeAtLocation(tree, [key]);
+			const remoteEdit = setProperty(`{${settingsPreviewModel.getEOL()}\t${settingsPreviewModel.getEOL()}}`, [key], remote[key], { tabSize: 4, insertSpaces: false, eol: settingsPreviewModel.getEOL() })[0];
+			const remoteContent = remoteEdit ? remoteEdit.content.substring(remoteEdit.offset + remoteEdit.length + 1) + settingsPreviewModel.getEOL() : '';
 			if (valueNode) {
+				// Updated in Local and Remote with different value
 				const keyPosition = settingsPreviewModel.getPositionAt(valueNode.parent!.offset);
 				const valuePosition = settingsPreviewModel.getPositionAt(valueNode.offset + valueNode.length);
-				const remoteEdit = setProperty(`{${settingsPreviewModel.getEOL()}\t${settingsPreviewModel.getEOL()}}`, [key], value, { tabSize: 4, insertSpaces: false, eol: settingsPreviewModel.getEOL() })[0];
 				const editOperations = [
 					EditOperation.insert(new Position(keyPosition.lineNumber - 1, settingsPreviewModel.getLineMaxColumn(keyPosition.lineNumber - 1)), `${settingsPreviewModel.getEOL()}<<<<<<< local`),
-					EditOperation.insert(new Position(valuePosition.lineNumber, settingsPreviewModel.getLineMaxColumn(valuePosition.lineNumber)), `${settingsPreviewModel.getEOL()}=======${settingsPreviewModel.getEOL()}${remoteEdit.content.substring(remoteEdit.offset + remoteEdit.length + 1)}${settingsPreviewModel.getEOL()}>>>>>>> remote`)
+					EditOperation.insert(new Position(valuePosition.lineNumber, settingsPreviewModel.getLineMaxColumn(valuePosition.lineNumber)), `${settingsPreviewModel.getEOL()}=======${settingsPreviewModel.getEOL()}${remoteContent}>>>>>>> remote`)
 				];
 				settingsPreviewModel.pushEditOperations([new Selection(keyPosition.lineNumber, keyPosition.column, keyPosition.lineNumber, keyPosition.column)], editOperations, () => []);
+			} else {
+				// Removed in Local, but updated in Remote
+				const position = new Position(settingsPreviewModel.getLineCount() - 1, settingsPreviewModel.getLineMaxColumn(settingsPreviewModel.getLineCount() - 1));
+				const editOperations = [
+					EditOperation.insert(position, `${settingsPreviewModel.getEOL()}<<<<<<< local${ settingsPreviewModel.getEOL() }=======${ settingsPreviewModel.getEOL() }${ remoteContent }>>>>>>> remote`)
+				];
+				settingsPreviewModel.pushEditOperations([new Selection(position.lineNumber, position.column, position.lineNumber, position.column)], editOperations, () => []);
 			}
 		}
 
