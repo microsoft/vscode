@@ -81,7 +81,8 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
@@ -114,7 +115,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private async sync(): Promise<void> {
+	private async startSync(): Promise<void> {
 		await this.userDataSyncService.sync();
 		if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
 			const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts. Please resolve them to continue."),
@@ -128,11 +129,24 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
+	private stopSync(): Promise<void> {
+		return this.userDataSyncService.stopSync();
+	}
+
+	private async turnOnSync(): Promise<void> {
+		this.configurationService.updateValue('userConfiguration.autoSync', true);
+	}
+
+	private async turnOffSync(): Promise<void> {
+		this.configurationService.updateValue('userConfiguration.autoSync', false);
+		this.stopSync();
+	}
+
 	private registerActions(): void {
 
 		// Global Activity Actions
 
-		CommandsRegistry.registerCommand('workbench.userData.actions.turnOnSync', serviceAccessor => serviceAccessor.get(IConfigurationService).updateValue('userConfiguration.autoSync', true));
+		CommandsRegistry.registerCommand('workbench.userData.actions.turnOnSync', () => this.turnOnSync());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {
@@ -142,7 +156,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.autoSync')),
 		});
 
-		CommandsRegistry.registerCommand('workbench.userData.actions.turnOffSync', serviceAccessor => serviceAccessor.get(IConfigurationService).updateValue('userConfiguration.autoSync', false));
+		CommandsRegistry.registerCommand('workbench.userData.actions.turnOffSync', () => this.turnOffSync());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {
@@ -175,7 +189,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 
 		// Command Pallette Actions
 
-		CommandsRegistry.registerCommand('workbench.userData.actions.startSync', () => this.sync());
+		CommandsRegistry.registerCommand('workbench.userData.actions.startSync', () => this.startSync());
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: 'workbench.userData.actions.startSync',
@@ -184,7 +198,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Idle), ContextKeyExpr.not('config.userConfiguration.autoSync')),
 		});
 
-		CommandsRegistry.registerCommand('workbench.userData.actions.stopSync', serviceAccessor => serviceAccessor.get(IUserDataSyncService).stopSync());
+		CommandsRegistry.registerCommand('workbench.userData.actions.stopSync', () => this.stopSync());
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: 'workbench.userData.actions.stopSync',
