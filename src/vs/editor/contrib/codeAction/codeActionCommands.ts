@@ -3,30 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeAction } from 'vs/editor/common/modes';
+import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IPosition } from 'vs/editor/common/core/position';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -56,6 +58,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -107,21 +110,42 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	private _applyCodeAction(action: CodeAction): Promise<void> {
-		return applyCodeAction(action, this._bulkEditService, this._commandService, this._editor);
+		return this._instantiationService.invokeFunction(applyCodeAction, action, this._bulkEditService, this._commandService, this._editor);
 	}
 }
 
 export async function applyCodeAction(
+	accessor: ServicesAccessor,
 	action: CodeAction,
 	bulkEditService: IBulkEditService,
 	commandService: ICommandService,
 	editor?: ICodeEditor,
 ): Promise<void> {
+	const notificationService = accessor.get(INotificationService);
 	if (action.edit) {
 		await bulkEditService.apply(action.edit, { editor });
 	}
 	if (action.command) {
-		await commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
+		try {
+			await commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
+		} catch (err) {
+			const message = asMessage(err);
+			notificationService.error(
+				typeof message === 'string'
+					? message
+					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
+
+		}
+	}
+}
+
+function asMessage(err: any): string | undefined {
+	if (typeof err === 'string') {
+		return err;
+	} else if (err instanceof Error && typeof err.message === 'string') {
+		return err.message;
+	} else {
+		return undefined;
 	}
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.39.0",
-  "distro": "6ea131ffe25008d6abed0ae02a66fefcc9d9455a",
+  "distro": "b9f58c2f6c65029d0b9e3fd8c07f33191ee3d497",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -49,12 +49,12 @@
     "vscode-chokidar": "2.1.7",
     "vscode-minimist": "^1.2.1",
     "vscode-proxy-agent": "0.4.0",
-    "vscode-ripgrep": "^1.5.6",
+    "vscode-ripgrep": "^1.5.7",
     "vscode-sqlite3": "4.0.8",
     "vscode-textmate": "^4.2.2",
-    "xterm": "3.15.0-beta108",
-    "xterm-addon-search": "0.2.0-beta5",
-    "xterm-addon-web-links": "0.1.0-beta10",
+    "xterm": "4.0.0",
+    "xterm-addon-search": "0.2.0",
+    "xterm-addon-web-links": "0.2.0",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -97,7 +97,7 @@
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
-    "gulp-tsb": "4.0.1",
+    "gulp-tsb": "4.0.2",
     "gulp-tslint": "^8.1.3",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
@@ -136,6 +136,7 @@
     "vscode-debugprotocol": "1.36.0",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^4.16.5",
+    "webpack-cli": "^3.3.8",
     "webpack-stream": "^5.1.1"
   },
   "repository": {

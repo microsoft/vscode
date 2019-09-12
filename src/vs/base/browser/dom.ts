@@ -1193,7 +1193,7 @@ export function asDomUri(uri: URI): URI {
 		return uri;
 	}
 	if (Schemas.vscodeRemote === uri.scheme) {
-		return RemoteAuthorities.rewrite(uri.authority, uri.path);
+		return RemoteAuthorities.rewrite(uri);
 	}
 	return uri;
 }

@@ -44,6 +44,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -492,7 +493,16 @@ export class DebugService implements IDebugService {
 	}
 
 	private registerSessionListeners(session: IDebugSession): void {
+		const sessionRunningScheduler = new RunOnceScheduler(() => {
+			// Do not immediatly defocus the stack frame if the session is running
+			if (session.state === State.Running && this.viewModel.focusedSession === session) {
+				this.viewModel.setFocus(undefined, this.viewModel.focusedThread, session, false);
+			}
+		}, 200);
 		this.toDispose.push(session.onDidChangeState(() => {
+			if (session.state === State.Running && this.viewModel.focusedSession === session) {
+				sessionRunningScheduler.schedule();
+			}
 			if (session === this.viewModel.focusedSession) {
 				this.onStateChange();
 			}
@@ -660,16 +670,15 @@ export class DebugService implements IDebugService {
 		return Promise.resolve(config);
 	}
 
-	private showError(message: string, errorActions: ReadonlyArray<IAction> = []): Promise<void> {
+	private async showError(message: string, errorActions: ReadonlyArray<IAction> = []): Promise<void> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 		const actions = [...errorActions, configureAction];
-		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
-			if (choice < actions.length) {
-				return actions[choice].run();
-			}
+		const { choice } = await this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length });
+		if (choice < actions.length) {
+			return actions[choice].run();
+		}
 
-			return undefined;
-		});
+		return undefined;
 	}
 
 	//---- task management
@@ -697,19 +706,20 @@ export class DebugService implements IDebugService {
 					? nls.localize('preLaunchTaskError', "Error exists after running preLaunchTask '{0}'.", taskLabel)
 					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode);
 
-			return this.dialogService.confirm({
+			return this.dialogService.show(severity.Warning, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('cancel', "Cancel")], {
 				checkbox: {
 					label: nls.localize('remember', "Remember my choice in user settings"),
 				},
-				message,
-				type: 'warning',
-				primaryButton: nls.localize('debugAnyway', "Debug Anyway"),
-				secondaryButton: nls.localize('showErrors', "Show Errors"),
+				cancelId: 2
 			}).then(result => {
-				if (result.checkboxChecked) {
-					this.configurationService.updateValue('debug.onTaskErrors', result.confirmed ? 'debugAnyway' : 'showErrors');
+				if (result.choice === 2) {
+					return Promise.resolve(TaskRunResult.Failure);
 				}
-				if (result.confirmed) {
+				const debugAnyway = result.choice === 0;
+				if (result.checkboxChecked) {
+					this.configurationService.updateValue('debug.onTaskErrors', debugAnyway ? 'debugAnyway' : 'showErrors');
+				}
+				if (debugAnyway) {
 					return TaskRunResult.Success;
 				}
 

@@ -267,7 +267,9 @@ function inlineAmdImages(src: string, result: bundle.IBundleResult): bundle.IBun
 					const repoLocation = path.join(src, imagePath);
 					const absoluteLocation = path.join(REPO_ROOT_PATH, repoLocation);
 					if (!fs.existsSync(absoluteLocation)) {
-						throw new Error(`Invalid amd image url in file ${sourceFile.path}: ${imagePath}`);
+						const message = `Invalid amd image url in file ${sourceFile.path}: ${imagePath}`;
+						console.log(message);
+						throw new Error(message);
 					}
 					const fileContents = fs.readFileSync(absoluteLocation);
 					const mime = /\.svg$/.test(imagePath) ? 'image/svg+xml' : 'image/png';
@@ -325,9 +327,6 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 	const output = input
 		.pipe(flatmap((stream, f) => {
 			return stream.pipe(minify({
-				compress: {
-					hoist_funs: true // required due to https://github.com/microsoft/vscode/issues/80202
-				},
 				output: {
 					comments: preserveComments(<FileWithCopyright>f),
 					max_line_len: 1024

@@ -71,17 +71,14 @@ export interface ParsedArgs {
 	'driver-verbose'?: boolean;
 	remote?: string;
 	'disable-user-env-probe'?: boolean;
-	'enable-remote-auto-shutdown'?: boolean;
 	'disable-inspect'?: boolean;
 	'force'?: boolean;
-	'gitCredential'?: string;
+	'force-user-env'?: boolean;
+
 	// node flags
 	'js-flags'?: string;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
-
-	// Web flags
-	'web-user-data-dir'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

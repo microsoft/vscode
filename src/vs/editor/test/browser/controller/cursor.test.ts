@@ -711,7 +711,7 @@ suite('Editor Controller - Cursor', () => {
 				position: new Position(4, 4),
 				viewPosition: new Position(4, 4),
 				mouseColumn: 15,
-				setAnchorIfNotSet: false
+				doColumnSelect: true
 			});
 
 			let expectedSelections = [
@@ -747,7 +747,7 @@ suite('Editor Controller - Cursor', () => {
 			position: new Position(4, 1),
 			viewPosition: new Position(4, 1),
 			mouseColumn: 1,
-			setAnchorIfNotSet: false
+			doColumnSelect: true
 		});
 
 		assertCursor(cursor, [
@@ -787,7 +787,7 @@ suite('Editor Controller - Cursor', () => {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
 			mouseColumn: 1,
-			setAnchorIfNotSet: false
+			doColumnSelect: true
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -806,7 +806,7 @@ suite('Editor Controller - Cursor', () => {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
 			mouseColumn: 1,
-			setAnchorIfNotSet: false
+			doColumnSelect: true
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -1562,6 +1562,37 @@ suite('Editor Controller - Regression tests', () => {
 				'bbb',
 				'ccc',
 				'',
+			].join('\n'));
+		});
+	});
+
+	test('issue #43722: Multiline paste doesn\'t work anymore', () => {
+		usingCursor({
+			text: [
+				'test',
+				'test',
+				'test',
+				'test'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+				new Selection(4, 1, 4, 5),
+			]);
+
+			cursorCommand(cursor, H.Paste, {
+				text: 'aaa\r\nbbb\r\nccc\r\nddd\r\n',
+				pasteOnNewLine: false,
+				multicursorText: null
+			});
+
+			assert.equal(model.getValue(), [
+				'aaa',
+				'bbb',
+				'ccc',
+				'ddd',
 			].join('\n'));
 		});
 	});

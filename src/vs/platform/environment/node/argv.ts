@@ -40,13 +40,14 @@ type OptionTypeName<T> =
 	T extends undefined ? 'undefined' :
 	'unknown';
 
-export const OPTIONS: OptionDescriptions<ParsedArgs> = {
+export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
 	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
 	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
 	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
+	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
 	'user-data-dir': { type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
 	'version': { type: 'boolean', cat: 'o', alias: 'v', description: localize('version', "Print version.") },
@@ -56,6 +57,7 @@ export const OPTIONS: OptionDescriptions<ParsedArgs> = {
 	'file-uri': { type: 'string[]', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
 
 	'extensions-dir': { type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
+	'builtin-extensions-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
 	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extension.") },
@@ -67,6 +69,8 @@ export const OPTIONS: OptionDescriptions<ParsedArgs> = {
 	'log': { type: 'string', cat: 't', args: 'level', description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.") },
 	'status': { type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
 	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup") },
+	'prof-append-timers': { type: 'string' },
+	'prof-startup-prefix': { type: 'string' },
 	'disable-extensions': { type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
 	'disable-extension': { type: 'string[]', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
 
@@ -94,6 +98,7 @@ export const OPTIONS: OptionDescriptions<ParsedArgs> = {
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
 	'disable-crash-reporter': { type: 'boolean' },
+	'disable-user-env-probe': { type: 'boolean' },
 	'skip-add-to-recently-opened': { type: 'boolean' },
 	'unity-launch': { type: 'boolean' },
 	'open-url': { type: 'boolean' },
@@ -101,12 +106,15 @@ export const OPTIONS: OptionDescriptions<ParsedArgs> = {
 	'file-chmod': { type: 'boolean' },
 	'driver-verbose': { type: 'boolean' },
 	'force': { type: 'boolean' },
+	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
 	'disable-inspect': { type: 'boolean' },
+	'force-user-env': { type: 'boolean' },
 
 	'js-flags': { type: 'string' }, // chrome js flags
 	'nolazy': { type: 'boolean' }, // node inspect
+	'_urls': { type: 'string[]' },
 
 	_: { type: 'string[]' } // main arguments
 };
@@ -126,6 +134,10 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const string: string[] = [];
 	const boolean: string[] = [];
 	for (let optionId in options) {
+		if (optionId[0] === '_') {
+			continue;
+		}
+
 		const o = options[optionId];
 		if (o.alias) {
 			alias[optionId] = o.alias;
