@@ -24,8 +24,6 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { LRUCache } from 'vs/base/common/map';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 
@@ -1011,10 +1009,6 @@ class SelectionRangeAdapter {
 
 class CallHierarchyAdapter {
 
-	// todo@joh keep object (add managed lifecycle)
-	private readonly _cache = new LRUCache<number, vscode.CallHierarchyItem>(3000, 0.8);
-	private _idPool = 0;
-
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.CallHierarchyItemProvider
@@ -1027,7 +1021,7 @@ class CallHierarchyAdapter {
 		if (!calls) {
 			return undefined;
 		}
-		return calls.map(call => (<[ICallHierarchyItemDto, IRange[]]>[this._fromItem(call.source), call.sourceRanges.map(typeConvert.Range.from)]));
+		return calls.map(call => (<[ICallHierarchyItemDto, IRange[]]>[typeConvert.CallHierarchyItem.from(call.source), call.sourceRanges.map(typeConvert.Range.from)]));
 	}
 
 	async provideCallsFrom(uri: URI, position: IPosition, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined> {
@@ -1037,21 +1031,7 @@ class CallHierarchyAdapter {
 		if (!calls) {
 			return undefined;
 		}
-		return calls.map(call => (<[ICallHierarchyItemDto, IRange[]]>[this._fromItem(call.target), call.sourceRanges.map(typeConvert.Range.from)]));
-	}
-
-	private _fromItem(item: vscode.CallHierarchyItem, _id: number = this._idPool++): callHierarchy.CallHierarchyItem {
-		const res = <callHierarchy.CallHierarchyItem>{
-			_id,
-			name: item.name,
-			detail: item.detail,
-			kind: typeConvert.SymbolKind.from(item.kind),
-			uri: item.uri,
-			range: typeConvert.Range.from(item.range),
-			selectionRange: typeConvert.Range.from(item.selectionRange),
-		};
-		this._cache.set(_id, item);
-		return res;
+		return calls.map(call => (<[ICallHierarchyItemDto, IRange[]]>[typeConvert.CallHierarchyItem.from(call.target), call.sourceRanges.map(typeConvert.Range.from)]));
 	}
 }
 
