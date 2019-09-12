@@ -37,11 +37,9 @@ export interface OutgoingCall {
 
 export interface CallHierarchyProvider {
 
-	resolveCallHierarchyItem(document: ITextModel, postion: IPosition, token: CancellationToken): ProviderResult<CallHierarchyItem>;
+	provideIncomingCalls(document: ITextModel, postion: IPosition, token: CancellationToken): ProviderResult<IncomingCall[]>;
 
-	provideIncomingCalls(target: CallHierarchyItem, token: CancellationToken): ProviderResult<IncomingCall[]>;
-
-	provideOutgoingCalls(source: CallHierarchyItem, token: CancellationToken): ProviderResult<OutgoingCall[]>;
+	provideOutgoingCalls(document: ITextModel, postion: IPosition, token: CancellationToken): ProviderResult<OutgoingCall[]>;
 }
 
 export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();

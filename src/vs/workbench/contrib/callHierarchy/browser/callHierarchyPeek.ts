@@ -93,7 +93,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	private _parent!: HTMLElement;
 	private _message!: HTMLElement;
 	private _splitView!: SplitView;
-	private _tree!: WorkbenchAsyncDataTree<CallHierarchyItem, callHTree.Call, FuzzyScore>;
+	private _tree!: WorkbenchAsyncDataTree<callHTree.CallHierarchyRoot, callHTree.Call, FuzzyScore>;
 	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
 	private _editor!: EmbeddedCodeEditorWidget;
 	private _dim!: Dimension;
@@ -204,7 +204,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			treeContainer,
 			new callHTree.VirtualDelegate(),
 			[this._instantiationService.createInstance(callHTree.CallRenderer)],
-			new callHTree.SingleDirectionDataSource(this._provider, () => this._direction),
+			this._instantiationService.createInstance(callHTree.DataSource, this._provider, () => this._direction),
 			options
 		);
 
@@ -292,7 +292,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 					}
 					node = parent;
 				}
-				this.setTitle(this._tree.getInput()!.name, names.join(' → '));
+				this.setTitle(this._tree.getInput()!.word, names.join(' → '));
 			}
 		}));
 
@@ -355,7 +355,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		this._message.focus();
 	}
 
-	async showItem(item: CallHierarchyItem): Promise<void> {
+	async showItem(item: callHTree.CallHierarchyRoot): Promise<void> {
 
 		this._show();
 		const viewState = this._treeViewStates.get(this._direction);
@@ -367,8 +367,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		if (!(firstChild instanceof callHTree.Call)) {
 			//
 			this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
-				? localize('empt.callsFrom', "No calls from '{0}'", item.name)
-				: localize('empt.callsTo', "No calls to '{0}'", item.name));
+				? localize('empt.callsFrom', "No calls from '{0}'", item.word)
+				: localize('empt.callsTo', "No calls to '{0}'", item.word));
 
 		} else {
 			this._parent.dataset['state'] = State.Data;

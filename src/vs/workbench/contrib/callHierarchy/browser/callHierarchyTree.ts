@@ -12,6 +12,11 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
 import { hash } from 'vs/base/common/hash';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class Call {
 	constructor(
@@ -21,43 +26,71 @@ export class Call {
 	) { }
 }
 
-export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchyItem, Call> {
+export class CallHierarchyRoot {
+
+	static fromEditor(editor: IActiveCodeEditor): CallHierarchyRoot | undefined {
+		const model = editor.getModel();
+		const position = editor.getPosition();
+		const wordInfo = model.getWordAtPosition(position);
+		return wordInfo
+			? new CallHierarchyRoot(model, position, wordInfo.word)
+			: undefined;
+	}
+
+	constructor(
+		readonly model: ITextModel,
+		readonly position: IPosition,
+		readonly word: string
+	) { }
+}
+
+export class DataSource implements IAsyncDataSource<CallHierarchyRoot, Call> {
 
 	constructor(
 		public provider: CallHierarchyProvider,
-		public getDirection: () => CallHierarchyDirection
+		public getDirection: () => CallHierarchyDirection,
+		@ITextModelService private readonly _modelService: ITextModelService,
 	) { }
 
 	hasChildren(): boolean {
 		return true;
 	}
 
-	async getChildren(element: CallHierarchyItem | Call): Promise<Call[]> {
-		if (element instanceof Call) {
-			const results: Call[] = [];
+	async getChildren(element: CallHierarchyRoot | Call): Promise<Call[]> {
+
+		const results: Call[] = [];
+
+		if (element instanceof CallHierarchyRoot) {
 			if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
-				await this._getCallsFrom(element, results);
+				await this._getCallsFrom(element.model, element.position, results);
 			} else {
-				await this._getCallsTo(element, results);
+				await this._getCallsTo(element.model, element.position, results);
 			}
-			return results;
 		} else {
-			// 'root'
-			return [new Call(element, [], undefined)];
+			const reference = await this._modelService.createModelReference(element.item.uri);
+			const position = Range.lift(element.item.selectionRange).getStartPosition();
+			if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
+				await this._getCallsFrom(reference.object.textEditorModel, position, results, element);
+			} else {
+				await this._getCallsTo(reference.object.textEditorModel, position, results, element);
+			}
+			reference.dispose();
 		}
+
+		return results;
 	}
 
-	private async _getCallsFrom(source: Call, bucket: Call[]): Promise<void> {
+	private async _getCallsFrom(model: ITextModel, position: IPosition, bucket: Call[], parent?: Call): Promise<void> {
 		try {
-			const callsFrom = await this.provider.provideOutgoingCalls(source.item, CancellationToken.None);
+			const callsFrom = await this.provider.provideOutgoingCalls(model, position, CancellationToken.None);
 			if (!callsFrom) {
 				return;
 			}
 			for (const callFrom of callsFrom) {
 				bucket.push(new Call(
 					callFrom.target,
-					callFrom.sourceRanges.map(range => ({ range, uri: source.item.uri })),
-					source
+					callFrom.sourceRanges.map(range => ({ range, uri: model.uri })),
+					parent
 				));
 			}
 		} catch (e) {
@@ -65,9 +98,9 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 		}
 	}
 
-	private async _getCallsTo(target: Call, bucket: Call[]): Promise<void> {
+	private async _getCallsTo(model: ITextModel, position: IPosition, bucket: Call[], parent?: Call): Promise<void> {
 		try {
-			const callsTo = await this.provider.provideIncomingCalls(target.item, CancellationToken.None);
+			const callsTo = await this.provider.provideIncomingCalls(model, position, CancellationToken.None);
 			if (!callsTo) {
 				return;
 			}
@@ -75,7 +108,7 @@ export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchy
 				bucket.push(new Call(
 					callTo.source,
 					callTo.sourceRanges.map(range => ({ range, uri: callTo.source.uri })),
-					target
+					parent
 				));
 			}
 		} catch (e) {

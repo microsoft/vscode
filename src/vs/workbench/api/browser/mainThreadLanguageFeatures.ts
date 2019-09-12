@@ -494,11 +494,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
-			resolveCallHierarchyItem: (document, position, token) => {
-				return this._proxy.$resolveCallHierarchyItem(handle, document.uri, position, token).then(MainThreadLanguageFeatures._reviveCallHierarchyItemDto);
-			},
-			provideOutgoingCalls: async (item, token) => {
-				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, item, token);
+			provideOutgoingCalls: async (model, position, token) => {
+				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, model.uri, position, token);
 				if (!outgoing) {
 					return outgoing;
 				}
@@ -509,8 +506,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					};
 				});
 			},
-			provideIncomingCalls: async (item, token) => {
-				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, item, token);
+			provideIncomingCalls: async (model, position, token) => {
+				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, model.uri, position, token);
 				if (!incoming) {
 					return incoming;
 				}

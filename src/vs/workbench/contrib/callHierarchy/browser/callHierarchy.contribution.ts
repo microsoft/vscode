@@ -18,6 +18,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
+import { CallHierarchyRoot } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
 
 const _ctxHasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false);
@@ -93,16 +94,12 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 		this._sessionDispose.push({ dispose() { cancel.cancel(); } });
 		this._sessionDispose.push(widget);
 
-		Promise.resolve(provider.resolveCallHierarchyItem(model, position, cancel.token)).then(item => {
-			if (cancel.token.isCancellationRequested) {
-				return;
-			}
-			if (!item) {
-				widget.showMessage(localize('no.item', "No results"));
-				return;
-			}
-			widget.showItem(item);
-		});
+		const root = CallHierarchyRoot.fromEditor(this._editor);
+		if (root) {
+			widget.showItem(root);
+		} else {
+			widget.showMessage(localize('no.item', "No results"));
+		}
 	}
 
 	endCallHierarchy(): void {
