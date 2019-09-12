@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.39.0",
-  "distro": "5021d1d3791476c5180209e093da67e5124977fe",
+  "distro": "bdaae34df8cacb0a6c48750e611bc4cd122f8df4",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -136,6 +136,7 @@
     "vscode-debugprotocol": "1.36.0",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^4.16.5",
+    "webpack-cli": "^3.3.8",
     "webpack-stream": "^5.1.1"
   },
   "repository": {

@@ -588,12 +588,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			nls.localize('cancel', "Cancel")
 		];
 
-		const index = await this.dialogService.show(Severity.Warning, message, buttons, {
+		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons, {
 			cancelId: 2,
 			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
 		});
 
-		switch (index) {
+		switch (choice) {
 			case 0: return ConfirmResult.SAVE;
 			case 1: return ConfirmResult.DONT_SAVE;
 			default: return ConfirmResult.CANCEL;

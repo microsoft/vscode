@@ -22,11 +22,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
-
-interface OldMainThreadWebviewState {
-	readonly viewType: string;
-	state: any;
-}
+import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -154,6 +150,13 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		webview.setName(value);
 	}
 
+	public $setState(handle: WebviewPanelHandle, state: modes.WebviewEditorState): void {
+		const webview = this.getWebviewEditorInput(handle);
+		if (webview instanceof CustomFileEditorInput) {
+			webview.setState(state);
+		}
+	}
+
 	public $setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void {
 		const webview = this.getWebviewEditorInput(handle);
 		webview.iconPath = reviveWebviewIcon(value);
@@ -210,16 +213,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				let state = undefined;
 				if (webviewEditorInput.webview.state) {
 					try {
-						// Check for old-style webview state first which stored state inside another state object
-						// TODO: remove this after 1.37 ships.
-						if (
-							typeof (webviewEditorInput.webview.state as unknown as OldMainThreadWebviewState).viewType === 'string' &&
-							'state' in (webviewEditorInput.webview.state as unknown as OldMainThreadWebviewState)
-						) {
-							state = JSON.parse((webviewEditorInput.webview.state as any).state);
-						} else {
-							state = JSON.parse(webviewEditorInput.webview.state);
-						}
+						state = JSON.parse(webviewEditorInput.webview.state);
 					} catch {
 						// noop
 					}

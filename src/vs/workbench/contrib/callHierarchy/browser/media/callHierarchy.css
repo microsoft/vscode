@@ -10,6 +10,7 @@
 
 .monaco-workbench .call-hierarchy[data-state="data"] .results {
 	display: inherit;
+	height: 100%;
 }
 
 .monaco-workbench .call-hierarchy[data-state="message"] .message {
@@ -33,11 +34,7 @@
 	background-position: left center;
 }
 
-.monaco-workbench .call-hierarchy .monaco-split-view2.horizontal > .split-view-container > .split-view-view {
-	/* this is a little bizare.. */
-	height: unset;
-}
-
+.monaco-workbench .call-hierarchy .editor,
 .monaco-workbench .call-hierarchy .tree {
 	height: 100%;
 }
