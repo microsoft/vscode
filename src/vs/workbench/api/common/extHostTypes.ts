@@ -2382,3 +2382,9 @@ export class Decoration {
 	priority?: number;
 	bubble?: boolean;
 }
+
+export enum WebviewEditorState {
+	Readonly = 1,
+	Unchanged = 2,
+	Dirty = 3,
+}

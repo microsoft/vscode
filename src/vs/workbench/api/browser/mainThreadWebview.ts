@@ -22,6 +22,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
+import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -147,6 +148,13 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	public $setTitle(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebviewEditorInput(handle);
 		webview.setName(value);
+	}
+
+	public $setState(handle: WebviewPanelHandle, state: modes.WebviewEditorState): void {
+		const webview = this.getWebviewEditorInput(handle);
+		if (webview instanceof CustomFileEditorInput) {
+			webview.setState(state);
+		}
 	}
 
 	public $setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void {
