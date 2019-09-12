@@ -254,7 +254,7 @@ export class SearchService implements IRawSearchService {
 		const query = prepareQuery(config.filePattern || '');
 		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
-		const maxResults = config.maxResults || Number.MAX_VALUE;
+		const maxResults = typeof config.maxResults === 'number' ? config.maxResults : Number.MAX_VALUE;
 		return arrays.topAsync(results, compare, maxResults, 10000, token);
 	}
 

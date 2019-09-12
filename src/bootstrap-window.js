@@ -34,7 +34,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 	 * // configuration: IWindowConfiguration
 	 * @type {{
 	 * zoomLevel?: number,
-	 * extensionDevelopmentPath?: string | string[],
+	 * extensionDevelopmentPath?: string[],
 	 * extensionTestsPath?: string,
 	 * userEnv?: { [key: string]: string | undefined },
 	 * appRoot?: string,

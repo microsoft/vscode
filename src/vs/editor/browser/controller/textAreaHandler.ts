@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./textAreaHandler';
+import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -16,7 +17,7 @@ import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { RenderLineNumbersType, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
@@ -91,12 +92,13 @@ export class TextAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
 	private readonly _viewHelper: ITextAreaHandlerHelper;
+	private _scrollLeft: number;
+	private _scrollTop: number;
+
 	private _accessibilitySupport: AccessibilitySupport;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
-	private _scrollLeft: number;
-	private _scrollTop: number;
 	private _fontInfo: BareFontInfo;
 	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
@@ -117,19 +119,20 @@ export class TextAreaHandler extends ViewPart {
 
 		this._viewController = viewController;
 		this._viewHelper = viewHelper;
-
-		const conf = this._context.configuration.editor;
-
-		this._accessibilitySupport = conf.accessibilitySupport;
-		this._contentLeft = conf.layoutInfo.contentLeft;
-		this._contentWidth = conf.layoutInfo.contentWidth;
-		this._contentHeight = conf.layoutInfo.contentHeight;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
-		this._fontInfo = conf.fontInfo;
-		this._lineHeight = conf.lineHeight;
-		this._emptySelectionClipboard = conf.emptySelectionClipboard;
-		this._copyWithSyntaxHighlighting = conf.copyWithSyntaxHighlighting;
+
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		this._contentLeft = layoutInfo.contentLeft;
+		this._contentWidth = layoutInfo.contentWidth;
+		this._contentHeight = layoutInfo.contentHeight;
+		this._fontInfo = options.get(EditorOption.fontInfo);
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -143,7 +146,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
+		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-multiline', 'true');
 		this.textArea.setAttribute('aria-haspopup', 'false');
@@ -280,6 +283,7 @@ export class TextAreaHandler extends ViewPart {
 			const column = this._selections[0].startColumn;
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+				'keyboard',
 				new Range(lineNumber, column, lineNumber, column),
 				viewEvents.VerticalRevealType.Simple,
 				true,
@@ -340,7 +344,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private _getWordBeforePosition(position: Position): string {
 		const lineContent = this._context.model.getLineContent(position.lineNumber);
-		const wordSeparators = getMapForWordSeparators(this._context.configuration.editor.wordSeparators);
+		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators));
 
 		let column = position.column;
 		let distance = 0;
@@ -367,34 +371,32 @@ export class TextAreaHandler extends ViewPart {
 		return '';
 	}
 
+	private _getAriaLabel(options: IComputedEditorOptions): string {
+		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		if (accessibilitySupport === AccessibilitySupport.Disabled) {
+			return nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.");
+		}
+		return options.get(EditorOption.ariaLabel);
+	}
+
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const conf = this._context.configuration.editor;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		if (e.fontInfo) {
-			this._fontInfo = conf.fontInfo;
-		}
-		if (e.viewInfo) {
-			this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
-		}
-		if (e.layoutInfo) {
-			this._contentLeft = conf.layoutInfo.contentLeft;
-			this._contentWidth = conf.layoutInfo.contentWidth;
-			this._contentHeight = conf.layoutInfo.contentHeight;
-		}
-		if (e.lineHeight) {
-			this._lineHeight = conf.lineHeight;
-		}
-		if (e.accessibilitySupport) {
-			this._accessibilitySupport = conf.accessibilitySupport;
+		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		this._contentLeft = layoutInfo.contentLeft;
+		this._contentWidth = layoutInfo.contentWidth;
+		this._contentHeight = layoutInfo.contentHeight;
+		this._fontInfo = options.get(EditorOption.fontInfo);
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+
+		if (e.hasChanged(EditorOption.accessibilitySupport)) {
 			this._textAreaInput.writeScreenReaderContent('strategy changed');
-		}
-		if (e.emptySelectionClipboard) {
-			this._emptySelectionClipboard = conf.emptySelectionClipboard;
-		}
-		if (e.copyWithSyntaxHighlighting) {
-			this._copyWithSyntaxHighlighting = conf.copyWithSyntaxHighlighting;
 		}
 
 		return true;
@@ -544,10 +546,12 @@ export class TextAreaHandler extends ViewPart {
 		tac.setWidth(1);
 		tac.setHeight(1);
 
-		if (this._context.configuration.editor.viewInfo.glyphMargin) {
+		const options = this._context.configuration.options;
+
+		if (options.get(EditorOption.glyphMargin)) {
 			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.OUTER_CLASS_NAME);
 		} else {
-			if (this._context.configuration.editor.viewInfo.renderLineNumbers !== RenderLineNumbersType.Off) {
+			if (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off) {
 				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
 			} else {
 				tac.setClassName('monaco-editor-background textAreaCover');

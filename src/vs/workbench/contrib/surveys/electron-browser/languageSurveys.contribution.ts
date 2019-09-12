@@ -132,7 +132,7 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 		@ITextFileService textFileService: ITextFileService,
 		@IOpenerService openerService: IOpenerService
 	) {
-		product.surveys
+		product.surveys!
 			.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability)
 			.map(surveyData => new LanguageSurvey(surveyData, storageService, notificationService, telemetryService, modelService, textFileService, openerService));
 	}

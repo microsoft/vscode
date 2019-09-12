@@ -26,7 +26,6 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
@@ -226,7 +225,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 		}));
 
-		keybindingsTelemetry(telemetryService, this);
 		let data = this.keymapService.getCurrentKeyboardLayout();
 		/* __GDPR__
 			"keyboardLayout" : {
@@ -602,10 +600,12 @@ let commandsSchemas: IJSONSchema[] = [];
 let commandsEnum: string[] = [];
 let commandsEnumDescriptions: (string | undefined)[] = [];
 let schema: IJSONSchema = {
-	'id': schemaId,
-	'type': 'array',
-	'title': nls.localize('keybindings.json.title', "Keybindings configuration"),
-	'definitions': {
+	id: schemaId,
+	type: 'array',
+	title: nls.localize('keybindings.json.title', "Keybindings configuration"),
+	allowsTrailingCommas: true,
+	allowComments: true,
+	definitions: {
 		'editorGroupsSchema': {
 			'type': 'array',
 			'items': {
@@ -623,7 +623,7 @@ let schema: IJSONSchema = {
 			}
 		}
 	},
-	'items': {
+	items: {
 		'required': ['key'],
 		'type': 'object',
 		'defaultSnippets': [{ 'body': { 'key': '$1', 'command': '$2', 'when': '$3' } }],

@@ -118,10 +118,9 @@ export interface IMarkerFilterController {
 export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private delayedFilterUpdate: Delayer<void>;
-	private container: HTMLElement;
-	private filterInputBox: HistoryInputBox;
-	private controlsContainer: HTMLInputElement;
-	private filterBadge: HTMLInputElement;
+	private container: HTMLElement | null = null;
+	private filterInputBox: HistoryInputBox | null = null;
+	private filterBadge: HTMLElement | null = null;
 	private focusContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -172,13 +171,13 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.filterInputBox.inputElement.setAttribute('aria-labelledby', 'markers-panel-arialabel');
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.action.filterText;
-		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox))));
+		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox!))));
 		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
 			if (event.filterText) {
-				this.filterInputBox.value = this.action.filterText;
+				this.filterInputBox!.value = this.action.filterText;
 			}
 		}));
-		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox)));
+		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox!)));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
 
@@ -189,24 +188,24 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private createControls(container: HTMLElement): void {
-		this.controlsContainer = DOM.append(container, DOM.$('.markers-panel-filter-controls'));
-		this.createBadge(this.controlsContainer);
-		this.createFilesExcludeCheckbox(this.controlsContainer);
+		const controlsContainer = DOM.append(container, DOM.$('.markers-panel-filter-controls'));
+		this.createBadge(controlsContainer);
+		this.createFilesExcludeCheckbox(controlsContainer);
 	}
 
 	private createBadge(container: HTMLElement): void {
-		this.filterBadge = DOM.append(container, DOM.$('.markers-panel-filter-badge'));
+		const filterBadge = this.filterBadge = DOM.append(container, DOM.$('.markers-panel-filter-badge'));
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
 			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
 			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
 
-			this.filterBadge.style.backgroundColor = background;
+			filterBadge.style.backgroundColor = background;
 
-			this.filterBadge.style.borderWidth = border ? '1px' : null;
-			this.filterBadge.style.borderStyle = border ? 'solid' : null;
-			this.filterBadge.style.borderColor = border;
-			this.filterBadge.style.color = foreground;
+			filterBadge.style.borderWidth = border ? '1px' : null;
+			filterBadge.style.borderStyle = border ? 'solid' : null;
+			filterBadge.style.borderColor = border;
+			filterBadge.style.color = foreground;
 		}));
 		this.updateBadge();
 		this._register(this.filterController.onDidFilter(() => this.updateBadge()));
@@ -241,14 +240,18 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private updateBadge(): void {
-		const { total, filtered } = this.filterController.getFilterStats();
-		DOM.toggleClass(this.filterBadge, 'hidden', total === filtered || filtered === 0);
-		this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
-		this.adjustInputBox();
+		if (this.filterBadge) {
+			const { total, filtered } = this.filterController.getFilterStats();
+			DOM.toggleClass(this.filterBadge, 'hidden', total === filtered || filtered === 0);
+			this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
+			this.adjustInputBox();
+		}
 	}
 
 	private adjustInputBox(): void {
-		this.filterInputBox.inputElement.style.paddingRight = DOM.hasClass(this.container, 'small') || DOM.hasClass(this.filterBadge, 'hidden') ? '25px' : '150px';
+		if (this.container && this.filterInputBox && this.filterBadge) {
+			this.filterInputBox.inputElement.style.paddingRight = DOM.hasClass(this.container, 'small') || DOM.hasClass(this.filterBadge, 'hidden') ? '25px' : '150px';
+		}
 	}
 
 	// Action toolbar is swallowing some keys for action items which should not be for an input box

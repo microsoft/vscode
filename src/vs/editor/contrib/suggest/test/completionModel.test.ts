@@ -8,6 +8,7 @@ import * as modes from 'vs/editor/common/modes';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
 import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
+import { EditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export function createSuggestItem(label: string, overwriteBefore: number, kind = modes.CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): CompletionItem {
 	const suggestion: modes.CompletionItem = {
@@ -42,9 +43,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('Foo', 3),
 			createSuggestItem('foo', 2),
 		], 1, {
-				leadingLineContent: 'foo',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: 'foo',
+			characterCountDelta: 0
+		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue);
 	});
 
 	test('filtering - cached', function () {
@@ -73,9 +74,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('foo', 3, undefined, true),
 			createSuggestItem('foo', 2),
 		], 1, {
-				leadingLineContent: 'foo',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: 'foo',
+			characterCountDelta: 0
+		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue);
 		assert.equal(incompleteModel.incomplete.size, 1);
 	});
 
@@ -84,7 +85,7 @@ suite('CompletionModel', function () {
 		const completeItem = createSuggestItem('foobar', 1, undefined, false, { lineNumber: 1, column: 2 });
 		const incompleteItem = createSuggestItem('foofoo', 1, undefined, true, { lineNumber: 1, column: 2 });
 
-		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None);
+		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue);
 		assert.equal(model.incomplete.size, 1);
 		assert.equal(model.items.length, 2);
 
@@ -113,7 +114,7 @@ suite('CompletionModel', function () {
 				completeItem4,
 				completeItem5,
 				incompleteItem1,
-			], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None
+			], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue
 		);
 		assert.equal(model.incomplete.size, 1);
 		assert.equal(model.items.length, 6);
@@ -135,9 +136,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('    </tag', 4),
 			createSuggestItem('    XYZ', 4),
 		], 1, {
-				leadingLineContent: '   <',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: '   <',
+			characterCountDelta: 0
+		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue);
 
 		assert.equal(model.items.length, 4);
 
@@ -155,18 +156,17 @@ suite('CompletionModel', function () {
 			createSuggestItem('tnippet2', 1, modes.CompletionItemKind.Snippet),
 			createSuggestItem('semver', 1, modes.CompletionItemKind.Property),
 		], 1, {
-				leadingLineContent: 's',
-				characterCountDelta: 0
-			}, WordDistance.None, {
-				snippets: 'top',
-				snippetsPreventQuickSuggestions: true,
-				filterGraceful: true,
-				localityBonus: false,
-				shareSuggestSelections: false,
-				showIcons: true,
-				maxVisibleSuggestions: 12,
-				filteredTypes: Object.create(null)
-			});
+			leadingLineContent: 's',
+			characterCountDelta: 0
+		}, WordDistance.None, {
+			snippetsPreventQuickSuggestions: true,
+			filterGraceful: true,
+			localityBonus: false,
+			shareSuggestSelections: false,
+			showIcons: true,
+			maxVisibleSuggestions: 12,
+			filteredTypes: Object.create(null)
+		}, 'top');
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -183,18 +183,17 @@ suite('CompletionModel', function () {
 			createSuggestItem('tnippet2', 1, modes.CompletionItemKind.Snippet),
 			createSuggestItem('Semver', 1, modes.CompletionItemKind.Property),
 		], 1, {
-				leadingLineContent: 's',
-				characterCountDelta: 0
-			}, WordDistance.None, {
-				snippets: 'bottom',
-				snippetsPreventQuickSuggestions: true,
-				filterGraceful: true,
-				localityBonus: false,
-				shareSuggestSelections: false,
-				showIcons: true,
-				maxVisibleSuggestions: 12,
-				filteredTypes: Object.create(null)
-			});
+			leadingLineContent: 's',
+			characterCountDelta: 0
+		}, WordDistance.None, {
+			snippetsPreventQuickSuggestions: true,
+			filterGraceful: true,
+			localityBonus: false,
+			shareSuggestSelections: false,
+			showIcons: true,
+			maxVisibleSuggestions: 12,
+			filteredTypes: Object.create(null)
+		}, 'bottom');
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -210,18 +209,17 @@ suite('CompletionModel', function () {
 			createSuggestItem('tnippet2', 1, modes.CompletionItemKind.Snippet),
 			createSuggestItem('Semver', 1),
 		], 1, {
-				leadingLineContent: 's',
-				characterCountDelta: 0
-			}, WordDistance.None, {
-				snippets: 'inline',
-				snippetsPreventQuickSuggestions: true,
-				filterGraceful: true,
-				localityBonus: false,
-				shareSuggestSelections: false,
-				showIcons: true,
-				maxVisibleSuggestions: 12,
-				filteredTypes: Object.create(null)
-			});
+			leadingLineContent: 's',
+			characterCountDelta: 0
+		}, WordDistance.None, {
+			snippetsPreventQuickSuggestions: true,
+			filterGraceful: true,
+			localityBonus: false,
+			shareSuggestSelections: false,
+			showIcons: true,
+			maxVisibleSuggestions: 12,
+			filteredTypes: Object.create(null)
+		}, 'inline');
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -238,7 +236,7 @@ suite('CompletionModel', function () {
 		model = new CompletionModel([item1, item2], 1, {
 			leadingLineContent: 'M',
 			characterCountDelta: 0
-		}, WordDistance.None);
+		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue);
 
 		assert.equal(model.items.length, 2);
 
@@ -258,7 +256,7 @@ suite('CompletionModel', function () {
 		model = new CompletionModel(items, 3, {
 			leadingLineContent: '  ',
 			characterCountDelta: 0
-		}, WordDistance.None);
+		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue);
 
 		assert.equal(model.items.length, 2);
 
@@ -275,9 +273,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('car', 0),
 			createSuggestItem('foo', 0),
 		], 1, {
-				leadingLineContent: '',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: '',
+			characterCountDelta: 0
+		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue);
 
 		assert.equal(model.items.length, 5);
 
@@ -302,9 +300,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('car', 0),
 			createSuggestItem('foo', 0),
 		], 1, {
-				leadingLineContent: '',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: '',
+			characterCountDelta: 0
+		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue);
 
 		// query gets longer, narrow down the narrow-down'ed-set from before
 		model.lineContext = { leadingLineContent: 'rlut', characterCountDelta: 4 };
@@ -324,9 +322,9 @@ suite('CompletionModel', function () {
 			createSuggestItem('testForeignMeasure', 0),
 			createSuggestItem('fooRoom', 0),
 		], 1, {
-				leadingLineContent: '',
-				characterCountDelta: 0
-			}, WordDistance.None);
+			leadingLineContent: '',
+			characterCountDelta: 0
+		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue);
 
 		model.lineContext = { leadingLineContent: 'form', characterCountDelta: 4 };
 		assert.equal(model.items.length, 5);

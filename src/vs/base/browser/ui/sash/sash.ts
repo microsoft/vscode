@@ -143,7 +143,7 @@ export class Sash extends Disposable {
 		this._register(domEvent(this.el, EventType.Start)(this.onTouchStart, this));
 
 		if (isIPad) {
-			// see also http://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
+			// see also https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
 			addClass(this.el, 'touch');
 		}
 
@@ -179,33 +179,19 @@ export class Sash extends Disposable {
 
 		let isMultisashResize = false;
 
-		if (this.linkedSash && !(e as any).__linkedSashEvent) {
-			(e as any).__linkedSashEvent = true;
-			this.linkedSash.onMouseDown(e);
-		}
-
 		if (!(e as any).__orthogonalSashEvent) {
-			let orthogonalSash: Sash | undefined;
-
-			if (this.orientation === Orientation.VERTICAL) {
-				if (e.offsetY <= 4) {
-					orthogonalSash = this.orthogonalStartSash;
-				} else if (e.offsetY >= this.el.clientHeight - 4) {
-					orthogonalSash = this.orthogonalEndSash;
-				}
-			} else {
-				if (e.offsetX <= 4) {
-					orthogonalSash = this.orthogonalStartSash;
-				} else if (e.offsetX >= this.el.clientWidth - 4) {
-					orthogonalSash = this.orthogonalEndSash;
-				}
-			}
+			const orthogonalSash = this.getOrthogonalSash(e);
 
 			if (orthogonalSash) {
 				isMultisashResize = true;
 				(e as any).__orthogonalSashEvent = true;
 				orthogonalSash.onMouseDown(e);
 			}
+		}
+
+		if (this.linkedSash && !(e as any).__linkedSashEvent) {
+			(e as any).__linkedSashEvent = true;
+			this.linkedSash.onMouseDown(e);
 		}
 
 		if (!this.state) {
@@ -295,7 +281,17 @@ export class Sash extends Disposable {
 		domEvent(window, 'mouseup')(onMouseUp, null, disposables);
 	}
 
-	private onMouseDoubleClick(event: MouseEvent): void {
+	private onMouseDoubleClick(e: MouseEvent): void {
+		const orthogonalSash = this.getOrthogonalSash(e);
+
+		if (orthogonalSash) {
+			orthogonalSash._onDidReset.fire();
+		}
+
+		if (this.linkedSash) {
+			this.linkedSash._onDidReset.fire();
+		}
+
 		this._onDidReset.fire();
 	}
 
@@ -386,13 +382,26 @@ export class Sash extends Disposable {
 		toggleClass(this.el, 'orthogonal-end', state !== SashState.Disabled);
 	}
 
-	dispose(): void {
-		super.dispose();
-
-		if (this.el && this.el.parentElement) {
-			this.el.parentElement.removeChild(this.el);
+	private getOrthogonalSash(e: MouseEvent): Sash | undefined {
+		if (this.orientation === Orientation.VERTICAL) {
+			if (e.offsetY <= 4) {
+				return this.orthogonalStartSash;
+			} else if (e.offsetY >= this.el.clientHeight - 4) {
+				return this.orthogonalEndSash;
+			}
+		} else {
+			if (e.offsetX <= 4) {
+				return this.orthogonalStartSash;
+			} else if (e.offsetX >= this.el.clientWidth - 4) {
+				return this.orthogonalEndSash;
+			}
 		}
 
-		this.el = null!; // StrictNullOverride: nulling out ok in dispose
+		return undefined;
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.el.remove();
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IExpression, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IExpression, IDebugService, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -50,7 +50,7 @@ export function replaceWhitespace(value: string): string {
 	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
 
-export function renderExpressionValue(expressionOrValue: IExpression | string, container: HTMLElement, options: IRenderValueOptions): void {
+export function renderExpressionValue(expressionOrValue: IExpressionContainer | string, container: HTMLElement, options: IRenderValueOptions): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 	// remove stale classes

@@ -14,7 +14,7 @@ import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletActio
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
@@ -48,7 +48,7 @@ interface ICachedViewlet {
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private static readonly ACTION_HEIGHT = 48;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
@@ -197,6 +197,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		content.appendChild(globalActivities);
 
 		this.createGlobalActivityActionBar(globalActivities);
+
+		this.element.style.display = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? null : 'none';
 
 		return content;
 	}
@@ -366,6 +368,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			.filter(v => this.compositeBar.isPinned(v.id))
 			.sort((v1, v2) => pinnedCompositeIds.indexOf(v1.id) - pinnedCompositeIds.indexOf(v2.id))
 			.map(v => v.id);
+	}
+
+	setVisible(visible: boolean): void {
+		if (this.element) {
+			this.element.style.display = visible ? null : 'none';
+		}
 	}
 
 	layout(width: number, height: number): void {

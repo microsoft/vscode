@@ -161,6 +161,10 @@ export function provideSuggestionItems(
 							if (!suggestion.range) {
 								suggestion.range = defaultRange;
 							}
+							// fill in default sortText when missing
+							if (!suggestion.sortText) {
+								suggestion.sortText = suggestion.label;
+							}
 
 							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));
 						}
@@ -278,7 +282,7 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', async (model, p
 		await Promise.all(resolving);
 		return result;
 	} finally {
-		setTimeout(() => disposables.dispose(), 0);
+		setTimeout(() => disposables.dispose(), 100);
 	}
 });
 

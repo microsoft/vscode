@@ -35,6 +35,7 @@ import { isObject } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const _sticky = false; // for development purposes only
 
@@ -58,15 +59,19 @@ class LineSuffix {
 	}
 
 	dispose(): void {
-		if (this._marker) {
+		if (this._marker && !this._model.isDisposed()) {
 			this._model.deltaDecorations(this._marker, []);
 		}
 	}
 
 	delta(position: IPosition): number {
-		if (this._position.lineNumber !== position.lineNumber) {
+		if (this._model.isDisposed() || this._position.lineNumber !== position.lineNumber) {
+			// bail out early if things seems fishy
 			return 0;
-		} else if (this._marker) {
+		}
+		// read the marker (in case suggest was triggered at line end) or compare
+		// the cursor to the line end.
+		if (this._marker) {
 			const range = this._model.getDecorationRange(this._marker[0]);
 			const end = this._model.getOffsetAt(range!.getStartPosition());
 			return end - this._model.getOffsetAt(position);
@@ -125,7 +130,7 @@ export class SuggestController implements IEditorContribution {
 				const endColumn = position.column;
 				let value = true;
 				if (
-					this._editor.getConfiguration().contribInfo.acceptSuggestionOnEnter === 'smart'
+					this._editor.getOption(EditorOption.acceptSuggestionOnEnter) === 'smart'
 					&& this._model.state === State.Auto
 					&& !item.completion.command
 					&& !item.completion.additionalTextEdits
@@ -178,7 +183,7 @@ export class SuggestController implements IEditorContribution {
 		// Manage the acceptSuggestionsOnEnter context key
 		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
 		let updateFromConfig = () => {
-			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
+			const acceptSuggestionOnEnter = this._editor.getOption(EditorOption.acceptSuggestionOnEnter);
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
 		this._toDispose.add(this._editor.onDidChangeConfiguration(() => updateFromConfig()));

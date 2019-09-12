@@ -33,8 +33,8 @@ export abstract class Part extends Component implements ISerializableView {
 	get dimension(): Dimension { return this._dimension; }
 
 	private parent: HTMLElement;
-	private titleArea: HTMLElement | null;
-	private contentArea: HTMLElement | null;
+	private titleArea: HTMLElement | null = null;
+	private contentArea: HTMLElement | null = null;
 	private partLayout: PartLayout;
 
 	constructor(

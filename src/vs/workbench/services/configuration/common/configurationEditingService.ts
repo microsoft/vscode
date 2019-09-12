@@ -130,7 +130,7 @@ interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
 
 export class ConfigurationEditingService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private queue: Queue<void>;
 	private remoteSettingsResource: URI | null = null;

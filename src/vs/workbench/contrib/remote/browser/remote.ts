@@ -33,7 +33,11 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 
 interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -311,6 +315,7 @@ class HelpPanel extends ViewletPanel {
 		container.appendChild(treeContainer);
 
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree,
+			'RemoteHelp',
 			treeContainer,
 			new HelpTreeVirtualDelegate(),
 			[new HelpTreeRenderer()],
@@ -421,3 +426,22 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	'remote',
 	4
 ));
+
+class OpenRemoteViewletAction extends ShowViewletAction {
+
+	static readonly ID = VIEWLET_ID;
+	static LABEL = nls.localize('toggleRemoteViewlet', "Show Remote Explorer");
+
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
+	}
+}
+
+// Register Action to Open Viewlet
+Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
+	new SyncActionDescriptor(OpenRemoteViewletAction, VIEWLET_ID, nls.localize('toggleRemoteViewlet', "Show Remote Explorer"), {
+		primary: 0
+	}),
+	'View: Show Remote Explorer',
+	nls.localize('view', "View")
+);

@@ -28,7 +28,7 @@ import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandSer
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingEvent, IKeyboardEvent, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
@@ -97,7 +97,7 @@ function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (e
 }
 
 export class SimpleEditorModelResolverService implements ITextModelService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private editor?: editorCommon.IEditor;
 
@@ -142,7 +142,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 }
 
 export class SimpleEditorProgressService implements IEditorProgressService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static NULL_PROGRESS_RUNNER: IProgressRunner = {
 		done: () => { },
@@ -163,7 +163,7 @@ export class SimpleEditorProgressService implements IEditorProgressService {
 
 export class SimpleDialogService implements IDialogService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return this.doConfirm(confirmation).then(confirmed => {
@@ -183,14 +183,14 @@ export class SimpleDialogService implements IDialogService {
 		return Promise.resolve(window.confirm(messageText));
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number> {
-		return Promise.resolve(0);
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
+		return Promise.resolve({ choice: 0 });
 	}
 }
 
 export class SimpleNotificationService implements INotificationService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -232,7 +232,7 @@ export class SimpleNotificationService implements INotificationService {
 }
 
 export class StandaloneCommandService implements ICommandService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _instantiationService: IInstantiationService;
 	private readonly _dynamicCommands: { [id: string]: ICommand; };
@@ -414,7 +414,7 @@ function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides 
 
 export class SimpleConfigurationService implements IConfigurationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
@@ -479,7 +479,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 export class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
@@ -504,7 +504,7 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 export class SimpleResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -523,7 +523,7 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 }
 
 export class StandaloneTelemetryService implements ITelemetryService {
-	_serviceBrand: void = undefined;
+	_serviceBrand: undefined;
 
 	public isOptedIn = false;
 
@@ -545,7 +545,7 @@ export class StandaloneTelemetryService implements ITelemetryService {
 
 export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private static SCHEME = 'inmemory';
 
@@ -614,7 +614,7 @@ export function applyConfigurationValues(configurationService: IConfigurationSer
 }
 
 export class SimpleBulkEditService implements IBulkEditService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private readonly _modelService: IModelService) {
 		//
@@ -658,7 +658,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 
 export class SimpleUriLabelService implements ILabelService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidRegisterFormatter = new Emitter<void>();
 	public readonly onDidChangeFormatters: Event<void> = this._onDidRegisterFormatter.event;
@@ -692,7 +692,7 @@ export class SimpleUriLabelService implements ILabelService {
 }
 
 export class SimpleLayoutService implements ILayoutService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	public onLayout = Event.None;
 

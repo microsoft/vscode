@@ -78,10 +78,10 @@ export class SetLogLevelAction extends Action {
 	}
 }
 
-export class OpenSessionLogFileAction extends Action {
+export class OpenWindowSessionLogFileAction extends Action {
 
 	static ID = 'workbench.action.openSessionLogFile';
-	static LABEL = nls.localize('openSessionLogFile', "Open Log File (Session)...");
+	static LABEL = nls.localize('openSessionLogFile', "Open Window Log File (Session)...");
 
 	constructor(id: string, label: string,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,

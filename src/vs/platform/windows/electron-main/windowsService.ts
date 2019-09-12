@@ -23,11 +23,10 @@ import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isMacintosh, isLinux, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class WindowsService extends Disposable implements IWindowsService, IURLHandler {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly disposables = this._register(new DisposableStore());
 
@@ -310,8 +309,9 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	async openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		this.logService.trace('windowsService#openExtensionDevelopmentHostWindow ' + JSON.stringify(args));
 
-		if (args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, {
+		const extDevPaths = args.extensionDevelopmentPath;
+		if (extDevPaths) {
+			this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 				context: OpenContext.API,
 				cli: args,
 				userEnv: Object.keys(env).length > 0 ? env : undefined
@@ -323,9 +323,14 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		this.logService.trace('windowsService#getWindows');
 
 		const windows = this.windowsMainService.getWindows();
-		const result = windows.map(w => ({ id: w.id, workspace: w.openedWorkspace, folderUri: w.openedFolderUri, title: w.win.getTitle(), filename: w.getRepresentedFilename() }));
 
-		return result;
+		return windows.map(window => ({
+			id: window.id,
+			workspace: window.openedWorkspace,
+			folderUri: window.openedFolderUri,
+			title: window.win.getTitle(),
+			filename: window.getRepresentedFilename()
+		}));
 	}
 
 	async getWindowCount(): Promise<number> {

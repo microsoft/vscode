@@ -48,6 +48,7 @@
 	},
 	{
 		// Reason: The npm module does not contain a repository field.
+		// waiting for https://github.com/xtermjs/xterm.js/issues/2395
 		"name": "xterm-addon-search",
 		"fullLicenseText": [
 			"Copyright (c) 2017, The xterm.js authors (https://github.com/xtermjs/xterm.js)",
@@ -73,6 +74,7 @@
 	},
 	{
 		// Reason: The npm module does not contain a repository field.
+		// waiting for https://github.com/xtermjs/xterm.js/issues/2395
 		"name": "xterm-addon-web-links",
 		"fullLicenseText": [
 			"Copyright (c) 2017, The xterm.js authors (https://github.com/xtermjs/xterm.js)",

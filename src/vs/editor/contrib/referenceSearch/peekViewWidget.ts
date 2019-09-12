@@ -21,16 +21,17 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
 export interface IPeekViewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void;
 }
 
 registerSingleton(IPeekViewService, class implements IPeekViewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable }>();
 
@@ -80,7 +81,7 @@ const defaultOptions: IPeekViewOptions = {
 
 export abstract class PeekViewWidget extends ZoneWidget {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private _onDidClose = new Emitter<PeekViewWidget>();
 
@@ -216,8 +217,8 @@ export abstract class PeekViewWidget extends ZoneWidget {
 			return;
 		}
 
-		const headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
-		const bodyHeight = heightInPixel - (headHeight + 2 /* the border-top/bottom width*/);
+		const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
+		const bodyHeight = Math.round(heightInPixel - (headHeight + 2 /* the border-top/bottom width*/));
 
 		this._doLayoutHead(headHeight, widthInPixel);
 		this._doLayoutBody(bodyHeight, widthInPixel);

@@ -63,7 +63,7 @@ export interface IConfigurationChangeEvent {
 }
 
 export interface IConfigurationService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 

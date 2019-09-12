@@ -8,7 +8,7 @@ import { extHostNamedCustomer } from '../common/extHostCustomers';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/common/inactiveExtensionUrlHandler';
+import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/common/extensionUrlHandler';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 class ExtensionUrlHandler implements IURLHandler {
@@ -37,7 +37,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 	constructor(
 		context: IExtHostContext,
 		@IURLService private readonly urlService: IURLService,
-		@IExtensionUrlHandler private readonly inactiveExtensionUrlHandler: IExtensionUrlHandler
+		@IExtensionUrlHandler private readonly extensionUrlHandler: IExtensionUrlHandler
 	) {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
 	}
@@ -47,7 +47,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 		const disposable = this.urlService.registerHandler(handler);
 
 		this.handlers.set(handle, { extensionId, disposable });
-		this.inactiveExtensionUrlHandler.registerExtensionHandler(extensionId, handler);
+		this.extensionUrlHandler.registerExtensionHandler(extensionId, handler);
 
 		return Promise.resolve(undefined);
 	}
@@ -61,7 +61,7 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 
 		const { extensionId, disposable } = tuple;
 
-		this.inactiveExtensionUrlHandler.unregisterExtensionHandler(extensionId);
+		this.extensionUrlHandler.unregisterExtensionHandler(extensionId);
 		this.handlers.delete(handle);
 		disposable.dispose();
 

@@ -8,12 +8,16 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { dirname, joinPath, basename } from 'vs/base/common/resources';
+
+const MAX_FILE_SIZE = 1024 * 1024 * 5;
 
 export class FileLogService extends AbstractLogService implements ILogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly queue: Queue<void>;
+	private backupIndex: number = 1;
 
 	constructor(
 		private readonly name: string,
@@ -81,6 +85,10 @@ export class FileLogService extends AbstractLogService implements ILogService {
 	private _log(level: LogLevel, message: string): void {
 		this.queue.queue(async () => {
 			let content = await this.loadContent();
+			if (content.length > MAX_FILE_SIZE) {
+				await this.fileService.writeFile(this.getBackupResource(), VSBuffer.fromString(content));
+				content = '';
+			}
 			content += `[${this.getCurrentTimestamp()}] [${this.name}] [${this.stringifyLogLevel(level)}] ${message}\n`;
 			await this.fileService.writeFile(this.resource, VSBuffer.fromString(content));
 		});
@@ -91,6 +99,11 @@ export class FileLogService extends AbstractLogService implements ILogService {
 		const toThreeDigits = (v: number) => v < 10 ? `00${v}` : v < 100 ? `0${v}` : v;
 		const currentTime = new Date();
 		return `${currentTime.getFullYear()}-${toTwoDigits(currentTime.getMonth() + 1)}-${toTwoDigits(currentTime.getDate())} ${toTwoDigits(currentTime.getHours())}:${toTwoDigits(currentTime.getMinutes())}:${toTwoDigits(currentTime.getSeconds())}.${toThreeDigits(currentTime.getMilliseconds())}`;
+	}
+
+	private getBackupResource(): URI {
+		this.backupIndex = this.backupIndex > 5 ? 1 : this.backupIndex;
+		return joinPath(dirname(this.resource), `${basename(this.resource)}_${this.backupIndex++}`);
 	}
 
 	private async loadContent(): Promise<string> {

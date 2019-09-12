@@ -23,7 +23,7 @@ export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
 
 export interface IDiagnosticsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
 	getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
@@ -248,7 +248,7 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 
 export class DiagnosticsService implements IDiagnosticsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(@ITelemetryService private readonly telemetryService: ITelemetryService) { }
 
@@ -538,15 +538,11 @@ export class DiagnosticsService implements IDiagnosticsService {
 			if (folderUri.scheme === 'file') {
 				const folder = folderUri.fsPath;
 				collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
-					type WorkspaceStatItemClassification = {
-						name: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-					};
 					type WorkspaceStatsClassification = {
 						'workspace.id': { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						fileTypes: WorkspaceStatItemClassification;
-						configTypes: WorkspaceStatItemClassification;
-						launchConfigs: WorkspaceStatItemClassification;
+						fileTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						configTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						launchConfigs: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 					};
 					type WorkspaceStatsEvent = {
 						'workspace.id': string | undefined;

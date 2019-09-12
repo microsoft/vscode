@@ -510,7 +510,7 @@ export class MarkerViewModel extends Disposable {
 		}
 	}
 
-	private _quickFixAction: QuickFixAction;
+	private _quickFixAction: QuickFixAction | null = null;
 	get quickFixAction(): QuickFixAction {
 		if (!this._quickFixAction) {
 			this._quickFixAction = this._register(this.instantiationService.createInstance(QuickFixAction, this.marker));
@@ -565,7 +565,7 @@ export class MarkerViewModel extends Disposable {
 			true,
 			() => {
 				return this.openFileAtMarker(this.marker)
-					.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
+					.then(() => this.instantiationService.invokeFunction(applyCodeAction, codeAction, this.bulkEditService, this.commandService));
 			}));
 	}
 
@@ -616,7 +616,7 @@ export class MarkersViewModel extends Disposable {
 
 	private bulkUpdate: boolean = false;
 
-	private hoveredMarker: Marker | null;
+	private hoveredMarker: Marker | null = null;
 	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
 
 	constructor(

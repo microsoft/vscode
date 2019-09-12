@@ -84,7 +84,7 @@ export interface IWindowsCountChangedEvent {
 }
 
 export interface IWindowsMainService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	// events
 	readonly onWindowReady: Event<ICodeWindow>;
@@ -96,7 +96,7 @@ export interface IWindowsMainService {
 	enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string | string[], openConfig: IOpenConfiguration): void;
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): void;
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
