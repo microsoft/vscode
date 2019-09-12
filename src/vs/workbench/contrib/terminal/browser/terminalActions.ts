@@ -231,8 +231,8 @@ export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
 		label: string,
 		@ITerminalService terminalService: ITerminalService
 	) {
-		// Send alt+D
-		super(id, label, '\x1bD', terminalService);
+		// Send alt+d
+		super(id, label, '\x1bd', terminalService);
 	}
 }
 
