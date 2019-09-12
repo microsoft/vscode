@@ -19,6 +19,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { CallHierarchyRoot } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const _ctxHasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false);
@@ -31,6 +32,8 @@ class CallHierarchyController implements IEditorContribution {
 		return editor.getContribution<CallHierarchyController>(CallHierarchyController.Id);
 	}
 
+	private static _StorageDirection = 'callHierarchy/defaultDirection';
+
 	private readonly _ctxHasProvider: IContextKey<boolean>;
 	private readonly _ctxIsVisible: IContextKey<boolean>;
 	private readonly _dispoables = new DisposableStore();
@@ -39,6 +42,7 @@ class CallHierarchyController implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._ctxIsVisible = _ctxCallHierarchyVisible.bindTo(this._contextKeyService);
@@ -73,13 +77,15 @@ class CallHierarchyController implements IEditorContribution {
 			return;
 		}
 
+		const direction = this._storageService.getNumber(CallHierarchyController._StorageDirection, StorageScope.GLOBAL, <number>CallHierarchyDirection.CallsFrom);
+
 		Event.any<any>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDisposables);
 		const widget = this._instantiationService.createInstance(
 			CallHierarchyTreePeekWidget,
 			this._editor,
 			position,
 			provider,
-			CallHierarchyDirection.CallsFrom
+			direction
 		);
 
 		widget.showLoading();
@@ -87,7 +93,10 @@ class CallHierarchyController implements IEditorContribution {
 
 		const cancel = new CancellationTokenSource();
 
-		this._sessionDisposables.add(widget.onDidClose(() => this.endCallHierarchy()));
+		this._sessionDisposables.add(widget.onDidClose(() => {
+			this.endCallHierarchy();
+			this._storageService.store(CallHierarchyController._StorageDirection, widget.direction, StorageScope.GLOBAL);
+		}));
 		this._sessionDisposables.add({ dispose() { cancel.cancel(); } });
 		this._sessionDisposables.add(widget);
 

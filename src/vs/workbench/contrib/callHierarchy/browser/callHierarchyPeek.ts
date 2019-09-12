@@ -126,6 +126,10 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		super.dispose();
 	}
 
+	get direction(): CallHierarchyDirection {
+		return this._direction;
+	}
+
 	private _applyTheme(theme: ITheme) {
 		const borderColor = theme.getColor(referencesWidget.peekViewBorder) || Color.transparent;
 		this.style({
