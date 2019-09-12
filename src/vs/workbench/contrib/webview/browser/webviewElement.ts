@@ -19,6 +19,7 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isWeb } from 'vs/base/common/platform';
 
 interface WebviewContent {
 	readonly html: string;
@@ -47,9 +48,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
-
-		if (!useExternalEndpoint && (!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string')) {
+		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string')) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
 		}
 
@@ -155,12 +154,16 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	private get externalEndpoint(): string | undefined {
-		const useExternalEndpoint = this._configurationService.getValue<boolean>('webview.experimental.useExternalEndpoint');
+		const useExternalEndpoint = this.useExternalEndpoint;
 		if (!useExternalEndpoint) {
 			return undefined;
 		}
 		const commit = product.quality && product.commit ? product.commit : '211fa02efe8c041fd7baa8ec3dce199d5185aa44';
 		return `https://{{uuid}}.vscode-webview-test.com/${commit}`;
+	}
+
+	private get useExternalEndpoint(): boolean {
+		return isWeb || this._configurationService.getValue<boolean>('webview.experimental.useExternalEndpoint');
 	}
 
 	public mountTo(parent: HTMLElement) {
