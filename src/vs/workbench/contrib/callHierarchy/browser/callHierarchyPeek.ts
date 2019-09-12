@@ -220,7 +220,9 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			minimumSize: 200,
 			maximumSize: Number.MAX_VALUE,
 			layout: (width) => {
-				this._editor.layout({ height: this._dim.height, width });
+				if (this._dim.height) {
+					this._editor.layout({ height: this._dim.height, width });
+				}
 			}
 		}, Sizing.Distribute);
 
@@ -230,7 +232,9 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			minimumSize: 100,
 			maximumSize: Number.MAX_VALUE,
 			layout: (width) => {
-				this._tree.layout(this._dim.height, width);
+				if (this._dim.height) {
+					this._tree.layout(this._dim.height, width);
+				}
 			}
 		}, Sizing.Distribute);
 
@@ -424,11 +428,13 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 	}
 
 	protected _doLayoutBody(height: number, width: number): void {
-		super._doLayoutBody(height, width);
-		this._dim = { height, width };
-		this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;
-		this._splitView.layout(width);
-		this._splitView.resizeView(0, width * this._layoutInfo.ratio);
+		if (this._dim.height !== height || this._dim.width === width) {
+			super._doLayoutBody(height, width);
+			this._dim = { height, width };
+			this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;
+			this._splitView.layout(width);
+			this._splitView.resizeView(0, width * this._layoutInfo.ratio);
+		}
 	}
 }
 
