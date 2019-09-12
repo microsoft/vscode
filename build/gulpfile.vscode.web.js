@@ -83,6 +83,7 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 		resources: vscodeWebResources,
 		loaderConfig: common.loaderConfig(nodeModules),
 		out: 'out-vscode-web',
+		inlineAmdImages: true,
 		bundleInfo: undefined
 	})
 ));

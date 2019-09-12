@@ -366,6 +366,7 @@ function packagePkgTask(platform, arch, pkgTarget) {
 			resources: type === 'reh' ? serverResources : serverWithWebResources,
 			loaderConfig: common.loaderConfig(nodeModules),
 			out: `out-vscode-${type}`,
+			inlineAmdImages: true,
 			bundleInfo: undefined
 		})
 	));
