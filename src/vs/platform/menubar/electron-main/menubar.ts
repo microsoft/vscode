@@ -13,7 +13,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import product from 'vs/platform/product/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { mnemonicMenuLabel as baseMnemonicLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
@@ -62,14 +62,14 @@ export class Menubar {
 
 	constructor(
 		@IUpdateService private readonly updateService: IUpdateService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHistoryMainService private readonly historyMainService: IHistoryMainService,
 		@IStateService private readonly stateService: IStateService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -118,36 +118,41 @@ export class Menubar {
 		this.fallbackMenuHandlers['workbench.action.clearRecentFiles'] = () => this.historyMainService.clearRecentlyOpened();
 
 		// Help Menu Items
-		if (product.twitterUrl) {
-			this.fallbackMenuHandlers['workbench.action.openTwitterUrl'] = () => this.openUrl(product.twitterUrl, 'openTwitterUrl');
+		const twitterUrl = product.twitterUrl;
+		if (twitterUrl) {
+			this.fallbackMenuHandlers['workbench.action.openTwitterUrl'] = () => this.openUrl(twitterUrl, 'openTwitterUrl');
 		}
 
-		if (product.requestFeatureUrl) {
-			this.fallbackMenuHandlers['workbench.action.openRequestFeatureUrl'] = () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl');
+		const requestFeatureUrl = product.requestFeatureUrl;
+		if (requestFeatureUrl) {
+			this.fallbackMenuHandlers['workbench.action.openRequestFeatureUrl'] = () => this.openUrl(requestFeatureUrl, 'openUserVoiceUrl');
 		}
 
-		if (product.reportIssueUrl) {
-			this.fallbackMenuHandlers['workbench.action.openIssueReporter'] = () => this.openUrl(product.reportIssueUrl, 'openReportIssues');
+		const reportIssueUrl = product.reportIssueUrl;
+		if (reportIssueUrl) {
+			this.fallbackMenuHandlers['workbench.action.openIssueReporter'] = () => this.openUrl(reportIssueUrl, 'openReportIssues');
 		}
 
-		if (product.licenseUrl) {
+		const licenseUrl = product.licenseUrl;
+		if (licenseUrl) {
 			this.fallbackMenuHandlers['workbench.action.openLicenseUrl'] = () => {
 				if (language) {
-					const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-					this.openUrl(`${product.licenseUrl}${queryArgChar}lang=${language}`, 'openLicenseUrl');
+					const queryArgChar = licenseUrl.indexOf('?') > 0 ? '&' : '?';
+					this.openUrl(`${licenseUrl}${queryArgChar}lang=${language}`, 'openLicenseUrl');
 				} else {
-					this.openUrl(product.licenseUrl, 'openLicenseUrl');
+					this.openUrl(licenseUrl, 'openLicenseUrl');
 				}
 			};
 		}
 
-		if (product.privacyStatementUrl) {
+		const privacyStatementUrl = product.privacyStatementUrl;
+		if (privacyStatementUrl && licenseUrl) {
 			this.fallbackMenuHandlers['workbench.action.openPrivacyStatementUrl'] = () => {
 				if (language) {
-					const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-					this.openUrl(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
+					const queryArgChar = licenseUrl.indexOf('?') > 0 ? '&' : '?';
+					this.openUrl(`${privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
 				} else {
-					this.openUrl(product.privacyStatementUrl, 'openPrivacyStatement');
+					this.openUrl(privacyStatementUrl, 'openPrivacyStatement');
 				}
 			};
 		}
@@ -714,6 +719,8 @@ export class Menubar {
 		}
 
 		if (activeWindow) {
+			this.logService.trace('menubar#runActionInRenderer', invocation);
+
 			if (isMacintosh && !this.environmentService.isBuilt && !activeWindow.isReady) {
 				if ((invocation.type === 'commandId' && invocation.commandId === 'workbench.action.toggleDevTools') || (invocation.type !== 'commandId' && invocation.userSettingsLabel === 'alt+cmd+i')) {
 					// prevent this action from running twice on macOS (https://github.com/Microsoft/vscode/issues/62719)
@@ -724,10 +731,12 @@ export class Menubar {
 			}
 
 			if (invocation.type === 'commandId') {
-				this.windowsMainService.sendToFocused('vscode:runAction', { id: invocation.commandId, from: 'menu' } as IRunActionInWindowRequest);
+				activeWindow.sendWhenReady('vscode:runAction', { id: invocation.commandId, from: 'menu' } as IRunActionInWindowRequest);
 			} else {
-				this.windowsMainService.sendToFocused('vscode:runKeybinding', { userSettingsLabel: invocation.userSettingsLabel } as IRunKeybindingInWindowRequest);
+				activeWindow.sendWhenReady('vscode:runKeybinding', { userSettingsLabel: invocation.userSettingsLabel } as IRunKeybindingInWindowRequest);
 			}
+		} else {
+			this.logService.trace('menubar#runActionInRenderer: no active window found', invocation);
 		}
 	}
 

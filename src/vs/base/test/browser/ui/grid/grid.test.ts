@@ -23,10 +23,10 @@ import { deepClone } from 'vs/base/common/objects';
 //  | +-4
 //  | +-2
 //  +-H
-//  | +-V
-//  |   +-1
-//  |   +-5
-//  +-3
+//    +-V
+//    | +-1
+//    | +-5
+//    +-3
 
 suite('Grid', function () {
 	let container: HTMLElement;
@@ -688,10 +688,10 @@ suite('SerializableGrid', function () {
 
 		grid2.layout(400, 800); // [/2, *4/3]
 		assert.deepEqual(view1Copy.size, [300, 400]);
-		assert.deepEqual(view2Copy.size, [300, 266]);
-		assert.deepEqual(view3Copy.size, [100, 534]);
-		assert.deepEqual(view4Copy.size, [100, 266]);
-		assert.deepEqual(view5Copy.size, [300, 134]);
+		assert.deepEqual(view2Copy.size, [300, 267]);
+		assert.deepEqual(view3Copy.size, [100, 533]);
+		assert.deepEqual(view4Copy.size, [100, 267]);
+		assert.deepEqual(view5Copy.size, [300, 133]);
 	});
 
 	test('deserialize 4 view layout (ben issue #2)', function () {

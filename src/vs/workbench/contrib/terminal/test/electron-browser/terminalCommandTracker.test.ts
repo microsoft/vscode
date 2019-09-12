@@ -4,17 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Terminal, TerminalCore } from 'xterm';
+import { Terminal } from 'xterm';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { isWindows } from 'vs/base/common/platform';
-
-interface TestTerminalCore extends TerminalCore {
-	writeBuffer: string[];
-	_innerWrite(): void;
-}
+import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
 interface TestTerminal extends Terminal {
-	_core: TestTerminalCore;
+	_core: XTermCore;
 }
 
 function syncWrite(term: TestTerminal, data: string): void {

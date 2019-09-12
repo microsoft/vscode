@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/84238ef0fa1c7e4e2c9fe77875d832dab9f57e5d",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/ce3979047399920f77d79272b3af45b4d86006ac",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js.jsx",
 	"patterns": [
@@ -2763,7 +2763,7 @@
 			]
 		},
 		"ternary-expression": {
-			"begin": "(?!\\?\\.\\s*[^[:digit:]])(\\?)",
+			"begin": "(?!\\?\\.\\s*[^[:digit:]])(\\?)(?!\\?)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.ternary.js.jsx"
@@ -3153,7 +3153,7 @@
 				},
 				{
 					"name": "keyword.operator.logical.js.jsx",
-					"match": "\\!|&&|\\|\\|"
+					"match": "\\!|&&|\\|\\||\\?\\?"
 				},
 				{
 					"name": "keyword.operator.bitwise.js.jsx",

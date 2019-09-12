@@ -121,7 +121,7 @@ function loadSourcemaps() {
             return;
         }
         if (!f.contents) {
-            cb(new Error('empty file'));
+            cb(undefined, f);
             return;
         }
         const contents = f.contents.toString('utf8');

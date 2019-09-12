@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions, IModeSupport } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -19,7 +19,7 @@ export const ITextFileService = createDecorator<ITextFileService>('textFileServi
 
 export interface ITextFileService extends IDisposable {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	readonly onWillMove: Event<IWillMoveEvent>;
 
@@ -253,7 +253,7 @@ export const enum ModelState {
 	PENDING_SAVE,
 
 	/**
-	 * A model is marked for being saved after a specific timeout. 
+	 * A model is marked for being saved after a specific timeout.
 	 */
 	PENDING_AUTO_SAVE,
 

@@ -25,7 +25,7 @@ export interface IWorkspaceFoldersChangeEvent {
 }
 
 export interface IWorkspaceContextService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event which fires on workbench state changes.

@@ -7,7 +7,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -61,7 +61,8 @@ export class LabelContribution implements IWorkbenchContribution {
 						label: '${path}',
 						separator: remoteEnvironment.os === OperatingSystem.Windows ? '\\' : '/',
 						tildify: remoteEnvironment.os !== OperatingSystem.Windows,
-						normalizeDriveLetter: remoteEnvironment.os === OperatingSystem.Windows
+						normalizeDriveLetter: remoteEnvironment.os === OperatingSystem.Windows,
+						workspaceSuffix: isWeb ? undefined : Schemas.vscodeRemote
 					}
 				});
 			}

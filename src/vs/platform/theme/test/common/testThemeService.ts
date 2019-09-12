@@ -33,7 +33,7 @@ export class TestIconTheme implements IIconTheme {
 
 export class TestThemeService implements IThemeService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	_theme: ITheme;
 	_iconTheme: IIconTheme;
 	_onThemeChange = new Emitter<ITheme>();

@@ -130,7 +130,7 @@ export interface IResponsiveStateChangeEvent {
 }
 
 export interface IExtensionService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event emitted when extensions are registered after their extension points got handled.
@@ -258,7 +258,7 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 
 
 export class NullExtensionService implements IExtensionService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
 	onDidChangeExtensions: Event<void> = Event.None;

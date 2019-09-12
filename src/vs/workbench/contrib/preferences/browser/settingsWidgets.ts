@@ -136,8 +136,8 @@ type EditKey = 'none' | 'create' | number;
 
 export class ListSettingListModel {
 	private _dataItems: IListDataItem[] = [];
-	private _editKey: EditKey;
-	private _selectedIdx: number | null;
+	private _editKey: EditKey | null = null;
+	private _selectedIdx: number | null = null;
 
 	get items(): IListViewItem[] {
 		const items = this._dataItems.map((item, i) => {
@@ -457,6 +457,7 @@ export class ListSettingWidget extends Disposable {
 				onSubmit(false);
 				e.preventDefault();
 			}
+			rowElement.focus();
 		};
 
 		const valueInput = new InputBox(rowElement, this.contextViewService, {

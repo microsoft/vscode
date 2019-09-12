@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class NodeDebugHelperService implements IDebugHelperService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 	) {

@@ -236,26 +236,28 @@ suite('Snippet Variables Resolver', function () {
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		assertVariableResolve(new ClipboardBasedVariableResolver(undefined, 1, 0), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(undefined, 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver(null!, 1, 0), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(null!, 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('', 1, 0), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver('', 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0), 'CLIPBOARD', 'foo');
+		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'CLIPBOARD', 'foo');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0), 'foo', undefined);
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0), 'cLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'foo', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'cLIPBOARD', undefined);
 	});
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1', 1, 2), 'CLIPBOARD', 'line1');
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2\nline3', 1, 2), 'CLIPBOARD', 'line1\nline2\nline3');
+		assertVariableResolve(new ClipboardBasedVariableResolver('line1', 1, 2, true), 'CLIPBOARD', 'line1');
+		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2\nline3', 1, 2, true), 'CLIPBOARD', 'line1\nline2\nline3');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 1, 2), 'CLIPBOARD', 'line2');
-		resolver = new ClipboardBasedVariableResolver('line1\nline2', 0, 2);
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 0, 2), 'CLIPBOARD', 'line1');
+		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 1, 2, true), 'CLIPBOARD', 'line2');
+		resolver = new ClipboardBasedVariableResolver('line1\nline2', 0, 2, true);
+		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 0, 2, true), 'CLIPBOARD', 'line1');
+
+		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 0, 2, false), 'CLIPBOARD', 'line1\nline2');
 	});
 
 
@@ -299,7 +301,7 @@ suite('Snippet Variables Resolver', function () {
 		let workspace: IWorkspace;
 		let resolver: VariableResolver;
 		const workspaceService = new class implements IWorkspaceContextService {
-			_serviceBrand: any;
+			_serviceBrand: undefined;
 			_throw = () => { throw new Error(); };
 			onDidChangeWorkbenchState = this._throw;
 			onDidChangeWorkspaceName = this._throw;

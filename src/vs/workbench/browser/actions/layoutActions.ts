@@ -234,8 +234,7 @@ export class ToggleEditorVisibilityAction extends Action {
 	}
 
 	run(): Promise<any> {
-		const hideEditor = this.layoutService.isVisible(Parts.EDITOR_PART);
-		this.layoutService.setEditorHidden(hideEditor);
+		this.layoutService.toggleMaximizedPanel();
 
 		return Promise.resolve();
 	}

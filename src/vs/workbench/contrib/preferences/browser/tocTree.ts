@@ -23,8 +23,8 @@ const $ = DOM.$;
 
 export class TOCTreeModel {
 
-	private _currentSearchModel: SearchResultModel | null;
-	private _settingsTreeRoot: SettingsTreeGroupElement;
+	private _currentSearchModel: SearchResultModel | null = null;
+	private _settingsTreeRoot!: SettingsTreeGroupElement;
 
 	constructor(
 		private _viewState: ISettingsEditorViewState,
@@ -204,7 +204,7 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 			collapseByDefault: true
 		};
 
-		super(container,
+		super('SettingsTOC', container,
 			new TOCTreeDelegate(),
 			[new TOCRenderer()],
 			options);

@@ -16,7 +16,6 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { URI } from 'vs/base/common/uri';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
@@ -77,7 +76,7 @@ function getCLIPath(execPath: string, appRoot: string, isBuilt: boolean): string
 
 export class EnvironmentService implements IEnvironmentService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	get args(): ParsedArgs { return this._args; }
 
@@ -104,9 +103,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 		return parseUserDataDir(this._args, process);
 	}
-
-	@memoize
-	get webUserDataHome(): URI { return URI.file(parsePathArg(this._args['web-user-data-dir'], process) || this.userDataPath); }
 
 	get appNameLong(): string { return product.nameLong; }
 
@@ -199,11 +195,6 @@ export class EnvironmentService implements IEnvironmentService {
 				}
 				return URI.file(path.normalize(p));
 			});
-		} else if (s) {
-			if (/^[^:/?#]+?:\/\//.test(s)) {
-				return [URI.parse(s)];
-			}
-			return [URI.file(path.normalize(s))];
 		}
 		return undefined;
 	}
@@ -291,7 +282,7 @@ function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | unde
 	return { port, break: brk, debugId };
 }
 
-function parsePathArg(arg: string | undefined, process: NodeJS.Process): string | undefined {
+export function parsePathArg(arg: string | undefined, process: NodeJS.Process): string | undefined {
 	if (!arg) {
 		return undefined;
 	}

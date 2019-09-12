@@ -72,8 +72,6 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .split-view-view {
-	/* Make relative as terminal absolute positioning needs it deeper in the tree */
-	position: relative;
 	box-sizing: border-box;
 }
 

@@ -59,11 +59,6 @@ import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { MementoObject } from 'vs/workbench/common/memento';
 
-interface SearchInputEvent extends Event {
-	target: HTMLInputElement;
-	immediate?: boolean;
-}
-
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -488,12 +483,13 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return this.secondaryActions;
 	}
 
-	search(value: string): void {
+	search(value: string, refresh: boolean = false): void {
 		if (this.searchBox) {
-			const event = new Event('input', { bubbles: true }) as SearchInputEvent;
-			event.immediate = true;
-
-			this.searchBox.setValue(value);
+			if (this.searchBox.getValue() !== value) {
+				this.searchBox.setValue(value);
+			} else if (refresh) {
+				this.doSearch();
+			}
 		}
 	}
 

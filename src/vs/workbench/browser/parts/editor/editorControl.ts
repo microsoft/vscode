@@ -15,7 +15,6 @@ import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progre
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -35,11 +34,11 @@ export class EditorControl extends Disposable {
 	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return this._onDidSizeConstraintsChange.event; }
 
-	private _activeControl: BaseEditor | null;
+	private _activeControl: BaseEditor | null = null;
 	private controls: BaseEditor[] = [];
 
 	private readonly activeControlDisposables = this._register(new DisposableStore());
-	private dimension: Dimension;
+	private dimension: Dimension | undefined;
 	private editorOperation: LongRunningOperation;
 
 	constructor(
@@ -68,7 +67,7 @@ export class EditorControl extends Disposable {
 		const control = this.doShowEditorControl(descriptor);
 
 		// Set input
-		const editorChanged = await this.doSetInput(control, editor, withUndefinedAsNull(options));
+		const editorChanged = await this.doSetInput(control, editor, options);
 		return { control, editorChanged };
 	}
 
@@ -112,7 +111,7 @@ export class EditorControl extends Disposable {
 		if (!control.getContainer()) {
 			const controlInstanceContainer = document.createElement('div');
 			addClass(controlInstanceContainer, 'editor-instance');
-			controlInstanceContainer.id = descriptor.getId();
+			controlInstanceContainer.setAttribute('data-editor-id', descriptor.getId());
 
 			control.create(controlInstanceContainer);
 		}
@@ -151,7 +150,7 @@ export class EditorControl extends Disposable {
 		this._onDidSizeConstraintsChange.fire(undefined);
 	}
 
-	private async doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | null): Promise<boolean> {
+	private async doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | undefined): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same

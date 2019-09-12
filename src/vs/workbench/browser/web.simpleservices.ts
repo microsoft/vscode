@@ -38,10 +38,10 @@ import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/
 
 export class SimpleUpdateService implements IUpdateService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onStateChange = Event.None;
-	state: State;
+	state!: State;
 
 	checkForUpdates(context: any): Promise<void> {
 		return Promise.resolve(undefined);
@@ -72,7 +72,7 @@ registerSingleton(IUpdateService, SimpleUpdateService);
 
 export class SimpleWindowService extends Disposable implements IWindowService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChangeFocus: Event<boolean> = Event.None;
 	readonly onDidChangeMaximize: Event<boolean> = Event.None;
@@ -360,7 +360,7 @@ registerSingleton(IWindowService, SimpleWindowService);
 //#region Window
 
 export class SimpleWindowsService implements IWindowsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	windowCount = 1;
 
@@ -520,18 +520,9 @@ export class SimpleWindowsService implements IWindowsService {
 
 		const f = args['folder-uri'];
 		if (f) {
-			let u: URI | undefined;
-			if (Array.isArray(f)) {
-				if (f.length > 0) {
-					u = URI.parse(f[0]);
-				}
-			} else {
-				u = URI.parse(f);
-			}
-			if (u) {
-				gotFolder = true;
-				addQueryParameter('folder', u.path);
-			}
+			const u = URI.parse(f[0]);
+			gotFolder = true;
+			addQueryParameter('folder', u.path);
 		}
 		if (!gotFolder) {
 			// request empty window
@@ -540,17 +531,8 @@ export class SimpleWindowsService implements IWindowsService {
 
 		const ep = args['extensionDevelopmentPath'];
 		if (ep) {
-			let u: string | undefined;
-			if (Array.isArray(ep)) {
-				if (ep.length > 0) {
-					u = ep[0];
-				}
-			} else {
-				u = ep;
-			}
-			if (u) {
-				addQueryParameter('edp', u);
-			}
+			let u = ep[0];
+			addQueryParameter('edp', u);
 		}
 
 		const di = args['debugId'];
@@ -650,9 +632,9 @@ export class SimpleWindowsService implements IWindowsService {
 			navigator.userAgent
 		);
 
-		const result = await this.dialogService.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail });
+		const { choice } = await this.dialogService.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail });
 
-		if (result === 0) {
+		if (choice === 0) {
 			this.clipboardService.writeText(detail);
 		}
 	}
@@ -670,7 +652,7 @@ registerSingleton(IWindowsService, SimpleWindowsService);
 
 export class SimpleWorkspaceEditingService implements IWorkspaceEditingService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
 		return Promise.resolve(undefined);
@@ -714,7 +696,7 @@ registerSingleton(IWorkspaceEditingService, SimpleWorkspaceEditingService, true)
 
 export class SimpleWorkspacesService implements IWorkspacesService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
 		// @ts-ignore
@@ -738,7 +720,7 @@ registerSingleton(IWorkspacesService, SimpleWorkspacesService);
 //#region remote
 
 class SimpleTunnelService implements ITunnelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	openTunnel(remotePort: number) {
 		return undefined;
 	}
@@ -752,7 +734,7 @@ registerSingleton(ITunnelService, SimpleTunnelService);
 
 class SimpleWorkspaceStatsService implements IWorkspaceStatsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	getTags(): Promise<Tags> {
 		return Promise.resolve({});

@@ -10,13 +10,12 @@ import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { join } from 'vs/base/common/path';
 import { IDebugParams } from 'vs/platform/environment/common/environment';
 
 export class WorkbenchEnvironmentService extends EnvironmentService implements IWorkbenchEnvironmentService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	readonly webviewResourceRoot = 'vscode-resource:{{resource}}';
 	readonly webviewCspSource = 'vscode-resource:';

@@ -16,6 +16,7 @@ import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench
 import { RevivedWebviewEditorInput, WebviewEditorInput } from './webviewEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
@@ -25,7 +26,7 @@ export interface ICreateWebViewShowOptions {
 }
 
 export interface IWebviewEditorService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createWebview(
 		id: string,
@@ -59,22 +60,26 @@ export interface IWebviewEditorService {
 		preserveFocus: boolean
 	): void;
 
-	registerReviver(
-		reviver: WebviewReviver
+	registerResolver(
+		reviver: WebviewResolve
 	): IDisposable;
 
 	shouldPersist(
 		input: WebviewEditorInput
 	): boolean;
+
+	resolveWebview(
+		webview: WebviewEditorInput,
+	): Promise<void>;
 }
 
-export interface WebviewReviver {
-	canRevive(
-		webview: WebviewEditorInput
+export interface WebviewResolve {
+	canResolve(
+		webview: WebviewEditorInput,
 	): boolean;
 
-	reviveWebview(
-		webview: WebviewEditorInput
+	resolveWebview(
+		webview: WebviewEditorInput,
 	): Promise<void>;
 }
 
@@ -94,11 +99,11 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 		&& (a.portMapping === b.portMapping || (Array.isArray(a.portMapping) && Array.isArray(b.portMapping) && equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)));
 }
 
-function canRevive(reviver: WebviewReviver, webview: WebviewEditorInput): boolean {
+function canRevive(reviver: WebviewResolve, webview: WebviewEditorInput): boolean {
 	if (webview.isDisposed()) {
 		return false;
 	}
-	return reviver.canRevive(webview);
+	return reviver.canResolve(webview);
 }
 
 class RevivalPool {
@@ -108,20 +113,20 @@ class RevivalPool {
 		this._awaitingRevival.push({ input, resolve });
 	}
 
-	public reviveFor(reviver: WebviewReviver) {
+	public reviveFor(reviver: WebviewResolve) {
 		const toRevive = this._awaitingRevival.filter(({ input }) => canRevive(reviver, input));
 		this._awaitingRevival = this._awaitingRevival.filter(({ input }) => !canRevive(reviver, input));
 
 		for (const { input, resolve } of toRevive) {
-			reviver.reviveWebview(input).then(resolve);
+			reviver.resolveWebview(input).then(resolve);
 		}
 	}
 }
 
 export class WebviewEditorService implements IWebviewEditorService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	private readonly _revivers = new Set<WebviewReviver>();
+	private readonly _revivers = new Set<WebviewResolve>();
 	private readonly _revivalPool = new RevivalPool();
 
 	constructor(
@@ -145,8 +150,14 @@ export class WebviewEditorService implements IWebviewEditorService {
 	): WebviewEditorInput {
 		const webview = this.createWebiew(id, extension, options);
 
-		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, extension, new UnownedDisposable(webview));
-		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
+		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, id, viewType, title, extension, new UnownedDisposable(webview), undefined);
+		this._editorService.openEditor(webviewInput, {
+			pinned: true,
+			preserveFocus: showOptions.preserveFocus,
+			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
+			activation: showOptions.preserveFocus ? EditorActivation.RESTORE : undefined
+		}, showOptions.group);
 		return webviewInput;
 	}
 
@@ -156,7 +167,12 @@ export class WebviewEditorService implements IWebviewEditorService {
 		preserveFocus: boolean
 	): void {
 		if (webview.group === group.id) {
-			this._editorService.openEditor(webview, { preserveFocus }, webview.group);
+			this._editorService.openEditor(webview, {
+				preserveFocus,
+				// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+				// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
+				activation: preserveFocus ? EditorActivation.RESTORE : undefined
+			}, webview.group);
 		} else {
 			const groupView = this._editorGroupService.getGroup(webview.group!);
 			if (groupView) {
@@ -202,8 +218,8 @@ export class WebviewEditorService implements IWebviewEditorService {
 		return webviewInput;
 	}
 
-	public registerReviver(
-		reviver: WebviewReviver
+	public registerResolver(
+		reviver: WebviewResolve
 	): IDisposable {
 		this._revivers.add(reviver);
 		this._revivalPool.reviveFor(reviver);
@@ -235,11 +251,20 @@ export class WebviewEditorService implements IWebviewEditorService {
 	): Promise<boolean> {
 		for (const reviver of values(this._revivers)) {
 			if (canRevive(reviver, webview)) {
-				await reviver.reviveWebview(webview);
+				await reviver.resolveWebview(webview);
 				return true;
 			}
 		}
 		return false;
+	}
+
+	public async resolveWebview(
+		webview: WebviewEditorInput,
+	): Promise<void> {
+		const didRevive = await this.tryRevive(webview);
+		if (!didRevive) {
+			this._revivalPool.add(webview, () => { });
+		}
 	}
 
 	private createWebiew(id: string, extension: { location: URI; id: ExtensionIdentifier; } | undefined, options: WebviewInputOptions) {
@@ -248,9 +273,9 @@ export class WebviewEditorService implements IWebviewEditorService {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
 		}, {
-				...options,
-				localResourceRoots: options.localResourceRoots || this.getDefaultLocalResourceRoots(extension),
-			});
+			...options,
+			localResourceRoots: options.localResourceRoots || this.getDefaultLocalResourceRoots(extension),
+		});
 	}
 
 	private getDefaultLocalResourceRoots(extension: undefined | {

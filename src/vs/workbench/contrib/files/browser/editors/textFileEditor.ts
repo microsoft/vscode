@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as types from 'vs/base/common/types';
+import { isFunction } from 'vs/base/common/types';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
@@ -32,6 +32,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * An implementation of editor for file system resources.
@@ -89,11 +90,11 @@ export class TextFileEditor extends BaseTextEditor {
 		return this.input ? this.input.getName() : nls.localize('textFileEditor', "Text File Editor");
 	}
 
-	get input(): FileEditorInput {
+	get input(): FileEditorInput | undefined {
 		return this._input as FileEditorInput;
 	}
 
-	setEditorVisible(visible: boolean, group: IEditorGroup): void {
+	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 
 		// React to editors closing to preserve or clear view state. This needs to happen
@@ -117,14 +118,14 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	setOptions(options: EditorOptions): void {
-		const textOptions = <TextEditorOptions>options;
-		if (textOptions && types.isFunction(textOptions.apply)) {
+	setOptions(options: EditorOptions | undefined): void {
+		const textOptions = options as TextEditorOptions;
+		if (textOptions && isFunction(textOptions.apply)) {
 			textOptions.apply(this.getControl(), ScrollType.Smooth);
 		}
 	}
 
-	async setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: FileEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
 		this.doSaveOrClearTextEditorViewState(this.input);
@@ -153,13 +154,13 @@ export class TextFileEditor extends BaseTextEditor {
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Always restore View State if any associated
-			const editorViewState = this.loadTextEditorViewState(this.input.getResource());
+			const editorViewState = this.loadTextEditorViewState(input.getResource());
 			if (editorViewState) {
 				textEditor.restoreViewState(editorViewState);
 			}
 
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+			if (options && isFunction((<TextEditorOptions>options).apply)) {
 				(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
 			}
 
@@ -223,8 +224,20 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
+	private openAsBinary(input: FileEditorInput, options: EditorOptions | undefined): void {
 		input.setForceOpenAsBinary();
+
+		// Make sure to not steal away the currently active group
+		// because we are triggering another openEditor() call
+		// and do not control the initial intent that resulted
+		// in us now opening as binary.
+		const preservingOptions: IEditorOptions = { activation: EditorActivation.PRESERVE };
+		if (options) {
+			options.overwrite(preservingOptions);
+		} else {
+			options = EditorOptions.create(preservingOptions);
+		}
+
 		this.editorService.openEditor(input, options, this.group);
 	}
 
@@ -278,7 +291,7 @@ export class TextFileEditor extends BaseTextEditor {
 		super.saveState();
 	}
 
-	private doSaveOrClearTextEditorViewState(input: FileEditorInput): void {
+	private doSaveOrClearTextEditorViewState(input: FileEditorInput | undefined): void {
 		if (!input) {
 			return; // ensure we have an input to handle view state for
 		}

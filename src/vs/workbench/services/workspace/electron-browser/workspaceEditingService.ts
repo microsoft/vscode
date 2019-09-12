@@ -32,11 +32,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
-	_serviceBrand!: ServiceIdentifier<IWorkspaceEditingService>;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
@@ -109,9 +108,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const detail = nls.localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
 		const cancelId = buttons.indexOf(cancel);
 
-		const res = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId });
+		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId });
 
-		switch (buttons[res].result) {
+		switch (buttons[choice].result) {
 
 			// Cancel: veto unload
 			case ConfirmResult.CANCEL:

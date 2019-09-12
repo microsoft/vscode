@@ -55,6 +55,9 @@ export class DebugSession implements IDebugSession {
 
 	private readonly _onDidChangeREPLElements = new Emitter<void>();
 
+	private name: string | undefined;
+	private readonly _onDidChangeName = new Emitter<string>();
+
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
 		public root: IWorkspaceFolder,
@@ -105,7 +108,13 @@ export class DebugSession implements IDebugSession {
 
 	getLabel(): string {
 		const includeRoot = this.workspaceContextService.getWorkspace().folders.length > 1;
-		return includeRoot && this.root ? `${this.configuration.name} (${resources.basenameOrAuthority(this.root.uri)})` : this.configuration.name;
+		const name = this.name || this.configuration.name;
+		return includeRoot && this.root ? `${name} (${resources.basenameOrAuthority(this.root.uri)})` : name;
+	}
+
+	setName(name: string): void {
+		this.name = name;
+		this._onDidChangeName.fire(name);
 	}
 
 	get state(): State {
@@ -142,6 +151,10 @@ export class DebugSession implements IDebugSession {
 
 	get onDidChangeReplElements(): Event<void> {
 		return this._onDidChangeREPLElements.event;
+	}
+
+	get onDidChangeName(): Event<string> {
+		return this._onDidChangeName.event;
 	}
 
 	//---- DAP events
@@ -799,8 +812,8 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidBreakpoint(event => {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
-			const breakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
-			const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
+			const breakpoint = this.model.getBreakpoints().filter(bp => bp.getIdFromAdapter(this.getId()) === id).pop();
+			const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.getIdFromAdapter(this.getId()) === id).pop();
 
 			if (event.body.reason === 'new' && event.body.breakpoint.source && event.body.breakpoint.line) {
 				const source = this.getSource(event.body.breakpoint.source);
@@ -908,11 +921,11 @@ export class DebugSession implements IDebugSession {
 	}
 
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		const viewModel = this.debugService.getViewModel();
-		await this.repl.addReplExpression(stackFrame, name);
+		const expressionEvaluated = this.repl.addReplExpression(stackFrame, name);
+		this._onDidChangeREPLElements.fire();
+		await expressionEvaluated;
 		this._onDidChangeREPLElements.fire();
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-		this.debugService.focusStackFrame(viewModel.focusedStackFrame, viewModel.focusedThread, viewModel.focusedSession);
 		variableSetEmitter.fire();
 	}
 

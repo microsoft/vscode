@@ -28,7 +28,7 @@ export enum LogLevel {
 export const DEFAULT_LOG_LEVEL: LogLevel = LogLevel.Info;
 
 export interface ILogService extends IDisposable {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onDidChangeLogLevel: Event<LogLevel>;
 
 	getLevel(): LogLevel;
@@ -61,7 +61,7 @@ export abstract class AbstractLogService extends Disposable {
 
 export class ConsoleLogMainService extends AbstractLogService implements ILogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	private useColors: boolean;
 
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
@@ -137,7 +137,7 @@ export class ConsoleLogMainService extends AbstractLogService implements ILogSer
 
 export class ConsoleLogService extends AbstractLogService implements ILogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
 		super();
@@ -184,7 +184,7 @@ export class ConsoleLogService extends AbstractLogService implements ILogService
 }
 
 export class MultiplexLogService extends AbstractLogService implements ILogService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private readonly logServices: ReadonlyArray<ILogService>) {
 		super();
@@ -244,7 +244,7 @@ export class MultiplexLogService extends AbstractLogService implements ILogServi
 }
 
 export class DelegatedLogService extends Disposable implements ILogService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private logService: ILogService) {
 		super();
@@ -289,7 +289,7 @@ export class DelegatedLogService extends Disposable implements ILogService {
 }
 
 export class NullLogService implements ILogService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	readonly onDidChangeLogLevel: Event<LogLevel> = new Emitter<LogLevel>().event;
 	setLevel(level: LogLevel): void { }
 	getLevel(): LogLevel { return LogLevel.Info; }

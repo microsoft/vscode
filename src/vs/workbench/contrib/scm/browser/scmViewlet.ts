@@ -20,7 +20,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
@@ -243,7 +243,7 @@ export class MainPanel extends ViewletPanel {
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false
 		});
@@ -495,7 +495,7 @@ class ResourceRenderer implements IListRenderer<ISCMResource, ResourceTemplate> 
 		const theme = this.themeService.getTheme();
 		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
 
-		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon, data: resource.decorations } });
+		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon } });
 		template.actionBar.clear();
 		template.actionBar.context = resource;
 
@@ -848,7 +848,7 @@ export class RepositoryPanel extends ViewletPanel {
 			new ResourceRenderer(this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
+		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Repo`, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
 			keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
 			horizontalScrolling: false
@@ -1030,9 +1030,10 @@ class MainPanelDescriptor implements IViewDescriptor {
 	readonly name = MainPanel.TITLE;
 	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
 	readonly canToggleVisibility = true;
-	readonly hideByDefault = true;
+	readonly hideByDefault = false;
 	readonly order = -1000;
 	readonly workspace = true;
+	readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = { ctor: MainPanel, arguments: [viewModel] };
@@ -1043,13 +1044,12 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 	private static readonly STATE_KEY = 'workbench.scm.views.state';
 
-	private repositoryCount = 0;
 	private el: HTMLElement;
 	private message: HTMLElement;
 	private menus: SCMMenus;
 	private _repositories: ISCMRepository[] = [];
 
-	private mainPanelDescriptor = new MainPanelDescriptor(this);
+	private repositoryCountKey: IContextKey<number>;
 	private viewDescriptors: RepositoryViewDescriptor[] = [];
 
 	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
@@ -1072,40 +1072,6 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		return Event.map(modificationEvent, () => this.visibleRepositories);
 	}
 
-	setVisibleRepositories(repositories: ISCMRepository[]): void {
-		const visibleViewDescriptors = this.viewsModel.visibleViewDescriptors;
-
-		const toSetVisible = this.viewsModel.viewDescriptors
-			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
-
-		const toSetInvisible = visibleViewDescriptors
-			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
-
-		let size: number | undefined;
-		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
-
-		for (const viewDescriptor of toSetInvisible) {
-			if (oneToOne) {
-				const panel = this.panels.filter(panel => panel.id === viewDescriptor.id)[0];
-
-				if (panel) {
-					size = this.getPanelSize(panel);
-				}
-			}
-
-			viewDescriptor.repository.setSelected(false);
-			this.viewsModel.setVisible(viewDescriptor.id, false);
-		}
-
-		for (const viewDescriptor of toSetVisible) {
-			viewDescriptor.repository.setSelected(true);
-			this.viewsModel.setVisible(viewDescriptor.id, true, size);
-		}
-	}
-
-	private readonly _onDidChangeRepositories = new Emitter<void>();
-	private readonly onDidFinishStartup = Event.once(Event.debounce(this._onDidChangeRepositories.event, () => null, 1000));
-
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1121,6 +1087,7 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(VIEWLET_ID, SCMViewlet.STATE_KEY, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
@@ -1129,13 +1096,16 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 		this.message = $('.empty-message', { tabIndex: 0 }, localize('no open repo', "No source control providers registered."));
 
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		viewsRegistry.registerViews([new MainPanelDescriptor(this)], VIEW_CONTAINER);
+
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('scm.alwaysShowProviders')) {
-				this.onDidChangeRepositories();
+			if (e.affectsConfiguration('scm.alwaysShowProviders') && configurationService.getValue<boolean>('scm.alwaysShowProviders')) {
+				this.viewsModel.setVisible(MainPanel.ID, true);
 			}
 		}));
 
-		this._register(this.onDidFinishStartup(this.onAfterStartup, this));
+		this.repositoryCountKey = contextKeyService.createKey('scm.providerCount', 0);
 		this._register(this.viewsModel.onDidRemove(this.onDidHideView, this));
 	}
 
@@ -1185,44 +1155,20 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 	private onDidChangeRepositories(): void {
 		const repositoryCount = this.repositories.length;
-
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		if (this.repositoryCount === 0 && repositoryCount !== 0) {
-			viewsRegistry.registerViews([this.mainPanelDescriptor], VIEW_CONTAINER);
-		} else if (this.repositoryCount !== 0 && repositoryCount === 0) {
-			viewsRegistry.deregisterViews([this.mainPanelDescriptor], VIEW_CONTAINER);
-		}
-
-		const alwaysShowProviders = this.configurationService.getValue<boolean>('scm.alwaysShowProviders') || false;
-
-		if (alwaysShowProviders && repositoryCount > 0) {
-			this.viewsModel.setVisible(MainPanel.ID, true);
-		}
-
 		toggleClass(this.el, 'empty', repositoryCount === 0);
-		this.repositoryCount = repositoryCount;
-
-		this._onDidChangeRepositories.fire();
-	}
-
-	private onAfterStartup(): void {
-		if (this.repositoryCount > 0 && this.viewDescriptors.every(d => !this.viewsModel.isVisible(d.id))) {
-			this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
-		}
+		this.repositoryCountKey.set(repositoryCount);
 	}
 
 	private onDidHideView(): void {
 		nextTick(() => {
-			if (this.repositoryCount > 0 && this.viewDescriptors.every(d => !this.viewsModel.isVisible(d.id))) {
-				const alwaysShowProviders = this.configurationService.getValue<boolean>('scm.alwaysShowProviders') || false;
-				this.viewsModel.setVisible(MainPanel.ID, alwaysShowProviders || this.repositoryCount > 1);
+			if (this.repositoryCountKey.get()! > 0 && this.viewDescriptors.every(d => !this.viewsModel.isVisible(d.id))) {
 				this.viewsModel.setVisible(this.viewDescriptors[0].id, true);
 			}
 		});
 	}
 
 	focus(): void {
-		if (this.repositoryCount === 0) {
+		if (this.repositoryCountKey.get()! === 0) {
 			this.message.focus();
 		} else {
 			const repository = this.visibleRepositories[0];
@@ -1284,6 +1230,37 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 	getActionsContext(): any {
 		if (this.visibleRepositories.length === 1) {
 			return this.repositories[0].provider;
+		}
+	}
+
+	setVisibleRepositories(repositories: ISCMRepository[]): void {
+		const visibleViewDescriptors = this.viewsModel.visibleViewDescriptors;
+
+		const toSetVisible = this.viewsModel.viewDescriptors
+			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
+
+		const toSetInvisible = visibleViewDescriptors
+			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) === -1);
+
+		let size: number | undefined;
+		const oneToOne = toSetVisible.length === 1 && toSetInvisible.length === 1;
+
+		for (const viewDescriptor of toSetInvisible) {
+			if (oneToOne) {
+				const panel = this.panels.filter(panel => panel.id === viewDescriptor.id)[0];
+
+				if (panel) {
+					size = this.getPanelSize(panel);
+				}
+			}
+
+			viewDescriptor.repository.setSelected(false);
+			this.viewsModel.setVisible(viewDescriptor.id, false);
+		}
+
+		for (const viewDescriptor of toSetVisible) {
+			viewDescriptor.repository.setSelected(true);
+			this.viewsModel.setVisible(viewDescriptor.id, true, size);
 		}
 	}
 }

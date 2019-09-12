@@ -41,6 +41,22 @@ export interface IConfirmationResult {
 	checkboxChecked?: boolean;
 }
 
+export interface IShowResult {
+
+	/**
+	 * Selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned.
+	 */
+	choice: number;
+
+	/**
+	 * This will only be defined if the confirmation was created
+	 * with the checkbox option defined.
+	 */
+	checkboxChecked?: boolean;
+}
+
 export interface IPickAndOpenOptions {
 	forceNewWindow?: boolean;
 	defaultUri?: URI;
@@ -127,8 +143,10 @@ export const IDialogService = createDecorator<IDialogService>('dialogService');
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
-	checkboxLabel?: string;
-	checkboxChecked?: boolean;
+	checkbox?: {
+		label: string;
+		checked?: boolean;
+	};
 }
 
 /**
@@ -139,7 +157,7 @@ export interface IDialogOptions {
  */
 export interface IDialogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.
@@ -153,7 +171,7 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number>;
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
 }
 
 export const IFileDialogService = createDecorator<IFileDialogService>('fileDialogService');
@@ -163,7 +181,7 @@ export const IFileDialogService = createDecorator<IFileDialogService>('fileDialo
  */
 export interface IFileDialogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * The default path for a new file based on previously used files.

@@ -11,6 +11,9 @@ const Lint = require("tslint");
  */
 class Rule extends Lint.Rules.AbstractRule {
     apply(sourceFile) {
+        if (/\.d.ts$/.test(sourceFile.fileName)) {
+            return [];
+        }
         return this.applyWithWalker(new NoUnexternalizedStringsRuleWalker(sourceFile, this.getOptions()));
     }
 }

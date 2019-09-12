@@ -158,7 +158,6 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return undefined;
 		}
 
-		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(fileSchemes.file, rangeOrSelection);
 		const response = await this.client.interruptGetErr(() => {
 			const file = this.client.toOpenedFilePath(document);
 			if (!file) {
@@ -166,6 +165,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			}
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
+			const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
 			return this.client.execute('getApplicableRefactors', args, token);
 		});
 		if (!response || response.type !== 'response' || !response.body) {

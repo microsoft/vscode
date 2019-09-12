@@ -7,7 +7,7 @@ import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TunnelService implements ITunnelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	public constructor(
 	) {

@@ -22,7 +22,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -46,7 +46,7 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
  */
 export abstract class TextFileService extends Disposable implements ITextFileService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration> = this._register(new Emitter<IAutoSaveConfiguration>());
 	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration> = this._onAutoSaveConfigurationChange.event;
@@ -158,9 +158,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 				// since a backup did not happen, we have to confirm for the dirty files now
 				return this.confirmBeforeShutdown();
-			}, errors => {
-				const firstError = errors[0];
-				this.notificationService.error(nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
+			}, error => {
+				this.notificationService.error(nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", error.message));
 
 				return true; // veto, the backups failed
 			});
@@ -589,12 +588,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			nls.localize('cancel', "Cancel")
 		];
 
-		const index = await this.dialogService.show(Severity.Warning, message, buttons, {
+		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons, {
 			cancelId: 2,
 			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
 		});
 
-		switch (index) {
+		switch (choice) {
 			case 0: return ConfirmResult.SAVE;
 			case 1: return ConfirmResult.DONT_SAVE;
 			default: return ConfirmResult.CANCEL;
@@ -685,7 +684,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
 
 		// Help user to find a name for the file by opening it first
-		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } });
+		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
 
 		return this.fileDialogService.pickFileToSave(this.getSaveDialogOptions(defaultUri, availableFileSystems));
 	}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -11,29 +12,11 @@ import { ExtensionActivationError, MissingDependencyError } from 'vs/workbench/s
 
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
-export interface IExtensionMemento {
-	get<T>(key: string): T | undefined;
-	get<T>(key: string, defaultValue: T): T;
-	update(key: string, value: any): Promise<void>;
-}
-
-export interface IExtensionContext {
-	subscriptions: IDisposable[];
-	workspaceState: IExtensionMemento;
-	globalState: IExtensionMemento;
-	extensionPath: string;
-	storagePath: string;
-	globalStoragePath: string;
-	asAbsolutePath(relativePath: string): string;
-	readonly logPath: string;
-	executionContext: number;
-}
-
 /**
  * Represents the source code (module) of an extension.
  */
 export interface IExtensionModule {
-	activate?(ctx: IExtensionContext): Promise<IExtensionAPI>;
+	activate?(ctx: vscode.ExtensionContext): Promise<IExtensionAPI>;
 	deactivate?(): void;
 }
 

@@ -8,7 +8,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { IStorage, Storage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -19,7 +18,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 
 export class BrowserStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;

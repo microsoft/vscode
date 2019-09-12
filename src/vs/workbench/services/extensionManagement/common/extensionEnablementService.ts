@@ -24,7 +24,7 @@ const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
 
 export class ExtensionEnablementService extends Disposable implements IExtensionEnablementService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _onEnablementChanged = new Emitter<IExtension[]>();
 	public readonly onEnablementChanged: Event<IExtension[]> = this._onEnablementChanged.event;

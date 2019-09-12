@@ -54,7 +54,7 @@ export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChan
 
 export class ExtensionHostDebugChannelClient extends Disposable implements IExtensionHostDebugService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private channel: IChannel) {
 		super();

@@ -86,7 +86,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 }
 
 export class TunnelService implements ITunnelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	public constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,

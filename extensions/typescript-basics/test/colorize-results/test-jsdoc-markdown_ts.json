@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "js",
-		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown",
+		"t": "source.ts comment.block.documentation.ts markup.fenced_code.block.markdown fenced_code.block.language.markdown",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",

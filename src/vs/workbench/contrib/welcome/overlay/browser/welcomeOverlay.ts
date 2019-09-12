@@ -153,7 +153,7 @@ export class HideWelcomeOverlayAction extends Action {
 class WelcomeOverlay extends Disposable {
 
 	private _overlayVisible: IContextKey<boolean>;
-	private _overlay: HTMLElement;
+	private _overlay!: HTMLElement;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,

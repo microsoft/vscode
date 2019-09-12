@@ -6,7 +6,7 @@
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { Event } from 'vs/base/common/event';
-import { ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent, ITreeModelSpliceEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IObjectTreeModelOptions, ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 
 export interface ICompressedTreeElement<T> extends ITreeElement<T> {
@@ -95,8 +95,12 @@ export class CompressedTreeModel<T extends NonNullable<any>, TFilterData extends
 
 	get size(): number { return this.nodes.size; }
 
-	constructor(list: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>, options: ICompressedTreeModelOptions<T, TFilterData> = {}) {
-		this.model = new ObjectTreeModel(list, options);
+	constructor(
+		private user: string,
+		list: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>,
+		options: ICompressedTreeModelOptions<T, TFilterData> = {}
+	) {
+		this.model = new ObjectTreeModel(user, list, options);
 	}
 
 	setChildren(
@@ -227,6 +231,11 @@ export class CompressedTreeModel<T extends NonNullable<any>, TFilterData extends
 		return this.model.isCollapsible(compressedNode);
 	}
 
+	setCollapsible(location: T | null, collapsible?: boolean): boolean {
+		const compressedNode = this.getCompressedNode(location);
+		return this.model.setCollapsible(compressedNode, collapsible);
+	}
+
 	isCollapsed(location: T | null): boolean {
 		const compressedNode = this.getCompressedNode(location);
 		return this.model.isCollapsed(compressedNode);
@@ -264,7 +273,7 @@ export class CompressedTreeModel<T extends NonNullable<any>, TFilterData extends
 		const node = this.nodes.get(element);
 
 		if (!node) {
-			throw new Error(`Tree element not found: ${element}`);
+			throw new TreeError(this.user, `Tree element not found: ${element}`);
 		}
 
 		return node;
@@ -320,12 +329,13 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 	private model: CompressedTreeModel<T, TFilterData>;
 
 	constructor(
+		user: string,
 		list: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>,
 		options: ICompressedObjectTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.mapElement = options.elementMapper || DefaultElementMapper;
 		this.mapNode = createNodeMapper(this.mapElement);
-		this.model = new CompressedTreeModel(list, options);
+		this.model = new CompressedTreeModel(user, list, options);
 	}
 
 	setChildren(
@@ -390,6 +400,10 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	isCollapsible(location: T | null): boolean {
 		return this.model.isCollapsible(location);
+	}
+
+	setCollapsible(location: T | null, collapsed?: boolean): boolean {
+		return this.model.setCollapsible(location, collapsed);
 	}
 
 	isCollapsed(location: T | null): boolean {

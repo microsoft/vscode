@@ -27,7 +27,7 @@ function getFileEventsExcludes(configurationService: IConfigurationService, root
 }
 
 export class ExplorerService implements IExplorerService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
@@ -138,6 +138,10 @@ export class ExplorerService implements IExplorerService {
 
 	isCut(item: ExplorerItem): boolean {
 		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
+	}
+
+	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined {
+		return this.editable;
 	}
 
 	getEditableData(stat: ExplorerItem): IEditableData | undefined {

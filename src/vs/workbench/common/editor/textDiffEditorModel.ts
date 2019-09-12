@@ -14,10 +14,10 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
  */
 export class TextDiffEditorModel extends DiffEditorModel {
 
-	protected readonly _originalModel: BaseTextEditorModel;
-	protected readonly _modifiedModel: BaseTextEditorModel;
+	protected readonly _originalModel!: BaseTextEditorModel | null;
+	protected readonly _modifiedModel!: BaseTextEditorModel | null;
 
-	private _textDiffEditorModel: IDiffEditorModel | null;
+	private _textDiffEditorModel: IDiffEditorModel | null = null;
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);
@@ -25,11 +25,11 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		this.updateTextDiffEditorModel();
 	}
 
-	get originalModel(): BaseTextEditorModel {
+	get originalModel(): BaseTextEditorModel | null {
 		return this._originalModel;
 	}
 
-	get modifiedModel(): BaseTextEditorModel {
+	get modifiedModel(): BaseTextEditorModel | null {
 		return this._modifiedModel;
 	}
 
@@ -42,7 +42,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	}
 
 	private updateTextDiffEditorModel(): void {
-		if (this.originalModel.isResolved() && this.modifiedModel.isResolved()) {
+		if (this.originalModel && this.originalModel.isResolved() && this.modifiedModel && this.modifiedModel.isResolved()) {
 
 			// Create new
 			if (!this._textDiffEditorModel) {
@@ -69,7 +69,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	}
 
 	isReadonly(): boolean {
-		return this.modifiedModel.isReadonly();
+		return !!this.modifiedModel && this.modifiedModel.isReadonly();
 	}
 
 	dispose(): void {

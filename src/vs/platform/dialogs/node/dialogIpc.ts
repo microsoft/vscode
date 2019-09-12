@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDialogService, IConfirmation, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmation, IConfirmationResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';
 
@@ -27,11 +27,11 @@ export class DialogChannel implements IServerChannel {
 
 export class DialogChannelClient implements IDialogService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private channel: IChannel) { }
 
-	show(severity: Severity, message: string, options: string[]): Promise<number> {
+	show(severity: Severity, message: string, options: string[]): Promise<IShowResult> {
 		return this.channel.call('show', [severity, message, options]);
 	}
 

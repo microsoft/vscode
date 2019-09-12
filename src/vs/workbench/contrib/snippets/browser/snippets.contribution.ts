@@ -15,7 +15,7 @@ export const ISnippetsService = createDecorator<ISnippetsService>('snippetServic
 
 export interface ISnippetsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	getSnippetFiles(): Promise<SnippetFile[]>;
 
@@ -28,6 +28,7 @@ const languageScopeSchemaId = 'vscode://schemas/snippets';
 const languageScopeSchema: IJSONSchema = {
 	id: languageScopeSchemaId,
 	allowComments: true,
+	allowsTrailingCommas: true,
 	defaultSnippets: [{
 		label: nls.localize('snippetSchema.json.default', "Empty snippet"),
 		body: { '${1:snippetName}': { 'prefix': '${2:prefix}', 'body': '${3:snippet}', 'description': '${4:description}' } }
@@ -63,6 +64,7 @@ const globalSchemaId = 'vscode://schemas/global-snippets';
 const globalSchema: IJSONSchema = {
 	id: globalSchemaId,
 	allowComments: true,
+	allowsTrailingCommas: true,
 	defaultSnippets: [{
 		label: nls.localize('snippetSchema.json.default', "Empty snippet"),
 		body: { '${1:snippetName}': { 'scope': '${2:scope}', 'prefix': '${3:prefix}', 'body': '${4:snippet}', 'description': '${5:description}' } }

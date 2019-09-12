@@ -41,7 +41,7 @@ import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { memoize } from 'vs/base/common/decorators';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
@@ -168,7 +168,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => {
+		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			const data = e.target.detail as IMarginData;
 			const model = this.editor.getModel();
 			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
@@ -213,18 +213,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
 						);
 
-						this.dialogService.show(severity.Info, disable ? disabling : enabling, [
+						const { choice } = await this.dialogService.show(severity.Info, disable ? disabling : enabling, [
 							nls.localize('removeLogPoint', "Remove {0}", breakpointType),
 							nls.localize('disableLogPoint', "{0} {1}", disable ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
 							nls.localize('cancel', "Cancel")
-						], { cancelId: 2 }).then(choice => {
-							if (choice === 0) {
-								breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
-							}
-							if (choice === 1) {
-								breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
-							}
-						});
+						], { cancelId: 2 });
+
+						if (choice === 0) {
+							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+						}
+						if (choice === 1) {
+							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
+						}
 					} else {
 						breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 					}
@@ -540,7 +540,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.configurationWidget) {
 			this.configurationWidget.dispose();
 		}
-		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getConfiguration().readOnly) {
+		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString()) && !this.editor.getOption(EditorOption.readOnly)) {
 			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
 			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration()));

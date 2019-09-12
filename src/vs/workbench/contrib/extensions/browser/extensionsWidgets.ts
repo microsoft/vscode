@@ -170,8 +170,8 @@ export class TooltipWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return '';
 		}
-		if (this.tooltipAction.tooltip) {
-			return this.tooltipAction.tooltip;
+		if (this.tooltipAction.label) {
+			return this.tooltipAction.label;
 		}
 		return this.recommendationWidget.tooltip;
 	}

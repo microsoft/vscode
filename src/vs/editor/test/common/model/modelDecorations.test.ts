@@ -1312,8 +1312,8 @@ suite('deltaDecorations', () => {
 					endLineNumber: 1,
 					endColumn: 1
 				}, {
-					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-				}
+				stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+			}
 			);
 		});
 		model.changeDecorations((changeAccessor) => {

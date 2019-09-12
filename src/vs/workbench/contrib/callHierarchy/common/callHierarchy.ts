@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind, ProviderResult, Location } from 'vs/editor/common/modes';
+import { SymbolKind, ProviderResult } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { URI } from 'vs/base/common/uri';
+import { IPosition } from 'vs/editor/common/core/position';
 
 export const enum CallHierarchyDirection {
-	CallsFrom = 1,
-	CallsTo = 2
+	CallsTo = 1,
+	CallsFrom = 2
 }
 
 export interface CallHierarchyItem {
-	_id: number;
 	kind: SymbolKind;
 	name: string;
 	detail?: string;
@@ -26,19 +25,21 @@ export interface CallHierarchyItem {
 	selectionRange: IRange;
 }
 
+export interface IncomingCall {
+	source: CallHierarchyItem;
+	sourceRanges: IRange[];
+}
+
+export interface OutgoingCall {
+	sourceRanges: IRange[];
+	target: CallHierarchyItem;
+}
+
 export interface CallHierarchyProvider {
 
-	provideCallHierarchyItem(
-		document: ITextModel,
-		position: IPosition,
-		token: CancellationToken
-	): ProviderResult<CallHierarchyItem>;
+	provideIncomingCalls(document: ITextModel, postion: IPosition, token: CancellationToken): ProviderResult<IncomingCall[]>;
 
-	resolveCallHierarchyItem(
-		item: CallHierarchyItem,
-		direction: CallHierarchyDirection,
-		token: CancellationToken
-	): ProviderResult<[CallHierarchyItem, Location[]][]>;
+	provideOutgoingCalls(document: ITextModel, postion: IPosition, token: CancellationToken): ProviderResult<OutgoingCall[]>;
 }
 
 export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();

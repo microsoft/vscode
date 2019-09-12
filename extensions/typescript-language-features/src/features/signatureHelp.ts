@@ -112,7 +112,7 @@ export function register(
 ) {
 	return vscode.languages.registerSignatureHelpProvider(selector,
 		new TypeScriptSignatureHelpProvider(client), {
-			triggerCharacters: TypeScriptSignatureHelpProvider.triggerCharacters,
-			retriggerCharacters: TypeScriptSignatureHelpProvider.retriggerCharacters
-		});
+		triggerCharacters: TypeScriptSignatureHelpProvider.triggerCharacters,
+		retriggerCharacters: TypeScriptSignatureHelpProvider.retriggerCharacters
+	});
 }
