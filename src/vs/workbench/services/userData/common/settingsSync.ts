@@ -8,9 +8,9 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IRemoteUserDataService, IUserData, RemoteUserDataError, RemoteUserDataErrorCode, ISynchroniser, SyncStatus } from 'vs/workbench/services/userData/common/userData';
+import { IRemoteUserDataService, IUserData, RemoteUserDataError, RemoteUserDataErrorCode, ISynchroniser, SyncStatus, SETTINGS_PREVIEW_RESOURCE } from 'vs/workbench/services/userData/common/userData';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { parse, findNodeAtLocation, parseTree } from 'vs/base/common/json';
+import { parse, findNodeAtLocation, parseTree, ParseError } from 'vs/base/common/json';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -24,8 +24,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Position } from 'vs/editor/common/core/position';
-import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { isEqual } from 'vs/base/common/resources';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -35,13 +35,10 @@ interface ISyncPreviewResult {
 	readonly hasConflicts: boolean;
 }
 
-export class SettingsSyncService extends Disposable implements ISynchroniser {
-	_serviceBrand: undefined;
+export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 	private static LAST_SYNC_SETTINGS_STORAGE_KEY: string = 'LAST_SYNC_SETTINGS_CONTENTS';
 	private static EXTERNAL_USER_DATA_SETTINGS_KEY: string = 'settings';
-
-	private readonly settingsPreviewResource: URI;
 
 	private syncPreviewResultPromise: Promise<ISyncPreviewResult> | null = null;
 
@@ -62,10 +59,6 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 		@IHistoryService private readonly historyService: IHistoryService,
 	) {
 		super();
-
-		const settingsPreviewScheme = 'vscode-in-memory';
-		this.settingsPreviewResource = URI.file('Settings-Preview').with({ scheme: settingsPreviewScheme });
-		this.fileService.registerProvider(settingsPreviewScheme, new InMemoryFileSystemProvider());
 	}
 
 	private setStatus(status: SyncStatus): void {
@@ -89,7 +82,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 				this.setStatus(SyncStatus.HasConflicts);
 				return false;
 			}
-			await this.apply();
+			await this.apply(SETTINGS_PREVIEW_RESOURCE);
 			return true;
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
@@ -108,28 +101,39 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 		}
 	}
 
-	resolveConflicts(): void {
-		if (this.status === SyncStatus.HasConflicts) {
-			const resourceInput = {
-				resource: this.settingsPreviewResource,
-				label: localize('settings preview', "Settings Preview"),
-				options: {
-					preserveFocus: false,
-					pinned: false,
-					revealIfVisible: true,
-				},
-				mode: 'jsonc'
-			};
-			this.editorService.openEditor(resourceInput).then(() => this.historyService.remove(resourceInput));
+	handleConflicts(): boolean {
+		if (this.status !== SyncStatus.HasConflicts) {
+			return false;
 		}
+		const resourceInput = {
+			resource: SETTINGS_PREVIEW_RESOURCE,
+			label: localize('Settings Conflicts', "Local ↔ Remote (Settings Conflicts)"),
+			options: {
+				preserveFocus: false,
+				pinned: false,
+				revealIfVisible: true,
+			},
+			mode: 'jsonc'
+		};
+		this.editorService.openEditor(resourceInput).then(() => this.historyService.remove(resourceInput));
+		return true;
 	}
 
-	async apply(): Promise<void> {
+	async apply(previewResource: URI): Promise<boolean> {
+		if (!isEqual(previewResource, SETTINGS_PREVIEW_RESOURCE, false)) {
+			return false;
+		}
 		if (this.syncPreviewResultPromise) {
 			const result = await this.syncPreviewResultPromise;
 			let remoteUserData = result.remoteUserData;
-			const settingsPreivew = await this.fileService.readFile(this.settingsPreviewResource);
+			const settingsPreivew = await this.fileService.readFile(SETTINGS_PREVIEW_RESOURCE);
 			const content = settingsPreivew.value.toString();
+
+			const parseErrors: ParseError[] = [];
+			parse(content, parseErrors);
+			if (parseErrors.length > 0) {
+				return Promise.reject(localize('errorInvalidSettings', "Unable to sync settings. Please fix errors/warnings in it and try again."));
+			}
 			if (result.hasRemoteChanged) {
 				const ref = await this.writeToRemote(content, remoteUserData ? remoteUserData.ref : null);
 				remoteUserData = { ref, content };
@@ -143,6 +147,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 		}
 		this.syncPreviewResultPromise = null;
 		this.setStatus(SyncStatus.Idle);
+		return true;
 	}
 
 	private getPreview(): Promise<ISyncPreviewResult> {
@@ -153,12 +158,12 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 	}
 
 	private async generatePreview(): Promise<ISyncPreviewResult> {
-		const remoteUserData = await this.remoteUserDataService.read(SettingsSyncService.EXTERNAL_USER_DATA_SETTINGS_KEY);
+		const remoteUserData = await this.remoteUserDataService.read(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY);
 		// Get file content last to get the latest
 		const fileContent = await this.getLocalFileContent();
 		const { settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts } = await this.computeChanges(fileContent, remoteUserData);
 		if (hasLocalChanged || hasRemoteChanged) {
-			await this.fileService.writeFile(this.settingsPreviewResource, VSBuffer.fromString(settingsPreview));
+			await this.fileService.writeFile(SETTINGS_PREVIEW_RESOURCE, VSBuffer.fromString(settingsPreview));
 		}
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 	}
@@ -248,7 +253,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 	}
 
 	private getLastSyncUserData(): IUserData | null {
-		const lastSyncStorageContents = this.storageService.get(SettingsSyncService.LAST_SYNC_SETTINGS_STORAGE_KEY, StorageScope.GLOBAL, undefined);
+		const lastSyncStorageContents = this.storageService.get(SettingsSynchroniser.LAST_SYNC_SETTINGS_STORAGE_KEY, StorageScope.GLOBAL, undefined);
 		if (lastSyncStorageContents) {
 			return JSON.parse(lastSyncStorageContents);
 		}
@@ -425,7 +430,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 	}
 
 	private async writeToRemote(content: string, ref: string | null): Promise<string> {
-		return this.remoteUserDataService.write(SettingsSyncService.EXTERNAL_USER_DATA_SETTINGS_KEY, content, ref);
+		return this.remoteUserDataService.write(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY, content, ref);
 	}
 
 	private async writeToLocal(newContent: string, oldContent: IFileContent | null): Promise<void> {
@@ -439,7 +444,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser {
 	}
 
 	private updateLastSyncValue(remoteUserData: IUserData): void {
-		this.storageService.store(SettingsSyncService.LAST_SYNC_SETTINGS_STORAGE_KEY, JSON.stringify(remoteUserData), StorageScope.GLOBAL);
+		this.storageService.store(SettingsSynchroniser.LAST_SYNC_SETTINGS_STORAGE_KEY, JSON.stringify(remoteUserData), StorageScope.GLOBAL);
 	}
 
 }

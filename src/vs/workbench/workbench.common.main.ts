@@ -240,6 +240,6 @@ import 'vs/workbench/contrib/experiments/browser/experiments.contribution';
 import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
 // User Data
-import 'vs/workbench/contrib/userData/common/userData.contribution';
+import 'vs/workbench/contrib/userData/browser/userData.contribution';
 
 //#endregion

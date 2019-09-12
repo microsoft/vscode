@@ -18,6 +18,8 @@ import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { timeout } from 'vs/base/common/async';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { AcceptChangesController } from 'vs/workbench/contrib/userData/browser/userDataPreviewEditorContribution';
 
 const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 
@@ -129,7 +131,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.autoSync')),
 		});
 
-		CommandsRegistry.registerCommand('sync.resolveConflicts', serviceAccessor => serviceAccessor.get(IUserDataSyncService).resolveConflicts());
+		CommandsRegistry.registerCommand('sync.resolveConflicts', serviceAccessor => serviceAccessor.get(IUserDataSyncService).handleConflicts());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {
@@ -174,3 +176,5 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(SyncContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(AutoSyncUserData, LifecyclePhase.Eventually);
+
+registerEditorContribution(AcceptChangesController);

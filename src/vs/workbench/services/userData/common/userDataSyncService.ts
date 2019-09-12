@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IRemoteUserDataService, ISynchroniser } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncService, SyncStatus, IRemoteUserDataService, ISynchroniser, USER_DATA_PREVIEW_SCHEME } from 'vs/workbench/services/userData/common/userData';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SettingsSyncService as SettingsSynchroniser } from 'vs/workbench/services/userData/common/settingsSync';
+import { SettingsSynchroniser } from 'vs/workbench/services/userData/common/settingsSync';
 import { Emitter, Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { IFileService } from 'vs/platform/files/common/files';
+import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -22,10 +25,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
 	constructor(
+		@IFileService fileService: IFileService,
 		@IRemoteUserDataService private readonly remoteUserDataService: IRemoteUserDataService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+		this._register(fileService.registerProvider(USER_DATA_PREVIEW_SCHEME, new InMemoryFileSystemProvider()));
 		this.synchronisers = [
 			this.instantiationService.createInstance(SettingsSynchroniser)
 		];
@@ -33,22 +38,40 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._register(Event.any(this.remoteUserDataService.onDidChangeEnablement, ...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
 	}
 
-	async sync(): Promise<void> {
+	async sync(): Promise<boolean> {
 		if (!this.remoteUserDataService.isEnabled()) {
 			throw new Error('Not enabled');
 		}
 		for (const synchroniser of this.synchronisers) {
 			if (!await synchroniser.sync()) {
-				return;
+				return false;
 			}
 		}
+		return true;
 	}
 
-	resolveConflicts(): void {
-		const synchroniserWithConflicts = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
-		if (synchroniserWithConflicts) {
-			synchroniserWithConflicts.resolveConflicts();
+	async apply(previewResource: URI): Promise<boolean> {
+		if (!this.remoteUserDataService.isEnabled()) {
+			throw new Error('Not enabled');
 		}
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.apply(previewResource)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	handleConflicts(): boolean {
+		if (!this.remoteUserDataService.isEnabled()) {
+			throw new Error('Not enabled');
+		}
+		for (const synchroniser of this.synchronisers) {
+			if (synchroniser.handleConflicts()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private updateStatus(): void {

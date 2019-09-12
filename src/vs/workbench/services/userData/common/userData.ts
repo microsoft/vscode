@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
 export interface IUserData {
 	ref: string;
@@ -93,20 +94,19 @@ export enum SyncStatus {
 	HasConflicts = 'hasConflicts',
 }
 
+export const USER_DATA_PREVIEW_SCHEME = 'vscode-userdata-preview';
+export const SETTINGS_PREVIEW_RESOURCE = URI.file('Settings-Preview').with({ scheme: USER_DATA_PREVIEW_SCHEME });
+
 export interface ISynchroniser {
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	sync(): Promise<boolean>;
-	resolveConflicts(): void;
-	apply(): void;
+	handleConflicts(): boolean;
+	apply(previewResource: URI): Promise<boolean>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 
-export interface IUserDataSyncService {
+export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
-	readonly status: SyncStatus;
-	readonly onDidChangeStatus: Event<SyncStatus>;
-	sync(): Promise<void>;
-	resolveConflicts(): void;
 }
