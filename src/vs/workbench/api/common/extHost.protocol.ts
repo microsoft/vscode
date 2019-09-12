@@ -1068,7 +1068,6 @@ export interface ICodeLensDto {
 }
 
 export interface ICallHierarchyItemDto {
-	_id: number;
 	kind: modes.SymbolKind;
 	name: string;
 	detail?: string;

@@ -17,7 +17,6 @@ export const enum CallHierarchyDirection {
 }
 
 export interface CallHierarchyItem {
-	_id: number;
 	kind: SymbolKind;
 	name: string;
 	detail?: string;
