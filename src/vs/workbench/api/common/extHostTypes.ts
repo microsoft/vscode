@@ -1166,20 +1166,20 @@ export class CallHierarchyItem {
 
 export class CallHierarchyIncomingCall {
 
-	source: CallHierarchyItem;
-	sourceRanges: Range[];
+	source: vscode.CallHierarchyItem;
+	sourceRanges: vscode.Range[];
 
-	constructor(item: CallHierarchyItem, sourceRanges: Range[]) {
+	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
 		this.sourceRanges = sourceRanges;
 		this.source = item;
 	}
 }
 export class CallHierarchyOutgoingCall {
 
-	target: CallHierarchyItem;
-	sourceRanges: Range[];
+	target: vscode.CallHierarchyItem;
+	sourceRanges: vscode.Range[];
 
-	constructor(item: CallHierarchyItem, sourceRanges: Range[]) {
+	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
 		this.sourceRanges = sourceRanges;
 		this.target = item;
 	}

@@ -10,6 +10,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
+import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export const enum CallHierarchyDirection {
 	CallsTo = 1,
@@ -44,3 +47,38 @@ export interface CallHierarchyProvider {
 
 export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();
 
+
+export async function provideIncomingCalls(model: ITextModel, position: IPosition, token: CancellationToken): Promise<IncomingCall[]> {
+	const [provider] = CallHierarchyProviderRegistry.ordered(model);
+	if (!provider) {
+		return [];
+	}
+	try {
+		const result = await provider.provideIncomingCalls(model, position, token);
+		if (isNonEmptyArray(result)) {
+			return result;
+		}
+	} catch (e) {
+		onUnexpectedExternalError(e);
+	}
+	return [];
+}
+
+export async function provideOutgoingCalls(model: ITextModel, position: IPosition, token: CancellationToken): Promise<OutgoingCall[]> {
+	const [provider] = CallHierarchyProviderRegistry.ordered(model);
+	if (!provider) {
+		return [];
+	}
+	try {
+		const result = await provider.provideOutgoingCalls(model, position, token);
+		if (isNonEmptyArray(result)) {
+			return result;
+		}
+	} catch (e) {
+		onUnexpectedExternalError(e);
+	}
+	return [];
+}
+
+registerDefaultLanguageCommand('_executeCallHierarchyIncomingCalls', async (model, position) => provideIncomingCalls(model, position, CancellationToken.None));
+registerDefaultLanguageCommand('_executeCallHierarchyOutgoingCalls', async (model, position) => provideOutgoingCalls(model, position, CancellationToken.None));

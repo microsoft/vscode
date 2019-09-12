@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { CallHierarchyItem, CallHierarchyProvider, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import { CallHierarchyItem, CallHierarchyProvider, CallHierarchyDirection, provideOutgoingCalls, provideIncomingCalls } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
 import { hash } from 'vs/base/common/hash';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -62,17 +61,17 @@ export class DataSource implements IAsyncDataSource<CallHierarchyRoot, Call> {
 
 		if (element instanceof CallHierarchyRoot) {
 			if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
-				await this._getCallsFrom(element.model, element.position, results);
+				await this._getOutgoingCalls(element.model, element.position, results);
 			} else {
-				await this._getCallsTo(element.model, element.position, results);
+				await this._getIncomingCalls(element.model, element.position, results);
 			}
 		} else {
 			const reference = await this._modelService.createModelReference(element.item.uri);
 			const position = Range.lift(element.item.selectionRange).getStartPosition();
 			if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
-				await this._getCallsFrom(reference.object.textEditorModel, position, results, element);
+				await this._getOutgoingCalls(reference.object.textEditorModel, position, results, element);
 			} else {
-				await this._getCallsTo(reference.object.textEditorModel, position, results, element);
+				await this._getIncomingCalls(reference.object.textEditorModel, position, results, element);
 			}
 			reference.dispose();
 		}
@@ -80,39 +79,25 @@ export class DataSource implements IAsyncDataSource<CallHierarchyRoot, Call> {
 		return results;
 	}
 
-	private async _getCallsFrom(model: ITextModel, position: IPosition, bucket: Call[], parent?: Call): Promise<void> {
-		try {
-			const callsFrom = await this.provider.provideOutgoingCalls(model, position, CancellationToken.None);
-			if (!callsFrom) {
-				return;
-			}
-			for (const callFrom of callsFrom) {
-				bucket.push(new Call(
-					callFrom.target,
-					callFrom.sourceRanges.map(range => ({ range, uri: model.uri })),
-					parent
-				));
-			}
-		} catch (e) {
-			onUnexpectedExternalError(e);
+	private async _getOutgoingCalls(model: ITextModel, position: IPosition, bucket: Call[], parent?: Call): Promise<void> {
+		const outgoingCalls = await provideOutgoingCalls(model, position, CancellationToken.None);
+		for (const call of outgoingCalls) {
+			bucket.push(new Call(
+				call.target,
+				call.sourceRanges.map(range => ({ range, uri: model.uri })),
+				parent
+			));
 		}
 	}
 
-	private async _getCallsTo(model: ITextModel, position: IPosition, bucket: Call[], parent?: Call): Promise<void> {
-		try {
-			const callsTo = await this.provider.provideIncomingCalls(model, position, CancellationToken.None);
-			if (!callsTo) {
-				return;
-			}
-			for (const callTo of callsTo) {
-				bucket.push(new Call(
-					callTo.source,
-					callTo.sourceRanges.map(range => ({ range, uri: callTo.source.uri })),
-					parent
-				));
-			}
-		} catch (e) {
-			onUnexpectedExternalError(e);
+	private async _getIncomingCalls(model: ITextModel, position: IPosition, bucket: Call[], parent?: Call): Promise<void> {
+		const incomingCalls = await provideIncomingCalls(model, position, CancellationToken.None);
+		for (const call of incomingCalls) {
+			bucket.push(new Call(
+				call.source,
+				call.sourceRanges.map(range => ({ range, uri: call.source.uri })),
+				parent
+			));
 		}
 	}
 
