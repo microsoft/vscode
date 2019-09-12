@@ -670,16 +670,15 @@ export class DebugService implements IDebugService {
 		return Promise.resolve(config);
 	}
 
-	private showError(message: string, errorActions: ReadonlyArray<IAction> = []): Promise<void> {
+	private async showError(message: string, errorActions: ReadonlyArray<IAction> = []): Promise<void> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 		const actions = [...errorActions, configureAction];
-		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
-			if (choice < actions.length) {
-				return actions[choice].run();
-			}
+		const { choice } = await this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length });
+		if (choice < actions.length) {
+			return actions[choice].run();
+		}
 
-			return undefined;
-		});
+		return undefined;
 	}
 
 	//---- task management
@@ -707,19 +706,20 @@ export class DebugService implements IDebugService {
 					? nls.localize('preLaunchTaskError', "Error exists after running preLaunchTask '{0}'.", taskLabel)
 					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode);
 
-			return this.dialogService.confirm({
+			return this.dialogService.show(severity.Warning, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('cancel', "Cancel")], {
 				checkbox: {
 					label: nls.localize('remember', "Remember my choice in user settings"),
 				},
-				message,
-				type: 'warning',
-				primaryButton: nls.localize('debugAnyway', "Debug Anyway"),
-				secondaryButton: nls.localize('showErrors', "Show Errors"),
+				cancelId: 2
 			}).then(result => {
-				if (result.checkboxChecked) {
-					this.configurationService.updateValue('debug.onTaskErrors', result.confirmed ? 'debugAnyway' : 'showErrors');
+				if (result.choice === 2) {
+					return Promise.resolve(TaskRunResult.Failure);
 				}
-				if (result.confirmed) {
+				const debugAnyway = result.choice === 0;
+				if (result.checkboxChecked) {
+					this.configurationService.updateValue('debug.onTaskErrors', debugAnyway ? 'debugAnyway' : 'showErrors');
+				}
+				if (debugAnyway) {
 					return TaskRunResult.Success;
 				}
 

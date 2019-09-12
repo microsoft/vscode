@@ -168,7 +168,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => {
+		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			const data = e.target.detail as IMarginData;
 			const model = this.editor.getModel();
 			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
@@ -213,18 +213,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
 						);
 
-						this.dialogService.show(severity.Info, disable ? disabling : enabling, [
+						const { choice } = await this.dialogService.show(severity.Info, disable ? disabling : enabling, [
 							nls.localize('removeLogPoint', "Remove {0}", breakpointType),
 							nls.localize('disableLogPoint', "{0} {1}", disable ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
 							nls.localize('cancel', "Cancel")
-						], { cancelId: 2 }).then(choice => {
-							if (choice === 0) {
-								breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
-							}
-							if (choice === 1) {
-								breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
-							}
-						});
+						], { cancelId: 2 });
+
+						if (choice === 0) {
+							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+						}
+						if (choice === 1) {
+							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
+						}
 					} else {
 						breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 					}

@@ -108,9 +108,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const detail = nls.localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
 		const cancelId = buttons.indexOf(cancel);
 
-		const res = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId });
+		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId });
 
-		switch (buttons[res].result) {
+		switch (buttons[choice].result) {
 
 			// Cancel: veto unload
 			case ConfirmResult.CANCEL:
