@@ -13,7 +13,7 @@ import { registerEditorContribution, registerEditorAction, EditorAction, registe
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -23,7 +23,7 @@ import { CallHierarchyRoot } from 'vs/workbench/contrib/callHierarchy/browser/ca
 const _ctxHasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false);
 
-class CallHierarchyController extends Disposable implements IEditorContribution {
+class CallHierarchyController implements IEditorContribution {
 
 	static Id = 'callHierarchy';
 
@@ -33,29 +33,26 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 
 	private readonly _ctxHasProvider: IContextKey<boolean>;
 	private readonly _ctxIsVisible: IContextKey<boolean>;
-
-	private _sessionDispose: IDisposable[] = [];
+	private readonly _dispoables = new DisposableStore();
+	private readonly _sessionDisposables = new DisposableStore();
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super();
-
 		this._ctxIsVisible = _ctxCallHierarchyVisible.bindTo(this._contextKeyService);
 		this._ctxHasProvider = _ctxHasCompletionItemProvider.bindTo(this._contextKeyService);
-		this._register(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
+		this._dispoables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
 			this._ctxHasProvider.set(_editor.hasModel() && CallHierarchyProviderRegistry.has(_editor.getModel()));
 		}));
-
-		this._register({ dispose: () => dispose(this._sessionDispose) });
+		this._dispoables.add(this._sessionDisposables);
 	}
 
 	dispose(): void {
 		this._ctxHasProvider.reset();
 		this._ctxIsVisible.reset();
-		super.dispose();
+		this._dispoables.dispose();
 	}
 
 	getId(): string {
@@ -63,7 +60,7 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 	}
 
 	async startCallHierarchy(): Promise<void> {
-		this._sessionDispose = dispose(this._sessionDispose);
+		this._sessionDisposables.clear();
 
 		if (!this._editor.hasModel()) {
 			return;
@@ -76,7 +73,7 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 			return;
 		}
 
-		Event.any<any>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDispose);
+		Event.any<any>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDisposables);
 		const widget = this._instantiationService.createInstance(
 			CallHierarchyTreePeekWidget,
 			this._editor,
@@ -90,9 +87,9 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 
 		const cancel = new CancellationTokenSource();
 
-		this._sessionDispose.push(widget.onDidClose(() => this.endCallHierarchy()));
-		this._sessionDispose.push({ dispose() { cancel.cancel(); } });
-		this._sessionDispose.push(widget);
+		this._sessionDisposables.add(widget.onDidClose(() => this.endCallHierarchy()));
+		this._sessionDisposables.add({ dispose() { cancel.cancel(); } });
+		this._sessionDisposables.add(widget);
 
 		const root = CallHierarchyRoot.fromEditor(this._editor);
 		if (root) {
@@ -103,7 +100,7 @@ class CallHierarchyController extends Disposable implements IEditorContribution 
 	}
 
 	endCallHierarchy(): void {
-		this._sessionDispose = dispose(this._sessionDispose);
+		this._sessionDisposables.clear();
 		this._ctxIsVisible.set(false);
 		this._editor.focus();
 	}
