@@ -38,7 +38,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
-import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
+import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
@@ -215,7 +215,7 @@ class CodeRendererMain extends Disposable {
 
 		// User data
 		if (!this.configuration.userDataProvider) {
-			this.configuration.userDataProvider = this._register(new InMemoryUserDataProvider());
+			this.configuration.userDataProvider = this._register(new InMemoryFileSystemProvider());
 		}
 		fileService.registerProvider(Schemas.userData, this.configuration.userDataProvider);
 	}
