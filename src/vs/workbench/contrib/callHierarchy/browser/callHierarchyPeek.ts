@@ -294,8 +294,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				}
 
 				const title = this._direction === CallHierarchyDirection.CallsFrom
-					? localize('callFrom', " – Calls from: {0}", this._tree.getInput()!.word)
-					: localize('callsTo', " – Callers of: {0}", this._tree.getInput()!.word);
+					? localize('callFrom', "Calls from: {0}", this._tree.getInput()!.word)
+					: localize('callsTo', "Callers of: {0}", this._tree.getInput()!.word);
 
 				this.setTitle(title, names.join(' → '));
 			}
