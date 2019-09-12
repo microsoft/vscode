@@ -7,12 +7,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 
 export interface IUserData {
-	version: number;
+	ref: string;
 	content: string;
 }
 
 export enum RemoteUserDataErrorCode {
-	VersionExists = 'VersionExists',
+	Rejected = 'Rejected',
 	Unknown = 'Unknown'
 }
 
@@ -42,7 +42,7 @@ export function toUserDataErrorCode(error: Error | undefined | null): RemoteUser
 	}
 
 	switch (match[1]) {
-		case RemoteUserDataErrorCode.VersionExists: return RemoteUserDataErrorCode.VersionExists;
+		case RemoteUserDataErrorCode.Rejected: return RemoteUserDataErrorCode.Rejected;
 	}
 
 	return RemoteUserDataErrorCode.Unknown;
@@ -60,7 +60,7 @@ export interface IRemoteUserDataProvider {
 
 	read(key: string): Promise<IUserData | null>;
 
-	write(key: string, version: number, content: string): Promise<void>;
+	write(key: string, content: string, ref: string | null): Promise<string>;
 
 }
 
@@ -82,7 +82,7 @@ export interface IRemoteUserDataService {
 
 	read(key: string): Promise<IUserData | null>;
 
-	write(key: string, version: number, content: string): Promise<void>;
+	write(key: string, content: string, ref: string | null): Promise<string>;
 
 }
 

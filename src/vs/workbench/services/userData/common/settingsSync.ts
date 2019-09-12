@@ -124,8 +124,9 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 			const result = await this.syncPreviewResultPromise;
 			let remoteUserData = result.remoteUserData;
 			if (result.hasRemoteChanged) {
-				remoteUserData = { version: result.remoteUserData ? result.remoteUserData.version + 1 : 1, content: result.settingsPreviewModel.getValue() };
-				await this.writeToRemote(remoteUserData);
+				const content = result.settingsPreviewModel.getValue();
+				const ref = await this.writeToRemote(result.settingsPreviewModel.getValue(), remoteUserData ? remoteUserData.ref : null);
+				remoteUserData = { ref, content };
 			}
 			if (result.hasLocalChanged) {
 				await this.writeToLocal(result.settingsPreviewModel.getValue(), result.fileContent);
@@ -193,7 +194,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 			}
 
 			// Remote has moved forward
-			if (remoteUserData.version !== lastSyncData.version) {
+			if (remoteUserData.ref !== lastSyncData.ref) {
 
 				// Local content is same as last synced. So, sync with remote content.
 				if (lastSyncData.content === localContent) {
@@ -211,7 +212,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 			}
 
 			// Remote data is same as last synced data
-			if (lastSyncData.version === remoteUserData.version) {
+			if (lastSyncData.ref === remoteUserData.ref) {
 
 				// Local contents are same as last synced data. No op.
 				if (lastSyncData.content === localContent) {
@@ -362,7 +363,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 				// Removed in Local, but updated in Remote
 				const position = new Position(settingsPreviewModel.getLineCount() - 1, settingsPreviewModel.getLineMaxColumn(settingsPreviewModel.getLineCount() - 1));
 				const editOperations = [
-					EditOperation.insert(position, `${settingsPreviewModel.getEOL()}<<<<<<< local${ settingsPreviewModel.getEOL() }=======${ settingsPreviewModel.getEOL() }${ remoteContent }>>>>>>> remote`)
+					EditOperation.insert(position, `${settingsPreviewModel.getEOL()}<<<<<<< local${settingsPreviewModel.getEOL()}=======${settingsPreviewModel.getEOL()}${remoteContent}>>>>>>> remote`)
 				];
 				settingsPreviewModel.pushEditOperations([new Selection(position.lineNumber, position.column, position.lineNumber, position.column)], editOperations, () => []);
 			}
@@ -409,13 +410,12 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 		}
 	}
 
-	private async writeToRemote(userData: IUserData): Promise<void> {
+	private async writeToRemote(content: string, ref: string | null): Promise<string> {
 		try {
-			await this.remoteUserDataService.write(SettingsSyncService.EXTERNAL_USER_DATA_SETTINGS_KEY, userData.version, userData.content);
+			return await this.remoteUserDataService.write(SettingsSyncService.EXTERNAL_USER_DATA_SETTINGS_KEY, content, ref);
 		} catch (e) {
-			if (e instanceof RemoteUserDataError && e.code === RemoteUserDataErrorCode.VersionExists) {
+			if (e instanceof RemoteUserDataError && e.code === RemoteUserDataErrorCode.Rejected) {
 				// Rejected as there is a new version. Sync again
-				await this.sync();
 			}
 			// An unknown error
 			throw e;

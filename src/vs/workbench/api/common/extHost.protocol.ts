@@ -755,7 +755,7 @@ export interface ExtHostConfigurationShape {
 
 export interface ExtHostUserDataShape {
 	$read(key: string): Promise<IUserData | null>;
-	$write(key: string, version: number, content: string): Promise<void>;
+	$write(key: string, content: string, ref: string): Promise<string>;
 }
 
 export interface ExtHostDiagnosticsShape {

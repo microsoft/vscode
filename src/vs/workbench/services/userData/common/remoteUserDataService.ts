@@ -57,11 +57,11 @@ export class RemoteUserDataService extends Disposable implements IRemoteUserData
 			.then(null, error => Promise.reject(new RemoteUserDataError(error.message, toUserDataErrorCode(error))));
 	}
 
-	write(key: string, version: number, content: string): Promise<void> {
+	write(key: string, content: string, ref: string | null): Promise<string> {
 		if (!this.remoteUserDataProvider) {
 			throw new Error('No remote user data provider exists.');
 		}
-		return this.remoteUserDataProvider.write(key, version, content)
+		return this.remoteUserDataProvider.write(key, content, ref)
 			.then(null, error => Promise.reject(new RemoteUserDataError(error.message, toUserDataErrorCode(error))));
 	}
 

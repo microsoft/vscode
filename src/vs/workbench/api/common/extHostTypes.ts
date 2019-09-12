@@ -2372,8 +2372,8 @@ export class Decoration {
 @es5ClassCompat
 export class UserDataError extends Error {
 
-	static VersionExists(message?: string): UserDataError {
-		return new UserDataError(message, RemoteUserDataErrorCode.VersionExists);
+	static Rejected(message?: string): UserDataError {
+		return new UserDataError(message, RemoteUserDataErrorCode.Rejected);
 	}
 
 	constructor(message?: string, code: RemoteUserDataErrorCode = RemoteUserDataErrorCode.Unknown) {

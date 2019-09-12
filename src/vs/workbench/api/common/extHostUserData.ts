@@ -38,11 +38,11 @@ export class ExtHostUserData implements ExtHostUserDataShape {
 		return this.userDataProvider.read(key);
 	}
 
-	$write(key: string, version: number, content: string): Promise<void> {
+	$write(key: string, content: string, ref: string): Promise<string> {
 		if (!this.userDataProvider) {
 			throw new Error('No remote user data provider exists.');
 		}
-		return this.userDataProvider.write(key, version, content);
+		return this.userDataProvider.write(key, content, ref);
 	}
 
 }
