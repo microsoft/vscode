@@ -18,6 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { env as processEnv } from 'vs/base/common/process';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -37,7 +38,7 @@ interface ILaunchVSCodeArguments {
 /**
  * Encapsulates the DebugAdapter lifecycle and some idiosyncrasies of the Debug Adapter Protocol.
  */
-export class RawDebugSession {
+export class RawDebugSession implements IDisposable {
 
 	private allThreadsContinued = true;
 	private _readyForBreakpoints = false;
@@ -70,6 +71,8 @@ export class RawDebugSession {
 	private readonly _onDidExitAdapter: Emitter<AdapterEndEvent>;
 	private debugAdapter: IDebugAdapter | null;
 
+	private toDispose: IDisposable[] = [];
+
 	constructor(
 		debugAdapter: IDebugAdapter,
 		dbgr: IDebugger,
@@ -96,18 +99,18 @@ export class RawDebugSession {
 
 		this._onDidExitAdapter = new Emitter<AdapterEndEvent>();
 
-		this.debugAdapter.onError(err => {
+		this.toDispose.push(this.debugAdapter.onError(err => {
 			this.shutdown(err);
-		});
+		}));
 
-		this.debugAdapter.onExit(code => {
+		this.toDispose.push(this.debugAdapter.onExit(code => {
 			if (code !== 0) {
 				this.shutdown(new Error(`exit code: ${code}`));
 			} else {
 				// normal exit
 				this.shutdown();
 			}
-		});
+		}));
 
 		this.debugAdapter.onEvent(event => {
 			switch (event.event) {
@@ -697,5 +700,9 @@ export class RawDebugSession {
 			*/
 			this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 		}
+	}
+
+	dispose(): void {
+		dispose(this.toDispose);
 	}
 }

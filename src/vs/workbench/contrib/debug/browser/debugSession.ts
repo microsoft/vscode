@@ -873,6 +873,7 @@ export class DebugSession implements IDebugSession {
 		dispose(this.rawListeners);
 		if (this.raw) {
 			this.raw.disconnect();
+			this.raw.dispose();
 		}
 		this.raw = undefined;
 		this.model.clearThreads(this.getId(), true);
