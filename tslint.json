@@ -550,6 +550,13 @@
 				]
 			},
 			{
+				"target": "**/vs/workbench/contrib/update/browser/update.ts",
+				"restrictions": [
+					"semver-umd",
+					"**/vs/**"
+				]
+			},
+			{
 				"target": "**/vs/code/node/**",
 				"restrictions": [
 					"vs/nls",
