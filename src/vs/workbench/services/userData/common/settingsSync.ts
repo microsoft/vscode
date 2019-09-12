@@ -10,7 +10,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IRemoteUserDataService, IUserData, RemoteUserDataError, RemoteUserDataErrorCode, ISynchroniser, SyncStatus } from 'vs/workbench/services/userData/common/userData';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { parse, JSONPath } from 'vs/base/common/json';
+import { parse, findNodeAtLocation, parseTree } from 'vs/base/common/json';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -19,14 +19,13 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { localize } from 'vs/nls';
-import { Edit } from 'vs/base/common/jsonFormatter';
-import { repeat } from 'vs/base/common/strings';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Position } from 'vs/editor/common/core/position';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -124,7 +123,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 		if (this.syncPreviewResultPromise) {
 			const result = await this.syncPreviewResultPromise;
 			if (result.hasRemoteChanged) {
-				await this.writeToRemote({version: result.remoteUserData ? result.remoteUserData.version + 1 : 1, content: result.settingsPreviewModel.getValue()});
+				await this.writeToRemote({ version: result.remoteUserData ? result.remoteUserData.version + 1 : 1, content: result.settingsPreviewModel.getValue() });
 			}
 			if (result.hasLocalChanged) {
 				await this.writeToLocal(result.settingsPreviewModel.getValue(), result.fileContent);
@@ -276,7 +275,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 			if (baseToLocal.updated.has(key)) {
 				conflicts.add(key);
 			} else {
-				this.removeSetting(settingsPreviewModel, key);
+				this.editSetting(settingsPreviewModel, key, undefined);
 			}
 		}
 
@@ -300,10 +299,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 					conflicts.add(key);
 				}
 			} else {
-				const edit = this.getEdit(settingsPreviewModel, [key], remote[key]);
-				if (edit) {
-					this.applyEditsToBuffer(edit, settingsPreviewModel);
-				}
+				this.editSetting(settingsPreviewModel, key, remote[key]);
 			}
 		}
 
@@ -327,10 +323,23 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 					conflicts.add(key);
 				}
 			} else {
-				const edit = this.getEdit(settingsPreviewModel, [key], remote[key]);
-				if (edit) {
-					this.applyEditsToBuffer(edit, settingsPreviewModel);
-				}
+				this.editSetting(settingsPreviewModel, key, remote[key]);
+			}
+		}
+
+		for (const key of conflicts.keys()) {
+			const value = remote[key];
+			const tree = parseTree(settingsPreviewModel.getValue());
+			const valueNode = findNodeAtLocation(tree, [key]);
+			if (valueNode) {
+				const keyPosition = settingsPreviewModel.getPositionAt(valueNode.parent!.offset);
+				const valuePosition = settingsPreviewModel.getPositionAt(valueNode.offset + valueNode.length);
+				const remoteEdit = setProperty(`{${settingsPreviewModel.getEOL()}\t${settingsPreviewModel.getEOL()}}`, [key], value, { tabSize: 4, insertSpaces: false, eol: settingsPreviewModel.getEOL() })[0];
+				const editOperations = [
+					EditOperation.insert(new Position(keyPosition.lineNumber - 1, settingsPreviewModel.getLineMaxColumn(keyPosition.lineNumber - 1)), `${settingsPreviewModel.getEOL()}<<<<<<< local`),
+					EditOperation.insert(new Position(valuePosition.lineNumber, settingsPreviewModel.getLineMaxColumn(valuePosition.lineNumber)), `${settingsPreviewModel.getEOL()}=======${settingsPreviewModel.getEOL()}${remoteEdit.content.substring(remoteEdit.offset + remoteEdit.length + 1)}${settingsPreviewModel.getEOL()}>>>>>>> remote`)
+				];
+				settingsPreviewModel.pushEditOperations([new Selection(keyPosition.lineNumber, keyPosition.column, keyPosition.lineNumber, keyPosition.column)], editOperations, () => []);
 			}
 		}
 
@@ -358,40 +367,21 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 		return { added, removed, updated };
 	}
 
-	private removeSetting(model: ITextModel, key: string): void {
-		const edit = this.getEdit(model, [key], undefined);
-		if (edit) {
-			this.applyEditsToBuffer(edit, model);
-		}
-	}
-
-	private applyEditsToBuffer(edit: Edit, model: ITextModel): void {
-		const startPosition = model.getPositionAt(edit.offset);
-		const endPosition = model.getPositionAt(edit.offset + edit.length);
-		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		let currentText = model.getValueInRange(range);
-		if (edit.content !== currentText) {
-			const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
-			model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
-		}
-	}
-
-	private getEdit(model: ITextModel, jsonPath: JSONPath, value: any): Edit | undefined {
+	private editSetting(model: ITextModel, key: string, value: any | undefined): void {
 		const insertSpaces = false;
 		const tabSize = 4;
 		const eol = model.getEOL();
-
-		// Without jsonPath, the entire configuration file is being replaced, so we just use JSON.stringify
-		if (!jsonPath.length) {
-			const content = JSON.stringify(value, null, insertSpaces ? repeat(' ', tabSize) : '\t');
-			return {
-				content,
-				length: model.getValue().length,
-				offset: 0
-			};
+		const edit = setProperty(model.getValue(), [key], value, { tabSize, insertSpaces, eol })[0];
+		if (edit) {
+			const startPosition = model.getPositionAt(edit.offset);
+			const endPosition = model.getPositionAt(edit.offset + edit.length);
+			const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
+			let currentText = model.getValueInRange(range);
+			if (edit.content !== currentText) {
+				const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
+				model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
+			}
 		}
-
-		return setProperty(model.getValue(), jsonPath, value, { tabSize, insertSpaces, eol })[0];
 	}
 
 	private async writeToRemote(userData: IUserData): Promise<void> {
