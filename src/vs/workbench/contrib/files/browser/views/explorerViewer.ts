@@ -630,7 +630,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					: localize('dropFolder', "Do you want to copy '{0}' or add '{0}' as a folder to the workspace?", basename(folders[0].uri));
 			}
 
-			const choice = await this.dialogService.show(Severity.Info, message, buttons);
+			const { choice } = await this.dialogService.show(Severity.Info, message, buttons);
 			if (choice === buttons.length - 3) {
 				return this.workspaceEditingService.addFolders(folders);
 			}
