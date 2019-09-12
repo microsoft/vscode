@@ -386,7 +386,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 					this._treeViewStates.set(this._direction, this._tree.getViewState());
 					this._direction = newDirection;
 					this._tree.setFocus([]);
-					this.showItem(item);
+					this.showItem(this._tree.getInput()!);
 				}
 			};
 			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
