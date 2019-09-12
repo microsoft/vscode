@@ -88,11 +88,11 @@ function resolveConfigurationVariables(configurationResolverService: IConfigurat
 	return env;
 }
 
-function _getLangEnvVariable(locale?: string) {
+function _getLangEnvVariable(locale?: string): string {
 	const parts = locale ? locale.split('-') : [];
 	const n = parts.length;
 	if (n === 0) {
-		// Fallback to en_US to prevent possible encoding issues.
+		// Fallback to en_US if the locale is unknown
 		return 'en_US.UTF-8';
 	}
 	if (n === 1) {
@@ -158,7 +158,7 @@ function _getLangEnvVariable(locale?: string) {
 			parts.push(languageVariants[parts[0]]);
 		}
 	} else {
-		// Ensure the variant is uppercase
+		// Ensure the variant is uppercase to be a valid $LANG
 		parts[1] = parts[1].toUpperCase();
 	}
 	return parts.join('_') + '.UTF-8';
