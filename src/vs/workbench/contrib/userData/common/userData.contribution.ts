@@ -150,7 +150,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Syncing)
 		});
 
-		// Command Pallette Action
+		// Command Pallette Actions
 
 		CommandsRegistry.registerCommand('workbench.userData.actions.startSync', serviceAccessor => serviceAccessor.get(IUserDataSyncService).sync());
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -159,6 +159,14 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 				title: localize('start sync', "Sync: Start")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Idle), ContextKeyExpr.not('config.userConfiguration.autoSync')),
+		});
+
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: 'sync.resolveConflicts',
+				title: localize('resolveConflicts', "Sync: Resolve Conflicts"),
+			},
+			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts),
 		});
 	}
 }
