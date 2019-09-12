@@ -102,7 +102,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 			});
 		}
 
-		return Promise.resolve({
+		return {
 			uri: resource,
 			version: 0,
 			lineCount: lineCount,
@@ -112,7 +112,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 			getText: () => {
 				return text;
 			}
-		});
+		};
 	}
 }
 
