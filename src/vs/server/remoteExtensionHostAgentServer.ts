@@ -111,7 +111,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		const webRootFile = getPathFromAmdModule(require, 'vs/code/browser/workbench/workbench.html');
 		if (fs.existsSync(webRootFile)) {
-			this._webClientServer = this._register(new WebClientServer(this._connectionToken, this._environmentService, this._logService));
+			this._webClientServer = new WebClientServer(this._connectionToken, this._environmentService, this._logService);
 		} else {
 			this._webClientServer = null;
 		}
@@ -213,10 +213,6 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		});
 
 		setTimeout(() => this._cleanupOlderLogs(this._environmentService.logsPath).then(null, err => this._logService.error(err)), 10000);
-
-		if (this._webClientServer) {
-			await this._webClientServer.init(port);
-		}
 
 		const server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
 

@@ -9,11 +9,9 @@ import * as url from 'url';
 import * as util from 'util';
 import * as cookie from 'cookie';
 import { isEqualOrParent, sanitizeFilePath } from 'vs/base/common/extpath';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { findFreePort } from 'vs/base/node/ports';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
@@ -70,37 +68,16 @@ export async function serveFile(logService: ILogService, req: http.IncomingMessa
 
 const APP_ROOT = path.dirname(URI.parse(require.toUrl('')).fsPath);
 
-export class WebClientServer extends Disposable {
+export class WebClientServer {
 
-	private _webviewServer: http.Server | null;
-	private _webviewEndpoint: string | null;
+	private readonly _webviewEndpoint = 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
 	private _mapCallbackUriToRequestId: Map<string, UriComponents> = new Map();
 
 	constructor(
 		private readonly _connectionToken: string,
 		private readonly _environmentService: ServerEnvironmentService,
 		private readonly _logService: ILogService
-	) {
-		super();
-		this._webviewServer = null;
-		this._webviewEndpoint = null;
-	}
-
-	dispose(): void {
-		if (this._webviewServer) {
-			this._webviewServer.close();
-		}
-		super.dispose();
-	}
-
-	async init(port: number): Promise<void> {
-		const webviewPort = port > 0 ? await findFreePort(+port + 1, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */) : 0;
-		this._webviewServer = this.spawnWebviewServer(webviewPort);
-		const webviewServerAddress = this._webviewServer.address();
-		this._webviewEndpoint = 'http://' + (typeof webviewServerAddress === 'string'
-			? webviewServerAddress
-			: (webviewServerAddress.address === '::' ? 'localhost' : webviewServerAddress.address) + ':' + webviewServerAddress.port);
-	}
+	) { }
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		try {
@@ -205,7 +182,6 @@ export class WebClientServer extends Disposable {
 
 		const remoteAuthority = req.headers.host;
 		const transformer = createRemoteURITransformer(remoteAuthority);
-		const webviewEndpoint = this._webviewEndpoint || '';
 		const { workspacePath, isFolder } = await this._getWorkspace(parsedUrl);
 
 		function escapeAttribute(value: string): string {
@@ -221,10 +197,9 @@ export class WebClientServer extends Disposable {
 				folderUri: (workspacePath && isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				workspaceUri: (workspacePath && !isFolder) ? transformer.transformOutgoing(URI.file(workspacePath)) : undefined,
 				remoteAuthority,
-				webviewEndpoint,
+				webviewEndpoint: this._webviewEndpoint,
 				driver: this._environmentService.driverHandle === 'web' ? true : undefined
 			})))
-			.replace('{{WEBVIEW_ENDPOINT}}', webviewEndpoint)
 			.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(webUserDataHome))));
 
 		res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -355,55 +330,5 @@ export class WebClientServer extends Disposable {
 
 		res.writeHead(200, { 'Content-Type': 'text/json' });
 		return res.end(JSON.stringify(knownCallbackUri));
-	}
-
-	private spawnWebviewServer(webviewPort: number): http.Server {
-		const webviewServer = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
-			// Only serve GET requests
-			if (req.method !== 'GET') {
-				res.writeHead(500, { 'Content-Type': 'text/plain' });
-				return res.end(`Unsupported method ${req.method}`);
-			}
-			const rootPath = URI.parse(require.toUrl('vs/workbench/contrib/webview/browser/pre')).fsPath;
-			const resourceWhitelist = new Set([
-				'/index.html',
-				'/',
-				'/fake.html',
-				'/main.js',
-				'/host.js',
-				'/service-worker.js'
-			]);
-			try {
-				const requestUrl = url.parse(req.url!);
-				if (!resourceWhitelist.has(requestUrl.pathname!)) {
-					res.writeHead(404, { 'Content-Type': 'text/plain' });
-					return res.end('Not found');
-				}
-				const filePath = rootPath + (requestUrl.pathname === '/' ? '/index.html' : requestUrl.pathname);
-				const data = await util.promisify(fs.readFile)(filePath);
-				res.writeHead(200, { 'Content-Type': textMimeType[path.extname(filePath)] || 'text/plain' });
-				return res.end(data);
-			}
-			catch (error) {
-				console.error(error.toString());
-				this._logService.error(error);
-				res.writeHead(404, { 'Content-Type': 'text/plain' });
-				return res.end('Not found');
-			}
-		});
-		webviewServer.on('error', (err) => {
-			this._logService.error(`Error occurred in webviewServer`, err);
-			console.error(`Error occurred in webviewServer`);
-			console.error(err);
-		});
-		webviewServer.listen(webviewPort, () => {
-			const address = webviewServer.address();
-			// Do not change this line. VS Code looks for this in
-			// the output.
-			console.log(`webview server listening on ${typeof address === 'string' ? address : address.port}`);
-			this._logService.trace(`webview server listening on ${typeof address === 'string' ? address : address.port}`);
-		});
-		this._register({ dispose: () => webviewServer.close() });
-		return webviewServer;
 	}
 }
