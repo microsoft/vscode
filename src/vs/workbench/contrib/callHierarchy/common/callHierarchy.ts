@@ -12,7 +12,8 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 
 export const enum CallHierarchyDirection {
-	CallsTo, CallsFrom
+	CallsTo = 1,
+	CallsFrom = 2
 }
 
 export interface CallHierarchyItem {

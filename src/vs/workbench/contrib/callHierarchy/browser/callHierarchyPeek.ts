@@ -126,6 +126,10 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		super.dispose();
 	}
 
+	get direction(): CallHierarchyDirection {
+		return this._direction;
+	}
+
 	private _applyTheme(theme: ITheme) {
 		const borderColor = theme.getColor(referencesWidget.peekViewBorder) || Color.transparent;
 		this.style({
@@ -294,8 +298,8 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 				}
 
 				const title = this._direction === CallHierarchyDirection.CallsFrom
-					? localize('callFrom', "Calls from: {0}", this._tree.getInput()!.word)
-					: localize('callsTo', "Callers of: {0}", this._tree.getInput()!.word);
+					? localize('callFrom', "Calls from '{0}'", this._tree.getInput()!.word)
+					: localize('callsTo', "Callers of '{0}'", this._tree.getInput()!.word);
 
 				this.setTitle(title, names.join(' → '));
 			}
@@ -366,20 +370,17 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		const viewState = this._treeViewStates.get(this._direction);
 		await this._tree.setInput(item, viewState);
 
-		const [root] = this._tree.getNode(item).children;
-		await this._tree.expand(root.element as callHTree.Call);
-		const firstChild = this._tree.getFirstElementChild(root.element);
-		if (!(firstChild instanceof callHTree.Call)) {
+		if (this._tree.getNode(item).children.length === 0) {
 			//
 			this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
 				? localize('empt.callsFrom', "No calls from '{0}'", item.word)
-				: localize('empt.callsTo', "No calls to '{0}'", item.word));
+				: localize('empt.callsTo', "No callers of '{0}'", item.word));
 
 		} else {
 			this._parent.dataset['state'] = State.Data;
 			this._tree.domFocus();
 			if (!viewState) {
-				this._tree.setFocus([firstChild]);
+				this._tree.focusFirst();
 			}
 		}
 
@@ -389,7 +390,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 					this._treeViewStates.set(this._direction, this._tree.getViewState());
 					this._direction = newDirection;
 					this._tree.setFocus([]);
-					this.showItem(item);
+					this.showItem(this._tree.getInput()!);
 				}
 			};
 			this._changeDirectionAction = new ChangeHierarchyDirectionAction(this._direction, changeDirection);
