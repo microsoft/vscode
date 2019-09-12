@@ -26,13 +26,14 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
 	readonly remoteUserData: IUserData | null;
-	readonly localSettingsPreviewModel: ITextModel;
-	readonly remoteSettingsPreviewModel: ITextModel;
-	readonly hasChanges: boolean;
+	readonly settingsPreviewModel: ITextModel;
+	readonly hasLocalChanged: boolean;
+	readonly hasRemoteChanged: boolean;
 	readonly hasConflicts: boolean;
 }
 
@@ -42,8 +43,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 	private static LAST_SYNC_SETTINGS_STORAGE_KEY: string = 'LAST_SYNC_SETTINGS_CONTENTS';
 	private static EXTERNAL_USER_DATA_SETTINGS_KEY: string = 'settings';
 
-	private readonly remoteSettingsPreviewResource: URI;
-	private readonly localSettingsPreviewResource: URI;
+	private readonly settingsPreviewResource: URI;
 
 	private syncPreviewResultPromise: Promise<ISyncPreviewResult> | null = null;
 
@@ -60,22 +60,19 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
-		this.remoteSettingsPreviewResource = URI.file('remote').with({ scheme: 'vscode-settings-sync' });
-		this.localSettingsPreviewResource = this.workbenchEnvironmentService.settingsResource.with({ scheme: 'vscode-settings-sync' });
+		this.settingsPreviewResource = this.workbenchEnvironmentService.settingsResource.with({ scheme: 'vscode-settings-sync' });
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode-settings-sync', this);
 	}
 
 	provideTextContent(uri: URI): Promise<ITextModel> | null {
-		if (isEqual(this.remoteSettingsPreviewResource, uri, false)) {
-			return this.getPreview().then(({ remoteSettingsPreviewModel }) => remoteSettingsPreviewModel);
-		}
-		if (isEqual(this.localSettingsPreviewResource, uri, false)) {
-			return this.getPreview().then(({ localSettingsPreviewModel }) => localSettingsPreviewModel);
+		if (isEqual(this.settingsPreviewResource, uri, false)) {
+			return this.getPreview().then(({ settingsPreviewModel }) => settingsPreviewModel);
 		}
 		return null;
 	}
@@ -112,9 +109,8 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 	resolveConflicts(): void {
 		if (this.status === SyncStatus.HasConflicts) {
 			this.editorService.openEditor({
-				leftResource: this.remoteSettingsPreviewResource,
-				rightResource: this.localSettingsPreviewResource,
-				label: localize('fileReplaceChanges', "Remote Settings ↔ Local Settings (Settings Preview)"),
+				resource: this.settingsPreviewResource,
+				label: localize('settings preview', "Settings Preview"),
 				options: {
 					preserveFocus: false,
 					pinned: true,
@@ -126,16 +122,15 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 
 	async apply(): Promise<void> {
 		if (this.syncPreviewResultPromise) {
-			const { fileContent, remoteUserData, localSettingsPreviewModel, remoteSettingsPreviewModel, hasChanges } = await this.syncPreviewResultPromise;
-			if (hasChanges) {
-				const syncedRemoteUserData = remoteUserData && remoteUserData.content === remoteSettingsPreviewModel.getValue() ? remoteUserData : { content: remoteSettingsPreviewModel.getValue(), version: remoteUserData ? remoteUserData.version + 1 : 1 };
-				if (!(remoteUserData && remoteUserData.version === syncedRemoteUserData.version)) {
-					await this.writeToRemote(syncedRemoteUserData);
-				}
-				await this.writeToLocal(localSettingsPreviewModel.getValue(), fileContent, syncedRemoteUserData);
+			const result = await this.syncPreviewResultPromise;
+			if (result.hasRemoteChanged) {
+				await this.writeToRemote({version: result.remoteUserData ? result.remoteUserData.version + 1 : 1, content: result.settingsPreviewModel.getValue()});
 			}
-			if (remoteUserData) {
-				this.updateLastSyncValue(remoteUserData);
+			if (result.hasLocalChanged) {
+				await this.writeToLocal(result.settingsPreviewModel.getValue(), result.fileContent);
+			}
+			if (result.remoteUserData) {
+				this.updateLastSyncValue(result.remoteUserData);
 			}
 		}
 		this.syncPreviewResultPromise = null;
@@ -151,25 +146,28 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 
 	private async generatePreview(): Promise<ISyncPreviewResult> {
 		const remoteUserData = await this.remoteUserDataService.read(SettingsSyncService.EXTERNAL_USER_DATA_SETTINGS_KEY);
+		// Get file content last to get the latest
 		const fileContent = await this.getLocalFileContent();
 
-		const localSettingsPreviewModel = this.modelService.getModel(this.localSettingsPreviewResource) || this.modelService.createModel('', this.modeService.create('jsonc'), this.localSettingsPreviewResource);
-		const remoteSettingsPreviewModel = this.modelService.getModel(this.remoteSettingsPreviewResource) || this.modelService.createModel('', this.modeService.create('jsonc'), this.remoteSettingsPreviewResource);
+		const settingsPreviewModel = this.modelService.getModel(this.settingsPreviewResource) || this.modelService.createModel('', this.modeService.create('jsonc'), this.settingsPreviewResource);
+		let hasLocalChanged: boolean = false;
+		let hasRemoteChanged: boolean = false;
+		let hasConflicts: boolean = false;
 
+		// First time sync to remote
 		if (fileContent && !remoteUserData) {
-			// Remote does not exist, so sync with local.
-			const localContent = fileContent.value.toString();
-			localSettingsPreviewModel.setValue(localContent);
-			remoteSettingsPreviewModel.setValue(localContent);
-			return { fileContent, remoteUserData, localSettingsPreviewModel, remoteSettingsPreviewModel, hasChanges: true, hasConflicts: false };
+			this.logService.trace('Settings Sync: Remote contents does not exist. So sync with settings file.');
+			settingsPreviewModel.setValue(fileContent.value.toString());
+			hasRemoteChanged = true;
+			return { fileContent, remoteUserData, settingsPreviewModel, hasLocalChanged, hasRemoteChanged, hasConflicts };
 		}
 
+		// Settings file does not exist, so sync with remote contents.
 		if (remoteUserData && !fileContent) {
-			// Settings file does not exist, so sync with remote contents.
-			const remoteContent = remoteUserData.content;
-			localSettingsPreviewModel.setValue(remoteContent);
-			remoteSettingsPreviewModel.setValue(remoteContent);
-			return { fileContent, remoteUserData, localSettingsPreviewModel, remoteSettingsPreviewModel, hasChanges: true, hasConflicts: false };
+			this.logService.trace('Settings Sync: Settings file does not exist. So sync with remote contents');
+			settingsPreviewModel.setValue(remoteUserData.content);
+			hasLocalChanged = true;
+			return { fileContent, remoteUserData, settingsPreviewModel, hasLocalChanged, hasRemoteChanged, hasConflicts };
 		}
 
 		if (fileContent && remoteUserData) {
@@ -180,34 +178,35 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 
 			// Already in Sync.
 			if (localContent === remoteUserData.content) {
-				localSettingsPreviewModel.setValue(localContent);
-				remoteSettingsPreviewModel.setValue(remoteContent);
-				return { fileContent, remoteUserData, localSettingsPreviewModel, remoteSettingsPreviewModel, hasChanges: false, hasConflicts: false };
+				this.logService.trace('Settings Sync: Settings file and remote contents are in sync.');
+				settingsPreviewModel.setValue(localContent);
+				return { fileContent, remoteUserData, settingsPreviewModel, hasLocalChanged, hasRemoteChanged, hasConflicts };
 			}
 
-			// Not synced till now
+			// First time Sync to Local
 			if (!lastSyncData) {
-				localSettingsPreviewModel.setValue(localContent);
-				remoteSettingsPreviewModel.setValue(remoteContent);
-				const hasConflicts = await this.mergeContents(localSettingsPreviewModel, remoteSettingsPreviewModel, null);
-				return { fileContent, remoteUserData, localSettingsPreviewModel, remoteSettingsPreviewModel, hasChanges: true, hasConflicts };
+				this.logService.trace('Settings Sync: Syncing remote contents with settings file for the first time.');
+				hasLocalChanged = hasRemoteChanged = true;
+				hasConflicts = await this.mergeContents(settingsPreviewModel, localContent, remoteContent, null);
+				return { fileContent, remoteUserData, settingsPreviewModel, hasLocalChanged, hasRemoteChanged, hasConflicts };
 			}
 
-			// Remote data is newer than last synced data
-			if (remoteUserData.version > lastSyncData.version) {
+			// Remote has moved forward
+			if (remoteUserData.version !== lastSyncData.version) {
 
 				// Local content is same as last synced. So, sync with remote content.
 				if (lastSyncData.content === localContent) {
-					localSettingsPreviewModel.setValue(remoteContent);
-					remoteSettingsPreviewModel.setValue(remoteContent);
-					return { fileContent, remoteUserData, localSettingsPreviewModel, remoteSettingsPreviewModel, hasChanges: true, hasConflicts: false };
+					this.logService.trace('Settings Sync: Settings file has not changed from last time synced. So replace with remote contents.');
+					settingsPreviewModel.setValue(remoteContent);
+					hasLocalChanged = true;
+					return { fileContent, remoteUserData, settingsPreviewModel, hasLocalChanged, hasRemoteChanged, hasConflicts };
 				}
 
 				// Local content is diverged from last synced. Required merge and sync.
-				localSettingsPreviewModel.setValue(localContent);
-				remoteSettingsPreviewModel.setValue(remoteContent);
-				const hasConflicts = await this.mergeContents(localSettingsPreviewModel, remoteSettingsPreviewModel, lastSyncData.content);
-				return { fileContent, remoteUserData, localSettingsPreviewModel, remoteSettingsPreviewModel, hasChanges: true, hasConflicts };
+				this.logService.trace('Settings Sync: Settings file is diverged from last time synced. Require merge and sync.');
+				hasLocalChanged = hasRemoteChanged = true;
+				hasConflicts = await this.mergeContents(settingsPreviewModel, localContent, remoteContent, lastSyncData.content);
+				return { fileContent, remoteUserData, settingsPreviewModel, hasLocalChanged, hasRemoteChanged, hasConflicts };
 			}
 
 			// Remote data is same as last synced data
@@ -215,18 +214,20 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 
 				// Local contents are same as last synced data. No op.
 				if (lastSyncData.content === localContent) {
-					return { fileContent, remoteUserData, localSettingsPreviewModel, remoteSettingsPreviewModel, hasChanges: false, hasConflicts: false };
+					this.logService.trace('Settings Sync: Settings file and remote contents have not changed. So no sync needed.');
+					return { fileContent, remoteUserData, settingsPreviewModel, hasLocalChanged, hasRemoteChanged, hasConflicts };
 				}
 
 				// New local contents. Sync with Local.
-				localSettingsPreviewModel.setValue(localContent);
-				remoteSettingsPreviewModel.setValue(localContent);
-				return { fileContent, remoteUserData, localSettingsPreviewModel, remoteSettingsPreviewModel, hasChanges: true, hasConflicts: false };
+				this.logService.trace('Settings Sync: Remote contents have not changed. Settings file has changed. So sync with settings file.');
+				settingsPreviewModel.setValue(localContent);
+				hasRemoteChanged = true;
+				return { fileContent, remoteUserData, settingsPreviewModel, hasLocalChanged, hasRemoteChanged, hasConflicts };
 			}
 
 		}
 
-		return { fileContent, remoteUserData, localSettingsPreviewModel, remoteSettingsPreviewModel, hasChanges: false, hasConflicts: false };
+		return { fileContent, remoteUserData, settingsPreviewModel, hasLocalChanged, hasRemoteChanged, hasConflicts };
 
 	}
 
@@ -249,10 +250,11 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 		}
 	}
 
-	private async mergeContents(localSettingsPreviewModel: ITextModel, remoteSettingsPreviewModel: ITextModel, lastSyncedContent: string | null): Promise<boolean> {
-		const local = parse(localSettingsPreviewModel.getValue());
-		const remote = parse(remoteSettingsPreviewModel.getValue());
+	private async mergeContents(settingsPreviewModel: ITextModel, localContent: string, remoteContent: string, lastSyncedContent: string | null): Promise<boolean> {
+		const local = parse(localContent);
+		const remote = parse(remoteContent);
 		const base = lastSyncedContent ? parse(lastSyncedContent) : null;
+		settingsPreviewModel.setValue(localContent);
 
 		const baseToLocal = base ? this.compare(base, local) : { added: new Set<string>(), removed: new Set<string>(), updated: new Set<string>() };
 		const baseToRemote = base ? this.compare(base, remote) : { added: new Set<string>(), removed: new Set<string>(), updated: new Set<string>() };
@@ -265,8 +267,6 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 			// Got updated in remote
 			if (baseToRemote.updated.has(key)) {
 				conflicts.add(key);
-			} else {
-				this.removeSetting(remoteSettingsPreviewModel, key);
 			}
 		}
 
@@ -276,7 +276,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 			if (baseToLocal.updated.has(key)) {
 				conflicts.add(key);
 			} else {
-				this.removeSetting(localSettingsPreviewModel, key);
+				this.removeSetting(settingsPreviewModel, key);
 			}
 		}
 
@@ -287,11 +287,6 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 				// Has different value
 				if (localToRemote.updated.has(key)) {
 					conflicts.add(key);
-				}
-			} else {
-				const edit = this.getEdit(remoteSettingsPreviewModel, [key], local[key]);
-				if (edit) {
-					this.applyEditsToBuffer(edit, remoteSettingsPreviewModel);
 				}
 			}
 		}
@@ -305,9 +300,9 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 					conflicts.add(key);
 				}
 			} else {
-				const edit = this.getEdit(localSettingsPreviewModel, [key], remote[key]);
+				const edit = this.getEdit(settingsPreviewModel, [key], remote[key]);
 				if (edit) {
-					this.applyEditsToBuffer(edit, localSettingsPreviewModel);
+					this.applyEditsToBuffer(edit, settingsPreviewModel);
 				}
 			}
 		}
@@ -319,11 +314,6 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 				// Has different value
 				if (localToRemote.updated.has(key)) {
 					conflicts.add(key);
-				}
-			} else {
-				const edit = this.getEdit(remoteSettingsPreviewModel, [key], local[key]);
-				if (edit) {
-					this.applyEditsToBuffer(edit, remoteSettingsPreviewModel);
 				}
 			}
 		}
@@ -337,9 +327,9 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 					conflicts.add(key);
 				}
 			} else {
-				const edit = this.getEdit(localSettingsPreviewModel, [key], remote[key]);
+				const edit = this.getEdit(settingsPreviewModel, [key], remote[key]);
 				if (edit) {
-					this.applyEditsToBuffer(edit, localSettingsPreviewModel);
+					this.applyEditsToBuffer(edit, settingsPreviewModel);
 				}
 			}
 		}
@@ -417,7 +407,7 @@ export class SettingsSyncService extends Disposable implements ISynchroniser, IT
 		}
 	}
 
-	private async writeToLocal(newContent: string, oldContent: IFileContent | null, remoteUserData: IUserData): Promise<void> {
+	private async writeToLocal(newContent: string, oldContent: IFileContent | null): Promise<void> {
 		if (oldContent) {
 			try {
 				// file exists before
