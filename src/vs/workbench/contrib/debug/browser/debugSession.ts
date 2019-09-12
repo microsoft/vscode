@@ -519,17 +519,8 @@ export class DebugSession implements IDebugSession {
 			rawSource = source.raw;
 		} else {
 			// create a Source
-
-			let sourceRef: number | undefined;
-			if (resource.query) {
-				const data = Source.getEncodedDebugData(resource);
-				sourceRef = data.sourceReference;
-			}
-
-			rawSource = {
-				path: resource.with({ scheme: '', query: '' }).toString(true),	// Remove debug: scheme
-				sourceReference: sourceRef
-			};
+			const data = Source.getEncodedDebugData(resource);
+			rawSource = { path: data.path, sourceReference: data.sourceReference };
 		}
 
 		return this.raw.source({ sourceReference: rawSource.sourceReference || 0, source: rawSource });
