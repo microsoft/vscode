@@ -195,7 +195,7 @@ configurationRegistry.registerConfiguration({
 			default: 1000
 		},
 		'terminal.integrated.detectLocale': {
-			markdownDescription: nls.localize('terminal.integrated.detectLocale', "Controls whether to detect and set the `$LANG` environment variable."),
+			markdownDescription: nls.localize('terminal.integrated.detectLocale', "Controls whether to detect and set the `$LANG` environment variable to a UTF-8 compliant option since VS Code's terminal only supports UTF-8 encoded data coming from the shell."),
 			type: 'string',
 			enum: ['auto', 'off', 'on'],
 			enumDescriptions: [
