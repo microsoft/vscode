@@ -366,10 +366,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 		const viewState = this._treeViewStates.get(this._direction);
 		await this._tree.setInput(item, viewState);
 
-		const [root] = this._tree.getNode(item).children;
-		await this._tree.expand(root.element as callHTree.Call);
-		const firstChild = this._tree.getFirstElementChild(root.element);
-		if (!(firstChild instanceof callHTree.Call)) {
+		if (this._tree.getNode(item).children.length === 0) {
 			//
 			this.showMessage(this._direction === CallHierarchyDirection.CallsFrom
 				? localize('empt.callsFrom', "No calls from '{0}'", item.word)
@@ -379,7 +376,7 @@ export class CallHierarchyTreePeekWidget extends PeekViewWidget {
 			this._parent.dataset['state'] = State.Data;
 			this._tree.domFocus();
 			if (!viewState) {
-				this._tree.setFocus([firstChild]);
+				this._tree.focusFirst();
 			}
 		}
 
