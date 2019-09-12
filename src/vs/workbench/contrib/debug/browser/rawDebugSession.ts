@@ -112,6 +112,8 @@ export class RawDebugSession implements IDisposable {
 			}
 		}));
 
+		this.toDispose.push(this.onDidContinued(() => this.cancelPendingRequests()));
+
 		this.debugAdapter.onEvent(event => {
 			switch (event.event) {
 				case 'initialized':
@@ -466,12 +468,15 @@ export class RawDebugSession implements IDisposable {
 		return Promise.reject(new Error('goto is not supported'));
 	}
 
+	cancel(args: DebugProtocol.CancelArguments): Promise<DebugProtocol.CancelResponse> {
+		return this.send('cancel', args);
+	}
+
 	custom(request: string, args: any): Promise<DebugProtocol.Response> {
 		return this.send(request, args);
 	}
 
 	//---- private
-
 
 	private shutdown(error?: Error, restart = false): Promise<any> {
 		if (!this.inShutdown) {
@@ -489,10 +494,23 @@ export class RawDebugSession implements IDisposable {
 		return Promise.resolve(undefined);
 	}
 
+	private cancelPendingRequests(): void {
+		if (this.debugAdapter) {
+			if (this.capabilities.supportsCancelRequest) {
+				this.debugAdapter.getPendingRequestIds().forEach(requestId => {
+					this.cancel({ requestId });
+				});
+			} else {
+				this.debugAdapter.cancelPendingRequests();
+			}
+		}
+	}
+
 	private stopAdapter(error?: Error): Promise<any> {
 		if (this.debugAdapter) {
 			const da = this.debugAdapter;
 			this.debugAdapter = null;
+			this.cancelPendingRequests();
 			return da.stopSession().then(_ => {
 				this.debugAdapterStopped = true;
 				this.fireAdapterExitEvent(error);

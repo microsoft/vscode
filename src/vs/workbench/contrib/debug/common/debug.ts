@@ -506,6 +506,8 @@ export interface IDebugAdapter extends IDisposable {
 	sendResponse(response: DebugProtocol.Response): void;
 	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void;
 	stopSession(): Promise<void>;
+	cancelPendingRequests(): void;
+	getPendingRequestIds(): number[];
 }
 
 export interface IDebugAdapterFactory extends ITerminalLauncher {

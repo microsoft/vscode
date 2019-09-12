@@ -137,11 +137,10 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		this.sendMessage(message);
 	}
 
-	async cancelPending(): Promise<void> {
+	async cancelPendingRequests(): Promise<void> {
 		const pending = new Map<number, (e: DebugProtocol.Response) => void>();
 		this.pendingRequests.forEach((value, key) => pending.set(key, value));
-		this.pendingRequests.clear();
-		await timeout(1000);
+		await timeout(500);
 		pending.forEach((callback, request_seq) => {
 			const err: DebugProtocol.Response = {
 				type: 'response',
@@ -152,10 +151,15 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 				message: 'canceled'
 			};
 			callback(err);
+			this.pendingRequests.delete(request_seq);
 		});
 	}
 
+	getPendingRequestIds(): number[] {
+		return Array.from(this.pendingRequests.keys());
+	}
+
 	dispose(): void {
-		this.cancelPending();
+		// noop
 	}
 }

@@ -378,7 +378,6 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	public stopSession(): Promise<void> {
-		this.cancelPending();
 		return Promise.resolve(this._proxy.$stopDASession(this._handle));
 	}
 }
