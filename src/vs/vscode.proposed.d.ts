@@ -1022,7 +1022,15 @@ declare module 'vscode' {
 
 	//#region Custom editors, mjbvz
 
-	export interface WebviewEditor extends WebviewPanel { }
+	export enum WebviewEditorState {
+		Readonly = 1,
+		Unchanged = 2,
+		Dirty = 3,
+	}
+
+	export interface WebviewEditor extends WebviewPanel {
+		state: WebviewEditorState;
+	}
 
 	export interface WebviewEditorProvider {
 		/**

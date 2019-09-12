@@ -1163,3 +1163,13 @@ export namespace LogLevel {
 		return types.LogLevel.Info;
 	}
 }
+export namespace WebviewEditorState {
+	export function from(state: vscode.WebviewEditorState): modes.WebviewEditorState {
+		switch (state) {
+			case types.WebviewEditorState.Readonly: return modes.WebviewEditorState.Readonly;
+			case types.WebviewEditorState.Unchanged: return modes.WebviewEditorState.Unchanged;
+			case types.WebviewEditorState.Dirty: return modes.WebviewEditorState.Dirty;
+			default: throw new Error('Unknown vscode.WebviewEditorState');
+		}
+	}
+}
