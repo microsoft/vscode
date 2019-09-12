@@ -289,10 +289,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.onDidChangeTypeScriptVersion(currentVersion);
 
 		let mytoken = ++this.token;
-
 		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager);
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
+
+		/* __GDPR__
+			"tsserver.spawned" : {
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				]
+			}
+		*/
+		this.logTelemetry('tsserver.spawned');
 
 		handle.onError((err: Error) => {
 			if (this.token !== mytoken) {
