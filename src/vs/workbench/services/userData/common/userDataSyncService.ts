@@ -50,6 +50,15 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return true;
 	}
 
+	async stopSync(): Promise<void> {
+		if (!this.remoteUserDataService.isEnabled()) {
+			throw new Error('Not enabled');
+		}
+		for (const synchroniser of this.synchronisers) {
+			await synchroniser.stopSync();
+		}
+	}
+
 	async apply(previewResource: URI): Promise<boolean> {
 		if (!this.remoteUserDataService.isEnabled()) {
 			throw new Error('Not enabled');

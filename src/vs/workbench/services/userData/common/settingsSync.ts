@@ -26,6 +26,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Position } from 'vs/editor/common/core/position';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { isEqual } from 'vs/base/common/resources';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -40,7 +41,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	private static LAST_SYNC_SETTINGS_STORAGE_KEY: string = 'LAST_SYNC_SETTINGS_CONTENTS';
 	private static EXTERNAL_USER_DATA_SETTINGS_KEY: string = 'settings';
 
-	private syncPreviewResultPromise: Promise<ISyncPreviewResult> | null = null;
+	private syncPreviewResultPromise: CancelablePromise<ISyncPreviewResult> | null = null;
 
 	private _status: SyncStatus = SyncStatus.Idle;
 	get status(): SyncStatus { return this._status; }
@@ -101,6 +102,15 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		}
 	}
 
+	async stopSync(): Promise<void> {
+		await this.fileService.del(SETTINGS_PREVIEW_RESOURCE);
+		if (this.syncPreviewResultPromise) {
+			this.syncPreviewResultPromise.cancel();
+			this.syncPreviewResultPromise = null;
+			this.setStatus(SyncStatus.Idle);
+		}
+	}
+
 	handleConflicts(): boolean {
 		if (this.status !== SyncStatus.HasConflicts) {
 			return false;
@@ -152,7 +162,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 	private getPreview(): Promise<ISyncPreviewResult> {
 		if (!this.syncPreviewResultPromise) {
-			this.syncPreviewResultPromise = this.generatePreview();
+			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview());
 		}
 		return this.syncPreviewResultPromise;
 	}

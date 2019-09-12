@@ -6,7 +6,7 @@
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IUserDataSyncService, SyncStatus } from 'vs/workbench/services/userData/common/userData';
 import { localize } from 'vs/nls';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -20,6 +20,7 @@ import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { timeout } from 'vs/base/common/async';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { AcceptChangesController } from 'vs/workbench/contrib/userData/browser/userDataPreviewEditorContribution';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 
@@ -74,11 +75,13 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly syncEnablementContext: IContextKey<string>;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
+	private readonly conflictsWarningDisposable = this._register(new MutableDisposable());
 
 	constructor(
-		@IUserDataSyncService userDataSyncService: IUserDataSyncService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IActivityService private readonly activityService: IActivityService
+		@IActivityService private readonly activityService: IActivityService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
@@ -104,6 +107,24 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 
 		if (badge) {
 			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
+		}
+
+		if (status !== SyncStatus.HasConflicts) {
+			this.conflictsWarningDisposable.clear();
+		}
+	}
+
+	private async sync(): Promise<void> {
+		await this.userDataSyncService.sync();
+		if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
+			const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts. Please resolve them to continue."),
+				[
+					{
+						label: localize('resolve', "Resolve Conflicts"),
+						run: () => this.userDataSyncService.handleConflicts()
+					}
+				]);
+			this.conflictsWarningDisposable.value = toDisposable(() => handle.close());
 		}
 	}
 
@@ -154,13 +175,22 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 
 		// Command Pallette Actions
 
-		CommandsRegistry.registerCommand('workbench.userData.actions.startSync', serviceAccessor => serviceAccessor.get(IUserDataSyncService).sync());
+		CommandsRegistry.registerCommand('workbench.userData.actions.startSync', () => this.sync());
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: 'workbench.userData.actions.startSync',
 				title: localize('start sync', "Sync: Start")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Idle), ContextKeyExpr.not('config.userConfiguration.autoSync')),
+		});
+
+		CommandsRegistry.registerCommand('workbench.userData.actions.stopSync', serviceAccessor => serviceAccessor.get(IUserDataSyncService).stopSync());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: 'workbench.userData.actions.stopSync',
+				title: localize('stop sync', "Sync: Stop")
+			},
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ContextKeyExpr.not('config.userConfiguration.autoSync')),
 		});
 
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
