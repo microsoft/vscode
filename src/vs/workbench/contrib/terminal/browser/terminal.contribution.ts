@@ -194,10 +194,16 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			default: 1000
 		},
-		'terminal.integrated.setLocaleVariables': {
-			markdownDescription: nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal."),
-			type: 'boolean',
-			default: true
+		'terminal.integrated.detectLocale': {
+			markdownDescription: nls.localize('terminal.integrated.detectLocale', "Controls whether to detect and set the `$LANG` environment variable."),
+			type: 'string',
+			enum: ['auto', 'off', 'on'],
+			enumDescriptions: [
+				nls.localize('terminal.integrated.detectLocale.auto', "Set the `$LANG` environment variable if the existing variable does not exist or it does not end in `'.UTF-8'`."),
+				nls.localize('terminal.integrated.detectLocale.off', "Do not set the `$LANG` environment variable."),
+				nls.localize('terminal.integrated.detectLocale.on', "Always set the `$LANG` environment variable.")
+			],
+			default: 'auto'
 		},
 		'terminal.integrated.rendererType': {
 			type: 'string',

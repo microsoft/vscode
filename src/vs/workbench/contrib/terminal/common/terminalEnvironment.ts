@@ -51,12 +51,12 @@ function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: s
 	}
 }
 
-export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, version: string | undefined, locale: string | undefined, setLocaleVariables: boolean): void {
+export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, version: string | undefined, locale: string | undefined, detectLocale: 'auto' | 'off' | 'on'): void {
 	env['TERM_PROGRAM'] = 'vscode';
 	if (version) {
 		env['TERM_PROGRAM_VERSION'] = version;
 	}
-	if (setLocaleVariables) {
+	if (_shouldSetLangEnvVariable(env, detectLocale)) {
 		env['LANG'] = _getLangEnvVariable(locale);
 	}
 	env['COLORTERM'] = 'truecolor';
@@ -86,6 +86,16 @@ function resolveConfigurationVariables(configurationResolverService: IConfigurat
 		}
 	});
 	return env;
+}
+
+function _shouldSetLangEnvVariable(env: platform.IProcessEnvironment, detectLocale: 'auto' | 'off' | 'on'): boolean {
+	if (detectLocale === 'on') {
+		return true;
+	}
+	if (detectLocale === 'auto') {
+		return !env['LANG'] || env['LANG'].search(/\.UTF\-8$/) === -1;
+	}
+	return false; // 'off'
 }
 
 function _getLangEnvVariable(locale?: string): string {
@@ -334,7 +344,7 @@ export function createTerminalEnvironment(
 	configurationResolverService: IConfigurationResolverService | undefined,
 	isWorkspaceShellAllowed: boolean,
 	version: string | undefined,
-	setLocaleVariables: boolean,
+	detectLocale: 'auto' | 'off' | 'on',
 	baseEnv: platform.IProcessEnvironment
 ): platform.IProcessEnvironment {
 	// Create a terminal environment based on settings, launch config and permissions
@@ -369,7 +379,7 @@ export function createTerminalEnvironment(
 		mergeEnvironments(env, shellLaunchConfig.env);
 
 		// Adding other env keys necessary to create the process
-		addTerminalEnvironmentKeys(env, version, platform.locale, setLocaleVariables);
+		addTerminalEnvironmentKeys(env, version, platform.locale, detectLocale);
 	}
 	return env;
 }

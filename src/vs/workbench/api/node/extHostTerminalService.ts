@@ -182,7 +182,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			this._variableResolver,
 			isWorkspaceShellAllowed,
 			pkg.version,
-			terminalConfig.get<boolean>('setLocaleVariables', false),
+			terminalConfig.get<string>('detectLocale', 'auto'),
 			baseEnv
 		);
 
