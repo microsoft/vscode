@@ -878,12 +878,12 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		let incoming = await commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.executeCallHierarchyProviderIncomingCalls', model.uri, new types.Position(0, 10));
 		assert.equal(incoming.length, 1);
-		assert.ok(incoming[0].source instanceof types.CallHierarchyIncomingCall);
+		assert.ok(incoming[0].source instanceof types.CallHierarchyItem);
 		assert.equal(incoming[0].source.name, 'IN');
 
 		let outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.executeCallHierarchyProviderOutgoingCalls', model.uri, new types.Position(0, 10));
 		assert.equal(outgoing.length, 1);
-		assert.ok(outgoing[0].target instanceof types.CallHierarchyOutgoingCall);
+		assert.ok(outgoing[0].target instanceof types.CallHierarchyItem);
 		assert.equal(outgoing[0].target.name, 'OUT');
 	});
 });

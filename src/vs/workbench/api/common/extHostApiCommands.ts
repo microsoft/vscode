@@ -579,7 +579,7 @@ export class ExtHostApiCommands {
 			source: ICallHierarchyItemDto;
 			sourceRanges: IRange[];
 		};
-		const args = { resource, position };
+		const args = { resource, position: typeConverters.Position.from(position) };
 		const calls = await this._commands.executeCommand<IncomingCallDto[]>('_executeCallHierarchyIncomingCalls', args);
 
 		const result: vscode.CallHierarchyIncomingCall[] = [];
@@ -594,7 +594,7 @@ export class ExtHostApiCommands {
 			sourceRanges: IRange[];
 			target: ICallHierarchyItemDto;
 		};
-		const args = { resource, position };
+		const args = { resource, position: typeConverters.Position.from(position) };
 		const calls = await this._commands.executeCommand<OutgoingCallDto[]>('_executeCallHierarchyOutgoingCalls', args);
 
 		const result: vscode.CallHierarchyOutgoingCall[] = [];
