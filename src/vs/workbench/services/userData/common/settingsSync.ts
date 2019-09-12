@@ -368,7 +368,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			const tree = parseTree(settingsPreviewModel.getValue());
 			const valueNode = findNodeAtLocation(tree, [key]);
 			const remoteEdit = setProperty(`{${settingsPreviewModel.getEOL()}\t${settingsPreviewModel.getEOL()}}`, [key], remote[key], { tabSize: 4, insertSpaces: false, eol: settingsPreviewModel.getEOL() })[0];
-			const remoteContent = remoteEdit ? remoteEdit.content.substring(remoteEdit.offset + remoteEdit.length + 1) + settingsPreviewModel.getEOL() : '';
+			const remoteContent = remoteEdit ? `${remoteEdit.content.substring(remoteEdit.offset + remoteEdit.length + 1)},${settingsPreviewModel.getEOL()}` : '';
 			if (valueNode) {
 				// Updated in Local and Remote with different value
 				const keyPosition = settingsPreviewModel.getPositionAt(valueNode.parent!.offset);
