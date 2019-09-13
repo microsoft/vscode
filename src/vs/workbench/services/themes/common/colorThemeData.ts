@@ -12,7 +12,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import * as resources from 'vs/base/common/resources';
-import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
@@ -20,8 +20,12 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { startsWith } from 'vs/base/common/strings';
+import { Extensions as TokenStyleRegistryExtensions, TokenStyle, TokenStyleIdentifier, ITokenStyleRegistry, TokenStyleBits } from 'vs/platform/theme/common/tokenStyleRegistry';
+import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 
-let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
+let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
+
+let tokenStyleRegistry = Registry.as<ITokenStyleRegistry>(TokenStyleRegistryExtensions.TokenStyleContribution);
 
 const tokenGroupToScopesMap = {
 	comments: ['comment'],
@@ -32,6 +36,10 @@ const tokenGroupToScopesMap = {
 	functions: ['entity.name.function', 'support.function'],
 	variables: ['variable', 'entity.name.variable']
 };
+
+interface ITokenStyleMap {
+	[id: string]: TokenStyle;
+}
 
 export class ColorThemeData implements IColorTheme {
 
@@ -48,6 +56,11 @@ export class ColorThemeData implements IColorTheme {
 	private customTokenColors: ITokenColorizationRule[] = [];
 	private colorMap: IColorMap = {};
 	private customColorMap: IColorMap = {};
+
+	private tokenStyleMap: ITokenStyleMap | undefined;
+
+	private themeTokenScopeMatchers: Matcher<String>[] | undefined;
+	private customTokenScopeMatchers: Matcher<String>[] | undefined;
 
 	private constructor(id: string, label: string, settingsId: string) {
 		this.id = id;
@@ -103,9 +116,80 @@ export class ColorThemeData implements IColorTheme {
 		return color;
 	}
 
+	public getTokenStyle(tokenStyleId: TokenStyleIdentifier): TokenStyle | undefined {
+		if (!this.tokenStyleMap) {
+			this.tokenStyleMap = this.initTokenStyleMap();
+		}
+		let style: TokenStyle | undefined = this.tokenStyleMap[tokenStyleId];
+		if (style) {
+			return style;
+		}
+		if (types.isUndefined(style)) {
+			style = this.getDefaultTokenStyle(style);
+		}
+		return style;
+	}
+
+	private initTokenStyleMap(): ITokenStyleMap {
+		return {};
+	}
+
 	public getDefault(colorId: ColorIdentifier): Color | undefined {
 		return colorRegistry.resolveDefaultColor(colorId, this);
 	}
+
+	public getDefaultTokenStyle(tokenStyleId: TokenStyleIdentifier): TokenStyle | undefined {
+		return tokenStyleRegistry.resolveDefaultTokenStyle(tokenStyleId, this, this.findTokenStyleForScope.bind(this));
+	}
+
+	/** Public for testing reasons */
+	public findTokenStyleForScope(scope: string): TokenStyle | undefined {
+
+		function findTokenStyleForScopeInScopes(scopeMatchers: Matcher<string>[], tokenColors: ITokenColorizationRule[]) {
+			for (let i = scopeMatchers.length - 1; i >= 0; i--) {
+				let matcher = scopeMatchers[i];
+				if (!matcher) {
+					scopeMatchers[i] = matcher = getScopeMatcher(tokenColors[i]);
+				}
+				if (matcher(scope)) {
+					const settings = tokenColors[i].settings;
+					if (settings) {
+						if (foreground === null && settings.foreground) {
+							foreground = settings.foreground;
+						}
+						if (fontStyle === null && types.isString(settings.fontStyle)) {
+							fontStyle = settings.fontStyle;
+						}
+						if (foreground !== null && fontStyle !== null) {
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		let foreground: string | null = null;
+		let fontStyle: string | null = null;
+
+		if (!this.customTokenScopeMatchers) {
+			this.customTokenScopeMatchers = new Array(this.customTokenColors.length);
+		}
+		findTokenStyleForScopeInScopes(this.customTokenScopeMatchers, this.customTokenColors);
+
+		if (foreground === null || fontStyle === null) {
+			if (!this.themeTokenScopeMatchers) {
+				this.themeTokenScopeMatchers = new Array(this.themeTokenColors.length);
+			}
+			findTokenStyleForScopeInScopes(this.themeTokenScopeMatchers, this.themeTokenColors);
+		}
+
+		if (foreground !== null || fontStyle !== null) {
+			return getTokenStyle(foreground, fontStyle);
+		}
+		return undefined;
+	}
+
+
 
 	public defines(colorId: ColorIdentifier): boolean {
 		return this.customColorMap.hasOwnProperty(colorId) || this.colorMap.hasOwnProperty(colorId);
@@ -132,6 +216,7 @@ export class ColorThemeData implements IColorTheme {
 
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
 		this.customTokenColors = [];
+		this.customTokenScopeMatchers = undefined;
 		// first add the non-theme specific settings
 		this.addCustomTokenColors(customTokenColors);
 
@@ -180,6 +265,7 @@ export class ColorThemeData implements IColorTheme {
 			return Promise.resolve(undefined);
 		}
 		this.themeTokenColors = [];
+		this.themeTokenScopeMatchers = undefined;
 		this.colorMap = {};
 		return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
 			this.isLoaded = true;
@@ -382,3 +468,64 @@ let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {
 		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
 	],
 };
+
+const noMatch = (_scope: string) => false;
+
+export function nameMatcher(identifers: string[], scope: string) {
+	for (const identifier of identifers) {
+		if (scopesAreMatching(scope, identifier)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function scopesAreMatching(thisScopeName: string, scopeName: string): boolean {
+	if (!thisScopeName) {
+		return false;
+	}
+	if (thisScopeName === scopeName) {
+		return true;
+	}
+	const len = scopeName.length;
+	return thisScopeName.length > len && thisScopeName.substr(0, len) === scopeName && thisScopeName[len] === '.';
+}
+
+function getScopeMatcher(rule: ITokenColorizationRule): Matcher<string> {
+	const scope = rule.scope;
+	if (!scope || !rule.settings) {
+		return noMatch;
+	}
+	const matchers: MatcherWithPriority<string>[] = [];
+	if (Array.isArray(scope)) {
+		for (let s of scope) {
+			matchers.push(...createMatchers(s, nameMatcher));
+		}
+	} else {
+		matchers.push(...createMatchers(scope, nameMatcher));
+	}
+	return (scope: string) => matchers.some(m => m.matcher(scope));
+}
+
+function getTokenStyle(foreground: string | null, fontStyle: string | null): TokenStyle | undefined {
+	let styles: number | undefined;
+	let foregroundColor = undefined;
+	if (foreground !== null) {
+		foregroundColor = Color.fromHex(foreground);
+	}
+
+	if (fontStyle !== null) {
+		styles = 0;
+		if (fontStyle.indexOf('underline') !== -1) {
+			styles |= TokenStyleBits.UNDERLINE;
+		}
+		if (fontStyle.indexOf('italic') !== -1) {
+			styles |= TokenStyleBits.ITALIC;
+		}
+		if (fontStyle.indexOf('bold') !== -1) {
+			styles |= TokenStyleBits.BOLD;
+		}
+	}
+	return new TokenStyle(foregroundColor, undefined, styles);
+
+}
