@@ -97,17 +97,6 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
 	private _rows: number | undefined;
 
-	/** @deprecated */
-	private readonly _onData = new Emitter<string>();
-	/** @deprecated */
-	public get onDidWriteData(): Event<string> {
-		// Tell the main side to start sending data if it's not already
-		this._idPromise.then(id => {
-			this._proxy.$registerOnDataListener(id);
-		});
-		return this._onData.event;
-	}
-
 	public isOpen: boolean = false;
 
 	constructor(
@@ -200,10 +189,6 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 				}
 			});
 		}
-	}
-
-	public _fireOnData(data: string): void {
-		this._onData.fire(data);
 	}
 }
 
@@ -354,15 +339,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 	}
 
-	/** @deprecated */
 	public async $acceptTerminalProcessData(id: number, data: string): Promise<void> {
-		const terminal = await this._getTerminalByIdEventually(id);
-		if (terminal) {
-			terminal._fireOnData(data);
-		}
-	}
-
-	public async $acceptTerminalProcessData2(id: number, data: string): Promise<void> {
 		const terminal = await this._getTerminalByIdEventually(id);
 		if (terminal) {
 			this._onDidWriteTerminalData.fire({ terminal, data });
