@@ -11,9 +11,11 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const viewCategory = nls.localize('viewCategory', "View");
@@ -59,12 +61,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REOPEN_WITH_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
-	handler: async (accessor: ServicesAccessor, resource: URI | undefined) => {
+	handler: async (accessor: ServicesAccessor, resource?: URI, editorContext?: IEditorCommandsContext) => {
 		const customEditorService = accessor.get(ICustomEditorService);
 		const editorService = accessor.get(IEditorService);
-		if (!resource) {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		let group: IEditorGroup | undefined;
+		if (editorContext) {
+			group = editorGroupService.getGroup(editorContext.groupId);
+		} else if (!resource) {
 			if (editorService.activeEditor) {
 				resource = editorService.activeEditor.getResource();
+				group = editorGroupService.activeGroup;
 			}
 		}
 
@@ -76,7 +84,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		// Otherwise with webviews, we will sometimes close the prompt instantly when the webview is
 		// refocused by the workbench
 		setTimeout(() => {
-			customEditorService.promptOpenWith(resource!, undefined, undefined);
+			customEditorService.promptOpenWith(resource!, undefined, group);
 		}, 10);
 	}
 });

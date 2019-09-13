@@ -12,11 +12,11 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { IEditor, IEditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CustomEditorDiscretion, CustomEditorInfo, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -93,7 +93,7 @@ export class CustomEditorService implements ICustomEditorService {
 
 		if (pick.id === defaultEditorId) {
 			const fileInput = this.instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
-			return this.editorService.openEditor(fileInput, { ...options, ignoreOverrides: true }, group);
+			return this.openEditorForResource(resource, fileInput, { ...options, ignoreOverrides: true }, group);
 		} else {
 			return this.openWith(resource, pick.id!, options, group);
 		}
@@ -114,6 +114,26 @@ export class CustomEditorService implements ICustomEditorService {
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, new UnownedDisposable(webview));
 		if (group) {
 			input.updateGroup(group!.id);
+		}
+		return this.openEditorForResource(resource, input, options, group);
+	}
+
+	private async openEditorForResource(
+		resource: URI,
+		input: IEditorInput,
+		options?: IEditorOptions,
+		group?: IEditorGroup
+	): Promise<IEditor | undefined> {
+		if (group) {
+			const existingEditors = group.editors.filter(editor => editor.getResource() && editor.getResource()!.toString() === resource.toString());
+			if (existingEditors.length) {
+				await this.editorService.replaceEditors([{
+					editor: existingEditors[0],
+					replacement: input,
+					options: options ? EditorOptions.create(options) : undefined,
+				}], group);
+				return this.editorService.activeControl;
+			}
 		}
 		return this.editorService.openEditor(input, options, group);
 	}
