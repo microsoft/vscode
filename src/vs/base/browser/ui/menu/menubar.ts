@@ -889,10 +889,10 @@ export class MenuBar extends Disposable {
 
 		DOM.addClass(customMenu.buttonElement, 'open');
 
-		if (this.options.compactMode === Direction.RIGHT) {
+		if (this.options.compactMode === Direction.Right) {
 			menuHolder.style.top = `0px`;
 			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left + this.container.clientWidth}px`;
-		} else if (this.options.compactMode === Direction.LEFT) {
+		} else if (this.options.compactMode === Direction.Left) {
 			menuHolder.style.top = `0px`;
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
@@ -909,7 +909,7 @@ export class MenuBar extends Disposable {
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
 			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
-			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.RIGHT
+			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));

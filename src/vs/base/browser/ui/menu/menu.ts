@@ -24,8 +24,8 @@ export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
 export enum Direction {
-	RIGHT,
-	LEFT
+	Right,
+	Left
 }
 
 export interface IMenuOptions {
@@ -607,7 +607,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 	) {
 		super(action, action, submenuOptions);
 
-		this.expandDirection = submenuOptions && submenuOptions.expandDirection !== undefined ? submenuOptions.expandDirection : Direction.LEFT;
+		this.expandDirection = submenuOptions && submenuOptions.expandDirection !== undefined ? submenuOptions.expandDirection : Direction.Right;
 
 		this.showScheduler = new RunOnceScheduler(() => {
 			if (this.mouseOver) {
@@ -724,7 +724,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 
-			if (this.expandDirection === Direction.RIGHT) {
+			if (this.expandDirection === Direction.Right) {
 				if (window.innerWidth <= boundingRect.right + childBoundingRect.width) {
 					this.submenuContainer.style.left = '10px';
 					this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset + boundingRect.height}px`;
@@ -732,7 +732,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 					this.submenuContainer.style.left = `${this.element.offsetWidth}px`;
 					this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 				}
-			} else if (this.expandDirection === Direction.LEFT) {
+			} else if (this.expandDirection === Direction.Left) {
 				this.submenuContainer.style.right = `${this.element.offsetWidth}px`;
 				this.submenuContainer.style.left = 'auto';
 				this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
