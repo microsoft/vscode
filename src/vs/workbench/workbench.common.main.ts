@@ -219,6 +219,9 @@ import 'vs/workbench/contrib/format/browser/format.contribution';
 // Themes
 import 'vs/workbench/contrib/themes/browser/themes.contribution';
 
+// Update
+import 'vs/workbench/contrib/update/browser/update.contribution';
+
 // Watermark
 import 'vs/workbench/contrib/watermark/browser/watermark';
 

@@ -229,10 +229,10 @@ supports-color@5.4.0:
   dependencies:
     has-flag "^3.0.0"
 
-vscode-css-languageservice@^4.0.3-next.6:
-  version "4.0.3-next.6"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.0.3-next.6.tgz#c9b70ae6dc7418d080188ba9772bf47343b929e7"
-  integrity sha512-Ip9EzhgZmwYEmmTw4oIN8oaZ1gUEJqVDrfcvPJ/bfc9lcYeSxexQ+9O5TiF106nX2g5f93sWYX/rDiAhxSgf4A==
+vscode-css-languageservice@^4.0.3-next.8:
+  version "4.0.3-next.8"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.0.3-next.8.tgz#0b81693b6ea9d10f78775a1dcad2c0f464fbde16"
+  integrity sha512-agBPPu86bPKIK5v6CFnWeBXN4jvnCzc67GZa/pvrIWeRdG7nvTu5Y2wYdwdesdpWzno9/5tfFEPp0KJbKQ4l+A==
   dependencies:
     vscode-languageserver-types "^3.15.0-next.2"
     vscode-nls "^4.1.1"

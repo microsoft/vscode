@@ -129,9 +129,6 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 
 	stopSession(): Promise<void> {
 
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		this.cancelPending();
-
 		if (this.socket) {
 			this.socket.end();
 			this.socket = undefined;
@@ -253,9 +250,6 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 	}
 
 	stopSession(): Promise<void> {
-
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		this.cancelPending();
 
 		if (!this.serverProcess) {
 			return Promise.resolve(undefined);

@@ -14,13 +14,16 @@ import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webvi
 import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { WebviewEditorState } from 'vs/editor/common/modes';
 
 export class CustomFileEditorInput extends WebviewEditorInput {
+
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private name?: string;
 	private _hasResolved = false;
 	private readonly _editorResource: URI;
+	private _state = WebviewEditorState.Readonly;
 
 	constructor(
 		resource: URI,
@@ -93,5 +96,14 @@ export class CustomFileEditorInput extends WebviewEditorInput {
 			await this._webviewEditorService.resolveWebview(this);
 		}
 		return super.resolve();
+	}
+
+	public setState(newState: WebviewEditorState): void {
+		this._state = newState;
+		this._onDidChangeDirty.fire();
+	}
+
+	public isDirty() {
+		return this._state === WebviewEditorState.Dirty;
 	}
 }

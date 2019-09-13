@@ -15,7 +15,8 @@ export const ICustomEditorService = createDecorator<ICustomEditorService>('custo
 export interface ICustomEditorService {
 	_serviceBrand: any;
 
-	getCustomEditorsForResource(resource: URI): readonly CustomEditorInfo[];
+	getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[];
+	getUserConfiguredCustomEditors(resource: URI): readonly CustomEditorInfo[];
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;

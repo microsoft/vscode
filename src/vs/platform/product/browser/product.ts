@@ -12,7 +12,7 @@ const product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfigura
 // Running out of sources
 if (Object.keys(product).length === 0) {
 	assign(product, {
-		version: '1.38.0-dev',
+		version: '1.39.0-dev',
 		nameLong: 'Visual Studio Code Web Dev',
 		nameShort: 'VSCode Web Dev'
 	});

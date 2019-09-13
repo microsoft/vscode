@@ -38,6 +38,7 @@ import 'vs/workbench/services/telemetry/browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import 'vs/workbench/services/credentials/browser/credentialsService';
 import 'vs/workbench/services/url/browser/urlService';
+import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/browser/web.simpleservices';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
