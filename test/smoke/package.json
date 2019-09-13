@@ -4,7 +4,6 @@
   "main": "./src/main.js",
   "scripts": {
     "postinstall": "npm run compile",
-    "precompile": "yarn add vscode-automation@link:../automation",
     "compile": "yarn --cwd ../automation compile && tsc",
     "watch": "concurrently \"yarn --cwd ../automation watch --preserveWatchOutput\" \"tsc --watch --preserveWatchOutput\"",
     "mocha": "mocha"
