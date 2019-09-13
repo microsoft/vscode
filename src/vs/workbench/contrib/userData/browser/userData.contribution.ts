@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, USER_DATA_PREVIEW_SCHEME } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncService, SyncStatus, USER_DATA_PREVIEW_SCHEME, IRemoteUserDataService } from 'vs/workbench/services/userData/common/userData';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -37,7 +37,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'userConfiguration.enableSync': {
 				type: 'boolean',
 				description: localize('userConfiguration.enableSync', "When enabled, synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
-				default: false,
+				default: true,
 				scope: ConfigurationScope.APPLICATION
 			}
 		}
@@ -48,25 +48,23 @@ class UserDataSyncContribution extends Disposable implements IWorkbenchContribut
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IRemoteUserDataService private readonly remoteUserDataService: IRemoteUserDataService,
 	) {
 		super();
 		this.loopSync();
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration,
-			e => e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync'))
-			(() => this.sync()));
+		this._register(Event.any<any>(
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync')),
+			this.remoteUserDataService.onDidChangeEnablement)
+			(() => this.loopSync()));
 	}
 
 	private loopSync(): void {
-		this.sync()
-			.then(() => timeout(500))
-			.then(() => this.loopSync());
-	}
-
-	private sync(): Promise<any> {
-		if (this.userDataSyncService.status === SyncStatus.Idle && this.configurationService.getValue<boolean>('userConfiguration.enableSync')) {
-			return this.userDataSyncService.sync();
+		if (this.configurationService.getValue<boolean>('userConfiguration.enableSync') && this.remoteUserDataService.isEnabled()) {
+			this.userDataSyncService.sync()
+				.then(null, () => null) // Surpress errors
+				.then(() => timeout(500))
+				.then(() => this.loopSync());
 		}
-		return Promise.resolve();
 	}
 
 }
@@ -91,7 +89,7 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.onDidChangeStatus(userDataSyncService.status);
-		this._register(userDataSyncService.onDidChangeStatus(status => this.onDidChangeStatus(status)));
+		this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(status => this.onDidChangeStatus(userDataSyncService.status)));
 		this.registerActions();
 	}
 

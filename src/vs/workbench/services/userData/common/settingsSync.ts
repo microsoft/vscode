@@ -139,24 +139,31 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		if (!this.syncPreviewResultPromise) {
 			return;
 		}
-		const result = await this.syncPreviewResultPromise;
-		let remoteUserData = result.remoteUserData;
-		const settingsPreivew = await this.fileService.readFile(SETTINGS_PREVIEW_RESOURCE);
-		const content = settingsPreivew.value.toString();
 
-		if (this.hasErrors(content)) {
-			return Promise.reject(localize('errorInvalidSettings', "Unable to sync settings. Please resolve conflicts without any errors/warnings and try again."));
+		const result = await this.syncPreviewResultPromise;
+		if (await this.fileService.exists(SETTINGS_PREVIEW_RESOURCE)) {
+
+			const settingsPreivew = await this.fileService.readFile(SETTINGS_PREVIEW_RESOURCE);
+			const content = settingsPreivew.value.toString();
+			if (this.hasErrors(content)) {
+				return Promise.reject(localize('errorInvalidSettings', "Unable to sync settings. Please resolve conflicts without any errors/warnings and try again."));
+			}
+
+			let remoteUserData = result.remoteUserData;
+			if (result.hasRemoteChanged) {
+				const ref = await this.writeToRemote(content, remoteUserData ? remoteUserData.ref : null);
+				remoteUserData = { ref, content };
+			}
+
+			if (result.hasLocalChanged) {
+				await this.writeToLocal(content, result.fileContent);
+			}
+
+			if (remoteUserData) {
+				this.updateLastSyncValue(remoteUserData);
+			}
 		}
-		if (result.hasRemoteChanged) {
-			const ref = await this.writeToRemote(content, remoteUserData ? remoteUserData.ref : null);
-			remoteUserData = { ref, content };
-		}
-		if (result.hasLocalChanged) {
-			await this.writeToLocal(content, result.fileContent);
-		}
-		if (remoteUserData) {
-			this.updateLastSyncValue(remoteUserData);
-		}
+
 		this.syncPreviewResultPromise = null;
 		this.setStatus(SyncStatus.Idle);
 	}
