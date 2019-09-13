@@ -100,7 +100,7 @@ export interface ITerminalConfiguration {
 	fontSize: number;
 	letterSpacing: number;
 	lineHeight: number;
-	setLocaleVariables: boolean;
+	detectLocale: 'auto' | 'off' | 'on';
 	scrollback: number;
 	commandsToSkipShell: string[];
 	cwd: string;
