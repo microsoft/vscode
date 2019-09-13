@@ -33,9 +33,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		title: localize('userConfiguration', "User Configuration"),
 		type: 'object',
 		properties: {
-			'userConfiguration.autoSync': {
+			'userConfiguration.enableSync': {
 				type: 'boolean',
-				description: localize('userConfiguration.autoSync', "When enabled, automatically synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
+				description: localize('userConfiguration.enableSync', "When enabled, synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
 				default: false,
 				scope: ConfigurationScope.APPLICATION
 			}
@@ -51,7 +51,7 @@ class AutoSyncUserData extends Disposable implements IWorkbenchContribution {
 		super();
 		this.loopAutoSync();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('userConfiguration.autoSync') && this.configurationService.getValue<boolean>('userConfiguration.autoSync')) {
+			if (e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync')) {
 				this.autoSync();
 			}
 		}));
@@ -64,7 +64,7 @@ class AutoSyncUserData extends Disposable implements IWorkbenchContribution {
 	}
 
 	private autoSync(): Promise<any> {
-		if (this.userDataSyncService.status === SyncStatus.Idle && this.configurationService.getValue<boolean>('userConfiguration.autoSync')) {
+		if (this.userDataSyncService.status === SyncStatus.Idle && this.configurationService.getValue<boolean>('userConfiguration.enableSync')) {
 			return this.userDataSyncService.sync();
 		}
 		return Promise.resolve();
@@ -134,11 +134,11 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async startSync(): Promise<void> {
-		this.configurationService.updateValue('userConfiguration.autoSync', true);
+		this.configurationService.updateValue('userConfiguration.enableSync', true);
 	}
 
 	private stopSync(): Promise<void> {
-		this.configurationService.updateValue('userConfiguration.autoSync', false);
+		this.configurationService.updateValue('userConfiguration.enableSync', false);
 		return this.userDataSyncService.stopSync();
 	}
 
@@ -173,7 +173,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 				id: 'workbench.userData.actions.syncStart',
 				title: localize('start sync', "Sync: Start")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.autoSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.enableSync')),
 		};
 		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.startSync());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, startSyncMenuItem);
@@ -185,7 +185,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 				id: 'workbench.userData.actions.stopSync',
 				title: localize('stop sync', "Sync: Stop")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.autoSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.enableSync')),
 		};
 		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.stopSync());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, stopSyncMenuItem);
