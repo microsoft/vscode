@@ -224,18 +224,9 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 			// Remote has moved forward
 			if (remoteUserData.ref !== lastSyncData.ref) {
-
-				// Local content is same as last synced. So, sync with remote content.
-				if (lastSyncData.content === localContent) {
-					this.logService.trace('Settings Sync: Settings file has not changed from last time synced. So replace with remote contents.');
-					hasLocalChanged = true;
-					settingsPreview = remoteContent;
-					return { settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts };
-				}
-
-				// Local content is diverged from last synced. Required merge and sync.
-				this.logService.trace('Settings Sync: Settings file is diverged from last time synced. Require merge and sync.');
-				hasLocalChanged = hasRemoteChanged = true;
+				this.logService.trace('Settings Sync: Remote contents have changed. Merge and Sync.');
+				hasRemoteChanged = true;
+				hasLocalChanged = lastSyncData.content !== localContent;
 				const mergeResult = await this.mergeContents(localContent, remoteContent, lastSyncData.content);
 				return { settingsPreview: mergeResult.settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts: mergeResult.hasConflicts };
 			}
