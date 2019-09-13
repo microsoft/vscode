@@ -19,7 +19,7 @@ import { IBackupFileService, toBackupWorkspaceResource } from 'vs/workbench/serv
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
-import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isWindows, isMacintosh, isWeb } from 'vs/base/common/platform';
 import { isEqual, basename, isEqualOrParent, getComparisonKey } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -60,7 +60,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private registerListeners(): void {
-		this.lifecycleService.onBeforeShutdown(async e => {
+		this.lifecycleService.onBeforeShutdown(e => {
+			if (isWeb) {
+				return; // no support for untitled in web
+			}
+
 			const saveOperation = this.saveUntitedBeforeShutdown(e.reason);
 			if (saveOperation) {
 				e.veto(saveOperation);
