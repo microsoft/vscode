@@ -56,6 +56,20 @@ export module Iterator {
 		};
 	}
 
+	export function fromIterableIterator<T>(it: IterableIterator<T>): Iterator<T> {
+		return {
+			next(): IteratorResult<T> {
+				const result = it.next();
+
+				if (result.done) {
+					return FIN;
+				}
+
+				return { done: false, value: result.value };
+			}
+		};
+	}
+
 	export function from<T>(elements: Iterator<T> | T[] | undefined): Iterator<T> {
 		if (!elements) {
 			return Iterator.empty();
