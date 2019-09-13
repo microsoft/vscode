@@ -42,40 +42,39 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		}
 	});
 
-class AutoSyncUserData extends Disposable implements IWorkbenchContribution {
+class UserDataSyncContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 	) {
 		super();
-		this.loopAutoSync();
+		this.loopSync();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync')) {
-				this.autoSync();
+				this.sync();
 			}
 		}));
 	}
 
-	private loopAutoSync(): void {
-		this.autoSync()
+	private loopSync(): void {
+		this.sync()
 			.then(() => timeout(1000 * 60 * 5)) // every five minutes
-			.then(() => this.loopAutoSync());
+			.then(() => this.loopSync());
 	}
 
-	private autoSync(): Promise<any> {
+	private sync(): Promise<any> {
 		if (this.userDataSyncService.status === SyncStatus.Idle && this.configurationService.getValue<boolean>('userConfiguration.enableSync')) {
 			return this.userDataSyncService.sync();
 		}
 		return Promise.resolve();
 	}
 
-
 }
 
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userData/browser/media/sync-push-light.svg`));
 const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userData/browser/media/sync-push-dark.svg`));
-class SyncContribution extends Disposable implements IWorkbenchContribution {
+class SyncActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly syncEnablementContext: IContextKey<string>;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -133,15 +132,6 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private async startSync(): Promise<void> {
-		this.configurationService.updateValue('userConfiguration.enableSync', true);
-	}
-
-	private stopSync(): Promise<void> {
-		this.configurationService.updateValue('userConfiguration.enableSync', false);
-		return this.userDataSyncService.stopSync();
-	}
-
 	private async continueSync(): Promise<void> {
 		// Get the preview editor
 		const editorInput = this.editorService.editors.filter(input => {
@@ -175,7 +165,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.enableSync')),
 		};
-		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.startSync());
+		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.configurationService.updateValue('userConfiguration.enableSync', true));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, startSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, startSyncMenuItem);
 
@@ -187,7 +177,7 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.enableSync')),
 		};
-		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.stopSync());
+		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.configurationService.updateValue('userConfiguration.enableSync', false));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, stopSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, stopSyncMenuItem);
 
@@ -229,5 +219,5 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SyncContribution, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(AutoSyncUserData, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(SyncActionsContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncContribution, LifecyclePhase.Eventually);
