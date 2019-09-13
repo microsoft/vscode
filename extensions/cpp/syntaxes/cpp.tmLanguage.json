@@ -2311,7 +2311,7 @@
 			}
 		},
 		"control_flow_keywords": {
-			"match": "((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))((?<!\\w)(?:throw|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default)(?!\\w))",
+			"match": "((?:(?:(?>\\s+)|(\\/\\*)((?>(?:[^\\*]|(?>\\*+)[^\\/])*)((?>\\*+)\\/)))+?|(?:(?:(?:(?:\\b|(?<=\\W))|(?=\\W))|\\A)|\\Z)))((?<!\\w)(?:throw|while|for|do|if|else|goto|switch|try|catch|return|break|case|continue|default|co_await|co_yield|co_return)(?!\\w))",
 			"captures": {
 				"1": {
 					"patterns": [
