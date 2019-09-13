@@ -132,13 +132,7 @@ export class WebClientServer {
 
 		// Strip `/static/` from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
-		let relativeFilePath = path.normalize(normalizedPathname.substr('/static/'.length));
-		if (!this._environmentService.isBuilt && relativeFilePath.indexOf('node_modules') === 0) {
-			// Running out of sources, we want to serve node_modules from remote/web folder
-			// to not accidentally pick up modules from our main node_modules folder in root
-			// see https://github.com/microsoft/vscode-internalbacklog/issues/678
-			relativeFilePath = path.join('remote', 'web', relativeFilePath);
-		}
+		const relativeFilePath = path.normalize(normalizedPathname.substr('/static/'.length));
 
 		const filePath = path.join(APP_ROOT, relativeFilePath);
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
