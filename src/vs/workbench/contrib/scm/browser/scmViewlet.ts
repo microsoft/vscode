@@ -29,7 +29,7 @@ import { createAndFillInContextMenuActions, ContextAwareMenuEntryActionViewItem,
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionViewItemProvider, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMRepository, isSCMResourceGroup } from './scmUtil';
+import { isSCMResource, isSCMResourceGroup } from './scmUtil';
 import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -37,7 +37,7 @@ import { Command } from 'vs/editor/common/modes';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { format } from 'vs/base/common/strings';
 import { equals } from 'vs/base/common/arrays';
-import { WorkbenchList, WorkbenchDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchList, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -49,9 +49,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { nextTick } from 'vs/base/common/process';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
-import { ITreeRenderer, ITreeNode, IDataSource, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
-import { ISequence, ISpliceable, ISplice } from 'vs/base/common/sequence';
+import { ITreeRenderer, ITreeNode, ITreeFilter, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ISequence, ISplice } from 'vs/base/common/sequence';
+import { ResourceTree, IBranchNode, isBranchNode, INode } from 'vs/base/common/resourceTree';
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { Iterator } from 'vs/base/common/iterator';
+import * as paths from 'vs/base/common/path';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -431,7 +434,7 @@ interface FolderTemplate {
 	name: HTMLElement;
 }
 
-class FolderRenderer implements ITreeRenderer<string, void, FolderTemplate> {
+class FolderRenderer implements ITreeRenderer<IBranchNode<ISCMResource>, void, FolderTemplate> {
 
 	static TEMPLATE_ID = 'folder';
 	get templateId(): string { return FolderRenderer.TEMPLATE_ID; }
@@ -443,8 +446,8 @@ class FolderRenderer implements ITreeRenderer<string, void, FolderTemplate> {
 		return { name };
 	}
 
-	renderElement(node: ITreeNode<string>, index: number, template: FolderTemplate): void {
-		template.name.textContent = node.element;
+	renderElement(node: ITreeNode<IBranchNode<ISCMResource>>, index: number, template: FolderTemplate): void {
+		template.name.textContent = node.element.name;
 	}
 
 	disposeTemplate(): void {
@@ -557,42 +560,25 @@ class ResourceRenderer implements ITreeRenderer<ISCMResource, void, ResourceTemp
 	}
 }
 
-class ProviderListDelegate implements IListVirtualDelegate<TreeNode> {
+class ProviderListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	getHeight() { return 22; }
 
-	getTemplateId(element: TreeNode) {
-		if (typeof element === 'string') {
+	getTemplateId(element: TreeElement) {
+		if (isBranchNode(element)) {
 			return FolderRenderer.TEMPLATE_ID;
-		}
-
-		return isSCMResource(element) ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
-	}
-}
-
-class SCMTreeDataSource implements IDataSource<ISCMRepository, TreeNode> {
-
-	hasChildren(element: ISCMRepository | TreeNode): boolean {
-		return typeof element !== 'string' && !isSCMResource(element);
-	}
-
-	getChildren(element: ISCMRepository | TreeNode): TreeNode[] {
-		if (typeof element === 'string') {
-			return [];
-		} else if (isSCMRepository(element)) {
-			return element.provider.groups.elements;
 		} else if (isSCMResource(element)) {
-			return [];
-		} else { // ISCMResourceGroup
-			return element.elements;
+			return ResourceRenderer.TEMPLATE_ID;
+		} else {
+			return ResourceGroupRenderer.TEMPLATE_ID;
 		}
 	}
 }
 
-class SCMTreeFilter implements ITreeFilter<TreeNode> {
+class SCMTreeFilter implements ITreeFilter<TreeElement> {
 
-	filter(element: TreeNode): boolean {
-		if (typeof element === 'string') {
+	filter(element: TreeElement): boolean {
+		if (isBranchNode(element)) {
 			return true;
 		} else if (isSCMResourceGroup(element)) {
 			return element.elements.length > 0 || !element.hideWhenEmpty;
@@ -602,22 +588,26 @@ class SCMTreeFilter implements ITreeFilter<TreeNode> {
 	}
 }
 
-const scmResourceIdentityProvider = new class implements IIdentityProvider<ISCMResourceGroup | ISCMResource> {
-	getId(r: ISCMResourceGroup | ISCMResource): string {
-		if (isSCMResource(r)) {
-			const group = r.resourceGroup;
+const scmResourceIdentityProvider = new class implements IIdentityProvider<TreeElement> {
+	getId(e: TreeElement): string {
+		if (isBranchNode(e)) {
+			return e.path;
+		} else if (isSCMResource(e)) {
+			const group = e.resourceGroup;
 			const provider = group.provider;
-			return `${provider.contextValue}/${group.id}/${r.sourceUri.toString()}`;
+			return `${provider.contextValue}/${group.id}/${e.sourceUri.toString()}`;
 		} else {
-			const provider = r.provider;
-			return `${provider.contextValue}/${r.id}`;
+			const provider = e.provider;
+			return `${provider.contextValue}/${e.id}`;
 		}
 	}
 };
 
-const scmKeyboardNavigationLabelProvider = new class implements IKeyboardNavigationLabelProvider<ISCMResourceGroup | ISCMResource> {
-	getKeyboardNavigationLabel(e: ISCMResourceGroup | ISCMResource) {
-		if (isSCMResource(e)) {
+const scmKeyboardNavigationLabelProvider = new class implements IKeyboardNavigationLabelProvider<TreeElement> {
+	getKeyboardNavigationLabel(e: TreeElement) {
+		if (isBranchNode(e)) {
+			return paths.posix.basename(e.path);
+		} else if (isSCMResource(e)) {
 			return basename(e.sourceUri);
 		} else {
 			return e.label;
@@ -631,8 +621,22 @@ const scmKeyboardNavigationLabelProvider = new class implements IKeyboardNavigat
 
 interface IGroupItem {
 	readonly group: ISCMResourceGroup;
-	visible: boolean;
+	readonly resources: ISCMResource[];
+	readonly tree: ResourceTree<ISCMResource>;
+	// visible: boolean;
 	readonly disposable: IDisposable;
+}
+
+function asTreeElement(node: INode<ISCMResource>): ITreeElement<TreeElement> {
+	if (isBranchNode(node)) {
+		return {
+			element: node,
+			children: Iterator.map(node.children, asTreeElement),
+			collapsed: false
+		};
+	}
+
+	return { element: node.element };
 }
 
 class ResourceGroupSplicer {
@@ -642,22 +646,34 @@ class ResourceGroupSplicer {
 
 	constructor(
 		groupSequence: ISequence<ISCMResourceGroup>,
-		private tree: DataTree<ISCMRepository, TreeNode>
+		private tree: ObjectTree<TreeElement>
 	) {
 		groupSequence.onDidSplice(this.onDidSpliceGroups, this, this.disposables);
 		this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: groupSequence.elements });
+	}
+
+	private fullRefresh(): void {
+		this.tree.setChildren(null, this.items.map(item => {
+			return {
+				element: item.group,
+				children: Iterator.map(item.tree.root.children, asTreeElement)
+			};
+		}));
 	}
 
 	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
 		const itemsToInsert: IGroupItem[] = [];
 
 		for (const group of toInsert) {
+			const tree = new ResourceTree<ISCMResource>();
+			const resources: ISCMResource[] = [...group.elements];
 			const disposable = combinedDisposable(
 				group.onDidChange(() => this.onDidChangeGroup(group)),
-				group.onDidSplice(splice => this.onDidSpliceGroup(group, splice))
+				group.onDidSplice(splice => this.onDidSpliceGroup(item, splice))
 			);
+			const item = { group, resources, tree, disposable };
 
-			itemsToInsert.push({ group, disposable });
+			itemsToInsert.push(item);
 		}
 
 		const itemsToDispose = this.items.splice(start, deleteCount, ...itemsToInsert);
@@ -666,11 +682,11 @@ class ResourceGroupSplicer {
 			item.disposable.dispose();
 		}
 
-		this.tree.updateChildren();
+		this.fullRefresh();
 	}
 
 	private onDidChangeGroup(group: ISCMResourceGroup): void {
-		this.tree.updateChildren();
+		this.fullRefresh();
 		// 	const itemIndex = firstIndex(this.items, item => item.group === group);
 
 		// 	if (itemIndex < 0) {
@@ -700,8 +716,18 @@ class ResourceGroupSplicer {
 		// 	item.visible = visible;
 	}
 
-	private onDidSpliceGroup(group: ISCMResourceGroup, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
-		this.tree.updateChildren(group);
+	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
+		for (const resource of toInsert) {
+			item.tree.add(resource.sourceUri, resource);
+		}
+
+		const deleted = item.resources.splice(start, deleteCount, ...toInsert);
+
+		for (const resource of deleted) {
+			item.tree.delete(resource.sourceUri);
+		}
+
+		this.fullRefresh();
 		// const itemIndex = firstIndex(this.items, item => item.group === group);
 
 		// if (itemIndex < 0) {
@@ -749,7 +775,7 @@ function convertValidationType(type: InputValidationType): MessageType {
 	}
 }
 
-type TreeNode = ISCMResourceGroup | string | ISCMResource;
+type TreeElement = ISCMResourceGroup | IBranchNode<ISCMResource> | ISCMResource;
 
 export class RepositoryPanel extends ViewletPanel {
 
@@ -759,7 +785,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
-	private tree: DataTree<ISCMRepository, TreeNode>;
+	private tree: ObjectTree<TreeElement>;
 	private listLabels: ResourceLabels;
 	private menus: SCMMenus;
 	private visibilityDisposables: IDisposable[] = [];
@@ -895,26 +921,24 @@ export class RepositoryPanel extends ViewletPanel {
 			new ResourceRenderer(this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
-		const dataSource = new SCMTreeDataSource();
 		const filter = new SCMTreeFilter();
 
 		this.tree = this.instantiationService.createInstance(
-			WorkbenchDataTree,
+			WorkbenchObjectTree,
 			`SCM Tree Repo`,
 			this.listContainer,
 			delegate,
 			renderers,
-			dataSource,
 			{
 				identityProvider: scmResourceIdentityProvider,
 				keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
 				horizontalScrolling: false,
 				filter
-			}) as WorkbenchDataTree<ISCMRepository, TreeNode>;
+			});
 
 		this._register(Event.chain(this.tree.onDidOpen)
 			.map(e => e.elements[0])
-			.filter(e => !!e && typeof e !== 'string' && isSCMResource(e))
+			.filter(e => !!e && !isBranchNode(e) && isSCMResource(e))
 			.on(this.open, this));
 
 		// this._register(Event.chain(this.tree.onPin)
@@ -925,7 +949,7 @@ export class RepositoryPanel extends ViewletPanel {
 		// this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
-		this.tree.setInput(this.repository);
+		// this.tree.setInput(this.repository);
 
 		// this._register(this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this));
 		// this.onDidChangeVisibility(this.viewModel.isVisible());
@@ -1042,7 +1066,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	private getSelectedResources(): ISCMResource[] {
 		return this.tree.getSelection()
-			.filter(r => !!r && (typeof r !== 'string') && isSCMResource(r)) as ISCMResource[];
+			.filter(r => !!r && !isBranchNode(r) && isSCMResource(r)) as ISCMResource[];
 	}
 
 	private updateInputBox(): void {
