@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -110,71 +110,82 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
 		}
 
-		if (status !== SyncStatus.HasConflicts) {
+		if (status === SyncStatus.HasConflicts) {
+			if (!this.conflictsWarningDisposable.value) {
+				const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts. Please resolve them to continue."),
+					[
+						{
+							label: localize('resolve', "Resolve Conflicts"),
+							run: () => this.userDataSyncService.handleConflicts()
+						}
+					]);
+				this.conflictsWarningDisposable.value = toDisposable(() => handle.close());
+				handle.onDidClose(() => this.conflictsWarningDisposable.clear());
+			}
+		} else {
 			this.conflictsWarningDisposable.clear();
 		}
 	}
 
-	private async startSync(): Promise<void> {
+	private async syncNow(): Promise<void> {
 		await this.userDataSyncService.sync();
-		if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
-			const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts. Please resolve them to continue."),
-				[
-					{
-						label: localize('resolve', "Resolve Conflicts"),
-						run: () => this.userDataSyncService.handleConflicts()
-					}
-				]);
-			this.conflictsWarningDisposable.value = toDisposable(() => handle.close());
-		}
 	}
 
-	private stopSync(): Promise<void> {
-		return this.userDataSyncService.stopSync();
-	}
-
-	private async turnOnSync(): Promise<void> {
+	private async startSync(): Promise<void> {
 		this.configurationService.updateValue('userConfiguration.autoSync', true);
 	}
 
-	private async turnOffSync(): Promise<void> {
+	private stopSync(): Promise<void> {
 		this.configurationService.updateValue('userConfiguration.autoSync', false);
-		this.stopSync();
+		return this.userDataSyncService.stopSync();
 	}
-
 	private registerActions(): void {
 
-		// Global Activity Actions
-
-		CommandsRegistry.registerCommand('workbench.userData.actions.turnOnSync', () => this.turnOnSync());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+		const startSyncMenuItem: IMenuItem = {
 			group: '5_sync',
 			command: {
-				id: 'workbench.userData.actions.turnOnSync',
-				title: localize('turn on auto sync', "Sync: Turn On")
+				id: 'workbench.userData.actions.syncStart',
+				title: localize('start sync', "Sync: Start")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.autoSync')),
-		});
+		};
+		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.startSync());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, startSyncMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, startSyncMenuItem);
 
-		CommandsRegistry.registerCommand('workbench.userData.actions.turnOffSync', () => this.turnOffSync());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+		const turnOffSyncMenuItem: IMenuItem = {
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.turnOffSync',
-				title: localize('turn off auto sync', "Sync: Turn Off")
+				title: localize('stop sync', "Sync: Stop")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.autoSync')),
+		};
+		CommandsRegistry.registerCommand(turnOffSyncMenuItem.command.id, () => this.stopSync());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, turnOffSyncMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, turnOffSyncMenuItem);
+
+		const stopSyncCommandId = 'workbench.userData.actions.stopSync';
+		CommandsRegistry.registerCommand(stopSyncCommandId, () => this.stopSync());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: stopSyncCommandId,
+				title: localize('stop sync', "Sync: Stop")
+			},
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.autoSync'), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Idle)),
 		});
 
-		CommandsRegistry.registerCommand('sync.resolveConflicts', serviceAccessor => serviceAccessor.get(IUserDataSyncService).handleConflicts());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+		const resolveConflictsMenuItem: IMenuItem = {
 			group: '5_sync',
 			command: {
 				id: 'sync.resolveConflicts',
 				title: localize('resolveConflicts', "Sync: Resolve Conflicts"),
 			},
 			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts),
-		});
+		};
+		CommandsRegistry.registerCommand(resolveConflictsMenuItem.command.id, serviceAccessor => serviceAccessor.get(IUserDataSyncService).handleConflicts());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, resolveConflictsMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, resolveConflictsMenuItem);
 
 		CommandsRegistry.registerCommand('sync.synchronising', () => { });
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
@@ -187,32 +198,14 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Syncing)
 		});
 
-		// Command Pallette Actions
-
-		CommandsRegistry.registerCommand('workbench.userData.actions.startSync', () => this.startSync());
+		const syncNowCommandId = 'workbench.userData.actions.syncNow';
+		CommandsRegistry.registerCommand(syncNowCommandId, () => this.syncNow());
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
-				id: 'workbench.userData.actions.startSync',
-				title: localize('start sync', "Sync: Start")
+				id: syncNowCommandId,
+				title: localize('sync now', "Sync: Now")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Idle), ContextKeyExpr.not('config.userConfiguration.autoSync')),
-		});
-
-		CommandsRegistry.registerCommand('workbench.userData.actions.stopSync', () => this.stopSync());
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: {
-				id: 'workbench.userData.actions.stopSync',
-				title: localize('stop sync', "Sync: Stop")
-			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ContextKeyExpr.not('config.userConfiguration.autoSync')),
-		});
-
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: {
-				id: 'sync.resolveConflicts',
-				title: localize('resolveConflicts', "Sync: Resolve Conflicts"),
-			},
-			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts),
+			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Idle),
 		});
 	}
 }
