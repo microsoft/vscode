@@ -101,9 +101,9 @@ export interface ISynchroniser {
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	sync(): Promise<boolean>;
+	continueSync(): Promise<boolean>;
 	stopSync(): Promise<void>;
 	handleConflicts(): boolean;
-	apply(previewResource: URI): Promise<boolean>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');

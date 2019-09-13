@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncService, SyncStatus, USER_DATA_PREVIEW_SCHEME } from 'vs/workbench/services/userData/common/userData';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -18,9 +18,12 @@ import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { timeout } from 'vs/base/common/async';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { AcceptChangesController } from 'vs/workbench/contrib/userData/browser/userDataPreviewEditorContribution';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { URI } from 'vs/base/common/uri';
+import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 
@@ -71,6 +74,8 @@ class AutoSyncUserData extends Disposable implements IWorkbenchContribution {
 
 }
 
+const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userData/browser/media/sync-push-light.svg`));
+const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userData/browser/media/sync-push-dark.svg`));
 class SyncContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly syncEnablementContext: IContextKey<string>;
@@ -82,7 +87,9 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
@@ -139,6 +146,30 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 		this.configurationService.updateValue('userConfiguration.autoSync', false);
 		return this.userDataSyncService.stopSync();
 	}
+
+	private async continueSync(): Promise<void> {
+		// Get the preview editor
+		const editorInput = this.editorService.editors.filter(input => {
+			const resource = input.getResource();
+			return resource && resource.scheme === USER_DATA_PREVIEW_SCHEME;
+		})[0];
+		// Save the preview
+		if (editorInput && editorInput.isDirty()) {
+			await this.textFileService.save(editorInput.getResource()!);
+		}
+		try {
+			// Continue Sync
+			await this.userDataSyncService.continueSync();
+		} catch (error) {
+			this.notificationService.error(error);
+			return;
+		}
+		// Close the preview editor
+		if (editorInput) {
+			editorInput.dispose();
+		}
+	}
+
 	private registerActions(): void {
 
 		const startSyncMenuItem: IMenuItem = {
@@ -187,6 +218,29 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, resolveConflictsMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, resolveConflictsMenuItem);
 
+		const continueSyncCommandId = 'workbench.userData.actions.continueSync';
+		CommandsRegistry.registerCommand(continueSyncCommandId, () => this.continueSync());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: continueSyncCommandId,
+				title: localize('continue sync', "Sync: Continue")
+			},
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts)),
+		});
+		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+			command: {
+				id: continueSyncCommandId,
+				title: localize('continue sync', "Sync: Continue"),
+				iconLocation: {
+					light: SYNC_PUSH_LIGHT_ICON_URI,
+					dark: SYNC_PUSH_DARK_ICON_URI
+				}
+			},
+			group: 'navigation',
+			order: 1,
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Scheme.isEqualTo(USER_DATA_PREVIEW_SCHEME)),
+		});
+
 		CommandsRegistry.registerCommand('sync.synchronising', () => { });
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
@@ -213,5 +267,3 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(SyncContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(AutoSyncUserData, LifecyclePhase.Eventually);
-
-registerEditorContribution(AcceptChangesController);

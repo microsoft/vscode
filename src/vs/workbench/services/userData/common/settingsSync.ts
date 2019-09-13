@@ -11,7 +11,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IRemoteUserDataService, IUserData, RemoteUserDataError, RemoteUserDataErrorCode, ISynchroniser, SyncStatus, SETTINGS_PREVIEW_RESOURCE } from 'vs/workbench/services/userData/common/userData';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, findNodeAtLocation, parseTree, ParseError } from 'vs/base/common/json';
-import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -25,7 +24,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Position } from 'vs/editor/common/core/position';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { isEqual } from 'vs/base/common/resources';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 interface ISyncPreviewResult {
@@ -83,7 +81,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 				this.setStatus(SyncStatus.HasConflicts);
 				return false;
 			}
-			await this.apply(SETTINGS_PREVIEW_RESOURCE);
+			await this.apply();
 			return true;
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
@@ -129,35 +127,40 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		return true;
 	}
 
-	async apply(previewResource: URI): Promise<boolean> {
-		if (!isEqual(previewResource, SETTINGS_PREVIEW_RESOURCE, false)) {
+	async continueSync(): Promise<boolean> {
+		if (this.status !== SyncStatus.HasConflicts) {
 			return false;
 		}
-		if (this.syncPreviewResultPromise) {
-			const result = await this.syncPreviewResultPromise;
-			let remoteUserData = result.remoteUserData;
-			const settingsPreivew = await this.fileService.readFile(SETTINGS_PREVIEW_RESOURCE);
-			const content = settingsPreivew.value.toString();
+		await this.apply();
+		return true;
+	}
 
-			const parseErrors: ParseError[] = [];
-			parse(content, parseErrors);
-			if (parseErrors.length > 0) {
-				return Promise.reject(localize('errorInvalidSettings', "Unable to sync settings. Please fix errors/warnings in it and try again."));
-			}
-			if (result.hasRemoteChanged) {
-				const ref = await this.writeToRemote(content, remoteUserData ? remoteUserData.ref : null);
-				remoteUserData = { ref, content };
-			}
-			if (result.hasLocalChanged) {
-				await this.writeToLocal(content, result.fileContent);
-			}
-			if (remoteUserData) {
-				this.updateLastSyncValue(remoteUserData);
-			}
+	private async apply(): Promise<void> {
+		if (!this.syncPreviewResultPromise) {
+			return;
+		}
+		const result = await this.syncPreviewResultPromise;
+		let remoteUserData = result.remoteUserData;
+		const settingsPreivew = await this.fileService.readFile(SETTINGS_PREVIEW_RESOURCE);
+		const content = settingsPreivew.value.toString();
+
+		const parseErrors: ParseError[] = [];
+		parse(content, parseErrors);
+		if (parseErrors.length > 0) {
+			return Promise.reject(localize('errorInvalidSettings', "Unable to sync settings. Please resolve conflicts without any errors/warnings and try again."));
+		}
+		if (result.hasRemoteChanged) {
+			const ref = await this.writeToRemote(content, remoteUserData ? remoteUserData.ref : null);
+			remoteUserData = { ref, content };
+		}
+		if (result.hasLocalChanged) {
+			await this.writeToLocal(content, result.fileContent);
+		}
+		if (remoteUserData) {
+			this.updateLastSyncValue(remoteUserData);
 		}
 		this.syncPreviewResultPromise = null;
 		this.setStatus(SyncStatus.Idle);
-		return true;
 	}
 
 	private getPreview(): Promise<ISyncPreviewResult> {
@@ -225,8 +228,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			// Remote has moved forward
 			if (remoteUserData.ref !== lastSyncData.ref) {
 				this.logService.trace('Settings Sync: Remote contents have changed. Merge and Sync.');
-				hasRemoteChanged = true;
-				hasLocalChanged = lastSyncData.content !== localContent;
+				hasLocalChanged = true;
+				hasRemoteChanged = lastSyncData.content !== localContent;
 				const mergeResult = await this.mergeContents(localContent, remoteContent, lastSyncData.content);
 				return { settingsPreview: mergeResult.settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts: mergeResult.hasConflicts };
 			}
@@ -278,8 +281,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		const base = lastSyncedContent ? parse(lastSyncedContent) : null;
 		const settingsPreviewModel = this.modelService.createModel(localContent, this.modeService.create('jsonc'));
 
-		const baseToLocal = base ? this.compare(base, local) : { added: new Set<string>(), removed: new Set<string>(), updated: new Set<string>() };
-		const baseToRemote = base ? this.compare(base, remote) : { added: new Set<string>(), removed: new Set<string>(), updated: new Set<string>() };
+		const baseToLocal = base ? this.compare(base, local) : { added: Object.keys(local).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+		const baseToRemote = base ? this.compare(base, remote) : { added: Object.keys(remote).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
 		const localToRemote = this.compare(local, remote);
 
 		const conflicts: Set<string> = new Set<string>();

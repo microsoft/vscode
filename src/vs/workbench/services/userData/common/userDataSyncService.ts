@@ -9,7 +9,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/workbench/services/userData/common/settingsSync';
 import { Emitter, Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 
@@ -59,12 +58,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	async apply(previewResource: URI): Promise<boolean> {
+	async continueSync(): Promise<boolean> {
 		if (!this.remoteUserDataService.isEnabled()) {
 			throw new Error('Not enabled');
 		}
 		for (const synchroniser of this.synchronisers) {
-			if (await synchroniser.apply(previewResource)) {
+			if (await synchroniser.continueSync()) {
 				return true;
 			}
 		}
