@@ -14,9 +14,7 @@ import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURITo
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
@@ -30,8 +28,6 @@ import { IProductService } from 'vs/platform/product/common/product';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-// tslint:disable-next-line: import-patterns
-import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
 
 //#region Window
 
@@ -614,50 +610,6 @@ registerSingleton(IWindowsService, SimpleWindowsService);
 
 //#endregion
 
-//#region Workspace Editing
-
-export class SimpleWorkspaceEditingService implements IWorkspaceEditingService {
-
-	_serviceBrand: undefined;
-
-	addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	removeFolders(folders: URI[], donotNotifyError?: boolean): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	enterWorkspace(path: URI): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	saveAndEnterWorkspace(path: URI): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	pickNewWorkspacePath(): Promise<URI> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-}
-
-registerSingleton(IWorkspaceEditingService, SimpleWorkspaceEditingService, true);
-
-//#endregion
-
 //#region Workspaces
 
 export class SimpleWorkspacesService implements IWorkspacesService {
@@ -680,42 +632,5 @@ export class SimpleWorkspacesService implements IWorkspacesService {
 }
 
 registerSingleton(IWorkspacesService, SimpleWorkspacesService);
-
-//#endregion
-
-//#region remote
-
-class SimpleTunnelService implements ITunnelService {
-	_serviceBrand: undefined;
-	openTunnel(remotePort: number) {
-		return undefined;
-	}
-}
-
-registerSingleton(ITunnelService, SimpleTunnelService);
-
-//#endregion
-
-//#region workspace stats
-
-class SimpleWorkspaceStatsService implements IWorkspaceStatsService {
-
-	_serviceBrand: undefined;
-
-	getTags(): Promise<Tags> {
-		return Promise.resolve({});
-	}
-
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
-		return undefined;
-	}
-
-	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]> {
-		return Promise.resolve([]);
-	}
-
-}
-
-registerSingleton(IWorkspaceStatsService, SimpleWorkspaceStatsService);
 
 //#endregion

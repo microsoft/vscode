@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class TunnelService implements ITunnelService {
+export class NoOpTunnelService implements ITunnelService {
 	_serviceBrand: undefined;
 
 	public constructor(
@@ -17,5 +16,3 @@ export class TunnelService implements ITunnelService {
 		return undefined;
 	}
 }
-
-registerSingleton(ITunnelService, TunnelService);

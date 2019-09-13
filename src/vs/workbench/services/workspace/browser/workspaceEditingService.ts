@@ -12,7 +12,6 @@ import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { StorageService } from 'vs/platform/storage/node/storageService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -421,9 +420,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		const storageImpl = this.storageService as StorageService;
-
-		return storageImpl.migrate(toWorkspace);
+		return this.storageService.migrate(toWorkspace);
 	}
 
 	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
