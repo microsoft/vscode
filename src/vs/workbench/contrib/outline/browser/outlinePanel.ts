@@ -420,24 +420,36 @@ export class OutlinePanel extends ViewletPanel {
 					const collapseLevelActions: IAction[] = [];
 					const levelCollapseStates = this._tree.getLevelCollapseStates();
 					for (let i = 0; i < levelCollapseStates.length; i++) {
-						if (levelCollapseStates[i] === TreeLevelCollapseState.Fixed) {
-							continue;
+						switch (levelCollapseStates[i]) {
+							case TreeLevelCollapseState.Collapsed:
+								addAction(this._tree, 'expand', i);
+								break;
+							case TreeLevelCollapseState.Expanded:
+								addAction(this._tree, 'collapse', i);
+								break;
+							case TreeLevelCollapseState.Mixed:
+								addAction(this._tree, 'collapse', i);
+								addAction(this._tree, 'expand', i);
+								break;
+							case TreeLevelCollapseState.Fixed:
+								continue;
 						}
 
-						const expandOrCollapse = levelCollapseStates[i] === TreeLevelCollapseState.Collapsed;
-						const actionLabel = expandOrCollapse ?
-							localize('expandToLevel', "Expand to level {0}", i + 1) :
-							localize('collapseFromLevel', "Collapse from level {0}", i + 1);
+						function addAction(tree: OutlinePanel['_tree'], kind: 'expand' | 'collapse', level: number) {
+							const actionLabel = kind === 'expand' ?
+								localize('expandToLevel', "Expand to level {0}", level + 2) :
+								localize('collapseFromLevel', "Collapse from level {0}", level + 1);
 
-						collapseLevelActions.push(new Action('collapseExpandLevel' + i, actionLabel, undefined, true, () => {
-							if (expandOrCollapse) {
-								this._tree.expandToLevel(i);
-							} else {
-								this._tree.collapseFromLevel(i);
-							}
+							collapseLevelActions.push(new Action('collapseExpandLevel' + level, actionLabel, undefined, true, () => {
+								if (kind === 'expand') {
+									tree.expandToLevel(level);
+								} else {
+									tree.collapseFromLevel(level);
+								}
 
-							return Promise.resolve(undefined);
-						}));
+								return Promise.resolve(undefined);
+							}));
+						}
 					}
 
 					return collapseLevelActions;
