@@ -20,7 +20,6 @@ function code() {
 		yarn gulp node
 	fi
 
-
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
 	$NODE "$ROOT/out/vs/server/main.js" "$@"
