@@ -58,6 +58,7 @@ export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('resta
 export const CONTEXT_JUMP_TO_CURSOR_SUPPORTED = new RawContextKey<boolean>('jumpToCursorSupported', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
+export const BREAKPOINT_EDITOR_CONTRIBUTION_ID = 'editor.contrib.breakpoint';
 export const DEBUG_SCHEME = 'debug';
 export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
 	enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
@@ -850,9 +851,12 @@ export const enum BreakpointWidgetContext {
 
 export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, focus: boolean): Promise<void>;
-	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
-	closeBreakpointWidget(): void;
 	addLaunchConfiguration(): Promise<any>;
+}
+
+export interface IBreakpointEditorContribution extends IEditorContribution {
+	showBreakpointWidget(lineNumber: number, context?: BreakpointWidgetContext): void;
+	closeBreakpointWidget(): void;
 }
 
 // temporary debug helper service
