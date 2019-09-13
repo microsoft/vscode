@@ -298,11 +298,11 @@ export class SendSequenceTerminalCommand extends Command {
 	}
 }
 
-export class CreateNewTerminalHereCommand extends Command {
-	public static readonly ID = TERMINAL_COMMAND_ID.NEW_HERE;
-	public static readonly LABEL = nls.localize('workbench.action.terminal.newHere', "Create New Integrated Terminal In Custom Path");
+export class CreateNewWithCwdTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.NEW_WITH_CWD;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.newWithCwd', "Create New Integrated Terminal Starting in a Custom Working Directory");
 
-	public runCommand(accessor: ServicesAccessor, cwd: string | undefined): Promise<void> {
+	public runCommand(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const configurationResolverService = accessor.get(IConfigurationResolverService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
@@ -310,8 +310,11 @@ export class CreateNewTerminalHereCommand extends Command {
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 
-		const resolvedCwd = configurationResolverService.resolve(lastActiveWorkspaceRoot, cwd || '');
-		const instance = terminalService.createTerminal({ cwd: resolvedCwd });
+		let cwd: string | undefined;
+		if (args && args.cwd) {
+			cwd = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.cwd);
+		}
+		const instance = terminalService.createTerminal({ cwd });
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
