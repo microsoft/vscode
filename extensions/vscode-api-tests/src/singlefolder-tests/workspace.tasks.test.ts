@@ -23,7 +23,7 @@ suite('workspace-namespace', () => {
 				reg1.dispose();
 				const reg2 = vscode.window.onDidWriteTerminalData(e => {
 					reg2.dispose();
-					assert.equal(e, 'testing\r\n');
+					assert.equal(e.data, 'testing\r\n');
 					term.dispose();
 				});
 			});
