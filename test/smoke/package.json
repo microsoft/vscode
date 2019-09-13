@@ -28,7 +28,6 @@
     "strip-json-comments": "^2.0.1",
     "tmp": "0.0.33",
     "typescript": "2.9.2",
-    "vscode-automation": "link:../automation",
     "watch": "^1.0.2"
   }
 }
