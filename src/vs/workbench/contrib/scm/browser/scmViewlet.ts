@@ -37,7 +37,7 @@ import { Command } from 'vs/editor/common/modes';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { format } from 'vs/base/common/strings';
 import { equals } from 'vs/base/common/arrays';
-import { WorkbenchList, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchList, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -49,12 +49,13 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { nextTick } from 'vs/base/common/process';
-import { ITreeRenderer, ITreeNode, ITreeFilter, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
 import { ISequence, ISplice } from 'vs/base/common/sequence';
 import { ResourceTree, IBranchNode, isBranchNode, INode } from 'vs/base/common/resourceTree';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ObjectTree, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
 import * as paths from 'vs/base/common/path';
+import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -374,7 +375,7 @@ interface ResourceGroupTemplate {
 	dispose: () => void;
 }
 
-class ResourceGroupRenderer implements ITreeRenderer<ISCMResourceGroup, void, ResourceGroupTemplate> {
+class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGroup, void, ResourceGroupTemplate> {
 
 	static TEMPLATE_ID = 'resource group';
 	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
@@ -421,6 +422,10 @@ class ResourceGroupRenderer implements ITreeRenderer<ISCMResourceGroup, void, Re
 		template.elementDisposable = disposables;
 	}
 
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceGroup>, void>, index: number, templateData: ResourceGroupTemplate, height: number | undefined): void {
+		throw new Error('Should never happen since node is incompressible');
+	}
+
 	disposeElement(group: ITreeNode<ISCMResourceGroup>, index: number, template: ResourceGroupTemplate): void {
 		template.elementDisposable.dispose();
 	}
@@ -434,7 +439,7 @@ interface FolderTemplate {
 	name: HTMLElement;
 }
 
-class FolderRenderer implements ITreeRenderer<IBranchNode<ISCMResource>, void, FolderTemplate> {
+class FolderRenderer implements ICompressibleTreeRenderer<IBranchNode<ISCMResource>, void, FolderTemplate> {
 
 	static TEMPLATE_ID = 'folder';
 	get templateId(): string { return FolderRenderer.TEMPLATE_ID; }
@@ -446,8 +451,12 @@ class FolderRenderer implements ITreeRenderer<IBranchNode<ISCMResource>, void, F
 		return { name };
 	}
 
-	renderElement(node: ITreeNode<IBranchNode<ISCMResource>>, index: number, template: FolderTemplate): void {
-		template.name.textContent = node.element.name;
+	renderElement(node: ITreeNode<IBranchNode<ISCMResource>>, index: number, templateData: FolderTemplate): void {
+		templateData.name.textContent = node.element.name;
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IBranchNode<ISCMResource>>, void>, index: number, templateData: FolderTemplate, height: number | undefined): void {
+		templateData.name.textContent = node.element.elements.map(e => e.name).join('/');
 	}
 
 	disposeTemplate(): void {
@@ -487,7 +496,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 	}
 }
 
-class ResourceRenderer implements ITreeRenderer<ISCMResource, void, ResourceTemplate> {
+class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource, void, ResourceTemplate> {
 
 	static TEMPLATE_ID = 'resource';
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
@@ -548,6 +557,10 @@ class ResourceRenderer implements ITreeRenderer<ISCMResource, void, ResourceTemp
 
 		template.element.setAttribute('data-tooltip', resource.decorations.tooltip || '');
 		template.elementDisposable = disposables;
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource>, void>, index: number, templateData: ResourceTemplate, height: number | undefined): void {
+		throw new Error('Should never happen since node is incompressible');
 	}
 
 	disposeElement(resource: ITreeNode<ISCMResource>, index: number, template: ResourceTemplate): void {
@@ -627,16 +640,17 @@ interface IGroupItem {
 	readonly disposable: IDisposable;
 }
 
-function asTreeElement(node: INode<ISCMResource>): ITreeElement<TreeElement> {
+function asTreeElement(node: INode<ISCMResource>, incompressible: boolean): ICompressedTreeElement<TreeElement> {
 	if (isBranchNode(node)) {
 		return {
 			element: node,
-			children: Iterator.map(node.children, asTreeElement),
+			children: Iterator.map(node.children, node => asTreeElement(node, false)),
+			incompressible,
 			collapsed: false
 		};
 	}
 
-	return { element: node.element };
+	return { element: node.element, incompressible: true };
 }
 
 class ResourceGroupSplicer {
@@ -656,8 +670,9 @@ class ResourceGroupSplicer {
 		this.tree.setChildren(null, this.items.map(item => {
 			return {
 				element: item.group,
-				children: Iterator.map(item.tree.root.children, asTreeElement)
-			};
+				children: Iterator.map(item.tree.root.children, node => asTreeElement(node, true)),
+				incompressible: true
+			} as ICompressedTreeElement<TreeElement>;
 		}));
 	}
 
@@ -924,7 +939,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const filter = new SCMTreeFilter();
 
 		this.tree = this.instantiationService.createInstance(
-			WorkbenchObjectTree,
+			WorkbenchCompressibleObjectTree,
 			`SCM Tree Repo`,
 			this.listContainer,
 			delegate,
