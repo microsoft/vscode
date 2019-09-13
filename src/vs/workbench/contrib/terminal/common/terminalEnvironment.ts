@@ -56,8 +56,8 @@ export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, ve
 	if (version) {
 		env['TERM_PROGRAM_VERSION'] = version;
 	}
-	if (_shouldSetLangEnvVariable(env, detectLocale)) {
-		env['LANG'] = _getLangEnvVariable(locale);
+	if (shouldSetLangEnvVariable(env, detectLocale)) {
+		env['LANG'] = getLangEnvVariable(locale);
 	}
 	env['COLORTERM'] = 'truecolor';
 }
@@ -88,7 +88,7 @@ function resolveConfigurationVariables(configurationResolverService: IConfigurat
 	return env;
 }
 
-function _shouldSetLangEnvVariable(env: platform.IProcessEnvironment, detectLocale: 'auto' | 'off' | 'on'): boolean {
+export function shouldSetLangEnvVariable(env: platform.IProcessEnvironment, detectLocale: 'auto' | 'off' | 'on'): boolean {
 	if (detectLocale === 'on') {
 		return true;
 	}
@@ -98,7 +98,7 @@ function _shouldSetLangEnvVariable(env: platform.IProcessEnvironment, detectLoca
 	return false; // 'off'
 }
 
-function _getLangEnvVariable(locale?: string): string {
+export function getLangEnvVariable(locale?: string): string {
 	const parts = locale ? locale.split('-') : [];
 	const n = parts.length;
 	if (n === 0) {
