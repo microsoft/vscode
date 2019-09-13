@@ -23,6 +23,7 @@ import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { Event } from 'vs/base/common/event';
 
 const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 
@@ -50,16 +51,14 @@ class UserDataSyncContribution extends Disposable implements IWorkbenchContribut
 	) {
 		super();
 		this.loopSync();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync')) {
-				this.sync();
-			}
-		}));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration,
+			e => e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync'))
+			(() => this.sync()));
 	}
 
 	private loopSync(): void {
 		this.sync()
-			.then(() => timeout(1000 * 60 * 5)) // every five minutes
+			.then(() => timeout(500))
 			.then(() => this.loopSync());
 	}
 
