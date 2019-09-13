@@ -576,10 +576,12 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, Fi
 			name: 'args',
 			schema: {
 				type: 'object',
-				description: 'The directory to start the terminal in',
 				required: ['cwd'],
 				properties: {
-					cwd: { type: 'string' }
+					cwd: {
+						description: CreateNewWithCwdTerminalCommand.CWD_ARG_LABEL,
+						type: 'string'
+					}
 				},
 			}
 		}]
