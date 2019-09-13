@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditor } from 'vs/workbench/common/editor';
+import { EditorInput, IEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 
@@ -17,6 +17,8 @@ export interface ICustomEditorService {
 
 	getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[];
 	getUserConfiguredCustomEditors(resource: URI): readonly CustomEditorInfo[];
+
+	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined): EditorInput;
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;

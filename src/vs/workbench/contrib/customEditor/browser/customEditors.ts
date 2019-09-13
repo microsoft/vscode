@@ -17,6 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CustomEditorDiscretion, CustomEditorInfo, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -109,13 +110,22 @@ export class CustomEditorService implements ICustomEditorService {
 			return this.promptOpenWith(resource, options, group);
 		}
 
+		const input = this.createInput(resource, viewType, group);
+		return this.openEditorForResource(resource, input, options, group);
+	}
+
+	public createInput(
+		resource: URI,
+		viewType: string,
+		group: IEditorGroup | undefined
+	): CustomFileEditorInput {
 		const id = generateUuid();
 		const webview = this.webviewService.createWebviewEditorOverlay(id, {}, {});
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, new UnownedDisposable(webview));
 		if (group) {
 			input.updateGroup(group!.id);
 		}
-		return this.openEditorForResource(resource, input, options, group);
+		return input;
 	}
 
 	private async openEditorForResource(
@@ -157,6 +167,34 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 	): IOpenEditorOverride | undefined {
 		if (editor instanceof CustomFileEditorInput) {
 			return;
+		}
+
+		if (editor instanceof DiffEditorInput) {
+			if (editor.modifiedInput instanceof CustomFileEditorInput) {
+				return;
+			}
+			const resource = editor.modifiedInput.getResource();
+			if (!resource) {
+				return;
+			}
+
+			const customEditors = distinct([
+				...this.customEditorService.getUserConfiguredCustomEditors(resource),
+				...this.customEditorService.getContributedCustomEditors(resource),
+			], editor => editor.id);
+
+			// Always prefer the first editor in the diff editor case
+			if (customEditors.length > 0) {
+				return {
+					override: (async () => {
+						const newModified = this.customEditorService.createInput(resource, customEditors[0].id, group);
+						const input = new DiffEditorInput(editor.getName(), editor.getDescription(), editor.originalInput, newModified);
+						return this.editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
+					})(),
+				};
+			}
+
+			return undefined;
 		}
 
 		const resource = editor.getResource();
