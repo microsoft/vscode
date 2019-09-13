@@ -15,7 +15,6 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolde
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -680,19 +679,6 @@ export class SimpleWorkspacesService implements IWorkspacesService {
 }
 
 registerSingleton(IWorkspacesService, SimpleWorkspacesService);
-
-//#endregion
-
-//#region remote
-
-class SimpleTunnelService implements ITunnelService {
-	_serviceBrand: undefined;
-	openTunnel(remotePort: number) {
-		return undefined;
-	}
-}
-
-registerSingleton(ITunnelService, SimpleTunnelService);
 
 //#endregion
 
