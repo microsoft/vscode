@@ -21,7 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -32,7 +32,7 @@ export class ReleaseNotesManager {
 
 	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
 
-	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
+	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastText: string | undefined;
 
 	public constructor(

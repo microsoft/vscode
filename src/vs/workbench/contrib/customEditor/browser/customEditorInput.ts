@@ -11,12 +11,12 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { WebviewEditorState } from 'vs/editor/common/modes';
 
-export class CustomFileEditorInput extends WebviewEditorInput {
+export class CustomFileEditorInput extends WebviewInput {
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
