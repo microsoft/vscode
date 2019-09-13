@@ -1955,24 +1955,21 @@ class Dialogs {
 	}
 
 	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): Promise<IMessageBoxResult> {
-		return this.getDialogQueue(window).queue(() => {
-			return new Promise(resolve => {
-				const callback = (response: number, checkboxChecked: boolean) => {
-					resolve({ button: response, checkboxChecked });
-				};
+		return this.getDialogQueue(window).queue(async () => {
+			let result: Electron.MessageBoxReturnValue;
+			if (window) {
+				result = await dialog.showMessageBox(window.win, options);
+			} else {
+				result = await dialog.showMessageBox(options);
+			}
 
-				if (window) {
-					dialog.showMessageBox(window.win, options, callback);
-				} else {
-					dialog.showMessageBox(options, callback);
-				}
-			});
+			return { button: result.response, checkboxChecked: result.checkboxChecked };
 		});
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): Promise<string> {
 
-		function normalizePath(path: string): string {
+		function normalizePath(path: string | undefined): string | undefined {
 			if (path && isMacintosh) {
 				path = normalizeNFC(path); // normalize paths returned from the OS
 			}
@@ -1980,24 +1977,21 @@ class Dialogs {
 			return path;
 		}
 
-		return this.getDialogQueue(window).queue(() => {
-			return new Promise(resolve => {
-				const callback = (path: string) => {
-					resolve(normalizePath(path));
-				};
+		return this.getDialogQueue(window).queue(async () => {
+			let result: Electron.SaveDialogReturnValue;
+			if (window) {
+				result = await dialog.showSaveDialog(window.win, options);
+			} else {
+				result = await dialog.showSaveDialog(options);
+			}
 
-				if (window) {
-					dialog.showSaveDialog(window.win, options, callback);
-				} else {
-					dialog.showSaveDialog(options, callback);
-				}
-			});
+			return normalizePath(result.filePath);
 		});
 	}
 
 	showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): Promise<string[]> {
 
-		function normalizePaths(paths: string[]): string[] {
+		function normalizePaths(paths: string[] | undefined): string[] | undefined {
 			if (paths && paths.length > 0 && isMacintosh) {
 				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
 			}
@@ -2005,32 +1999,25 @@ class Dialogs {
 			return paths;
 		}
 
-		return this.getDialogQueue(window).queue(() => {
-			return new Promise(resolve => {
+		return this.getDialogQueue(window).queue(async () => {
 
-				// Ensure the path exists (if provided)
-				let validatePathPromise: Promise<void> = Promise.resolve();
-				if (options.defaultPath) {
-					validatePathPromise = exists(options.defaultPath).then(exists => {
-						if (!exists) {
-							options.defaultPath = undefined;
-						}
-					});
+			// Ensure the path exists (if provided)
+			if (options.defaultPath) {
+				const pathExists = await exists(options.defaultPath);
+				if (!pathExists) {
+					options.defaultPath = undefined;
 				}
+			}
 
-				// Show dialog and wrap as promise
-				validatePathPromise.then(() => {
-					const callback = (paths: string[]) => {
-						resolve(normalizePaths(paths));
-					};
+			// Show dialog
+			let result: Electron.OpenDialogReturnValue;
+			if (window) {
+				result = await dialog.showOpenDialog(window.win, options);
+			} else {
+				result = await dialog.showOpenDialog(options);
+			}
 
-					if (window) {
-						dialog.showOpenDialog(window.win, options, callback);
-					} else {
-						dialog.showOpenDialog(options, callback);
-					}
-				});
-			});
+			return normalizePaths(result.filePaths);
 		});
 	}
 }

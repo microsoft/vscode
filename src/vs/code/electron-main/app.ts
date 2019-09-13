@@ -258,7 +258,7 @@ export class CodeApplication extends Disposable {
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', async (event: Event) => {
+		ipc.on('vscode:fetchShellEnv', async (event: Electron.IpcMainEvent) => {
 			const webContents = event.sender;
 
 			try {
@@ -275,10 +275,10 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:toggleDevTools', (event: Event) => event.sender.toggleDevTools());
-		ipc.on('vscode:openDevTools', (event: Event) => event.sender.openDevTools());
+		ipc.on('vscode:toggleDevTools', (event: Electron.IpcMainEvent) => event.sender.toggleDevTools());
+		ipc.on('vscode:openDevTools', (event: Electron.IpcMainEvent) => event.sender.openDevTools());
 
-		ipc.on('vscode:reloadWindow', (event: Event) => event.sender.reload());
+		ipc.on('vscode:reloadWindow', (event: Electron.IpcMainEvent) => event.sender.reload());
 
 		// Some listeners after window opened
 		(async () => {
