@@ -14,7 +14,6 @@ import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURITo
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -608,50 +607,6 @@ export class SimpleWindowsService implements IWindowsService {
 }
 
 registerSingleton(IWindowsService, SimpleWindowsService);
-
-//#endregion
-
-//#region Workspace Editing
-
-export class SimpleWorkspaceEditingService implements IWorkspaceEditingService {
-
-	_serviceBrand: undefined;
-
-	addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	removeFolders(folders: URI[], donotNotifyError?: boolean): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	enterWorkspace(path: URI): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	saveAndEnterWorkspace(path: URI): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	pickNewWorkspacePath(): Promise<URI> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-}
-
-registerSingleton(IWorkspaceEditingService, SimpleWorkspaceEditingService, true);
 
 //#endregion
 
