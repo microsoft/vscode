@@ -23,6 +23,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
+	readonly onDidChangeLocal: Event<void>;
+
 	constructor(
 		@IFileService fileService: IFileService,
 		@IRemoteUserDataService private readonly remoteUserDataService: IRemoteUserDataService,
@@ -35,6 +37,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		];
 		this.updateStatus();
 		this._register(Event.any(this.remoteUserDataService.onDidChangeEnablement, ...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
+		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
 	}
 
 	async sync(): Promise<boolean> {
@@ -47,15 +50,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 		}
 		return true;
-	}
-
-	async stopSync(): Promise<void> {
-		if (!this.remoteUserDataService.isEnabled()) {
-			throw new Error('Not enabled');
-		}
-		for (const synchroniser of this.synchronisers) {
-			await synchroniser.stopSync();
-		}
 	}
 
 	async continueSync(): Promise<boolean> {

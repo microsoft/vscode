@@ -51,19 +51,27 @@ class UserDataSyncContribution extends Disposable implements IWorkbenchContribut
 		@IRemoteUserDataService private readonly remoteUserDataService: IRemoteUserDataService,
 	) {
 		super();
-		this.loopSync();
+		this.sync(true);
 		this._register(Event.any<any>(
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync')),
 			this.remoteUserDataService.onDidChangeEnablement)
-			(() => this.loopSync()));
+			(() => this.sync(true)));
+
+		// Sync immediately if there is a local change.
+		this._register(Event.debounce(this.userDataSyncService.onDidChangeLocal, () => undefined, 500)(() => this.sync(false)));
 	}
 
-	private loopSync(): void {
+	private async sync(loop: boolean): Promise<void> {
 		if (this.configurationService.getValue<boolean>('userConfiguration.enableSync') && this.remoteUserDataService.isEnabled()) {
-			this.userDataSyncService.sync()
-				.then(null, () => null) // Surpress errors
-				.then(() => timeout(500))
-				.then(() => this.loopSync());
+			try {
+				await this.userDataSyncService.sync();
+			} catch (e) {
+				// Ignore errors
+			}
+			if (loop) {
+				await timeout(1000 * 5); // Loop sync for every 5s.
+				this.sync(loop);
+			}
 		}
 	}
 
