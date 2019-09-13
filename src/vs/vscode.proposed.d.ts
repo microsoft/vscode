@@ -1011,6 +1011,36 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// #region Ben - client
+
+	/**
+	 * Possible clients that can use extensions.
+	 */
+	export enum Client {
+
+		/**
+		 * Client is a desktop application.
+		 */
+		Desktop = 1,
+
+		/**
+		 * Client is a web browser.
+		 */
+		Web = 2
+	}
+
+	export namespace env {
+
+		/**
+		 * The client property indicates from which client extensions
+		 * are accessed from. For example, the client could be a desktop
+		 * application or a web browser.
+		 */
+		export const client: Client;
+	}
+
+	//#endregion
+
 	//#region Custom editors, mjbvz
 
 	export enum WebviewEditorState {

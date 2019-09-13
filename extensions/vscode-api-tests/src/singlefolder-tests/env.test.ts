@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { env, extensions, ExtensionKind } from 'vscode';
+import { env, extensions, ExtensionKind, Client } from 'vscode';
 
 suite('env-namespace', () => {
 
@@ -43,5 +43,10 @@ suite('env-namespace', () => {
 		} else {
 			assert.fail();
 		}
+	});
+
+	test('env.client', function () {
+		const client = env.client;
+		assert.equal(client, Client.Desktop);
 	});
 });
