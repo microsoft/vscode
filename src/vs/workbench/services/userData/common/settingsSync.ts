@@ -144,9 +144,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		const settingsPreivew = await this.fileService.readFile(SETTINGS_PREVIEW_RESOURCE);
 		const content = settingsPreivew.value.toString();
 
-		const parseErrors: ParseError[] = [];
-		parse(content, parseErrors);
-		if (parseErrors.length > 0) {
+		if (this.hasErrors(content)) {
 			return Promise.reject(localize('errorInvalidSettings', "Unable to sync settings. Please resolve conflicts without any errors/warnings and try again."));
 		}
 		if (result.hasRemoteChanged) {
@@ -161,6 +159,12 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		}
 		this.syncPreviewResultPromise = null;
 		this.setStatus(SyncStatus.Idle);
+	}
+
+	private hasErrors(content: string): boolean {
+		const parseErrors: ParseError[] = [];
+		parse(content, parseErrors);
+		return parseErrors.length > 0;
 	}
 
 	private getPreview(): Promise<ISyncPreviewResult> {
