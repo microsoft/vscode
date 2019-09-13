@@ -34,6 +34,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -58,7 +59,7 @@ class ReplaceAllAction extends Action {
 		return ReplaceAllAction.fgInstance;
 	}
 
-	private _searchWidget: SearchWidget;
+	private _searchWidget: SearchWidget | null = null;
 
 	constructor() {
 		super(ReplaceAllAction.ID, '', 'action-replace-all', false);
@@ -76,6 +77,8 @@ class ReplaceAllAction extends Action {
 	}
 }
 
+const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
+
 export class SearchWidget extends Widget {
 
 	private static readonly REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
@@ -84,25 +87,25 @@ export class SearchWidget extends Widget {
 		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb, keyBindingService2);
 	}
 
-	domNode: HTMLElement;
+	domNode!: HTMLElement;
 
-	searchInput: FindInput;
-	searchInputFocusTracker: dom.IFocusTracker;
+	searchInput!: FindInput;
+	searchInputFocusTracker!: dom.IFocusTracker;
 	private searchInputBoxFocused: IContextKey<boolean>;
 
-	private replaceContainer: HTMLElement;
-	replaceInput: HistoryInputBox;
-	private toggleReplaceButton: Button;
-	private replaceAllAction: ReplaceAllAction;
+	private replaceContainer!: HTMLElement;
+	replaceInput!: HistoryInputBox;
+	private toggleReplaceButton!: Button;
+	private replaceAllAction!: ReplaceAllAction;
 	private replaceActive: IContextKey<boolean>;
-	private replaceActionBar: ActionBar;
-	replaceInputFocusTracker: dom.IFocusTracker;
+	private replaceActionBar!: ActionBar;
+	replaceInputFocusTracker!: dom.IFocusTracker;
 	private replaceInputBoxFocused: IContextKey<boolean>;
 	private _replaceHistoryDelayer: Delayer<void>;
-	private _preserveCase: Checkbox;
+	private _preserveCase!: Checkbox;
 
 	private ignoreGlobalFindBufferOnNextFocus = false;
-	private previousGlobalFindBufferValue: string;
+	private previousGlobalFindBufferValue: string | null = null;
 
 	private _onSearchSubmit = this._register(new Emitter<void>());
 	readonly onSearchSubmit: Event<void> = this._onSearchSubmit.event;
@@ -426,7 +429,7 @@ export class SearchWidget extends Widget {
 		}
 		try {
 			// tslint:disable-next-line: no-unused-expression
-			new RegExp(value);
+			new RegExp(value, 'u');
 		} catch (e) {
 			return { content: e.message };
 		}
@@ -446,6 +449,11 @@ export class SearchWidget extends Widget {
 	}
 
 	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
+			this.searchInput.inputBox.insertAtCursor('\n');
+			keyboardEvent.preventDefault();
+		}
+
 		if (keyboardEvent.equals(KeyCode.Enter)) {
 			this.submitSearch();
 			keyboardEvent.preventDefault();
@@ -503,6 +511,11 @@ export class SearchWidget extends Widget {
 	}
 
 	private onReplaceInputKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
+			this.searchInput.inputBox.insertAtCursor('\n');
+			keyboardEvent.preventDefault();
+		}
+
 		if (keyboardEvent.equals(KeyCode.Enter)) {
 			this.submitSearch();
 			keyboardEvent.preventDefault();

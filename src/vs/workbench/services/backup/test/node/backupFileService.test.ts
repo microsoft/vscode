@@ -21,7 +21,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { hashPath, BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
@@ -49,7 +49,7 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(u
 class TestBackupEnvironmentService extends WorkbenchEnvironmentService {
 
 	constructor(backupPath: string) {
-		super({ ...parseArgs(process.argv), ...{ backupPath, 'user-data-dir': userdataDir } } as IWindowConfiguration, process.execPath);
+		super({ ...parseArgs(process.argv, OPTIONS), ...{ backupPath, 'user-data-dir': userdataDir } } as IWindowConfiguration, process.execPath);
 	}
 
 }

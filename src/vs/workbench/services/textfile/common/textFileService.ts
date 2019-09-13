@@ -158,9 +158,8 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 				// since a backup did not happen, we have to confirm for the dirty files now
 				return this.confirmBeforeShutdown();
-			}, errors => {
-				const firstError = errors[0];
-				this.notificationService.error(nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
+			}, error => {
+				this.notificationService.error(nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", error.message));
 
 				return true; // veto, the backups failed
 			});
@@ -589,12 +588,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 			nls.localize('cancel', "Cancel")
 		];
 
-		const index = await this.dialogService.show(Severity.Warning, message, buttons, {
+		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons, {
 			cancelId: 2,
 			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
 		});
 
-		switch (index) {
+		switch (choice) {
 			case 0: return ConfirmResult.SAVE;
 			case 1: return ConfirmResult.DONT_SAVE;
 			default: return ConfirmResult.CANCEL;

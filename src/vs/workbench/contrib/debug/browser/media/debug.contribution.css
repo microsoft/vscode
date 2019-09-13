@@ -147,6 +147,16 @@
 	margin-left: 6px;
 }
 
+/* Links */
+
+.monaco-workbench .monaco-list-row .expression .value a {
+	text-decoration: underline;
+}
+
+.monaco-workbench .monaco-list-row .expression .value a.pointer {
+	cursor: pointer;
+}
+
 /* White color when element is selected and list is focused. White looks better on blue selection background. */
 .monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .name,
 .monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .value {

@@ -12,13 +12,13 @@
 	"contributes": {
 		"languages": [{
 			"id": "c",
-			"extensions": [ ".c"],
+			"extensions": [ ".c", ".i"],
 			"aliases": [ "C", "c" ],
 			"configuration": "./language-configuration.json"
 		},
 		{
 			"id": "cpp",
-			"extensions": [ ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h", ".i", ".ino", ".inl", ".ipp", ".hpp.in", ".h.in" ],
+			"extensions": [ ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx", ".h", ".ii", ".ino", ".inl", ".ipp", ".hpp.in", ".h.in" ],
 			"aliases": [ "C++", "Cpp", "cpp"],
 			"configuration": "./language-configuration.json"
 		}],

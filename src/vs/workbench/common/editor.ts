@@ -22,6 +22,7 @@ import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
+export const ActiveEditorIsSaveableContext = new RawContextKey<boolean>('activeEditorIsSaveable', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
@@ -774,6 +775,11 @@ export class EditorOptions implements IEditorOptions {
 	ignoreError: boolean | undefined;
 
 	/**
+	 * Does not use editor overrides while opening the editor.
+	 */
+	ignoreOverrides: boolean | undefined;
+
+	/**
 	 * Overwrites option values from the provided bag.
 	 */
 	overwrite(options: IEditorOptions): EditorOptions {
@@ -811,6 +817,10 @@ export class EditorOptions implements IEditorOptions {
 
 		if (typeof options.index === 'number') {
 			this.index = options.index;
+		}
+
+		if (typeof options.ignoreOverrides === 'boolean') {
+			this.ignoreOverrides = options.ignoreOverrides;
 		}
 
 		return this;

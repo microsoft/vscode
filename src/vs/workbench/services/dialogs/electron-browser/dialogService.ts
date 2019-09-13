@@ -9,7 +9,7 @@ import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService as HTMLDialogService } from 'vs/platform/dialogs/browser/dialogService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -63,7 +63,7 @@ export class DialogService implements IDialogService {
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return this.impl.confirm(confirmation);
 	}
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<number> {
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<IShowResult> {
 		return this.impl.show(severity, message, buttons, options);
 	}
 }
@@ -129,7 +129,7 @@ class NativeDialogService implements IDialogService {
 		return opts;
 	}
 
-	async show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Promise<number> {
+	async show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
@@ -137,11 +137,13 @@ class NativeDialogService implements IDialogService {
 			buttons,
 			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
 			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
-			detail: dialogOptions ? dialogOptions.detail : undefined
+			detail: dialogOptions ? dialogOptions.detail : undefined,
+			checkboxLabel: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.label : undefined,
+			checkboxChecked: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.checked : undefined
 		});
 
 		const result = await this.windowService.showMessageBox(options);
-		return buttonIndexMap[result.button];
+		return { choice: buttonIndexMap[result.button], checkboxChecked: result.checkboxChecked };
 	}
 
 	private massageMessageBoxOptions(options: Electron.MessageBoxOptions): IMassagedMessageBoxOptions {

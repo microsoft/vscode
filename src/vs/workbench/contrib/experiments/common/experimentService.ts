@@ -169,7 +169,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 	}
 
-	protected getExperiments(): Promise<IRawExperiment[]> {
+	protected getExperiments(): Promise<IRawExperiment[] | null> {
 		if (!this.productService.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return Promise.resolve([]);
 		}

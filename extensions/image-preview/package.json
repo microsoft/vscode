@@ -1,0 +1,43 @@
+{
+  "name": "image-preview",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "enableProposedApi": true,
+  "license": "MIT",
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "engines": {
+    "vscode": "^1.39.0"
+  },
+  "main": "./out/extension",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onWebviewEditor:imagePreview.previewEditor"
+  ],
+  "contributes": {
+    "webviewEditors": [
+      {
+        "viewType": "imagePreview.previewEditor",
+        "displayName": "%webviewEditors.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,tga,tif,tiff,webp}"
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:image-preview",
+    "watch": "npm run build-preview && gulp watch-extension:image-preview",
+    "vscode:prepublish": "npm run build-ext",
+    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:image-preview ./tsconfig.json"
+  },
+  "dependencies": {
+    "vscode-extension-telemetry": "0.1.1",
+    "vscode-nls": "^4.0.0"
+  }
+}

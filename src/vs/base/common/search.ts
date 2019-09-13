@@ -12,8 +12,12 @@ export function buildReplaceStringWithCasePreserved(matches: string[] | null, pa
 		} else if (matches[0].toLowerCase() === matches[0]) {
 			return pattern.toLowerCase();
 		} else if (strings.containsUppercaseCharacter(matches[0][0])) {
-			if (validateSpecificSpecialCharacter(matches, pattern, '-')) {
+			const containsHyphens = validateSpecificSpecialCharacter(matches, pattern, '-');
+			const containsUnderscores = validateSpecificSpecialCharacter(matches, pattern, '_');
+			if (containsHyphens && !containsUnderscores) {
 				return buildReplaceStringForSpecificSpecialCharacter(matches, pattern, '-');
+			} else if (!containsHyphens && containsUnderscores) {
+				return buildReplaceStringForSpecificSpecialCharacter(matches, pattern, '_');
 			} else {
 				return pattern[0].toUpperCase() + pattern.substr(1);
 			}
@@ -27,8 +31,8 @@ export function buildReplaceStringWithCasePreserved(matches: string[] | null, pa
 }
 
 function validateSpecificSpecialCharacter(matches: string[], pattern: string, specialCharacter: string): boolean {
-	const doesConatinSpecialCharacter = matches[0].indexOf(specialCharacter) !== -1 && pattern.indexOf(specialCharacter) !== -1;
-	return doesConatinSpecialCharacter && matches[0].split(specialCharacter).length === pattern.split(specialCharacter).length;
+	const doesContainSpecialCharacter = matches[0].indexOf(specialCharacter) !== -1 && pattern.indexOf(specialCharacter) !== -1;
+	return doesContainSpecialCharacter && matches[0].split(specialCharacter).length === pattern.split(specialCharacter).length;
 }
 
 function buildReplaceStringForSpecificSpecialCharacter(matches: string[], pattern: string, specialCharacter: string): string {

@@ -49,7 +49,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
 
-import { ITerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import {
@@ -71,7 +71,6 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
 
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { format } from 'vs/base/common/jsonFormatter';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -278,6 +277,28 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown())));
 		this._onDidStateChange = this._register(new Emitter());
 		this.registerCommands();
+		this.configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
+			let tasks = await this.getTasksForGroup(TaskGroup.Build);
+			if (tasks.length > 0) {
+				let { defaults, users } = this.splitPerGroupType(tasks);
+				if (defaults.length === 1) {
+					return defaults[0]._label;
+				} else if (defaults.length + users.length > 0) {
+					tasks = defaults.concat(users);
+				}
+			}
+
+			let entry: TaskQuickPickEntry | null | undefined;
+			if (tasks && tasks.length > 0) {
+				entry = await this.showQuickPick(tasks, nls.localize('TaskService.pickBuildTaskForLabel', 'Select the build task'));
+			}
+
+			let task: Task | undefined | null = entry ? entry.task : undefined;
+			if (!task) {
+				return undefined;
+			}
+			return task._label;
+		});
 	}
 
 	public get onDidStateChange(): Event<TaskEvent> {
@@ -1723,18 +1744,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return entries;
 		}), {
-				placeHolder,
-				matchOnDescription: true,
-				onDidTriggerItemButton: context => {
-					let task = context.item.task;
-					this.quickInputService.cancel();
-					if (ContributedTask.is(task)) {
-						this.customize(task, undefined, true);
-					} else if (CustomTask.is(task)) {
-						this.openConfig(task);
-					}
+			placeHolder,
+			matchOnDescription: true,
+			onDidTriggerItemButton: context => {
+				let task = context.item.task;
+				this.quickInputService.cancel();
+				if (ContributedTask.is(task)) {
+					this.customize(task, undefined, true);
+				} else if (CustomTask.is(task)) {
+					this.openConfig(task);
 				}
-			});
+			}
+		});
 	}
 
 	private showIgnoredFoldersMessage(): Promise<void> {
@@ -2152,7 +2173,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return taskPromise.then((taskMap) => {
 				type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
 				let entries: QuickPickInput<EntryType>[] = [];
-				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 					let tasks = taskMap.all();
 					let needsCreateOrOpen: boolean = true;
 					if (tasks.length > 0) {

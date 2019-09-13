@@ -188,11 +188,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _resource: URI;
-	private _model: ITextModel | null;
-	private _modelListener: IDisposable;
+	private _model: ITextModel | null = null;
+	private _modelListener: IDisposable | null = null;
 	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
-	private _selectedMatch: Match | null;
+	private _selectedMatch: Match | null = null;
 
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
@@ -244,7 +244,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			this._updateScheduler.cancel();
 			this._model.deltaDecorations(this._modelDecorations, []);
 			this._model = null;
-			this._modelListener.dispose();
+			this._modelListener!.dispose();
 		}
 	}
 
@@ -633,10 +633,10 @@ export class SearchResult extends Disposable {
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _folderMatches: FolderMatchWithResource[] = [];
-	private _otherFilesMatch: FolderMatch;
+	private _otherFilesMatch: FolderMatch | null = null;
 	private _folderMatchesMap: TernarySearchTree<FolderMatchWithResource> = TernarySearchTree.forPaths<FolderMatchWithResource>();
-	private _showHighlights: boolean;
-	private _query: ITextQuery;
+	private _showHighlights: boolean = false;
+	private _query: ITextQuery | null = null;
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 
@@ -653,14 +653,18 @@ export class SearchResult extends Disposable {
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 	}
 
-	get query(): ITextQuery {
+	get query(): ITextQuery | null {
 		return this._query;
 	}
 
-	set query(query: ITextQuery) {
+	set query(query: ITextQuery | null) {
 		// When updating the query we could change the roots, so ensure we clean up the old roots first.
 		this.clear();
-		this._folderMatches = (query.folderQueries || [])
+		if (!query) {
+			return;
+		}
+
+		this._folderMatches = (query && query.folderQueries || [])
 			.map(fq => fq.folder)
 			.map((resource, index) => this.createFolderMatchWithResource(resource, resource.toString(), index, query));
 
@@ -717,6 +721,8 @@ export class SearchResult extends Disposable {
 	clear(): void {
 		this.folderMatches().forEach((folderMatch) => folderMatch.clear());
 		this.disposeMatches();
+		this._folderMatches = [];
+		this._otherFilesMatch = null;
 	}
 
 	remove(matches: FileMatch | FolderMatch | (FileMatch | FolderMatch)[]): void {
@@ -835,7 +841,7 @@ export class SearchResult extends Disposable {
 
 	private getFolderMatch(resource: URI): FolderMatch {
 		const folderMatch = this._folderMatchesMap.findSubstr(resource.toString());
-		return folderMatch ? folderMatch : this._otherFilesMatch;
+		return folderMatch ? folderMatch : this._otherFilesMatch!;
 	}
 
 	private set replacingAll(running: boolean) {
@@ -896,7 +902,7 @@ export class SearchModel extends Disposable {
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
 
-	private currentCancelTokenSource: CancellationTokenSource;
+	private currentCancelTokenSource: CancellationTokenSource | null = null;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -976,21 +982,19 @@ export class SearchModel extends Disposable {
 		*/
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
-		const onDoneStopwatch = Event.stopwatch(onDone);
 		const start = Date.now();
-
-		/* __GDPR__
-			"searchResultsFinished" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-			}
-		*/
-		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
-
 		currentRequest.then(
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start));
 
-		return currentRequest;
+		return currentRequest.finally(() => {
+			/* __GDPR__
+				"searchResultsFinished" : {
+					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				}
+			*/
+			this.telemetryService.publicLog('searchResultsFinished', { duration: Date.now() - start });
+		});
 	}
 
 	private onSearchCompleted(completed: ISearchComplete | null, duration: number): ISearchComplete | null {
@@ -1064,7 +1068,7 @@ export type RenderableMatch = FolderMatch | FolderMatchWithResource | FileMatch 
 export class SearchWorkbenchService implements ISearchWorkbenchService {
 
 	_serviceBrand: undefined;
-	private _searchModel: SearchModel;
+	private _searchModel: SearchModel | null = null;
 
 	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
 	}

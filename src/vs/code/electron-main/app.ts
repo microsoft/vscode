@@ -12,7 +12,7 @@ import { WindowsService } from 'vs/platform/windows/electron-main/windowsService
 import { ILifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { UpdateChannel } from 'vs/platform/update/node/updateIpc';
+import { UpdateChannel } from 'vs/platform/update/electron-main/updateIpc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
@@ -26,7 +26,7 @@ import { IStateService } from 'vs/platform/state/common/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
-import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/node/urlIpc';
+import { URLHandlerChannelClient, URLServiceChannel, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
@@ -56,7 +56,6 @@ import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
-import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
@@ -259,7 +258,7 @@ export class CodeApplication extends Disposable {
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', async (event: Event) => {
+		ipc.on('vscode:fetchShellEnv', async (event: Electron.IpcMainEvent) => {
 			const webContents = event.sender;
 
 			try {
@@ -276,10 +275,10 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:toggleDevTools', (event: Event) => event.sender.toggleDevTools());
-		ipc.on('vscode:openDevTools', (event: Event) => event.sender.openDevTools());
+		ipc.on('vscode:toggleDevTools', (event: Electron.IpcMainEvent) => event.sender.toggleDevTools());
+		ipc.on('vscode:openDevTools', (event: Electron.IpcMainEvent) => event.sender.openDevTools());
 
-		ipc.on('vscode:reloadWindow', (event: Event) => event.sender.reload());
+		ipc.on('vscode:reloadWindow', (event: Electron.IpcMainEvent) => event.sender.reload());
 
 		// Some listeners after window opened
 		(async () => {
@@ -332,8 +331,9 @@ export class CodeApplication extends Disposable {
 		// This will help Windows to associate the running program with
 		// any shortcut that is pinned to the taskbar and prevent showing
 		// two icons in the taskbar for the same app.
-		if (isWindows && product.win32AppUserModelId) {
-			app.setAppUserModelId(product.win32AppUserModelId);
+		const win32AppUserModelId = product.win32AppUserModelId;
+		if (isWindows && win32AppUserModelId) {
+			app.setAppUserModelId(win32AppUserModelId);
 		}
 
 		// Fix native tabs on macOS 10.13
@@ -580,7 +580,8 @@ export class CodeApplication extends Disposable {
 		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
-		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', activeWindowRouter);
+		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
+		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);
 		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
 
 		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
@@ -616,9 +617,9 @@ export class CodeApplication extends Disposable {
 		// Open our first window
 		const macOpenFiles: string[] = (<any>global).macOpenFiles;
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
-		const hasCliArgs = hasArgs(args._);
-		const hasFolderURIs = hasArgs(args['folder-uri']);
-		const hasFileURIs = hasArgs(args['file-uri']);
+		const hasCliArgs = args._.length;
+		const hasFolderURIs = !!args['folder-uri'];
+		const hasFileURIs = !!args['file-uri'];
 		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 

@@ -280,8 +280,8 @@ class ApplyCompletionCodeActionCommand implements Command {
 				description: '',
 				index: i
 			})), {
-				placeHolder: localize('selectCodeAction', 'Select code action to apply')
-			}
+			placeHolder: localize('selectCodeAction', 'Select code action to apply')
+		}
 		);
 
 		if (!selection) {

@@ -13,7 +13,7 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -348,7 +348,7 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 	}
 
 	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const debugContribution = editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
+		const debugContribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
 		if (debugContribution) {
 			// if focus is in outer editor we need to use the debug contribution to close
 			return debugContribution.closeBreakpointWidget();

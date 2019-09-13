@@ -71,7 +71,6 @@ const TextInputActions: IAction[] = [
 export class ElectronWindow extends Disposable {
 
 	private touchBarMenu: IMenu | undefined;
-	private touchBarUpdater: RunOnceScheduler | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
 	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
 
@@ -347,7 +346,7 @@ export class ElectronWindow extends Disposable {
 
 		// Crash reporter (if enabled)
 		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp && this.configurationService.getValue('telemetry.enableCrashReporter')) {
-			this.setupCrashReporter();
+			this.setupCrashReporter(product.crashReporter.companyName, product.crashReporter.productName, product.hockeyApp);
 		}
 	}
 
@@ -394,16 +393,15 @@ export class ElectronWindow extends Disposable {
 		this.touchBarMenu = undefined;
 
 		// Create new (delayed)
-		this.touchBarUpdater = new RunOnceScheduler(() => this.doUpdateTouchbarMenu(), 300);
-		this.touchBarDisposables.add(this.touchBarUpdater);
-		this.touchBarUpdater.schedule();
+		const scheduler: RunOnceScheduler = this.touchBarDisposables.add(new RunOnceScheduler(() => this.doUpdateTouchbarMenu(scheduler), 300));
+		scheduler.schedule();
 	}
 
-	private doUpdateTouchbarMenu(): void {
+	private doUpdateTouchbarMenu(scheduler: RunOnceScheduler): void {
 		if (!this.touchBarMenu) {
 			this.touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
 			this.touchBarDisposables.add(this.touchBarMenu);
-			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => this.touchBarUpdater!.schedule()));
+			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => scheduler.schedule()));
 		}
 
 		const actions: Array<MenuItemAction | Separator> = [];
@@ -451,13 +449,16 @@ export class ElectronWindow extends Disposable {
 		}
 	}
 
-	private async setupCrashReporter(): Promise<void> {
+	private async setupCrashReporter(companyName: string, productName: string, hockeyAppConfig: typeof product.hockeyApp): Promise<void> {
+		if (!hockeyAppConfig) {
+			return;
+		}
 
 		// base options with product info
 		const options = {
-			companyName: product.crashReporter.companyName,
-			productName: product.crashReporter.productName,
-			submitURL: isWindows ? product.hockeyApp[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? product.hockeyApp[`linux-x64`] : product.hockeyApp.darwin,
+			companyName,
+			productName,
+			submitURL: isWindows ? hockeyAppConfig[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? hockeyAppConfig[`linux-x64`] : hockeyAppConfig.darwin,
 			extra: {
 				vscode_version: pkg.version,
 				vscode_commit: product.commit

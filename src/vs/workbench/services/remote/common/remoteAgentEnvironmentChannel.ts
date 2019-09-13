@@ -14,7 +14,7 @@ import { RemoteAuthorities } from 'vs/base/common/network';
 export interface IGetEnvironmentDataArguments {
 	language: string;
 	remoteAuthority: string;
-	extensionDevelopmentPath: UriComponents | UriComponents[] | undefined;
+	extensionDevelopmentPath: UriComponents[] | undefined;
 }
 
 export interface IRemoteAgentEnvironmentDTO {

@@ -25,19 +25,19 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalInstance, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
+import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -184,6 +184,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _title: string = '';
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xterm: XTermTerminal | undefined;
+	private _xtermCore: XTermCore | undefined;
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
@@ -351,7 +352,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return null;
 		}
 
-		const font = this._configHelper.getFont(this._xterm);
+		const font = this._configHelper.getFont(this._xtermCore);
 		if (!font.charWidth || !font.charHeight) {
 			this._setLastKnownColsAndRows();
 			return null;
@@ -399,7 +400,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _getDimension(width: number, height: number): ICanvasDimensions | undefined {
 		// The font needs to have been initialized
-		const font = this._configHelper.getFont(this._xterm);
+		const font = this._configHelper.getFont(this._xtermCore);
 		if (!font || !font.charWidth || !font.charHeight) {
 			return undefined;
 		}
@@ -412,8 +413,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
 			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
-			if (this._xterm) {
-				this._xterm._core._onScroll.fire(this._xterm.buffer.viewportY);
+			if (this._xterm && this._xtermCore) {
+				this._xtermCore._onScroll.fire(this._xterm.buffer.viewportY);
 			}
 		}
 
@@ -472,6 +473,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
 		});
 		this._xterm = xterm;
+		this._xtermCore = (xterm as any)._core as XTermCore;
 		this.updateAccessibilitySupport();
 		this._terminalInstanceService.getXtermSearchConstructor().then(Addon => {
 			this._xtermSearch = new Addon();
@@ -674,9 +676,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _measureRenderTime(): Promise<void> {
-		const xterm = await this._xtermReadyPromise;
+		await this._xtermReadyPromise;
 		const frameTimes: number[] = [];
-		const textRenderLayer = xterm._core._renderService._renderer._renderLayers[0];
+		const textRenderLayer = this._xtermCore!._renderService._renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
 
 		const evaluateCanvasRenderer = () => {
@@ -893,12 +895,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._wrapperElement) {
 			dom.toggleClass(this._wrapperElement, 'active', visible);
 		}
-		if (visible && this._xterm) {
+		if (visible && this._xterm && this._xtermCore) {
 			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
-			this._xterm._core._onScroll.fire(this._xterm.buffer.viewportY);
+			this._xtermCore._onScroll.fire(this._xterm.buffer.viewportY);
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
@@ -1322,11 +1324,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		let cols = this.cols;
 		let rows = this.rows;
 
-		if (this._xterm) {
+		if (this._xterm && this._xtermCore) {
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
 			if (this._isVisible) {
-				const font = this._configHelper.getFont(this._xterm);
+				const font = this._configHelper.getFont(this._xtermCore);
 				const config = this._configHelper.config;
 				this._safeSetOption('letterSpacing', font.letterSpacing);
 				this._safeSetOption('lineHeight', font.lineHeight);
@@ -1354,7 +1356,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// maximize on Windows/Linux would fire an event saying that the terminal was not
 				// visible.
 				if (this._xterm.getOption('rendererType') === 'canvas') {
-					this._xterm._core._renderService._onIntersectionChange({ intersectionRatio: 1 });
+					this._xtermCore._renderService._onIntersectionChange({ intersectionRatio: 1 });
 					// HACK: Force a refresh of the screen to ensure links are refresh corrected.
 					// This can probably be removed when the above hack is fixed in Chromium.
 					this._xterm.refresh(0, this._xterm.rows - 1);

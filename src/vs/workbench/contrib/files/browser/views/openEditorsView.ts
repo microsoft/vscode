@@ -217,9 +217,9 @@ export class OpenEditorsView extends ViewletPanel {
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
-				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
-				dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
-			});
+			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
+			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
+		});
 		this._register(this.list);
 		this._register(this.listLabels);
 
@@ -381,13 +381,16 @@ export class OpenEditorsView extends ViewletPanel {
 	private focusActiveEditor(): void {
 		if (this.list.length && this.editorGroupService.activeGroup) {
 			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
-			this.list.setFocus([index]);
-			this.list.setSelection([index]);
-			this.list.reveal(index);
-		} else {
-			this.list.setFocus([]);
-			this.list.setSelection([]);
+			if (index >= 0) {
+				this.list.setFocus([index]);
+				this.list.setSelection([index]);
+				this.list.reveal(index);
+				return;
+			}
 		}
+
+		this.list.setFocus([]);
+		this.list.setSelection([]);
 	}
 
 	private onConfigurationChange(event: IConfigurationChangeEvent): void {

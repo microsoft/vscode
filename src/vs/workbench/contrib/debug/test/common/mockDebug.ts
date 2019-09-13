@@ -180,6 +180,10 @@ export class MockSession implements IDebugSession {
 		return 'mockname';
 	}
 
+	setName(name: string): void {
+		throw new Error('not implemented');
+	}
+
 	getSourceForUri(modelUri: uri): Source {
 		throw new Error('not implemented');
 	}
@@ -201,6 +205,10 @@ export class MockSession implements IDebugSession {
 	}
 
 	get onDidEndAdapter(): Event<AdapterEndEvent> {
+		throw new Error('not implemented');
+	}
+
+	get onDidChangeName(): Event<string> {
 		throw new Error('not implemented');
 	}
 
@@ -256,7 +264,7 @@ export class MockSession implements IDebugSession {
 	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse> {
 		throw new Error('Method not implemented.');
 	}
-	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse> {
+	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse> {
 		throw new Error('Method not implemented.');
 	}
 	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse> {

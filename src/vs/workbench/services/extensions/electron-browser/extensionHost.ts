@@ -29,7 +29,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -420,7 +420,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
 					logsLocation: this._extensionHostLogsLocation,
-					autoStart: this._autoStart
+					autoStart: this._autoStart,
+					uiKind: UIKind.Desktop
 				};
 				return r;
 			});

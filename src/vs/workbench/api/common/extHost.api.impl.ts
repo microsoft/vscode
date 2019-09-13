@@ -15,7 +15,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext, ExtHostLogServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, ExtHostLogServiceShape, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -250,6 +250,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
+			},
+			get uiKind() {
+				checkProposedApiEnabled(extension);
+				return initData.uiKind;
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
@@ -512,7 +516,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					}
 					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
-				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
+				return extHostTerminalService.createTerminal(nameOrOptions, shellPath, shellArgs);
 			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
@@ -522,6 +526,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
+			},
+			registerWebviewEditorProvider: (viewType: string, provider: vscode.WebviewEditorProvider) => {
+				checkProposedApiEnabled(extension);
+				return extHostWebviews.registerWebviewEditorProvider(viewType, provider);
 			},
 			registerDecorationProvider(provider: vscode.DecorationProvider) {
 				checkProposedApiEnabled(extension);
@@ -889,8 +897,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed
-			CallHierarchyDirection: extHostTypes.CallHierarchyDirection,
-			CallHierarchyItem: extHostTypes.CallHierarchyItem
+			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
+			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
+			CallHierarchyItem: extHostTypes.CallHierarchyItem,
+			Decoration: extHostTypes.Decoration,
+			WebviewEditorState: extHostTypes.WebviewEditorState,
+			UIKind: UIKind
 		};
 	};
 }

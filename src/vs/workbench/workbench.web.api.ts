@@ -5,14 +5,14 @@
 
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
-import { UriComponents } from 'vs/base/common/uri';
+import { UriComponents, URI } from 'vs/base/common/uri';
 import { IFileSystemProvider } from 'vs/platform/files/common/files';
 import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import { IProductConfiguration } from 'vs/platform/product/common/product';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
 
 export interface IWorkbenchConstructionOptions {
 
@@ -55,6 +55,11 @@ export interface IWorkbenchConstructionOptions {
 	webSocketFactory?: IWebSocketFactory;
 
 	/**
+	 * A provider for resource URIs.
+	 */
+	resourceUriProvider?: (uri: URI) => UriComponents;
+
+	/**
 	 * Experimental: Whether to enable the smoke test driver.
 	 */
 	driver?: boolean;
@@ -75,14 +80,14 @@ export interface IWorkbenchConstructionOptions {
 	urlCallbackProvider?: IURLCallbackProvider;
 
 	/**
-	 * Experimental: Support for product configuration.
-	 */
-	productConfiguration?: IProductConfiguration;
-
-	/**
 	 * Current logging level. Default is `LogLevel.Info`.
 	 */
 	logLevel?: LogLevel;
+
+	/**
+	 * Experimental: Support for update reporting.
+	 */
+	updateProvider?: IUpdateProvider;
 }
 
 /**

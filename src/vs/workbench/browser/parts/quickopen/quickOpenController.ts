@@ -183,10 +183,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					onHide: (reason) => this.handleOnHide(reason),
 					onFocusLost: () => !this.closeOnFocusLost
 				}, {
-					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
-					keyboardSupport: false,
-					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
-				}
+				inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
+				keyboardSupport: false,
+				treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
+			}
 			));
 			this._register(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: QUICK_INPUT_BACKGROUND, foreground: QUICK_INPUT_FOREGROUND }));
 

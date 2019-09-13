@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Quality } from '../../application';
-import { StatusBarElement } from './statusbar';
+import { Application, Quality, StatusBarElement } from '../../../../automation';
 
 export function setup() {
 	describe('Statusbar', () => {

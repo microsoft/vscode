@@ -1146,12 +1146,6 @@ export class SelectionRange {
 	}
 }
 
-
-export enum CallHierarchyDirection {
-	CallsFrom = 1,
-	CallsTo = 2,
-}
-
 export class CallHierarchyItem {
 	kind: SymbolKind;
 	name: string;
@@ -1167,6 +1161,27 @@ export class CallHierarchyItem {
 		this.uri = uri;
 		this.range = range;
 		this.selectionRange = selectionRange;
+	}
+}
+
+export class CallHierarchyIncomingCall {
+
+	source: vscode.CallHierarchyItem;
+	sourceRanges: vscode.Range[];
+
+	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
+		this.sourceRanges = sourceRanges;
+		this.source = item;
+	}
+}
+export class CallHierarchyOutgoingCall {
+
+	target: vscode.CallHierarchyItem;
+	sourceRanges: vscode.Range[];
+
+	constructor(item: vscode.CallHierarchyItem, sourceRanges: vscode.Range[]) {
+		this.sourceRanges = sourceRanges;
+		this.target = item;
 	}
 }
 
@@ -2348,4 +2363,28 @@ export class QuickInputButtons {
 export enum ExtensionKind {
 	UI = 1,
 	Workspace = 2
+}
+
+export class Decoration {
+
+	static validate(d: Decoration): void {
+		if (d.letter && d.letter.length !== 1) {
+			throw new Error(`The 'letter'-property must be undefined or a single character`);
+		}
+		if (!d.bubble && !d.color && !d.letter && !d.priority && !d.title) {
+			throw new Error(`The decoration is empty`);
+		}
+	}
+
+	letter?: string;
+	title?: string;
+	color?: vscode.ThemeColor;
+	priority?: number;
+	bubble?: boolean;
+}
+
+export enum WebviewEditorState {
+	Readonly = 1,
+	Unchanged = 2,
+	Dirty = 3,
 }

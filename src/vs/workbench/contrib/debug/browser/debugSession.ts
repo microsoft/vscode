@@ -33,6 +33,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 
 export class DebugSession implements IDebugSession {
 
@@ -43,6 +44,7 @@ export class DebugSession implements IDebugSession {
 
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
+	private cancellationMap = new Map<number, CancellationTokenSource[]>();
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private repl: ReplModel;
@@ -54,6 +56,9 @@ export class DebugSession implements IDebugSession {
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 
 	private readonly _onDidChangeREPLElements = new Emitter<void>();
+
+	private name: string | undefined;
+	private readonly _onDidChangeName = new Emitter<string>();
 
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
@@ -105,7 +110,13 @@ export class DebugSession implements IDebugSession {
 
 	getLabel(): string {
 		const includeRoot = this.workspaceContextService.getWorkspace().folders.length > 1;
-		return includeRoot && this.root ? `${this.configuration.name} (${resources.basenameOrAuthority(this.root.uri)})` : this.configuration.name;
+		const name = this.name || this.configuration.name;
+		return includeRoot && this.root ? `${name} (${resources.basenameOrAuthority(this.root.uri)})` : name;
+	}
+
+	setName(name: string): void {
+		this.name = name;
+		this._onDidChangeName.fire(name);
 	}
 
 	get state(): State {
@@ -142,6 +153,10 @@ export class DebugSession implements IDebugSession {
 
 	get onDidChangeReplElements(): Event<void> {
 		return this._onDidChangeREPLElements.event;
+	}
+
+	get onDidChangeName(): Event<string> {
+		return this._onDidChangeName.event;
 	}
 
 	//---- DAP events
@@ -222,6 +237,7 @@ export class DebugSession implements IDebugSession {
 	 */
 	terminate(restart = false): Promise<void> {
 		if (this.raw) {
+			this.cancelAllRequests();
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				return this.raw.terminate(restart).then(response => {
 					return undefined;
@@ -239,6 +255,7 @@ export class DebugSession implements IDebugSession {
 	 */
 	disconnect(restart = false): Promise<void> {
 		if (this.raw) {
+			this.cancelAllRequests();
 			return this.raw.disconnect(restart).then(response => {
 				return undefined;
 			});
@@ -251,6 +268,7 @@ export class DebugSession implements IDebugSession {
 	 */
 	restart(): Promise<void> {
 		if (this.raw) {
+			this.cancelAllRequests();
 			return this.raw.restart().then(() => undefined);
 		}
 		return Promise.reject(new Error('no debug adapter'));
@@ -367,7 +385,8 @@ export class DebugSession implements IDebugSession {
 
 	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse> {
 		if (this.raw) {
-			return this.raw.stackTrace({ threadId, startFrame, levels });
+			const token = this.getNewCancellationToken(threadId);
+			return this.raw.stackTrace({ threadId, startFrame, levels }, token);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
@@ -389,16 +408,18 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse> {
+	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse> {
 		if (this.raw) {
-			return this.raw.scopes({ frameId });
+			const token = this.getNewCancellationToken(threadId);
+			return this.raw.scopes({ frameId }, token);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	variables(variablesReference: number, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse> {
+	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse> {
 		if (this.raw) {
-			return this.raw.variables({ variablesReference, filter, start, count });
+			const token = threadId ? this.getNewCancellationToken(threadId) : undefined;
+			return this.raw.variables({ variablesReference, filter, start, count }, token);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
@@ -506,17 +527,8 @@ export class DebugSession implements IDebugSession {
 			rawSource = source.raw;
 		} else {
 			// create a Source
-
-			let sourceRef: number | undefined;
-			if (resource.query) {
-				const data = Source.getEncodedDebugData(resource);
-				sourceRef = data.sourceReference;
-			}
-
-			rawSource = {
-				path: resource.with({ scheme: '', query: '' }).toString(true),	// Remove debug: scheme
-				sourceReference: sourceRef
-			};
+			const data = Source.getEncodedDebugData(resource);
+			rawSource = { path: data.path, sourceReference: data.sourceReference };
 		}
 
 		return this.raw.source({ sourceReference: rawSource.sourceReference || 0, source: rawSource });
@@ -537,14 +549,14 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]> {
+	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<CompletionItem[]> {
 		if (this.raw) {
 			return this.raw.completions({
 				frameId,
 				text,
 				column: position.column,
-				line: position.lineNumber
-			}).then(response => {
+				line: position.lineNumber,
+			}, token).then(response => {
 
 				const result: CompletionItem[] = [];
 				if (response && response.body && response.body.targets) {
@@ -753,6 +765,16 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidContinued(event => {
 			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
+			if (threadId) {
+				const tokens = this.cancellationMap.get(threadId);
+				this.cancellationMap.delete(threadId);
+				if (tokens) {
+					tokens.forEach(t => t.cancel());
+				}
+			} else {
+				this.cancelAllRequests();
+			}
+
 			this.model.clearThreads(this.getId(), false, threadId);
 			this._onDidChangeState.fire();
 		}));
@@ -783,7 +805,7 @@ export class DebugSession implements IDebugSession {
 				source: this.getSource(event.body.source)
 			} : undefined;
 			if (event.body.variablesReference) {
-				const container = new ExpressionContainer(this, event.body.variablesReference, generateUuid());
+				const container = new ExpressionContainer(this, undefined, event.body.variablesReference, generateUuid());
 				outpuPromises.push(container.getChildren().then(children => {
 					return Promise.all(waitFor).then(() => children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
@@ -860,6 +882,7 @@ export class DebugSession implements IDebugSession {
 		dispose(this.rawListeners);
 		if (this.raw) {
 			this.raw.disconnect();
+			this.raw.dispose();
 		}
 		this.raw = undefined;
 		this.model.clearThreads(this.getId(), true);
@@ -891,6 +914,20 @@ export class DebugSession implements IDebugSession {
 		return source;
 	}
 
+	private getNewCancellationToken(threadId: number): CancellationToken {
+		const tokenSource = new CancellationTokenSource();
+		const tokens = this.cancellationMap.get(threadId) || [];
+		tokens.push(tokenSource);
+		this.cancellationMap.set(threadId, tokens);
+
+		return tokenSource.token;
+	}
+
+	private cancelAllRequests(): void {
+		this.cancellationMap.forEach(tokens => tokens.forEach(t => t.cancel()));
+		this.cancellationMap.clear();
+	}
+
 	private getUriKey(uri: URI): string {
 		// TODO: the following code does not make sense if uri originates from a different platform
 		return platform.isLinux ? uri.toString() : uri.toString().toLowerCase();
@@ -908,11 +945,11 @@ export class DebugSession implements IDebugSession {
 	}
 
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		const viewModel = this.debugService.getViewModel();
-		await this.repl.addReplExpression(stackFrame, name);
+		const expressionEvaluated = this.repl.addReplExpression(stackFrame, name);
+		this._onDidChangeREPLElements.fire();
+		await expressionEvaluated;
 		this._onDidChangeREPLElements.fire();
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-		this.debugService.focusStackFrame(viewModel.focusedStackFrame, viewModel.focusedThread, viewModel.focusedSession);
 		variableSetEmitter.fire();
 	}
 
