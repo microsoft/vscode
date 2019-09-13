@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import * as paths from 'vs/base/common/path';
 import { Iterator } from 'vs/base/common/iterator';
@@ -74,10 +73,8 @@ export class ResourceTree<T extends NonNullable<any>> {
 
 	readonly root = new BranchNode<T>('');
 
-	constructor() { }
-
-	add(uri: URI, element: T): void {
-		const parts = uri.fsPath.split(/[\\\/]/).filter(p => !!p);
+	add(key: string, element: T): void {
+		const parts = key.split(/[\\\/]/).filter(p => !!p);
 		let node = this.root;
 		let path = this.root.path;
 
@@ -114,8 +111,8 @@ export class ResourceTree<T extends NonNullable<any>> {
 		}
 	}
 
-	delete(uri: URI): T | undefined {
-		const parts = uri.fsPath.split(/[\\\/]/).filter(p => !!p);
+	delete(key: string): T | undefined {
+		const parts = key.split(/[\\\/]/).filter(p => !!p);
 		return this._delete(this.root, parts, 0);
 	}
 

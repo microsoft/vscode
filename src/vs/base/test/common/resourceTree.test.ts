@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { ResourceTree, IBranchNode, ILeafNode, isBranchNode } from 'vs/base/common/resourceTree';
-import { URI } from 'vs/base/common/uri';
 
 suite('ResourceTree', function () {
 	test('ctor', function () {
@@ -17,7 +16,7 @@ suite('ResourceTree', function () {
 	test('simple', function () {
 		const tree = new ResourceTree<string>();
 
-		tree.add(URI.file('/foo/bar.txt'), 'bar contents');
+		tree.add('/foo/bar.txt', 'bar contents');
 		assert(isBranchNode(tree.root));
 		assert.equal(tree.root.size, 1);
 
@@ -31,7 +30,7 @@ suite('ResourceTree', function () {
 		assert(!isBranchNode(bar));
 		assert.equal(bar.element, 'bar contents');
 
-		tree.add(URI.file('/hello.txt'), 'hello contents');
+		tree.add('/hello.txt', 'hello contents');
 		assert.equal(tree.root.size, 2);
 
 		let hello = tree.root.get('hello.txt') as ILeafNode<string>;
@@ -39,7 +38,7 @@ suite('ResourceTree', function () {
 		assert(!isBranchNode(hello));
 		assert.equal(hello.element, 'hello contents');
 
-		tree.delete(URI.file('/foo/bar.txt'));
+		tree.delete('/foo/bar.txt');
 		assert.equal(tree.root.size, 1);
 		hello = tree.root.get('hello.txt') as ILeafNode<string>;
 		assert(hello);

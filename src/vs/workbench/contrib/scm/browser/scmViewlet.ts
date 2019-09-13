@@ -7,7 +7,7 @@ import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { basename } from 'vs/base/common/resources';
+import { basename, relativePath } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass, addClasses } from 'vs/base/browser/dom';
@@ -56,6 +56,7 @@ import { ObjectTree, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/o
 import { Iterator } from 'vs/base/common/iterator';
 import * as paths from 'vs/base/common/path';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { URI } from 'vs/base/common/uri';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -732,14 +733,16 @@ class ResourceGroupSplicer {
 	}
 
 	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
+		const root = item.group.provider.rootUri || URI.file('/');
+
 		for (const resource of toInsert) {
-			item.tree.add(resource.sourceUri, resource);
+			item.tree.add(relativePath(root, resource.sourceUri) || resource.sourceUri.fsPath, resource);
 		}
 
 		const deleted = item.resources.splice(start, deleteCount, ...toInsert);
 
 		for (const resource of deleted) {
-			item.tree.delete(resource.sourceUri);
+			item.tree.delete(relativePath(root, resource.sourceUri) || resource.sourceUri.fsPath);
 		}
 
 		this.fullRefresh();
