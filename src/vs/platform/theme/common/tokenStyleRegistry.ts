@@ -8,6 +8,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Color } from 'vs/base/common/color';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
+import * as nls from 'vs/nls';
 
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -69,21 +70,21 @@ export namespace TokenStyle {
 	}
 }
 
-
+export type ProbeScope = string[] | string;
 
 export interface TokenStyleFunction {
 	(theme: ITheme): TokenStyle | undefined;
 }
 
 export interface TokenStyleDefaults {
-	scopesToProbe?: string[];
-	light: TokenStyle | null;
-	dark: TokenStyle | null;
-	hc: TokenStyle | null;
+	scopesToProbe?: ProbeScope[];
+	light: TokenStyleValue | null;
+	dark: TokenStyleValue | null;
+	hc: TokenStyleValue | null;
 }
 
 /**
- * A TokenStyle Value is either a tokestyle literal, a reference to other color or a derived color
+ * A TokenStyle Value is either a token style literal, a reference to other token style or a derived token style
  */
 export type TokenStyleValue = TokenStyle | string | TokenStyleIdentifier | TokenStyleFunction;
 
@@ -117,7 +118,7 @@ export interface ITokenStyleRegistry {
 	/**
 	 * Gets the default TokenStyle of the given id
 	 */
-	resolveDefaultTokenStyle(id: TokenStyleIdentifier, theme: ITheme, findTokenStyleForScope: (scope: string) => TokenStyle | undefined): TokenStyle | undefined;
+	resolveDefaultTokenStyle(id: TokenStyleIdentifier, theme: ITheme, findTokenStyleForScope: (scope: ProbeScope) => TokenStyle | undefined): TokenStyle | undefined;
 
 	/**
 	 * JSON schema for an object to assign TokenStyle values to one of the TokenStyle contributions.
@@ -147,9 +148,18 @@ class TokenStyleRegistry implements ITokenStyleRegistry {
 	}
 
 	public registerTokenStyle(id: string, defaults: TokenStyleDefaults | null, description: string, deprecationMessage?: string): TokenStyleIdentifier {
-		let colorContribution: TokenStyleContribution = { id, description, defaults, deprecationMessage };
-		this.tokenStyleById[id] = colorContribution;
-		let propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', default: '#ff0000' };
+		let tokenStyleContribution: TokenStyleContribution = { id, description, defaults, deprecationMessage };
+		this.tokenStyleById[id] = tokenStyleContribution;
+		let propertySchema: IJSONSchema = {
+			type: 'object',
+			description,
+			properties: {
+				'foreground': { type: 'string', format: 'color-hex', default: '#ff0000' },
+				'italic': { type: 'boolean' },
+				'bold': { type: 'boolean' },
+				'underline': { type: 'boolean' }
+			}
+		};
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
@@ -177,7 +187,7 @@ class TokenStyleRegistry implements ITokenStyleRegistry {
 		return Object.keys(this.tokenStyleById).map(id => this.tokenStyleById[id]);
 	}
 
-	public resolveDefaultTokenStyle(id: TokenStyleIdentifier, theme: ITheme, findTokenStyleForScope: (scope: string) => TokenStyle | undefined): TokenStyle | undefined {
+	public resolveDefaultTokenStyle(id: TokenStyleIdentifier, theme: ITheme, findTokenStyleForScope: (scope: ProbeScope) => TokenStyle | undefined): TokenStyle | undefined {
 		const tokenStyleDesc = this.tokenStyleById[id];
 		if (tokenStyleDesc && tokenStyleDesc.defaults) {
 			const scopesToProbe = tokenStyleDesc.defaults.scopesToProbe;
@@ -229,7 +239,16 @@ export function getTokenStyleRegistry(): ITokenStyleRegistry {
 	return tokenStyleRegistry;
 }
 
-// ----- implementation
+// colors
+
+
+export const comments = registerTokenStyle('comments', { scopesToProbe: ['comment'], dark: null, light: null, hc: null }, nls.localize('comments', "Token style for comments."));
+export const strings = registerTokenStyle('strings', { scopesToProbe: ['strings'], dark: null, light: null, hc: null }, nls.localize('strings', "Token style for strings."));
+export const keywords = registerTokenStyle('keywords', { scopesToProbe: ['keyword.control', 'storage', 'storage.type'], dark: null, light: null, hc: null }, nls.localize('keywords', "Token style for keywords."));
+export const numbers = registerTokenStyle('numbers', { scopesToProbe: ['constant.numeric'], dark: null, light: null, hc: null }, nls.localize('numbers', "Token style for numbers."));
+export const types = registerTokenStyle('types', { scopesToProbe: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'], dark: null, light: null, hc: null }, nls.localize('types', "Token style for types."));
+export const functions = registerTokenStyle('functions', { scopesToProbe: ['entity.name.function', 'support.function'], dark: null, light: null, hc: null }, nls.localize('functions', "Token style for functions."));
+export const variables = registerTokenStyle('variables', { scopesToProbe: ['variable', 'entity.name.variable'], dark: null, light: null, hc: null }, nls.localize('variables', "Token style for variables."));
 
 /**
  * @param colorValue Resolve a color value in the context of a theme

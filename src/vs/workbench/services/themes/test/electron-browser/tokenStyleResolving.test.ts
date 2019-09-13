@@ -60,11 +60,18 @@ suite('Themes - TokenStyleResolving', () => {
 					}
 				},
 				{
-					scope: 'storage.type',
+					scope: ['storage.type', 'meta.structure.dictionary.json string.quoted.double.json'],
 					settings: {
 						foreground: '#66D9EF'
 					}
-				}
+				},
+				{
+					scope: 'entity.name.type, entity.name.class, entity.name.namespace, entity.name.scope-resolution',
+					settings: {
+						fontStyle: 'underline',
+						foreground: '#A6E22E'
+					}
+				},
 			]
 		};
 
@@ -72,18 +79,23 @@ suite('Themes - TokenStyleResolving', () => {
 
 		let tokenStyle;
 
-		tokenStyle = themeData.findTokenStyleForScope('variable');
+		tokenStyle = themeData.findTokenStyleForScope(['variable']);
 		assertTokenStyle(tokenStyle, ts('#F8F8F2', 0), 'variable');
 
-		tokenStyle = themeData.findTokenStyleForScope('keyword');
+		tokenStyle = themeData.findTokenStyleForScope(['keyword']);
 		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC | TokenStyleBits.BOLD | TokenStyleBits.UNDERLINE), 'keyword');
 
-		tokenStyle = themeData.findTokenStyleForScope('storage');
+		tokenStyle = themeData.findTokenStyleForScope(['storage']);
 		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC), 'storage');
 
-		tokenStyle = themeData.findTokenStyleForScope('storage.type');
+		tokenStyle = themeData.findTokenStyleForScope(['storage.type']);
 		assertTokenStyle(tokenStyle, ts('#66D9EF', TokenStyleBits.ITALIC), 'storage.type');
 
+		tokenStyle = themeData.findTokenStyleForScope(['entity.name.class']);
+		assertTokenStyle(tokenStyle, ts('#A6E22E', TokenStyleBits.UNDERLINE), 'entity.name.class');
+
+		tokenStyle = themeData.findTokenStyleForScope(['meta.structure.dictionary.json', 'string.quoted.double.json']);
+		assertTokenStyle(tokenStyle, ts('#66D9EF', undefined), 'json property');
 
 	});
 });

@@ -20,7 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
 import { startsWith } from 'vs/base/common/strings';
-import { Extensions as TokenStyleRegistryExtensions, TokenStyle, TokenStyleIdentifier, ITokenStyleRegistry, TokenStyleBits } from 'vs/platform/theme/common/tokenStyleRegistry';
+import { Extensions as TokenStyleRegistryExtensions, TokenStyle, TokenStyleIdentifier, ITokenStyleRegistry, TokenStyleBits, ProbeScope } from 'vs/platform/theme/common/tokenStyleRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 
 let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
@@ -59,8 +59,8 @@ export class ColorThemeData implements IColorTheme {
 
 	private tokenStyleMap: ITokenStyleMap | undefined;
 
-	private themeTokenScopeMatchers: Matcher<String>[] | undefined;
-	private customTokenScopeMatchers: Matcher<String>[] | undefined;
+	private themeTokenScopeMatchers: Matcher<ProbeScope>[] | undefined;
+	private customTokenScopeMatchers: Matcher<ProbeScope>[] | undefined;
 
 	private constructor(id: string, label: string, settingsId: string) {
 		this.id = id;
@@ -143,9 +143,9 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	/** Public for testing reasons */
-	public findTokenStyleForScope(scope: string): TokenStyle | undefined {
+	public findTokenStyleForScope(scope: ProbeScope): TokenStyle | undefined {
 
-		function findTokenStyleForScopeInScopes(scopeMatchers: Matcher<string>[], tokenColors: ITokenColorizationRule[]) {
+		function findTokenStyleForScopeInScopes(scopeMatchers: Matcher<ProbeScope>[], tokenColors: ITokenColorizationRule[]) {
 			for (let i = scopeMatchers.length - 1; i >= 0; i--) {
 				let matcher = scopeMatchers[i];
 				if (!matcher) {
@@ -469,15 +469,25 @@ let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {
 	],
 };
 
-const noMatch = (_scope: string) => false;
+const noMatch = (_scope: ProbeScope) => false;
 
-export function nameMatcher(identifers: string[], scope: string) {
-	for (const identifier of identifers) {
-		if (scopesAreMatching(scope, identifier)) {
-			return true;
-		}
+function nameMatcher(identifers: string[], scope: ProbeScope) {
+	if (!Array.isArray(scope)) {
+		scope = [scope];
 	}
-	return false;
+	if (scope.length < identifers.length) {
+		return false;
+	}
+	let lastIndex = 0;
+	return identifers.every(identifier => {
+		for (let i = lastIndex; i < scope.length; i++) {
+			if (scopesAreMatching(scope[i], identifier)) {
+				lastIndex = i + 1;
+				return true;
+			}
+		}
+		return false;
+	});
 }
 
 function scopesAreMatching(thisScopeName: string, scopeName: string): boolean {
@@ -491,20 +501,20 @@ function scopesAreMatching(thisScopeName: string, scopeName: string): boolean {
 	return thisScopeName.length > len && thisScopeName.substr(0, len) === scopeName && thisScopeName[len] === '.';
 }
 
-function getScopeMatcher(rule: ITokenColorizationRule): Matcher<string> {
-	const scope = rule.scope;
-	if (!scope || !rule.settings) {
+function getScopeMatcher(rule: ITokenColorizationRule): Matcher<ProbeScope> {
+	const ruleScope = rule.scope;
+	if (!ruleScope || !rule.settings) {
 		return noMatch;
 	}
-	const matchers: MatcherWithPriority<string>[] = [];
-	if (Array.isArray(scope)) {
-		for (let s of scope) {
-			matchers.push(...createMatchers(s, nameMatcher));
+	const matchers: MatcherWithPriority<ProbeScope>[] = [];
+	if (Array.isArray(ruleScope)) {
+		for (let rs of ruleScope) {
+			matchers.push(...createMatchers(rs, nameMatcher));
 		}
 	} else {
-		matchers.push(...createMatchers(scope, nameMatcher));
+		matchers.push(...createMatchers(ruleScope, nameMatcher));
 	}
-	return (scope: string) => matchers.some(m => m.matcher(scope));
+	return (scope: ProbeScope) => matchers.some(m => m.matcher(scope));
 }
 
 function getTokenStyle(foreground: string | null, fontStyle: string | null): TokenStyle | undefined {
