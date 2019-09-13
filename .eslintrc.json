@@ -11,7 +11,10 @@
 		"no-extra-semi": "warn",
 		"semi": "warn"
 	},
-	"extends": "eslint:recommended",
+	"plugins": [
+		"security"
+	  ],
+	"extends": ["eslint:recommended","plugin:security/recommended"],
 	"parserOptions": {
 		"ecmaFeatures": {
 			"experimentalObjectRestSpread": true
