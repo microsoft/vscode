@@ -11,7 +11,7 @@ import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } fr
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 
-export const WebviewPanelResourceScheme = 'webview-panel';
+const WebviewPanelResourceScheme = 'webview-panel';
 
 class WebviewIconsManager {
 	private readonly _icons = new Map<string, { light: URI, dark: URI }>();

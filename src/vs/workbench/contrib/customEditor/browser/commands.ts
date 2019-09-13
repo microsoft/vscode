@@ -14,7 +14,6 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
-import { WebviewPanelResourceScheme } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const viewCategory = nls.localize('viewCategory', "View");
@@ -71,10 +70,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		if (!resource) {
 			return;
-		}
-
-		if (resource.scheme === WebviewPanelResourceScheme) {
-			resource = URI.parse(decodeURIComponent(resource.query));
 		}
 
 		// Make sure the context menu has been dismissed before we prompt.
