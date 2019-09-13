@@ -14,7 +14,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { timeout } from 'vs/base/common/async';
@@ -134,10 +133,6 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private async syncNow(): Promise<void> {
-		await this.userDataSyncService.sync();
-	}
-
 	private async startSync(): Promise<void> {
 		this.configurationService.updateValue('userConfiguration.autoSync', true);
 	}
@@ -184,27 +179,17 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, startSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, startSyncMenuItem);
 
-		const turnOffSyncMenuItem: IMenuItem = {
+		const stopSyncMenuItem: IMenuItem = {
 			group: '5_sync',
 			command: {
-				id: 'workbench.userData.actions.turnOffSync',
+				id: 'workbench.userData.actions.stopSync',
 				title: localize('stop sync', "Sync: Stop")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.autoSync')),
 		};
-		CommandsRegistry.registerCommand(turnOffSyncMenuItem.command.id, () => this.stopSync());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, turnOffSyncMenuItem);
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, turnOffSyncMenuItem);
-
-		const stopSyncCommandId = 'workbench.userData.actions.stopSync';
-		CommandsRegistry.registerCommand(stopSyncCommandId, () => this.stopSync());
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: {
-				id: stopSyncCommandId,
-				title: localize('stop sync', "Sync: Stop")
-			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.autoSync'), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Idle)),
-		});
+		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.stopSync());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, stopSyncMenuItem);
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, stopSyncMenuItem);
 
 		const resolveConflictsMenuItem: IMenuItem = {
 			group: '5_sync',
@@ -239,27 +224,6 @@ class SyncContribution extends Disposable implements IWorkbenchContribution {
 			group: 'navigation',
 			order: 1,
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Scheme.isEqualTo(USER_DATA_PREVIEW_SCHEME)),
-		});
-
-		CommandsRegistry.registerCommand('sync.synchronising', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_sync',
-			command: {
-				id: 'sync.synchronising',
-				title: localize('Synchronising', "Synchronising..."),
-				precondition: FalseContext
-			},
-			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Syncing)
-		});
-
-		const syncNowCommandId = 'workbench.userData.actions.syncNow';
-		CommandsRegistry.registerCommand(syncNowCommandId, () => this.syncNow());
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: {
-				id: syncNowCommandId,
-				title: localize('sync now', "Sync: Now")
-			},
-			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.Idle),
 		});
 	}
 }
