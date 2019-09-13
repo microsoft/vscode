@@ -178,14 +178,14 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		const remoteUserData = await this.remoteUserDataService.read(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY);
 		// Get file content last to get the latest
 		const fileContent = await this.getLocalFileContent();
-		const { settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts } = await this.computeChanges(fileContent, remoteUserData);
+		const { settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts } = this.computeChanges(fileContent, remoteUserData);
 		if (hasLocalChanged || hasRemoteChanged) {
 			await this.fileService.writeFile(SETTINGS_PREVIEW_RESOURCE, VSBuffer.fromString(settingsPreview));
 		}
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 	}
 
-	private async computeChanges(fileContent: IFileContent | null, remoteUserData: IUserData | null): Promise<{ settingsPreview: string, hasLocalChanged: boolean, hasRemoteChanged: boolean, hasConflicts: boolean }> {
+	private computeChanges(fileContent: IFileContent | null, remoteUserData: IUserData | null): { settingsPreview: string, hasLocalChanged: boolean, hasRemoteChanged: boolean, hasConflicts: boolean } {
 
 		let hasLocalChanged: boolean = false;
 		let hasRemoteChanged: boolean = false;
@@ -225,7 +225,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			if (!lastSyncData) {
 				this.logService.trace('Settings Sync: Syncing remote contents with settings file for the first time.');
 				hasLocalChanged = hasRemoteChanged = true;
-				const mergeResult = await this.mergeContents(localContent, remoteContent, null);
+				const mergeResult = this.mergeContents(localContent, remoteContent, null);
 				return { settingsPreview: mergeResult.settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts: mergeResult.hasConflicts };
 			}
 
@@ -234,7 +234,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 				this.logService.trace('Settings Sync: Remote contents have changed. Merge and Sync.');
 				hasLocalChanged = true;
 				hasRemoteChanged = lastSyncData.content !== localContent;
-				const mergeResult = await this.mergeContents(localContent, remoteContent, lastSyncData.content);
+				const mergeResult = this.mergeContents(localContent, remoteContent, lastSyncData.content);
 				return { settingsPreview: mergeResult.settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts: mergeResult.hasConflicts };
 			}
 
@@ -260,26 +260,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 	}
 
-	private getLastSyncUserData(): IUserData | null {
-		const lastSyncStorageContents = this.storageService.get(SettingsSynchroniser.LAST_SYNC_SETTINGS_STORAGE_KEY, StorageScope.GLOBAL, undefined);
-		if (lastSyncStorageContents) {
-			return JSON.parse(lastSyncStorageContents);
-		}
-		return null;
-	}
-
-	private async getLocalFileContent(): Promise<IFileContent | null> {
-		try {
-			return await this.fileService.readFile(this.workbenchEnvironmentService.settingsResource);
-		} catch (error) {
-			if (error instanceof FileSystemProviderError && error.code !== FileSystemProviderErrorCode.FileNotFound) {
-				return null;
-			}
-			throw error;
-		}
-	}
-
-	private async mergeContents(localContent: string, remoteContent: string, lastSyncedContent: string | null): Promise<{ settingsPreview: string, hasConflicts: boolean }> {
+	private mergeContents(localContent: string, remoteContent: string, lastSyncedContent: string | null): { settingsPreview: string, hasConflicts: boolean } {
 		const local = parse(localContent);
 		const remote = parse(remoteContent);
 		const base = lastSyncedContent ? parse(lastSyncedContent) : null;
@@ -434,6 +415,25 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 				const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
 				model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
 			}
+		}
+	}
+
+	private getLastSyncUserData(): IUserData | null {
+		const lastSyncStorageContents = this.storageService.get(SettingsSynchroniser.LAST_SYNC_SETTINGS_STORAGE_KEY, StorageScope.GLOBAL, undefined);
+		if (lastSyncStorageContents) {
+			return JSON.parse(lastSyncStorageContents);
+		}
+		return null;
+	}
+
+	private async getLocalFileContent(): Promise<IFileContent | null> {
+		try {
+			return await this.fileService.readFile(this.workbenchEnvironmentService.settingsResource);
+		} catch (error) {
+			if (error instanceof FileSystemProviderError && error.code !== FileSystemProviderErrorCode.FileNotFound) {
+				return null;
+			}
+			throw error;
 		}
 	}
 
