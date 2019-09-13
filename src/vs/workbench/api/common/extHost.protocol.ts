@@ -398,8 +398,6 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
 	$show(terminalId: number, preserveFocus: boolean): void;
-	/** @deprecated */
-	$registerOnDataListener(terminalId: number): void;
 	$startSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
 
@@ -1154,9 +1152,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
-	/** @deprecated */
 	$acceptTerminalProcessData(id: number, data: string): void;
-	$acceptTerminalProcessData2(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;
