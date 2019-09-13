@@ -15,7 +15,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolde
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
@@ -29,8 +29,6 @@ import { IProductService } from 'vs/platform/product/common/product';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-// tslint:disable-next-line: import-patterns
-import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
 
 //#region Window
 
@@ -679,29 +677,5 @@ export class SimpleWorkspacesService implements IWorkspacesService {
 }
 
 registerSingleton(IWorkspacesService, SimpleWorkspacesService);
-
-//#endregion
-
-//#region workspace stats
-
-class SimpleWorkspaceStatsService implements IWorkspaceStatsService {
-
-	_serviceBrand: undefined;
-
-	getTags(): Promise<Tags> {
-		return Promise.resolve({});
-	}
-
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
-		return undefined;
-	}
-
-	getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]> {
-		return Promise.resolve([]);
-	}
-
-}
-
-registerSingleton(IWorkspaceStatsService, SimpleWorkspaceStatsService);
 
 //#endregion
