@@ -216,66 +216,43 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		}
 
 		if (fileContent && remoteUserData) {
-
 			const localContent: string = fileContent.value.toString();
 			const remoteContent: string = remoteUserData.content;
 			const lastSyncData = this.getLastSyncUserData();
-
-			// Already in Sync.
-			if (localContent === remoteUserData.content) {
-				this.logService.trace('Settings Sync: Settings file and remote contents are in sync.');
-				settingsPreview = localContent;
-				return { settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts };
-			}
-
-			// First time Sync to Local
-			if (!lastSyncData) {
-				this.logService.trace('Settings Sync: Syncing remote contents with settings file for the first time.');
-				hasLocalChanged = hasRemoteChanged = true;
-				const mergeResult = this.mergeContents(localContent, remoteContent, null);
-				return { settingsPreview: mergeResult.settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts: mergeResult.hasConflicts };
-			}
-
-			// Remote has moved forward
-			if (remoteUserData.ref !== lastSyncData.ref) {
-				this.logService.trace('Settings Sync: Remote contents have changed. Merge and Sync.');
-				hasLocalChanged = true;
-				hasRemoteChanged = lastSyncData.content !== localContent;
-				const mergeResult = this.mergeContents(localContent, remoteContent, lastSyncData.content);
-				return { settingsPreview: mergeResult.settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts: mergeResult.hasConflicts };
-			}
-
-			// Remote data is same as last synced data
-			if (lastSyncData.ref === remoteUserData.ref) {
-
-				// Local contents are same as last synced data. No op.
-				if (lastSyncData.content === localContent) {
-					this.logService.trace('Settings Sync: Settings file and remote contents have not changed. So no sync needed.');
+			if (!lastSyncData // First time sync
+				|| lastSyncData.content !== localContent // Local has moved forwarded
+				|| lastSyncData.content !== remoteContent // Remote has moved forwarded
+			) {
+				this.logService.trace('Settings Sync: Merging remote contents with settings file.');
+				const { settingsPreview, hasChanges, hasConflicts } = this.mergeContents(localContent, remoteContent, lastSyncData ? lastSyncData.content : null);
+				if (hasChanges) {
+					// Sync only if there are changes
+					hasLocalChanged = settingsPreview !== localContent; // Local has changed
+					hasRemoteChanged = settingsPreview !== remoteContent; // Remote has changed
 					return { settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts };
 				}
-
-				// New local contents. Sync with Local.
-				this.logService.trace('Settings Sync: Remote contents have not changed. Settings file has changed. So sync with settings file.');
-				hasRemoteChanged = true;
-				settingsPreview = localContent;
-				return { settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts };
 			}
-
 		}
 
+		this.logService.trace('Settings Sync: No changes.');
 		return { settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts };
 
 	}
 
-	private mergeContents(localContent: string, remoteContent: string, lastSyncedContent: string | null): { settingsPreview: string, hasConflicts: boolean } {
+	private mergeContents(localContent: string, remoteContent: string, lastSyncedContent: string | null): { settingsPreview: string, hasChanges: boolean; hasConflicts: boolean } {
 		const local = parse(localContent);
 		const remote = parse(remoteContent);
-		const base = lastSyncedContent ? parse(lastSyncedContent) : null;
-		const settingsPreviewModel = this.modelService.createModel(localContent, this.modeService.create('jsonc'));
+		const localToRemote = this.compare(local, remote);
 
+		if (localToRemote.added.size === 0 && localToRemote.removed.size === 0 && localToRemote.updated.size === 0) {
+			// No changes found between local and remote.
+			return { settingsPreview: localContent, hasChanges: false, hasConflicts: false };
+		}
+
+		const settingsPreviewModel = this.modelService.createModel(localContent, this.modeService.create('jsonc'));
+		const base = lastSyncedContent ? parse(lastSyncedContent) : null;
 		const baseToLocal = base ? this.compare(base, local) : { added: Object.keys(local).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
 		const baseToRemote = base ? this.compare(base, remote) : { added: Object.keys(remote).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-		const localToRemote = this.compare(local, remote);
 
 		const conflicts: Set<string> = new Set<string>();
 
@@ -384,7 +361,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			}
 		}
 
-		return { settingsPreview: settingsPreviewModel.getValue(), hasConflicts: conflicts.size > 0 };
+		return { settingsPreview: settingsPreviewModel.getValue(), hasChanges: true, hasConflicts: conflicts.size > 0 };
 	}
 
 	private compare(from: { [key: string]: any }, to: { [key: string]: any }): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
