@@ -16,7 +16,7 @@ import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/ed
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditor, IEditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CustomEditorDiscretion, CustomEditorInfo, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -132,7 +132,6 @@ export class CustomEditorService implements ICustomEditorService {
 					replacement: input,
 					options: options ? EditorOptions.create(options) : undefined,
 				}], group);
-				return this.editorService.activeControl;
 			}
 		}
 		return this.editorService.openEditor(input, options, group);
