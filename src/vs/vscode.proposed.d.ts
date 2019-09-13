@@ -778,15 +778,6 @@ declare module 'vscode' {
 		 * created.
 		 */
 		readonly dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
-		 * provides access to the raw data stream from the process running within the terminal,
-		 * including VT sequences.
-		 *
-		 * @deprecated Use [window.onDidWriteTerminalData](#onDidWriteTerminalData).
-		 */
-		readonly onDidWriteData: Event<string>;
 	}
 
 	//#endregion

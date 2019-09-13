@@ -21,9 +21,9 @@ suite('workspace-namespace', () => {
 			const taskName = 'First custom task';
 			const reg1 = vscode.window.onDidOpenTerminal(term => {
 				reg1.dispose();
-				const reg2 = term.onDidWriteData(e => {
+				const reg2 = vscode.window.onDidWriteTerminalData(e => {
 					reg2.dispose();
-					assert.equal(e, 'testing\r\n');
+					assert.equal(e.data, 'testing\r\n');
 					term.dispose();
 				});
 			});
