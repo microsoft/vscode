@@ -9,7 +9,7 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -150,6 +150,7 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 				authority: this._environmentService.configuration.remoteAuthority,
 				isRemote: false
 			},
+			uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop
 		};
 	}
 }
