@@ -245,7 +245,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.logger.error(message, data);
 	}
 
-	private logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
+	private logTelemetry(eventName: string, properties?: { readonly [prop: string]: string }) {
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
@@ -287,7 +287,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		const apiVersion = this.versionPicker.currentVersion.apiVersion || API.defaultVersion;
 		this.onDidChangeTypeScriptVersion(currentVersion);
-
 		let mytoken = ++this.token;
 		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager);
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
@@ -297,10 +296,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			"tsserver.spawned" : {
 				"${include}": [
 					"${TypeScriptCommonProperties}"
-				]
+				],
+				"localTypeScriptVersion":  { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		this.logTelemetry('tsserver.spawned');
+		this.logTelemetry('tsserver.spawned', {
+			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.versionString : '',
+		});
 
 		handle.onError((err: Error) => {
 			if (this.token !== mytoken) {
