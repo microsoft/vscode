@@ -97,7 +97,7 @@ export class ReplEvaluationInput implements IReplElement {
 
 export class ReplEvaluationResult extends ExpressionContainer implements IReplElement {
 	constructor() {
-		super(undefined, 0, generateUuid());
+		super(undefined, undefined, 0, generateUuid());
 	}
 
 	toString(): string {

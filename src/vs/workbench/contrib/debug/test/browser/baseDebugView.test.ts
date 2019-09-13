@@ -76,7 +76,7 @@ suite('Debug - Base Debug View', () => {
 		const stackFrame = new StackFrame(thread, 1, null!, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined!, endColumn: undefined! }, 0);
 		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);
 
-		let variable = new Variable(session, scope, 2, 'foo', 'bar.foo', undefined!, 0, 0, {}, 'string');
+		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined!, 0, 0, {}, 'string');
 		let expression = $('.');
 		let name = $('.');
 		let value = $('.');
@@ -104,7 +104,7 @@ suite('Debug - Base Debug View', () => {
 		assert.ok(value.querySelector('a'));
 		assert.equal(value.querySelector('a')!.textContent, variable.value);
 
-		variable = new Variable(session, scope, 2, 'console', 'console', '5', 0, 0, { kind: 'virtual' });
+		variable = new Variable(session, 1, scope, 2, 'console', 'console', '5', 0, 0, { kind: 'virtual' });
 		expression = $('.');
 		name = $('.');
 		value = $('.');

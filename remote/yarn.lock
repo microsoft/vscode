@@ -725,9 +725,10 @@ nanomatch@^1.2.9:
     snapdragon "^0.8.1"
     to-regex "^3.0.1"
 
-native-watchdog@microsoft/node-native-watchdog#fix_async_task:
-  version "1.1.0"
-  resolved "https://codeload.github.com/microsoft/node-native-watchdog/tar.gz/28479ad044d19f7116755e16a469b7a13c410b10"
+native-watchdog@1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.2.0.tgz#9c710093ac6e9e60b19517cb1ef4ac9d7c997395"
+  integrity sha512-jOOoA3PLSxt1adaeuEW7ymV9cApZiDxn4y4iFs7b4sP73EG+5Lsz+OgUNFcGMyrtznTw6ZvlLcilIN4jeAIgaQ==
 
 node-addon-api@1.6.2:
   version "1.6.2"
