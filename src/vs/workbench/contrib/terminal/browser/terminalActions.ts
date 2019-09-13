@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction, ITerminalConfigHelper, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_PANEL_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -24,7 +24,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -35,6 +34,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ITerminalInstance, ITerminalService, Direction } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -549,7 +549,7 @@ export class FocusActiveTerminalAction extends Action {
 	}
 
 	public run(event?: any): Promise<any> {
-		const instance = this.terminalService.getActiveOrCreateInstance(true);
+		const instance = this.terminalService.getActiveOrCreateInstance();
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}

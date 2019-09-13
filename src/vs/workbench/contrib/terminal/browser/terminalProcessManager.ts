@@ -10,7 +10,7 @@ import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalCon
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminalProcessExtHostProxy';
+import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
