@@ -449,3 +449,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 }
+
+// Accept Editor Command
+// Accept header instead of button
+// Push
+// Pull
