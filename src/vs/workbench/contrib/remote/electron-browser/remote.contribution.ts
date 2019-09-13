@@ -416,9 +416,9 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						hideProgress();
 						progressReporter = null;
 
-						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(choice => {
+						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
 							// Reload the window
-							if (choice === 0) {
+							if (result.choice === 0) {
 								commandService.executeCommand(ReloadWindowAction.ID);
 							}
 						});

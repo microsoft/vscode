@@ -245,7 +245,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.logger.error(message, data);
 	}
 
-	private logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
+	private logTelemetry(eventName: string, properties?: { readonly [prop: string]: string }) {
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
@@ -287,12 +287,22 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		const apiVersion = this.versionPicker.currentVersion.apiVersion || API.defaultVersion;
 		this.onDidChangeTypeScriptVersion(currentVersion);
-
 		let mytoken = ++this.token;
-
 		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager);
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
+
+		/* __GDPR__
+			"tsserver.spawned" : {
+				"${include}": [
+					"${TypeScriptCommonProperties}"
+				],
+				"localTypeScriptVersion":  { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.logTelemetry('tsserver.spawned', {
+			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.versionString : '',
+		});
 
 		handle.onError((err: Error) => {
 			if (this.token !== mytoken) {
@@ -454,10 +464,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
-		if (this.apiVersion.lt(API.v206)) {
-			return;
-		}
-
 		const args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
 			options: this.getCompilerOptionsForInferredProjects(configuration)
 		};
@@ -534,12 +540,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public normalizedPath(resource: vscode.Uri): string | undefined {
-		if (this.apiVersion.gte(API.v213)) {
-			if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
-				const dirName = path.dirname(resource.path);
-				const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
-				return resource.with({ path: path.posix.join(dirName, fileName) }).toString(true);
-			}
+		if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
+			const dirName = path.dirname(resource.path);
+			const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
+			return resource.with({ path: path.posix.join(dirName, fileName) }).toString(true);
 		}
 
 		if (resource.scheme !== fileSchemes.file) {
@@ -572,20 +576,19 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public toResource(filepath: string): vscode.Uri {
-		if (this.apiVersion.gte(API.v213)) {
-			if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
-			) {
-				let resource = vscode.Uri.parse(filepath);
-				if (this.inMemoryResourcePrefix) {
-					const dirName = path.dirname(resource.path);
-					const fileName = path.basename(resource.path);
-					if (fileName.startsWith(this.inMemoryResourcePrefix)) {
-						resource = resource.with({ path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
-					}
+		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
+		) {
+			let resource = vscode.Uri.parse(filepath);
+			if (this.inMemoryResourcePrefix) {
+				const dirName = path.dirname(resource.path);
+				const fileName = path.basename(resource.path);
+				if (fileName.startsWith(this.inMemoryResourcePrefix)) {
+					resource = resource.with({ path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
 				}
-				return resource;
 			}
+			return resource;
 		}
+
 		return this.bufferSyncSupport.toResource(filepath);
 	}
 

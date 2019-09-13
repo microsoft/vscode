@@ -24,7 +24,7 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
-import { WebviewFindWidget } from '../browser/webviewFindWidget';
+import { WebviewFindWidget, WebviewFindDelegate } from '../browser/webviewFindWidget';
 
 interface IKeydownEvent {
 	key: string;
@@ -220,7 +220,7 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
-export class ElectronWebviewBasedWebview extends Disposable implements Webview {
+export class ElectronWebviewBasedWebview extends Disposable implements Webview, WebviewFindDelegate {
 	private _webview: Electron.WebviewTag | undefined;
 	private _ready: Promise<void>;
 
@@ -377,12 +377,17 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 					return;
 			}
 		}));
+
 		this._register(addDisposableListener(this._webview, 'devtools-opened', () => {
 			this._send('devtools-opened');
 		}));
 
 		if (_options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+
+			this._register(addDisposableListener(this._webview, 'found-in-page', e => {
+				this._hasFindResult.fire(e.result.matches > 0);
+			}));
 		}
 
 		this.style(themeService.getTheme());
@@ -576,6 +581,9 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		});
 	}
 
+	private readonly _hasFindResult = this._register(new Emitter<boolean>());
+	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
+
 	public startFind(value: string, options?: Electron.FindInPageOptions) {
 		if (!value || !this._webview) {
 			return;
@@ -623,6 +631,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 	}
 
 	public stopFind(keepSelection?: boolean): void {
+		this._hasFindResult.fire(false);
 		if (!this._webview) {
 			return;
 		}

@@ -526,6 +526,15 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		this.sessionId = sessionId;
 	}
 
+	get message(): string | undefined {
+		const data = this.getSessionData();
+		if (!data) {
+			return undefined;
+		}
+
+		return data.message;
+	}
+
 	get verified(): boolean {
 		const data = this.getSessionData();
 		return data ? data.verified : true;
@@ -585,15 +594,11 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get message(): string | undefined {
-		const data = this.getSessionData();
-		if (!data) {
-			return undefined;
-		}
 		if (this.textFileService.isDirty(this.uri)) {
 			return nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.");
 		}
 
-		return data.message;
+		return super.message;
 	}
 
 	get adapterData(): any {

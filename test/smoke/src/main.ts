@@ -19,7 +19,7 @@ import {
 	Logger,
 	ConsoleLogger,
 	FileLogger,
-} from 'vscode-automation';
+} from '../../automation';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';

@@ -18,49 +18,78 @@ declare module 'vscode' {
 
 	//#region Joh - call hierarchy
 
-	export enum CallHierarchyDirection {
-		CallsFrom = 1,
-		CallsTo = 2,
-	}
-
 	export class CallHierarchyItem {
-		kind: SymbolKind;
+		/**
+		 * The name of this item.
+		 */
 		name: string;
+
+		/**
+		 * The kind of this item.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * Tags for this item.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
+
+		/**
+		 * More detail for this item, e.g. the signature of a function.
+		 */
 		detail?: string;
+
+		/**
+		 * The resource identifier of this item.
+		 */
 		uri: Uri;
+
+		/**
+		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
+		 */
 		range: Range;
+
+		/**
+		 * The range that should be selected and reveal when this symbol is being picked, e.g. the name of a function.
+		 * Must be contained by the [`range`](#CallHierarchyItem.range).
+		 */
 		selectionRange: Range;
 
 		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
 	}
 
+	export class CallHierarchyIncomingCall {
+		source: CallHierarchyItem;
+		sourceRanges: Range[];
+		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
+	}
+
+	export class CallHierarchyOutgoingCall {
+		sourceRanges: Range[];
+		target: CallHierarchyItem;
+		constructor(item: CallHierarchyItem, sourceRanges: Range[]);
+	}
+
 	export interface CallHierarchyItemProvider {
 
 		/**
-		 * Given a document and position compute a call hierarchy item. This is justed as
-		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		 * Provide a list of callers for the provided item, e.g. all function calling a function.
 		 */
-		provideCallHierarchyItem(
-			document: TextDocument,
-			position: Position,
-			token: CancellationToken
-		): ProviderResult<CallHierarchyItem>;
+		provideCallHierarchyIncomingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
 
 		/**
-		 * Resolve a call hierarchy item, e.g. compute all calls from or to a function.
-		 * The result is an array of item/location-tuples. The location in the returned tuples
-		 * is always relative to the "caller" with the caller either being the provided item or
-		 * the returned item.
-		 *
-		 * @param item A call hierarchy item previously returned from `provideCallHierarchyItem` or `resolveCallHierarchyItem`
-		 * @param direction Resolve calls from a function or calls to a function
-		 * @param token A cancellation token
+		 * Provide a list of calls for the provided item, e.g. all functions call from a function.
 		 */
-		resolveCallHierarchyItem(
-			item: CallHierarchyItem,
-			direction: CallHierarchyDirection,
-			token: CancellationToken
-		): ProviderResult<[CallHierarchyItem, Location[]][]>;
+		provideCallHierarchyOutgoingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
+
+		//  todo@joh this could return as 'prepareCallHierarchy' (similar to the RenameProvider#prepareRename)
+		//
+		// /**
+		//  *
+		//  * Given a document and position compute a call hierarchy item. This is justed as
+		//  * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		//  */
+		// resolveCallHierarchyItem(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
 	}
 
 	export namespace languages {
@@ -749,15 +778,6 @@ declare module 'vscode' {
 		 * created.
 		 */
 		readonly dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
-		 * provides access to the raw data stream from the process running within the terminal,
-		 * including VT sequences.
-		 *
-		 * @deprecated Use [window.onDidWriteTerminalData](#onDidWriteTerminalData).
-		 */
-		readonly onDidWriteData: Event<string>;
 	}
 
 	//#endregion
@@ -993,7 +1013,15 @@ declare module 'vscode' {
 
 	//#region Custom editors, mjbvz
 
-	export interface WebviewEditor extends WebviewPanel { }
+	export enum WebviewEditorState {
+		Readonly = 1,
+		Unchanged = 2,
+		Dirty = 3,
+	}
+
+	export interface WebviewEditor extends WebviewPanel {
+		state: WebviewEditorState;
+	}
 
 	export interface WebviewEditorProvider {
 		/**

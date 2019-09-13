@@ -7,11 +7,11 @@ import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { TERMINAL_ACTION_CATEGORY, ITerminalService, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminalCommands';
+import { TERMINAL_ACTION_CATEGORY, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { homedir } from 'os';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export function registerRemoteContributions() {
 	const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

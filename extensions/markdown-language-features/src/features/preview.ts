@@ -288,11 +288,14 @@ export class MarkdownPreview extends Disposable {
 		const editor = vscode.window.activeTextEditor;
 		// Reposition scroll preview, position scroll to the top if active text editor
 		// doesn't corresponds with preview
-		if (editor && editor.document.uri.fsPath === resource.fsPath) {
-			this.line = getVisibleLine(editor);
-		} else {
-			this.line = 0;
+		if (editor) {
+			if (editor.document.uri.fsPath === resource.fsPath) {
+				this.line = getVisibleLine(editor);
+			} else {
+				this.line = 0;
+			}
 		}
+
 
 		// If we have changed resources, cancel any pending updates
 		const isResourceChange = resource.fsPath !== this._resource.fsPath;

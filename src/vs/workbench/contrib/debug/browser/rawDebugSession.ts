@@ -18,6 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { env as processEnv } from 'vs/base/common/process';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -37,7 +38,7 @@ interface ILaunchVSCodeArguments {
 /**
  * Encapsulates the DebugAdapter lifecycle and some idiosyncrasies of the Debug Adapter Protocol.
  */
-export class RawDebugSession {
+export class RawDebugSession implements IDisposable {
 
 	private allThreadsContinued = true;
 	private _readyForBreakpoints = false;
@@ -70,6 +71,8 @@ export class RawDebugSession {
 	private readonly _onDidExitAdapter: Emitter<AdapterEndEvent>;
 	private debugAdapter: IDebugAdapter | null;
 
+	private toDispose: IDisposable[] = [];
+
 	constructor(
 		debugAdapter: IDebugAdapter,
 		dbgr: IDebugger,
@@ -96,18 +99,20 @@ export class RawDebugSession {
 
 		this._onDidExitAdapter = new Emitter<AdapterEndEvent>();
 
-		this.debugAdapter.onError(err => {
+		this.toDispose.push(this.debugAdapter.onError(err => {
 			this.shutdown(err);
-		});
+		}));
 
-		this.debugAdapter.onExit(code => {
+		this.toDispose.push(this.debugAdapter.onExit(code => {
 			if (code !== 0) {
 				this.shutdown(new Error(`exit code: ${code}`));
 			} else {
 				// normal exit
 				this.shutdown();
 			}
-		});
+		}));
+
+		this.toDispose.push(this.onDidContinued(() => this.cancelPendingRequests()));
 
 		this.debugAdapter.onEvent(event => {
 			switch (event.event) {
@@ -463,12 +468,15 @@ export class RawDebugSession {
 		return Promise.reject(new Error('goto is not supported'));
 	}
 
+	cancel(args: DebugProtocol.CancelArguments): Promise<DebugProtocol.CancelResponse> {
+		return this.send('cancel', args);
+	}
+
 	custom(request: string, args: any): Promise<DebugProtocol.Response> {
 		return this.send(request, args);
 	}
 
 	//---- private
-
 
 	private shutdown(error?: Error, restart = false): Promise<any> {
 		if (!this.inShutdown) {
@@ -486,10 +494,23 @@ export class RawDebugSession {
 		return Promise.resolve(undefined);
 	}
 
+	private cancelPendingRequests(): void {
+		if (this.debugAdapter) {
+			if (this.capabilities.supportsCancelRequest) {
+				this.debugAdapter.getPendingRequestIds().forEach(requestId => {
+					this.cancel({ requestId });
+				});
+			} else {
+				this.debugAdapter.cancelPendingRequests();
+			}
+		}
+	}
+
 	private stopAdapter(error?: Error): Promise<any> {
 		if (this.debugAdapter) {
 			const da = this.debugAdapter;
 			this.debugAdapter = null;
+			this.cancelPendingRequests();
 			return da.stopSession().then(_ => {
 				this.debugAdapterStopped = true;
 				this.fireAdapterExitEvent(error);
@@ -697,5 +718,9 @@ export class RawDebugSession {
 			*/
 			this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 		}
+	}
+
+	dispose(): void {
+		dispose(this.toDispose);
 	}
 }

@@ -5,7 +5,6 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
@@ -81,118 +80,6 @@ export interface URIDescriptor {
 	path?: string;
 }
 
-/**
- * Only add settings that cannot contain any personal/private information of users (PII).
- */
-const configurationValueWhitelist = [
-	'editor.fontFamily',
-	'editor.fontWeight',
-	'editor.fontSize',
-	'editor.lineHeight',
-	'editor.letterSpacing',
-	'editor.lineNumbers',
-	'editor.rulers',
-	'editor.wordSeparators',
-	'editor.tabSize',
-	'editor.indentSize',
-	'editor.insertSpaces',
-	'editor.detectIndentation',
-	'editor.roundedSelection',
-	'editor.scrollBeyondLastLine',
-	'editor.minimap.enabled',
-	'editor.minimap.side',
-	'editor.minimap.renderCharacters',
-	'editor.minimap.maxColumn',
-	'editor.find.seedSearchStringFromSelection',
-	'editor.find.autoFindInSelection',
-	'editor.wordWrap',
-	'editor.wordWrapColumn',
-	'editor.wrappingIndent',
-	'editor.mouseWheelScrollSensitivity',
-	'editor.multiCursorModifier',
-	'editor.quickSuggestions',
-	'editor.quickSuggestionsDelay',
-	'editor.parameterHints.enabled',
-	'editor.parameterHints.cycle',
-	'editor.autoClosingBrackets',
-	'editor.autoClosingQuotes',
-	'editor.autoSurround',
-	'editor.autoIndent',
-	'editor.formatOnType',
-	'editor.formatOnPaste',
-	'editor.suggestOnTriggerCharacters',
-	'editor.acceptSuggestionOnEnter',
-	'editor.acceptSuggestionOnCommitCharacter',
-	'editor.snippetSuggestions',
-	'editor.emptySelectionClipboard',
-	'editor.wordBasedSuggestions',
-	'editor.suggestSelection',
-	'editor.suggestFontSize',
-	'editor.suggestLineHeight',
-	'editor.tabCompletion',
-	'editor.selectionHighlight',
-	'editor.occurrencesHighlight',
-	'editor.overviewRulerLanes',
-	'editor.overviewRulerBorder',
-	'editor.cursorBlinking',
-	'editor.cursorSmoothCaretAnimation',
-	'editor.cursorStyle',
-	'editor.mouseWheelZoom',
-	'editor.fontLigatures',
-	'editor.hideCursorInOverviewRuler',
-	'editor.renderWhitespace',
-	'editor.renderControlCharacters',
-	'editor.renderIndentGuides',
-	'editor.renderLineHighlight',
-	'editor.codeLens',
-	'editor.folding',
-	'editor.showFoldingControls',
-	'editor.matchBrackets',
-	'editor.glyphMargin',
-	'editor.useTabStops',
-	'editor.trimAutoWhitespace',
-	'editor.stablePeek',
-	'editor.dragAndDrop',
-	'editor.formatOnSave',
-	'editor.colorDecorators',
-
-	'breadcrumbs.enabled',
-	'breadcrumbs.filePath',
-	'breadcrumbs.symbolPath',
-	'breadcrumbs.symbolSortOrder',
-	'breadcrumbs.useQuickPick',
-	'explorer.openEditors.visible',
-	'extensions.autoUpdate',
-	'files.associations',
-	'files.autoGuessEncoding',
-	'files.autoSave',
-	'files.autoSaveDelay',
-	'files.encoding',
-	'files.eol',
-	'files.hotExit',
-	'files.trimTrailingWhitespace',
-	'git.confirmSync',
-	'git.enabled',
-	'http.proxyStrictSSL',
-	'javascript.validate.enable',
-	'php.builtInCompletions.enable',
-	'php.validate.enable',
-	'php.validate.run',
-	'terminal.integrated.fontFamily',
-	'window.openFilesInNewWindow',
-	'window.restoreWindows',
-	'window.nativeFullScreen',
-	'window.zoomLevel',
-	'workbench.editor.enablePreview',
-	'workbench.editor.enablePreviewFromQuickOpen',
-	'workbench.editor.showTabs',
-	'workbench.editor.highlightModifiedTabs',
-	'workbench.sideBar.location',
-	'workbench.startupEditor',
-	'workbench.statusBar.visible',
-	'workbench.welcome.enabled',
-];
-
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
@@ -208,43 +95,9 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				configurationSource: ConfigurationTargetToString(event.source),
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
-			type UpdateConfigurationValuesClassification = {
-				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				configurationValues: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
-			};
-			type UpdateConfigurationValuesEvent = {
-				configurationSource: string;
-				configurationValues: { [key: string]: any }[];
-			};
-			telemetryService.publicLog2<UpdateConfigurationValuesEvent, UpdateConfigurationValuesClassification>('updateConfigurationValues', {
-				configurationSource: ConfigurationTargetToString(event.source),
-				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
-			});
 		}
 	});
 }
-
-export function keybindingsTelemetry(telemetryService: ITelemetryService, keybindingService: IKeybindingService): IDisposable {
-	return keybindingService.onDidUpdateKeybindings(event => {
-		if (event.source === KeybindingSource.User && event.keybindings) {
-			type UpdateKeybindingsClassification = {
-				bindings: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
-			};
-			type UpdateKeybindingsEvents = {
-				bindings: { key: string, command: string, when: string | undefined, args: boolean | undefined }[];
-			};
-			telemetryService.publicLog2<UpdateKeybindingsEvents, UpdateKeybindingsClassification>('updateKeybindings', {
-				bindings: event.keybindings.map(binding => ({
-					key: binding.key,
-					command: binding.command,
-					when: binding.when,
-					args: binding.args ? true : undefined
-				}))
-			});
-		}
-	});
-}
-
 
 export interface Properties {
 	[key: string]: string;
@@ -348,19 +201,4 @@ function flatKeys(result: string[], prefix: string, value: { [key: string]: any 
 	} else {
 		result.push(prefix);
 	}
-}
-
-function flattenValues(value: { [key: string]: any } | undefined, keys: string[]): { [key: string]: any }[] {
-	if (!value) {
-		return [];
-	}
-
-	return keys.reduce((array, key) => {
-		const v = key.split('.')
-			.reduce((tmp, k) => tmp && typeof tmp === 'object' ? tmp[k] : undefined, value);
-		if (typeof v !== 'undefined') {
-			array.push({ [key]: v });
-		}
-		return array;
-	}, <{ [key: string]: any }[]>[]);
 }

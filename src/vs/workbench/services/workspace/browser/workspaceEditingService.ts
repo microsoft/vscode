@@ -12,7 +12,6 @@ import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { StorageService } from 'vs/platform/storage/node/storageService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -20,7 +19,7 @@ import { IBackupFileService, toBackupWorkspaceResource } from 'vs/workbench/serv
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
-import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isWindows, isMacintosh, isWeb } from 'vs/base/common/platform';
 import { isEqual, basename, isEqualOrParent, getComparisonKey } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -61,7 +60,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private registerListeners(): void {
-		this.lifecycleService.onBeforeShutdown(async e => {
+		this.lifecycleService.onBeforeShutdown(e => {
+			if (isWeb) {
+				return; // no support for untitled in web
+			}
+
 			const saveOperation = this.saveUntitedBeforeShutdown(e.reason);
 			if (saveOperation) {
 				e.veto(saveOperation);
@@ -108,9 +111,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const detail = nls.localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
 		const cancelId = buttons.indexOf(cancel);
 
-		const res = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId });
+		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId });
 
-		switch (buttons[res].result) {
+		switch (buttons[choice].result) {
 
 			// Cancel: veto unload
 			case ConfirmResult.CANCEL:
@@ -421,9 +424,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		const storageImpl = this.storageService as StorageService;
-
-		return storageImpl.migrate(toWorkspace);
+		return this.storageService.migrate(toWorkspace);
 	}
 
 	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
