@@ -6322,10 +6322,11 @@ declare module 'vscode' {
 		 * * *Note 1:* When executing an editor command not all types are allowed to
 		 * be passed as arguments. Allowed are the primitive types `string`, `boolean`,
 		 * `number`, `undefined`, and `null`, as well as [`Position`](#Position), [`Range`](#Range), [`Uri`](#Uri) and [`Location`](#Location).
-		 * * *Note 2:* When executing commands that have been contributed by other
-		 * extensions, any JSON-serializable objects are additionally allowed.
-		 * * *Note 3:* There are no restrictions when executing commands that have
-		 * been contributed by the extension that is executing them.
+		 * * *Note 2:* When executing a command that has been contributed by an
+		 * extension, the above types and all JSON-serializable objects are allowed
+		 * if the extension is not active, and there are no restrictions if it is active.
+		 * Use [`Extension.isActive`](#Extension.isActive) and [`Extension.activate()`](#Extension.activate)
+		 * to ensure an extension is active if necessary.
 		 *
 		 * @param command Identifier of the command to execute.
 		 * @param rest Parameters passed to the command function.
