@@ -21,7 +21,7 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem } from 'vs/workbench/browser/parts/compositeBar';
-import { Dimension, addClass } from 'vs/base/browser/dom';
+import { Dimension, addClass, removeNode } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -36,6 +36,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 
 interface ICachedViewlet {
 	id: string;
@@ -66,7 +68,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private globalActivityAction: ActivityAction;
 	private globalActivityActionBar: ActionBar;
 
-	private customMenubar: CustomMenubarControl;
+	private customMenubar: CustomMenubarControl | undefined;
+	private menubar: HTMLElement | undefined;
+	private content: HTMLElement;
 
 	private cachedViewlets: ICachedViewlet[] = [];
 
@@ -84,7 +88,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -138,6 +143,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			this.compositeBar.onDidChange(() => this.saveCachedViewlets(), this, disposables);
 			this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e), this, disposables);
 		}));
+
+		// Register for configuration changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.menuBarVisibility')) {
+				if (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'compact') {
+					this.installMenubar();
+				} else {
+					this.uninstallMenubar();
+				}
+			}
+		}));
 	}
 
 	private onDidRegisterExtensions(): void {
@@ -184,34 +200,52 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return toDisposable(() => this.globalActivityAction.setBadge(undefined));
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
-		this.element = parent;
+	private uninstallMenubar() {
+		if (this.customMenubar) {
+			this.customMenubar.dispose();
+		}
 
-		const content = document.createElement('div');
-		addClass(content, 'content');
-		parent.appendChild(content);
+		if (this.menubar) {
+			removeNode(this.menubar);
+		}
+	}
 
-		const menu = document.createElement('div');
-		addClass(menu, 'menubar');
-		content.appendChild(menu);
+	private installMenubar() {
+		this.menubar = document.createElement('div');
+		addClass(this.menubar, 'menubar');
+		this.content.prepend(this.menubar);
 
 		// Menubar: install a custom menu bar depending on configuration
 		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
-		this.customMenubar.create(menu);
+		this.customMenubar.create(this.menubar);
+
+	}
+
+	createContentArea(parent: HTMLElement): HTMLElement {
+		this.element = parent;
+
+		this.content = document.createElement('div');
+		addClass(this.content, 'content');
+		parent.appendChild(this.content);
+
+		// Install menubar if compact
+		if (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'compact') {
+			this.installMenubar();
+		}
 
 		// Viewlets action bar
-		this.compositeBar.create(content);
+		this.compositeBar.create(this.content);
 
 		// Global action bar
 		const globalActivities = document.createElement('div');
 		addClass(globalActivities, 'global-activity');
-		content.appendChild(globalActivities);
+		this.content.appendChild(globalActivities);
 
 		this.createGlobalActivityActionBar(globalActivities);
 
 		this.element.style.display = this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? null : 'none';
 
-		return content;
+		return this.content;
 	}
 
 	updateStyles(): void {

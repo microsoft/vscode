@@ -263,7 +263,7 @@ export interface IWindowService {
 	resolveProxy(url: string): Promise<string | undefined>;
 }
 
-export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
+export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export interface IWindowsConfiguration {
 	window: IWindowSettings;

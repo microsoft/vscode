@@ -280,14 +280,15 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
-				'enum': ['default', 'visible', 'toggle', 'hidden'],
+				'enum': ['default', 'visible', 'toggle', 'hidden', 'compact'],
 				'enumDescriptions': [
 					nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
 					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
 					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
-					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden.")
+					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
+					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar.")
 				],
-				'default': 'default',
+				'default': 'compact',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen."),
 				'included': isWindows || isLinux || isWeb

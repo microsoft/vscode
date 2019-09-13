@@ -494,9 +494,9 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private get currentCompactMenuMode(): Direction | undefined {
-		// if (!isWeb) {
-		// 	return undefined;
-		// }
+		if (this.currentMenubarVisibility !== 'compact') {
+			return undefined;
+		}
 
 		const currentSidebarLocation = this.configurationService.getValue<string>('workbench.sideBar.location');
 		return currentSidebarLocation === 'right' ? Direction.Left : Direction.Right;
