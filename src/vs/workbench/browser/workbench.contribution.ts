@@ -288,7 +288,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
 					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar.")
 				],
-				'default': 'compact',
+				'default': isWeb ? 'compact' : 'default',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen."),
 				'included': isWindows || isLinux || isWeb
