@@ -111,7 +111,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
-		this.forceOpenAs = ForceOpenAs.Text; // encoding is a good hint to open the file as text
+		this.setForceOpenAsText(); // encoding is a good hint to open the file as text
 	}
 
 	getPreferredMode(): string | undefined {
@@ -129,7 +129,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredMode(mode: string): void {
 		this.preferredMode = mode;
-		this.forceOpenAs = ForceOpenAs.Text; // mode is a good hint to open the file as text
+		this.setForceOpenAsText(); // mode is a good hint to open the file as text
 	}
 
 	setForceOpenAsText(): void {
