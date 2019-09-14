@@ -1044,8 +1044,21 @@ declare module 'vscode' {
 	//#region Custom editors, mjbvz
 
 	export enum WebviewEditorState {
+		/**
+		 * The webview editor's content cannot be modified.
+		 *
+		 * This disables save
+		 */
 		Readonly = 1,
+
+		/**
+		 * The webview editor's content has not been changed but they can be modified and saved.
+		 */
 		Unchanged = 2,
+
+		/**
+		 * The webview editor's content has been changed and can be saved.
+		 */
 		Dirty = 3,
 	}
 
