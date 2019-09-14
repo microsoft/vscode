@@ -17,10 +17,12 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions, WebviewPanelViewStateData } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
+import { IEditorInput } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
@@ -322,21 +324,31 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		const activeInput = this._editorService.activeControl && this._editorService.activeControl.input;
 		const viewStates: WebviewPanelViewStateData = {};
+
+		const updateViewStatesForInput = (group: IEditorGroup, topLevelInput: IEditorInput, editorInput: IEditorInput) => {
+			if (!(editorInput instanceof WebviewInput)) {
+				return;
+			}
+
+			editorInput.updateGroup(group.id);
+
+			const handle = this._webviewEditorInputs.getHandleForInput(editorInput);
+			if (handle) {
+				viewStates[handle] = {
+					visible: topLevelInput.matches(group.activeEditor),
+					active: topLevelInput.matches(activeInput),
+					position: editorGroupToViewColumn(this._editorGroupService, group.id),
+				};
+			}
+		};
+
 		for (const group of this._editorGroupService.groups) {
 			for (const input of group.editors) {
-				if (!(input instanceof WebviewInput)) {
-					continue;
-				}
-
-				input.updateGroup(group.id);
-
-				const handle = this._webviewEditorInputs.getHandleForInput(input);
-				if (handle) {
-					viewStates[handle] = {
-						visible: input === group.activeEditor,
-						active: input === activeInput,
-						position: editorGroupToViewColumn(this._editorGroupService, group.id),
-					};
+				if (input instanceof DiffEditorInput) {
+					updateViewStatesForInput(group, input, input.master);
+					updateViewStatesForInput(group, input, input.details);
+				} else {
+					updateViewStatesForInput(group, input, input);
 				}
 			}
 		}
