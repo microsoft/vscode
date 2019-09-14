@@ -27,6 +27,7 @@ export class WebviewEditor extends BaseEditor {
 	private _findWidgetVisible: IContextKey<boolean>;
 	private _editorFrame?: HTMLElement;
 	private _content?: HTMLElement;
+	private _dimension?: DOM.Dimension;
 
 	private readonly _webviewFocusTrackerDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
@@ -89,6 +90,7 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public layout(dimension: DOM.Dimension): void {
+		this._dimension = dimension;
 		if (this.input && this.input instanceof WebviewInput) {
 			this.synchronizeWebviewContainerDimensions(this.input.webview, dimension);
 			this.input.webview.layout();
@@ -157,6 +159,9 @@ export class WebviewEditor extends BaseEditor {
 			}
 
 			this.claimWebview(input);
+			if (this._dimension) {
+				this.layout(this._dimension);
+			}
 		}
 	}
 
