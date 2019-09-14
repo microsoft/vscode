@@ -8,6 +8,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { startsWith } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -67,8 +68,6 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		'vscode',
 		'vscode-insider',
 	]);
-
-	private static revivalPool = 0;
 
 	private readonly _proxy: ExtHostWebviewsShape;
 	private readonly _webviewEditorInputs = new WebviewHandleStore();
@@ -206,7 +205,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 					return;
 				}
 
-				const handle = `revival-${MainThreadWebviews.revivalPool++}`;
+				const handle = generateUuid();
 				this._webviewEditorInputs.add(handle, webviewEditorInput);
 				this.hookupWebviewEventDelegate(handle, webviewEditorInput);
 
@@ -249,7 +248,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				return webviewEditorInput.getTypeId() !== WebviewInput.typeId && webviewEditorInput.viewType === viewType;
 			},
 			resolveWebview: async (webview) => {
-				const handle = `resolved-${MainThreadWebviews.revivalPool++}`;
+				const handle = generateUuid();
 				this._webviewEditorInputs.add(handle, webview);
 				this.hookupWebviewEventDelegate(handle, webview);
 
