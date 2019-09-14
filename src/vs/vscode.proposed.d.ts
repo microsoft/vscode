@@ -1051,6 +1051,15 @@ declare module 'vscode' {
 
 	export interface WebviewEditor extends WebviewPanel {
 		state: WebviewEditorState;
+
+		/**
+		 * Fired when the webview editor is saved.
+		 *
+		 * Both `Unchanged` and `Dirty` editors can be saved.
+		 *
+		 * Extensions should call `waitUntil` to signal when the save operation complete
+		 */
+		readonly onWillSave: Event<{ waitUntil: (thenable: Thenable<boolean>) => void }>;
 	}
 
 	export interface WebviewEditorProvider {

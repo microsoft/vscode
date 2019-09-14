@@ -224,6 +224,18 @@ export class ExtHostWebviewEditor implements vscode.WebviewEditor {
 		this._proxy.$setState(this._handle, typeConverters.WebviewEditorState.from(newState));
 	}
 
+	private readonly _onWillSave = new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>();
+	public readonly onWillSave = this._onWillSave.event;
+
+	async _save(): Promise<boolean> {
+		const waitingOn: Thenable<boolean>[] = [];
+		this._onWillSave.fire({
+			waitUntil: (thenable: Thenable<boolean>): void => { waitingOn.push(thenable); },
+		});
+		const result = await Promise.all(waitingOn);
+		return result.every(x => x);
+	}
+
 	public postMessage(message: any): Promise<boolean> {
 		this.assertNotDisposed();
 		return this._proxy.$postMessage(this._handle, message);
@@ -422,6 +434,13 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return Promise.resolve(provider.resolveWebviewEditor(URI.revive(resource), revivedPanel));
 	}
 
+	async $save(handle: WebviewPanelHandle): Promise<boolean> {
+		const panel = this.getWebviewPanel(handle);
+		if (panel) {
+			return panel._save();
+		}
+		return false;
+	}
 }
 
 function convertWebviewOptions(

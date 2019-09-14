@@ -16,13 +16,13 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions, WebviewPanelViewStateData } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
+import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
-import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -252,6 +252,12 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				const handle = `resolved-${MainThreadWebviews.revivalPool++}`;
 				this._webviewEditorInputs.add(handle, webview);
 				this.hookupWebviewEventDelegate(handle, webview);
+
+				if (webview instanceof CustomFileEditorInput) {
+					webview.onWillSave(e => {
+						e.waitUntil(this._proxy.$save(handle));
+					});
+				}
 
 				try {
 					await this._proxy.$resolveWebviewEditor(

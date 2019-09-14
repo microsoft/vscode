@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memoize } from 'vs/base/common/decorators';
+import { Emitter } from 'vs/base/common/event';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
@@ -115,7 +116,17 @@ export class CustomFileEditorInput extends WebviewInput {
 	}
 
 	public async save(): Promise<boolean> {
-		// TODO
-		return true;
+		if (!this.isDirty) {
+			return true;
+		}
+		const waitingOn: Promise<boolean>[] = [];
+		this._onWillSave.fire({
+			waitUntil: (thenable: Promise<boolean>): void => { waitingOn.push(thenable); },
+		});
+		const result = await Promise.all(waitingOn);
+		return result.every(x => x);
 	}
+
+	private readonly _onWillSave = this._register(new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>());
+	public readonly onWillSave = this._onWillSave.event;
 }
