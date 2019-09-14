@@ -165,21 +165,15 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
-		let description: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				description = this.shortDescription;
-				break;
+				return this.shortDescription;
 			case Verbosity.LONG:
-				description = this.longDescription;
-				break;
+				return this.longDescription;
 			case Verbosity.MEDIUM:
 			default:
-				description = this.mediumDescription;
-				break;
+				return this.mediumDescription;
 		}
-
-		return description;
 	}
 
 	@memoize
