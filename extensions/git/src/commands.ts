@@ -1251,7 +1251,7 @@ export class CommandCenter {
 
 		if (promptToSaveFilesBeforeCommit !== 'never') {
 			let documents = workspace.textDocuments
-				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+				.filter(d => !d.isUntitled && d.uri.scheme === 'file' && isDescendant(repository.root, d.uri.fsPath));
 
 			if (promptToSaveFilesBeforeCommit === 'staged') {
 				documents = documents
