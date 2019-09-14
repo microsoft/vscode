@@ -9,7 +9,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { EditorInput, IEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
-
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
 export interface ICustomEditorService {

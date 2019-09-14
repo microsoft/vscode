@@ -26,10 +26,48 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { CustomFileEditorInput } from './customEditorInput';
 
+const defaultEditorId = 'default';
+
+const defaultEditorInfo: CustomEditorInfo = {
+	id: defaultEditorId,
+	displayName: nls.localize('promptOpenWith.defaultEditor', "Default built-in editor"),
+	selector: [
+		{ filenamePattern: '*' }
+	],
+	discretion: CustomEditorDiscretion.default,
+};
+
+export class CustomEditorStore {
+	private readonly contributedEditors = new Map<string, CustomEditorInfo>();
+
+	public clear() {
+		this.contributedEditors.clear();
+	}
+
+	public get(viewType: string): CustomEditorInfo | undefined {
+		return viewType === defaultEditorId
+			? defaultEditorInfo
+			: this.contributedEditors.get(viewType);
+	}
+
+	public add(info: CustomEditorInfo): void {
+		if (info.id === defaultEditorId || this.contributedEditors.has(info.id)) {
+			console.log(`Custom editor with id '${info.id}' already registered`);
+			return;
+		}
+		this.contributedEditors.set(info.id, info);
+	}
+
+	public getContributedEditors(resource: URI): readonly CustomEditorInfo[] {
+		return Array.from(this.contributedEditors.values()).filter(customEditor =>
+			customEditor.selector.some(selector => matches(selector, resource)));
+	}
+}
+
 export class CustomEditorService implements ICustomEditorService {
 	_serviceBrand: any;
 
-	private readonly customEditors = new Map<string, CustomEditorInfo>();
+	private readonly editors = new CustomEditorStore();
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -39,9 +77,11 @@ export class CustomEditorService implements ICustomEditorService {
 		@IWebviewService private readonly webviewService: IWebviewService,
 	) {
 		webviewEditorsExtensionPoint.setHandler(extensions => {
+			this.editors.clear();
+
 			for (const extension of extensions) {
 				for (const webviewEditorContribution of extension.value) {
-					this.customEditors.set(webviewEditorContribution.viewType, {
+					this.editors.add({
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
 						selector: webviewEditorContribution.selector || [],
@@ -53,15 +93,14 @@ export class CustomEditorService implements ICustomEditorService {
 	}
 
 	public getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[] {
-		return Array.from(this.customEditors.values()).filter(customEditor =>
-			customEditor.selector.some(selector => matches(selector, resource)));
+		return this.editors.getContributedEditors(resource);
 	}
 
 	public getUserConfiguredCustomEditors(resource: URI): readonly CustomEditorInfo[] {
 		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsKey) || [];
 		return coalesce(rawAssociations
 			.filter(association => matches(association, resource))
-			.map(association => this.customEditors.get(association.viewType)));
+			.map(association => this.editors.get(association.viewType)));
 	}
 
 	public async promptOpenWith(
@@ -70,34 +109,23 @@ export class CustomEditorService implements ICustomEditorService {
 		group?: IEditorGroup,
 	): Promise<IEditor | undefined> {
 		const customEditors = distinct([
+			defaultEditorInfo,
 			...this.getUserConfiguredCustomEditors(resource),
 			...this.getContributedCustomEditors(resource),
 		], editor => editor.id);
 
-		const defaultEditorId = 'default';
-		const pick = await this.quickInputService.pick([
-			{
-				label: nls.localize('promptOpenWith.defaultEditor', "Default built-in editor"),
-				id: defaultEditorId,
-			},
-			...customEditors.map((editorDescriptor): IQuickPickItem => ({
+		const pick = await this.quickInputService.pick(
+			customEditors.map((editorDescriptor): IQuickPickItem => ({
 				label: editorDescriptor.displayName,
 				id: editorDescriptor.id,
-			}))
-		], {
+			})), {
 			placeHolder: nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", basename(resource)),
 		});
 
-		if (!pick) {
+		if (!pick || !pick.id) {
 			return;
 		}
-
-		if (pick.id === defaultEditorId) {
-			const fileInput = this.instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
-			return this.openEditorForResource(resource, fileInput, { ...options, ignoreOverrides: true }, group);
-		} else {
-			return this.openWith(resource, pick.id!, options, group);
-		}
+		return this.openWith(resource, pick.id, options, group);
 	}
 
 	public openWith(
@@ -106,7 +134,12 @@ export class CustomEditorService implements ICustomEditorService {
 		options?: ITextEditorOptions,
 		group?: IEditorGroup,
 	): Promise<IEditor | undefined> {
-		if (!this.customEditors.has(viewType)) {
+		if (viewType === defaultEditorId) {
+			const fileInput = this.instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
+			return this.openEditorForResource(resource, fileInput, { ...options, ignoreOverrides: true }, group);
+		}
+
+		if (!this.editors.get(viewType)) {
 			return this.promptOpenWith(resource, options, group);
 		}
 
