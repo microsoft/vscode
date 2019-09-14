@@ -192,24 +192,16 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	getTitle(verbosity: Verbosity): string {
-		let title: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				title = this.shortTitle;
 				// already decorated by getName()
-				break;
+				return this.shortTitle;
 			default:
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle;
-				title = this.decorateLabel(title);
-				break;
+				return this.decorateLabel(this.mediumTitle);
 			case Verbosity.LONG:
-				title = this.longTitle;
-				title = this.decorateLabel(title);
-				break;
+				return this.decorateLabel(this.longTitle);
 		}
-
-		return title;
 	}
 
 	private decorateLabel(label: string): string {
