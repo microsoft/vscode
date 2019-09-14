@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { CallHierarchyItem, CallHierarchyProvider, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import { CallHierarchyItem, CallHierarchyProvider, CallHierarchyDirection, provideOutgoingCalls, provideIncomingCalls } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { symbolKindToCssClass, Location } from 'vs/editor/common/modes';
 import { hash } from 'vs/base/common/hash';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class Call {
 	constructor(
@@ -21,65 +25,79 @@ export class Call {
 	) { }
 }
 
-export class SingleDirectionDataSource implements IAsyncDataSource<CallHierarchyItem, Call> {
+export class CallHierarchyRoot {
+
+	static fromEditor(editor: IActiveCodeEditor): CallHierarchyRoot | undefined {
+		const model = editor.getModel();
+		const position = editor.getPosition();
+		const wordInfo = model.getWordAtPosition(position);
+		return wordInfo
+			? new CallHierarchyRoot(model, position, wordInfo.word)
+			: undefined;
+	}
+
+	constructor(
+		readonly model: ITextModel,
+		readonly position: IPosition,
+		readonly word: string
+	) { }
+}
+
+export class DataSource implements IAsyncDataSource<CallHierarchyRoot, Call> {
 
 	constructor(
 		public provider: CallHierarchyProvider,
-		public getDirection: () => CallHierarchyDirection
+		public getDirection: () => CallHierarchyDirection,
+		@ITextModelService private readonly _modelService: ITextModelService,
 	) { }
 
 	hasChildren(): boolean {
 		return true;
 	}
 
-	async getChildren(element: CallHierarchyItem | Call): Promise<Call[]> {
-		if (element instanceof Call) {
-			const results: Call[] = [];
+	async getChildren(element: CallHierarchyRoot | Call): Promise<Call[]> {
+
+		const results: Call[] = [];
+
+		if (element instanceof CallHierarchyRoot) {
 			if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
-				await this._getCallsFrom(element, results);
+				await this._getOutgoingCalls(element.model, element.position, results);
 			} else {
-				await this._getCallsTo(element, results);
+				await this._getIncomingCalls(element.model, element.position, results);
 			}
-			return results;
 		} else {
-			// 'root'
-			return [new Call(element, [], undefined)];
+			const reference = await this._modelService.createModelReference(element.item.uri);
+			const position = Range.lift(element.item.selectionRange).getStartPosition();
+			if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
+				await this._getOutgoingCalls(reference.object.textEditorModel, position, results, element);
+			} else {
+				await this._getIncomingCalls(reference.object.textEditorModel, position, results, element);
+			}
+			reference.dispose();
+		}
+
+		return results;
+	}
+
+	private async _getOutgoingCalls(model: ITextModel, position: IPosition, bucket: Call[], parent?: Call): Promise<void> {
+		const outgoingCalls = await provideOutgoingCalls(model, position, CancellationToken.None);
+		for (const call of outgoingCalls) {
+			bucket.push(new Call(
+				call.target,
+				call.sourceRanges.map(range => ({ range, uri: model.uri })),
+				parent
+			));
 		}
 	}
 
-	private async _getCallsFrom(source: Call, bucket: Call[]): Promise<void> {
-		try {
-			const callsFrom = await this.provider.provideOutgoingCalls(source.item, CancellationToken.None);
-			if (!callsFrom) {
-				return;
-			}
-			for (const callFrom of callsFrom) {
-				bucket.push(new Call(
-					callFrom.target,
-					callFrom.sourceRanges.map(range => ({ range, uri: source.item.uri })),
-					source
-				));
-			}
-		} catch (e) {
-			onUnexpectedExternalError(e);
-		}
-	}
-
-	private async _getCallsTo(target: Call, bucket: Call[]): Promise<void> {
-		try {
-			const callsTo = await this.provider.provideIncomingCalls(target.item, CancellationToken.None);
-			if (!callsTo) {
-				return;
-			}
-			for (const callTo of callsTo) {
-				bucket.push(new Call(
-					callTo.source,
-					callTo.sourceRanges.map(range => ({ range, uri: callTo.source.uri })),
-					target
-				));
-			}
-		} catch (e) {
-			onUnexpectedExternalError(e);
+	private async _getIncomingCalls(model: ITextModel, position: IPosition, bucket: Call[], parent?: Call): Promise<void> {
+		const incomingCalls = await provideIncomingCalls(model, position, CancellationToken.None);
+		for (const call of incomingCalls) {
+			bucket.push(new Call(
+				call.source,
+				call.sourceRanges.map(range => ({ range, uri: call.source.uri })),
+				parent
+			));
 		}
 	}
 

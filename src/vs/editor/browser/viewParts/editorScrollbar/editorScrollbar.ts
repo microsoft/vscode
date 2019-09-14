@@ -36,6 +36,7 @@ export class EditorScrollbar extends ViewPart {
 		const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
 
 		const scrollbarOptions: ScrollableElementCreationOptions = {
+			alwaysConsumeMouseWheel: true,
 			listenOnDomNode: viewDomNode.domNode,
 			className: 'editor-scrollable' + ' ' + getThemeTypeSelector(context.theme.type),
 			useShadows: false,

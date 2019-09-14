@@ -180,7 +180,7 @@ class OpenerValidatorContributions implements IWorkbenchContribution {
 		if (isURLDomainTrusted(resource, trustedDomains)) {
 			return true;
 		} else {
-			const choice = await this._dialogService.show(
+			const { choice } = await this._dialogService.show(
 				Severity.Info,
 				localize(
 					'openExternalLinkAt',

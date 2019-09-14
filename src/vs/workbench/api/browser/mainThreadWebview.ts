@@ -16,35 +16,31 @@ import { IProductService } from 'vs/platform/product/common/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions, WebviewPanelViewStateData } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewEditorService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
-
-interface OldMainThreadWebviewState {
-	readonly viewType: string;
-	state: any;
-}
+import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 /**
  * Bi-directional map between webview handles and inputs.
  */
 class WebviewHandleStore {
-	private readonly _handlesToInputs = new Map<string, WebviewEditorInput>();
-	private readonly _inputsToHandles = new Map<WebviewEditorInput, string>();
+	private readonly _handlesToInputs = new Map<string, WebviewInput>();
+	private readonly _inputsToHandles = new Map<WebviewInput, string>();
 
-	public add(handle: string, input: WebviewEditorInput): void {
+	public add(handle: string, input: WebviewInput): void {
 		this._handlesToInputs.set(handle, input);
 		this._inputsToHandles.set(input, handle);
 	}
 
-	public getHandleForInput(input: WebviewEditorInput): string | undefined {
+	public getHandleForInput(input: WebviewInput): string | undefined {
 		return this._inputsToHandles.get(input);
 	}
 
-	public getInputForHandle(handle: string): WebviewEditorInput | undefined {
+	public getInputForHandle(handle: string): WebviewInput | undefined {
 		return this._handlesToInputs.get(handle);
 	}
 
@@ -98,8 +94,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		// This reviver's only job is to activate webview panel extensions
 		// This should trigger the real reviver to be registered from the extension host side.
 		this._register(_webviewEditorService.registerResolver({
-			canResolve: (webview: WebviewEditorInput) => {
-				if (!webview.webview.state && webview.getTypeId() === WebviewEditorInput.typeId) { // TODO: The typeid check is a workaround for the CustomFileEditorInput case
+			canResolve: (webview: WebviewInput) => {
+				if (!webview.webview.state && webview.getTypeId() === WebviewInput.typeId) { // TODO: The typeid check is a workaround for the CustomFileEditorInput case
 					return false;
 				}
 
@@ -152,6 +148,13 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	public $setTitle(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebviewEditorInput(handle);
 		webview.setName(value);
+	}
+
+	public $setState(handle: WebviewPanelHandle, state: modes.WebviewEditorState): void {
+		const webview = this.getWebviewEditorInput(handle);
+		if (webview instanceof CustomFileEditorInput) {
+			webview.setState(state);
+		}
 	}
 
 	public $setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void {
@@ -210,16 +213,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				let state = undefined;
 				if (webviewEditorInput.webview.state) {
 					try {
-						// Check for old-style webview state first which stored state inside another state object
-						// TODO: remove this after 1.37 ships.
-						if (
-							typeof (webviewEditorInput.webview.state as unknown as OldMainThreadWebviewState).viewType === 'string' &&
-							'state' in (webviewEditorInput.webview.state as unknown as OldMainThreadWebviewState)
-						) {
-							state = JSON.parse((webviewEditorInput.webview.state as any).state);
-						} else {
-							state = JSON.parse(webviewEditorInput.webview.state);
-						}
+						state = JSON.parse(webviewEditorInput.webview.state);
 					} catch {
 						// noop
 					}
@@ -252,7 +246,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		this._editorProviders.set(viewType, this._webviewEditorService.registerResolver({
 			canResolve: (webviewEditorInput) => {
-				return webviewEditorInput.getTypeId() !== WebviewEditorInput.typeId && webviewEditorInput.viewType === viewType;
+				return webviewEditorInput.getTypeId() !== WebviewInput.typeId && webviewEditorInput.viewType === viewType;
 			},
 			resolveWebview: async (webview) => {
 				const handle = `resolved-${MainThreadWebviews.revivalPool++}`;
@@ -298,7 +292,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		return viewType.replace(/^mainThreadWebview-/, '');
 	}
 
-	private hookupWebviewEventDelegate(handle: WebviewPanelHandle, input: WebviewEditorInput) {
+	private hookupWebviewEventDelegate(handle: WebviewPanelHandle, input: WebviewInput) {
 		input.webview.onDidClickLink((uri: URI) => this.onDidClickLink(handle, uri));
 		input.webview.onMessage((message: any) => this._proxy.$onMessage(handle, message));
 		input.onDispose(() => {
@@ -325,7 +319,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		const viewStates: WebviewPanelViewStateData = {};
 		for (const group of this._editorGroupService.groups) {
 			for (const input of group.editors) {
-				if (!(input instanceof WebviewEditorInput)) {
+				if (!(input instanceof WebviewInput)) {
 					continue;
 				}
 
@@ -354,7 +348,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 	}
 
-	private isSupportedLink(webview: WebviewEditorInput, link: URI): boolean {
+	private isSupportedLink(webview: WebviewInput, link: URI): boolean {
 		if (MainThreadWebviews.standardSupportedLinkSchemes.has(link.scheme)) {
 			return true;
 		}
@@ -364,7 +358,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		return !!webview.webview.contentOptions.enableCommandUris && link.scheme === 'command';
 	}
 
-	private getWebviewEditorInput(handle: WebviewPanelHandle): WebviewEditorInput {
+	private getWebviewEditorInput(handle: WebviewPanelHandle): WebviewInput {
 		const webview = this.tryGetWebviewEditorInput(handle);
 		if (!webview) {
 			throw new Error('Unknown webview handle:' + handle);
@@ -372,7 +366,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		return webview;
 	}
 
-	private tryGetWebviewEditorInput(handle: WebviewPanelHandle): WebviewEditorInput | undefined {
+	private tryGetWebviewEditorInput(handle: WebviewPanelHandle): WebviewInput | undefined {
 		return this._webviewEditorInputs.getInputForHandle(handle);
 	}
 

@@ -100,7 +100,7 @@ steps:
 
 - script: |
     set -e
-    DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
+    DISPLAY=:10 ./scripts/test.sh --build --tfs --no-sandbox "Unit Tests"
   displayName: Run unit tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 

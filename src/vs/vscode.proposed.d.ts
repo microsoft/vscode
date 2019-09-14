@@ -75,20 +75,21 @@ declare module 'vscode' {
 		/**
 		 * Provide a list of callers for the provided item, e.g. all function calling a function.
 		 */
-		provideCallHierarchyIncomingCalls(target: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
+		provideCallHierarchyIncomingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
 
 		/**
 		 * Provide a list of calls for the provided item, e.g. all functions call from a function.
 		 */
-		provideCallHierarchyOutgoingCalls(source: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
+		provideCallHierarchyOutgoingCalls(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
 
-		/**
-		 * todo@joh not needed?
-		 *
-		 * Given a document and position compute a call hierarchy item. This is justed as
-		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
-		 */
-		resolveCallHierarchyItem(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
+		//  todo@joh this could return as 'prepareCallHierarchy' (similar to the RenameProvider#prepareRename)
+		//
+		// /**
+		//  *
+		//  * Given a document and position compute a call hierarchy item. This is justed as
+		//  * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
+		//  */
+		// resolveCallHierarchyItem(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
 	}
 
 	export namespace languages {
@@ -777,15 +778,6 @@ declare module 'vscode' {
 		 * created.
 		 */
 		readonly dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
-		 * provides access to the raw data stream from the process running within the terminal,
-		 * including VT sequences.
-		 *
-		 * @deprecated Use [window.onDidWriteTerminalData](#onDidWriteTerminalData).
-		 */
-		readonly onDidWriteData: Event<string>;
 	}
 
 	//#endregion
@@ -1019,9 +1011,47 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// #region Ben - UIKind
+
+	/**
+	 * Possible kinds of UI that can use extensions.
+	 */
+	export enum UIKind {
+
+		/**
+		 * Extensions are accessed from a desktop application.
+		 */
+		Desktop = 1,
+
+		/**
+		 * Extensions are accessed from a web browser.
+		 */
+		Web = 2
+	}
+
+	export namespace env {
+
+		/**
+		 * The UI kind property indicates from which UI extensions
+		 * are accessed from. For example, extensions could be accessed
+		 * from a desktop application or a web browser.
+		 */
+		export const uiKind: UIKind;
+	}
+
+	//#endregion
+
 	//#region Custom editors, mjbvz
 
-	export interface WebviewEditor extends WebviewPanel { }
+	export enum WebviewEditorState {
+		Readonly = 1,
+		Unchanged = 2,
+		Dirty = 3,
+	}
+
+	export interface WebviewEditor extends WebviewPanel {
+		state: WebviewEditorState;
+	}
 
 	export interface WebviewEditorProvider {
 		/**

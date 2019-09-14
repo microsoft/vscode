@@ -39,7 +39,6 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
-import * as callHierarchy from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IAdapterDescriptor, IConfig } from 'vs/workbench/contrib/debug/common/debug';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ITerminalDimensions, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -88,6 +87,7 @@ export interface IInitData {
 	logsLocation: URI;
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; };
+	uiKind: UIKind;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -106,6 +106,11 @@ export interface IExtHostContext extends IRPCProtocol {
 export interface IMainContext extends IRPCProtocol {
 }
 
+export enum UIKind {
+	Desktop = 1,
+	Web = 2
+}
+
 // --- main thread
 
 export interface MainThreadClipboardShape extends IDisposable {
@@ -116,7 +121,7 @@ export interface MainThreadClipboardShape extends IDisposable {
 export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): void;
 	$unregisterCommand(id: string): void;
-	$executeCommand<T>(id: string, args: any[]): Promise<T | undefined>;
+	$executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined>;
 	$getCommands(): Promise<string[]>;
 }
 
@@ -399,8 +404,6 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
 	$show(terminalId: number, preserveFocus: boolean): void;
-	/** @deprecated */
-	$registerOnDataListener(terminalId: number): void;
 	$startSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
 
@@ -541,6 +544,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$disposeWebview(handle: WebviewPanelHandle): void;
 	$reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
+	$setState(handle: WebviewPanelHandle, state: modes.WebviewEditorState): void;
 	$setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents } | undefined): void;
 
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
@@ -1069,7 +1073,6 @@ export interface ICodeLensDto {
 }
 
 export interface ICallHierarchyItemDto {
-	_id: number;
 	kind: modes.SymbolKind;
 	name: string;
 	detail?: string;
@@ -1112,9 +1115,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined>;
 	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<modes.SelectionRange[][]>;
-	$resolveCallHierarchyItem(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ICallHierarchyItemDto | undefined>;
-	$provideCallHierarchyIncomingCalls(handle: number, target: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
-	$provideCallHierarchyOutgoingCalls(handle: number, source: callHierarchy.CallHierarchyItem, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
+	$provideCallHierarchyIncomingCalls(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
+	$provideCallHierarchyOutgoingCalls(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<[ICallHierarchyItemDto, IRange[]][] | undefined>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -1156,9 +1158,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptActiveTerminalChanged(id: number | null): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
-	/** @deprecated */
 	$acceptTerminalProcessData(id: number, data: string): void;
-	$acceptTerminalProcessData2(id: number, data: string): void;
 	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalDimensions(id: number, cols: number, rows: number): void;
 	$acceptTerminalMaximumDimensions(id: number, cols: number, rows: number): void;

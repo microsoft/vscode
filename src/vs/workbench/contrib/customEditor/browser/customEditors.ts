@@ -12,11 +12,12 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CustomEditorDiscretion, CustomEditorInfo, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -93,7 +94,7 @@ export class CustomEditorService implements ICustomEditorService {
 
 		if (pick.id === defaultEditorId) {
 			const fileInput = this.instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
-			return this.editorService.openEditor(fileInput, { ...options, ignoreOverrides: true }, group);
+			return this.openEditorForResource(resource, fileInput, { ...options, ignoreOverrides: true }, group);
 		} else {
 			return this.openWith(resource, pick.id!, options, group);
 		}
@@ -109,11 +110,39 @@ export class CustomEditorService implements ICustomEditorService {
 			return this.promptOpenWith(resource, options, group);
 		}
 
+		const input = this.createInput(resource, viewType, group);
+		return this.openEditorForResource(resource, input, options, group);
+	}
+
+	public createInput(
+		resource: URI,
+		viewType: string,
+		group: IEditorGroup | undefined
+	): CustomFileEditorInput {
 		const id = generateUuid();
 		const webview = this.webviewService.createWebviewEditorOverlay(id, {}, {});
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, new UnownedDisposable(webview));
 		if (group) {
 			input.updateGroup(group!.id);
+		}
+		return input;
+	}
+
+	private async openEditorForResource(
+		resource: URI,
+		input: IEditorInput,
+		options?: IEditorOptions,
+		group?: IEditorGroup
+	): Promise<IEditor | undefined> {
+		if (group) {
+			const existingEditors = group.editors.filter(editor => editor.getResource() && editor.getResource()!.toString() === resource.toString());
+			if (existingEditors.length) {
+				await this.editorService.replaceEditors([{
+					editor: existingEditors[0],
+					replacement: input,
+					options: options ? EditorOptions.create(options) : undefined,
+				}], group);
+			}
 		}
 		return this.editorService.openEditor(input, options, group);
 	}
@@ -138,6 +167,34 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 	): IOpenEditorOverride | undefined {
 		if (editor instanceof CustomFileEditorInput) {
 			return;
+		}
+
+		if (editor instanceof DiffEditorInput) {
+			if (editor.modifiedInput instanceof CustomFileEditorInput) {
+				return;
+			}
+			const resource = editor.modifiedInput.getResource();
+			if (!resource) {
+				return;
+			}
+
+			const customEditors = distinct([
+				...this.customEditorService.getUserConfiguredCustomEditors(resource),
+				...this.customEditorService.getContributedCustomEditors(resource),
+			], editor => editor.id);
+
+			// Always prefer the first editor in the diff editor case
+			if (customEditors.length > 0) {
+				return {
+					override: (async () => {
+						const newModified = this.customEditorService.createInput(resource, customEditors[0].id, group);
+						const input = new DiffEditorInput(editor.getName(), editor.getDescription(), editor.originalInput, newModified);
+						return this.editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
+					})(),
+				};
+			}
+
+			return undefined;
 		}
 
 		const resource = editor.getResource();

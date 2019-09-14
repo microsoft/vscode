@@ -117,8 +117,8 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		FRAGMENT: 'vscode-fragment'
 	};
 
-	private readonly _onCallback: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onCallback: Event<URI> = this._onCallback.event;
+	private readonly _onCallback: Emitter<UriComponents> = this._register(new Emitter<UriComponents>());
+	readonly onCallback: Event<UriComponents> = this._onCallback.event;
 
 	create(options?: Partial<UriComponents>): URI {
 		const queryValues: Map<string, string> = new Map();
@@ -168,7 +168,7 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		const content = await streamToBuffer(result.stream);
 		if (content.byteLength > 0) {
 			try {
-				this._onCallback.fire(URI.revive(JSON.parse(content.toString())));
+				this._onCallback.fire(JSON.parse(content.toString()));
 			} catch (error) {
 				console.error(error);
 			}

@@ -413,7 +413,7 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 		this.titlebarHeight = isTitlebarHidden ? 0 : this.partLayoutInfo.titlebar.height / (isMacintosh || !menubarVisibility || menubarVisibility === 'hidden' ? getZoomFactor() : 1); // adjust for zoom prevention
 
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
-		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
+		let sidebarSize = { width: this.sidebarWidth, height: this.sidebarHeight };
 
 		// Activity Bar
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
@@ -463,7 +463,7 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 
 		this.storageService.store(WorkbenchLegacyLayout.panelSizeBeforeMaximizedKey, this.panelSizeBeforeMaximized, StorageScope.GLOBAL);
 
-		const panelDimension = new Dimension(panelWidth, panelHeight);
+		const panelDimension = { width: panelWidth, height: panelHeight };
 
 		// Editor
 		let editorSize = {
