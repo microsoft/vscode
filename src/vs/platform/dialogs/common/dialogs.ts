@@ -239,7 +239,7 @@ export interface IFileDialogService {
 }
 
 const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, resourcesToConfirm: URI[]): string {
+export function getConfirmMessage(start: string, resourcesToConfirm: readonly URI[]): string {
 	const message = [start];
 	message.push('');
 	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r)));

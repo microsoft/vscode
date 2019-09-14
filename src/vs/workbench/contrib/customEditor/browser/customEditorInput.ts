@@ -7,14 +7,16 @@ import { memoize } from 'vs/base/common/decorators';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { WebviewEditorState } from 'vs/editor/common/modes';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { ConfirmResult, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { WebviewEditorState } from 'vs/editor/common/modes';
+import { promptSave } from 'vs/workbench/services/textfile/common/textFileService';
 
 export class CustomFileEditorInput extends WebviewInput {
 
@@ -30,12 +32,10 @@ export class CustomFileEditorInput extends WebviewInput {
 		viewType: string,
 		id: string,
 		webview: UnownedDisposable<WebviewEditorOverlay>,
-		@ILabelService
-		private readonly labelService: ILabelService,
-		@IWebviewEditorService
-		private readonly _webviewEditorService: IWebviewEditorService,
-		@IExtensionService
-		private readonly _extensionService: IExtensionService
+		@ILabelService private readonly labelService: ILabelService,
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(id, viewType, '', undefined, webview);
 		this._editorResource = resource;
@@ -77,7 +77,7 @@ export class CustomFileEditorInput extends WebviewInput {
 		return this.labelService.getUriLabel(this.getResource());
 	}
 
-	getTitle(verbosity?: Verbosity): string {
+	public getTitle(verbosity?: Verbosity): string {
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				return this.shortTitle;
@@ -105,5 +105,17 @@ export class CustomFileEditorInput extends WebviewInput {
 
 	public isDirty() {
 		return this._state === WebviewEditorState.Dirty;
+	}
+
+	public async confirmSave(): Promise<ConfirmResult> {
+		if (!this.isDirty()) {
+			return ConfirmResult.DONT_SAVE;
+		}
+		return promptSave(this.dialogService, [this.getResource()]);
+	}
+
+	public async save(): Promise<boolean> {
+		// TODO
+		return true;
 	}
 }
