@@ -45,7 +45,6 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProvider, IW
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.fileService.registerProvider(TRUSTED_DOMAINS_SCHEMA, this);
@@ -56,9 +55,7 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProvider, IW
 	}
 
 	readFile(resource: URI): Promise<Uint8Array> {
-		let trustedDomains: string[] = this.productService.linkProtectionTrustedDomains
-			? [...this.productService.linkProtectionTrustedDomains]
-			: [];
+		let trustedDomains: string[] = [];
 
 		try {
 			const trustedDomainsSrc = this.storageService.get('http.linkProtectionTrustedDomains', StorageScope.GLOBAL);

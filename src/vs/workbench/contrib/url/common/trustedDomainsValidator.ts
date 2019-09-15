@@ -89,7 +89,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 	}
 }
 
-function readTrustedDomains(storageService: IStorageService, productService: IProductService) {
+export function readTrustedDomains(storageService: IStorageService, productService: IProductService) {
 	let trustedDomains: string[] = productService.linkProtectionTrustedDomains
 		? [...productService.linkProtectionTrustedDomains]
 		: [];

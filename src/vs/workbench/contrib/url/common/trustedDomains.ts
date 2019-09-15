@@ -9,6 +9,9 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
+import { readTrustedDomains } from 'vs/workbench/contrib/url/common/trustedDomainsValidator';
+import { IProductService } from 'vs/platform/product/common/product';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
 
@@ -21,6 +24,38 @@ export const configureTrustedDomainSettingsCommand = {
 	handler: async (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
 		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, mode: 'jsonc' });
+		return;
+	}
+};
+
+export const toggleLinkProtection = {
+	id: 'workbench.action.toggleLinkProtection',
+	description: {
+		description: localize(
+			'trustedDomain.toggleLinkProtectionForTrustedDomains',
+			'Toggle Link Protection for Trusted Domains'
+		),
+		args: []
+	},
+	handler: async (accessor: ServicesAccessor) => {
+		const storageService = accessor.get(IStorageService);
+		const notificationService = accessor.get(INotificationService);
+		const trustedDomains = readTrustedDomains(storageService, accessor.get(IProductService));
+		if (trustedDomains.indexOf('*') === -1) {
+			storageService.store(
+				'http.linkProtectionTrustedDomains',
+				JSON.stringify(trustedDomains.concat(['*'])),
+				StorageScope.GLOBAL
+			);
+			notificationService.info(localize('trustedDomain.linkProtectionDisabled', 'Link Protection disabled'));
+		} else {
+			storageService.store(
+				'http.linkProtectionTrustedDomains',
+				JSON.stringify(trustedDomains.filter(x => x !== '*')),
+				StorageScope.GLOBAL
+			);
+			notificationService.info(localize('trustedDomain.linkProtectionEnabled', 'Link Protection enabled'));
+		}
 		return;
 	}
 };
@@ -50,9 +85,12 @@ export async function configureOpenerTrustedDomainsHandler(
 		id: 'configure'
 	};
 
-	const pickedResult = await quickInputService.pick([openAllLinksItem, trustDomainAndOpenLinkItem, configureTrustedDomainItem], {
-		activeItem: trustDomainAndOpenLinkItem
-	});
+	const pickedResult = await quickInputService.pick(
+		[openAllLinksItem, trustDomainAndOpenLinkItem, configureTrustedDomainItem],
+		{
+			activeItem: trustDomainAndOpenLinkItem
+		}
+	);
 
 	if (pickedResult) {
 		if (pickedResult.id === 'configure') {
