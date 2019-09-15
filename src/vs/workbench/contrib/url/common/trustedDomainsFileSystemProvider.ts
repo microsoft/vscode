@@ -18,9 +18,9 @@ import {
 	IStat,
 	IWatchOptions
 } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/product';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 const TRUSTED_DOMAINS_SCHEMA = 'trustedDomains';
 
@@ -66,7 +66,8 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProvider, IW
 
 		const trustedDomainsContent = CONFIG_HELP_TEXT + JSON.stringify(trustedDomains, null, 2);
 
-		const buffer = Buffer.from(trustedDomainsContent, 'utf-8');
+
+		const buffer = VSBuffer.fromString(trustedDomainsContent).buffer;
 		return Promise.resolve(buffer);
 	}
 
