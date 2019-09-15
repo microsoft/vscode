@@ -400,7 +400,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private registerGlobalActivityActions(): void {
 		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates({ windowId: this.environmentService.configuration.windowId }));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_update',
+			group: '6_update',
 			command: {
 				id: 'update.check',
 				title: nls.localize('checkForUpdates', "Check for Updates...")
@@ -410,7 +410,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		CommandsRegistry.registerCommand('update.checking', () => { });
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_update',
+			group: '6_update',
 			command: {
 				id: 'update.checking',
 				title: nls.localize('checkingForUpdates', "Checking for Updates..."),
@@ -421,7 +421,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_update',
+			group: '6_update',
 			command: {
 				id: 'update.downloadNow',
 				title: nls.localize('download update', "Download Update")
@@ -431,7 +431,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		CommandsRegistry.registerCommand('update.downloading', () => { });
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_update',
+			group: '6_update',
 			command: {
 				id: 'update.downloading',
 				title: nls.localize('DownloadingUpdate', "Downloading Update..."),
@@ -442,7 +442,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_update',
+			group: '6_update',
 			command: {
 				id: 'update.install',
 				title: nls.localize('installUpdate...', "Install Update...")
@@ -452,7 +452,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		CommandsRegistry.registerCommand('update.updating', () => { });
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_update',
+			group: '6_update',
 			command: {
 				id: 'update.updating',
 				title: nls.localize('installingUpdate', "Installing Update..."),
@@ -463,7 +463,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_update',
+			group: '6_update',
 			command: {
 				id: 'update.restart',
 				title: nls.localize('restartToUpdate', "Restart to Update")
