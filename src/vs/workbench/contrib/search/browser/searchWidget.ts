@@ -34,6 +34,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -75,6 +76,8 @@ class ReplaceAllAction extends Action {
 		return Promise.resolve(null);
 	}
 }
+
+const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 
 export class SearchWidget extends Widget {
 
@@ -446,6 +449,11 @@ export class SearchWidget extends Widget {
 	}
 
 	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
+			this.searchInput.inputBox.insertAtCursor('\n');
+			keyboardEvent.preventDefault();
+		}
+
 		if (keyboardEvent.equals(KeyCode.Enter)) {
 			this.submitSearch();
 			keyboardEvent.preventDefault();
@@ -503,6 +511,11 @@ export class SearchWidget extends Widget {
 	}
 
 	private onReplaceInputKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
+			this.searchInput.inputBox.insertAtCursor('\n');
+			keyboardEvent.preventDefault();
+		}
+
 		if (keyboardEvent.equals(KeyCode.Enter)) {
 			this.submitSearch();
 			keyboardEvent.preventDefault();

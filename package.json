@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.39.0",
-  "distro": "cb09cfe757e21433d881c094f41fa24e0545d05d",
+  "distro": "bb5d0e1cef8b8321ebe0f7a208cf1d70720c1dec",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -38,7 +38,7 @@
     "keytar": "^4.11.0",
     "native-is-elevated": "0.3.0",
     "native-keymap": "2.0.0",
-    "native-watchdog": "1.0.0",
+    "native-watchdog": "1.2.0",
     "node-pty": "0.9.0-beta19",
     "nsfw": "1.2.5",
     "onigasm-umd": "^2.2.2",
@@ -97,7 +97,7 @@
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
-    "gulp-tsb": "4.0.2",
+    "gulp-tsb": "4.0.4",
     "gulp-tslint": "^8.1.3",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
@@ -136,6 +136,7 @@
     "vscode-debugprotocol": "1.36.0",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^4.16.5",
+    "webpack-cli": "^3.3.8",
     "webpack-stream": "^5.1.1"
   },
   "repository": {

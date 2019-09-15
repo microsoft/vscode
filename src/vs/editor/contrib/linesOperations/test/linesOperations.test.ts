@@ -928,6 +928,28 @@ suite('Editor Contrib - Line Operations', () => {
 		model.dispose();
 	});
 
+	test('issue #80736: Indenting while the cursor is at the start of a line of text causes the added spaces or tab to be selected', () => {
+		const model = createTextModel(
+			[
+				'Some text'
+			].join('\n'),
+			{
+				insertSpaces: false,
+			}
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor) => {
+			const indentLinesAction = new IndentLinesAction();
+			editor.setPosition(new Position(1, 1));
+
+			indentLinesAction.run(null!, editor);
+			assert.equal(model.getLineContent(1), '\tSome text');
+			assert.deepEqual(editor.getSelection(), new Selection(1, 2, 1, 2));
+		});
+
+		model.dispose();
+	});
+
 	test('issue #62112: Delete line does not work properly when multiple cursors are on line', () => {
 		const TEXT = [
 			'a',

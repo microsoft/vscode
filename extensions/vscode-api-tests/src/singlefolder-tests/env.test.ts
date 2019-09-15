@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { env, extensions, ExtensionKind } from 'vscode';
+import { env, extensions, ExtensionKind, UIKind } from 'vscode';
 
 suite('env-namespace', () => {
 
@@ -43,5 +43,10 @@ suite('env-namespace', () => {
 		} else {
 			assert.fail();
 		}
+	});
+
+	test('env.uiKind', function () {
+		const kind = env.uiKind;
+		assert.equal(kind, UIKind.Desktop);
 	});
 });

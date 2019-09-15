@@ -578,26 +578,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		if (resourcesToConfirm.length === 0) {
 			return ConfirmResult.DONT_SAVE;
 		}
-
-		const message = resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", basename(resourcesToConfirm[0]))
-			: getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length), resourcesToConfirm);
-
-		const buttons: string[] = [
-			resourcesToConfirm.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-			nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
-			nls.localize('cancel', "Cancel")
-		];
-
-		const index = await this.dialogService.show(Severity.Warning, message, buttons, {
-			cancelId: 2,
-			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
-		});
-
-		switch (index) {
-			case 0: return ConfirmResult.SAVE;
-			case 1: return ConfirmResult.DONT_SAVE;
-			default: return ConfirmResult.CANCEL;
-		}
+		return promptSave(this.dialogService, resourcesToConfirm);
 	}
 
 	async confirmOverwrite(resource: URI): Promise<boolean> {
@@ -1062,3 +1043,27 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		super.dispose();
 	}
 }
+
+export async function promptSave(dialogService: IDialogService, resourcesToConfirm: readonly URI[]) {
+	const message = resourcesToConfirm.length === 1
+		? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", basename(resourcesToConfirm[0]))
+		: getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length), resourcesToConfirm);
+
+	const buttons: string[] = [
+		resourcesToConfirm.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+		nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+		nls.localize('cancel', "Cancel")
+	];
+
+	const { choice } = await dialogService.show(Severity.Warning, message, buttons, {
+		cancelId: 2,
+		detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
+	});
+
+	switch (choice) {
+		case 0: return ConfirmResult.SAVE;
+		case 1: return ConfirmResult.DONT_SAVE;
+		default: return ConfirmResult.CANCEL;
+	}
+}
+

@@ -13,7 +13,8 @@ import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProductService, IProductConfiguration } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/product';
+import product from 'vs/platform/product/browser/product';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -131,11 +132,17 @@ class CodeRendererMain extends Disposable {
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Product
-		const productService = this.createProductService();
+		const productService = {
+			_serviceBrand: undefined,
+			...{
+				...product,				// dev or built time config
+				...{ urlProtocol: '' }	// web related overrides from us
+			}
+		};
 		serviceCollection.set(IProductService, productService);
 
 		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(this.configuration.resourceUriProvider);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
@@ -218,18 +225,6 @@ class CodeRendererMain extends Disposable {
 			this.configuration.userDataProvider = this._register(new InMemoryFileSystemProvider());
 		}
 		fileService.registerProvider(Schemas.userData, this.configuration.userDataProvider);
-	}
-
-	private createProductService(): IProductService {
-		const productConfiguration = {
-			...this.configuration.productConfiguration ? this.configuration.productConfiguration : {
-				version: '1.38.0-unknown',
-				nameLong: 'Unknown',
-				extensionAllowedProposedApi: [],
-			}, ...{ urlProtocol: '' }
-		} as IProductConfiguration;
-
-		return { _serviceBrand: undefined, ...productConfiguration };
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {

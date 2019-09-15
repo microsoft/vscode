@@ -77,6 +77,7 @@ import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
 import 'vs/workbench/services/userData/common/userDataSyncStoreService';
 import 'vs/workbench/services/userData/common/userDataSyncService';
+import 'vs/workbench/services/workspace/browser/workspaceEditingService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -159,6 +160,7 @@ import 'vs/workbench/contrib/scm/browser/scmViewlet';
 import 'vs/workbench/contrib/debug/browser/debug.contribution';
 import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
+import 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import 'vs/workbench/contrib/debug/browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
 
@@ -220,6 +222,9 @@ import 'vs/workbench/contrib/format/browser/format.contribution';
 
 // Themes
 import 'vs/workbench/contrib/themes/browser/themes.contribution';
+
+// Update
+import 'vs/workbench/contrib/update/browser/update.contribution';
 
 // Watermark
 import 'vs/workbench/contrib/watermark/browser/watermark';

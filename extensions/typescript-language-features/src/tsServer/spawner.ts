@@ -108,19 +108,17 @@ export class TypeScriptServerSpawner {
 			args.push('--syntaxOnly');
 		}
 
-		if (apiVersion.gte(API.v206)) {
-			if (apiVersion.gte(API.v250)) {
-				args.push('--useInferredProjectPerProjectRoot');
-			} else {
-				args.push('--useSingleInferredProject');
-			}
-
-			if (configuration.disableAutomaticTypeAcquisition || kind === 'syntax') {
-				args.push('--disableAutomaticTypingAcquisition');
-			}
+		if (apiVersion.gte(API.v250)) {
+			args.push('--useInferredProjectPerProjectRoot');
+		} else {
+			args.push('--useSingleInferredProject');
 		}
 
-		if (apiVersion.gte(API.v208) && kind !== 'syntax') {
+		if (configuration.disableAutomaticTypeAcquisition || kind === 'syntax') {
+			args.push('--disableAutomaticTypingAcquisition');
+		}
+
+		if (kind !== 'syntax') {
 			args.push('--enableTelemetry');
 		}
 

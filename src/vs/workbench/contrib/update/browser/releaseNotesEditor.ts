@@ -18,10 +18,10 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
+import { IProductService } from 'vs/platform/product/common/product';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -32,7 +32,7 @@ export class ReleaseNotesManager {
 
 	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
 
-	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
+	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastText: string | undefined;
 
 	public constructor(
@@ -45,7 +45,8 @@ export class ReleaseNotesManager {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		TokenizationRegistry.onDidChange(async () => {
 			if (!this._currentReleaseNotes || !this._lastText) {
@@ -161,9 +162,20 @@ export class ReleaseNotesManager {
 	}
 
 	private onDidClickLink(uri: URI) {
-		addGAParameters(this._telemetryService, this._environmentService, uri, 'ReleaseNotes')
+		this.addGAParameters(uri, 'ReleaseNotes')
 			.then(updated => this._openerService.open(updated))
 			.then(undefined, onUnexpectedError);
+	}
+
+	private async  addGAParameters(uri: URI, origin: string, experiment = '1'): Promise<URI> {
+		if (this._environmentService.isBuilt && !this._environmentService.isExtensionDevelopment && !this._environmentService.args['disable-telemetry'] && !!this._productService.enableTelemetry) {
+			if (uri.scheme === 'https' && uri.authority === 'code.visualstudio.com') {
+				const info = await this._telemetryService.getTelemetryInfo();
+
+				return uri.with({ query: `${uri.query ? uri.query + '&' : ''}utm_source=VsCode&utm_medium=${encodeURIComponent(origin)}&utm_campaign=${encodeURIComponent(info.instanceId)}&utm_content=${encodeURIComponent(experiment)}` });
+			}
+		}
+		return uri;
 	}
 
 	private async renderBody(text: string) {
