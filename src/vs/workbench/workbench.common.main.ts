@@ -229,6 +229,10 @@ import 'vs/workbench/contrib/update/browser/update.contribution';
 // Watermark
 import 'vs/workbench/contrib/watermark/browser/watermark';
 
+// Surveys
+import 'vs/workbench/contrib/surveys/browser/nps.contribution';
+import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
+
 // Welcome
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';

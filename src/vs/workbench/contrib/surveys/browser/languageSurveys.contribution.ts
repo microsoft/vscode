@@ -10,14 +10,13 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import pkg from 'vs/platform/product/node/package';
-import product from 'vs/platform/product/node/product';
-import { ISurveyData } from 'vs/platform/product/common/product';
+import { ISurveyData, IProductService } from 'vs/platform/product/common/product';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { platform } from 'vs/base/common/process';
 
 class LanguageSurvey {
 
@@ -28,7 +27,8 @@ class LanguageSurvey {
 		telemetryService: ITelemetryService,
 		modelService: IModelService,
 		textFileService: ITextFileService,
-		openerService: IOpenerService
+		openerService: IOpenerService,
+		productService: IProductService
 	) {
 		const SESSION_COUNT_KEY = `${data.surveyId}.sessionCount`;
 		const LAST_SESSION_DATE_KEY = `${data.surveyId}.lastSessionDate`;
@@ -82,7 +82,7 @@ class LanguageSurvey {
 		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL);
 
 		if (!isCandidate) {
-			storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+			storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
 			return;
 		}
 
@@ -97,9 +97,9 @@ class LanguageSurvey {
 				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/takeShortSurvey`);
 					telemetryService.getTelemetryInfo().then(info => {
-						openerService.open(URI.parse(`${data.surveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`));
+						openerService.open(URI.parse(`${data.surveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(productService.version)}&m=${encodeURIComponent(info.machineId)}`));
 						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
-						storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
 					});
 				}
 			}, {
@@ -114,7 +114,7 @@ class LanguageSurvey {
 				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/dontShowAgain`);
 					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
-					storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
 				}
 			}],
 			{ sticky: true }
@@ -130,15 +130,20 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IModelService modelService: IModelService,
 		@ITextFileService textFileService: ITextFileService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IProductService productService: IProductService
 	) {
-		product.surveys!
+		if (!productService.surveys) {
+			return;
+		}
+
+		productService.surveys
 			.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability)
-			.map(surveyData => new LanguageSurvey(surveyData, storageService, notificationService, telemetryService, modelService, textFileService, openerService));
+			.map(surveyData => new LanguageSurvey(surveyData, storageService, notificationService, telemetryService, modelService, textFileService, openerService, productService));
 	}
 }
 
-if (language === 'en' && product.surveys && product.surveys.length) {
+if (language === 'en') {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Restored);
 }

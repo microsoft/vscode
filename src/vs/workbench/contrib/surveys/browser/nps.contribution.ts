@@ -9,12 +9,12 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import pkg from 'vs/platform/product/node/package';
-import product from 'vs/platform/product/node/product';
+import { IProductService } from 'vs/platform/product/common/product';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { platform } from 'vs/base/common/process';
 
 const PROBABILITY = 0.15;
 const SESSION_COUNT_KEY = 'nps/sessionCount';
@@ -28,8 +28,13 @@ class NPSContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IProductService productService: IProductService
 	) {
+		if (!productService.npsSurveyUrl) {
+			return;
+		}
+
 		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
 		if (skipVersion) {
 			return;
@@ -56,7 +61,7 @@ class NPSContribution implements IWorkbenchContribution {
 		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL);
 
 		if (!isCandidate) {
-			storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+			storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
 			return;
 		}
 
@@ -67,9 +72,9 @@ class NPSContribution implements IWorkbenchContribution {
 				label: nls.localize('takeSurvey', "Take Survey"),
 				run: () => {
 					telemetryService.getTelemetryInfo().then(info => {
-						openerService.open(URI.parse(`${product.npsSurveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`));
+						openerService.open(URI.parse(`${productService.npsSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(productService.version)}&m=${encodeURIComponent(info.machineId)}`));
 						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
-						storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
 					});
 				}
 			}, {
@@ -79,7 +84,7 @@ class NPSContribution implements IWorkbenchContribution {
 				label: nls.localize('neverAgain', "Don't Show Again"),
 				run: () => {
 					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
-					storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
 				}
 			}],
 			{ sticky: true }
@@ -87,7 +92,7 @@ class NPSContribution implements IWorkbenchContribution {
 	}
 }
 
-if (language === 'en' && product.npsSurveyUrl) {
+if (language === 'en') {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 	workbenchRegistry.registerWorkbenchContribution(NPSContribution, LifecyclePhase.Restored);
 }

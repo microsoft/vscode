@@ -121,10 +121,6 @@ import 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 // Update
 import 'vs/workbench/contrib/update/electron-browser/update.contribution';
 
-// Surveys
-import 'vs/workbench/contrib/surveys/electron-browser/nps.contribution';
-import 'vs/workbench/contrib/surveys/electron-browser/languageSurveys.contribution';
-
 // Performance
 import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
 
