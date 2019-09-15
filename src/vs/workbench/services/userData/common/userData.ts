@@ -12,52 +12,52 @@ export interface IUserData {
 	content: string;
 }
 
-export enum RemoteUserDataErrorCode {
+export enum UserDataSyncStoreErrorCode {
 	Rejected = 'Rejected',
 	Unknown = 'Unknown'
 }
 
-export function markAsUserDataError(error: Error, code: RemoteUserDataErrorCode): Error {
-	error.name = code ? `${code} (UserDataError)` : `UserDataError`;
+export function markAsUserDataSyncStoreError(error: Error, code: UserDataSyncStoreErrorCode): Error {
+	error.name = code ? `${code} (UserDataSyncStoreError)` : `UserDataSyncStoreError`;
 
 	return error;
 }
 
-export function toUserDataErrorCode(error: Error | undefined | null): RemoteUserDataErrorCode {
+export function toUserDataSyncStoreErrorCode(error: Error | undefined | null): UserDataSyncStoreErrorCode {
 
 	// Guard against abuse
 	if (!error) {
-		return RemoteUserDataErrorCode.Unknown;
+		return UserDataSyncStoreErrorCode.Unknown;
 	}
 
 	// FileSystemProviderError comes with the code
-	if (error instanceof RemoteUserDataError) {
+	if (error instanceof UserDataSyncStoreError) {
 		return error.code;
 	}
 
 	// Any other error, check for name match by assuming that the error
-	// went through the markAsFileSystemProviderError() method
-	const match = /^(.+) \(UserDataError\)$/.exec(error.name);
+	// went through the markAsUserDataSyncStoreError() method
+	const match = /^(.+) \(UserDataSyncStoreError\)$/.exec(error.name);
 	if (!match) {
-		return RemoteUserDataErrorCode.Unknown;
+		return UserDataSyncStoreErrorCode.Unknown;
 	}
 
 	switch (match[1]) {
-		case RemoteUserDataErrorCode.Rejected: return RemoteUserDataErrorCode.Rejected;
+		case UserDataSyncStoreErrorCode.Rejected: return UserDataSyncStoreErrorCode.Rejected;
 	}
 
-	return RemoteUserDataErrorCode.Unknown;
+	return UserDataSyncStoreErrorCode.Unknown;
 }
 
-export class RemoteUserDataError extends Error {
+export class UserDataSyncStoreError extends Error {
 
-	constructor(message: string, public readonly code: RemoteUserDataErrorCode) {
+	constructor(message: string, public readonly code: UserDataSyncStoreErrorCode) {
 		super(message);
 	}
 
 }
 
-export interface IRemoteUserDataProvider {
+export interface IUserDataSyncStore {
 
 	read(key: string): Promise<IUserData | null>;
 
@@ -65,9 +65,9 @@ export interface IRemoteUserDataProvider {
 
 }
 
-export const IRemoteUserDataService = createDecorator<IRemoteUserDataService>('IRemoteUserDataService');
+export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 
-export interface IRemoteUserDataService {
+export interface IUserDataSyncStoreService {
 
 	_serviceBrand: undefined;
 
@@ -75,9 +75,9 @@ export interface IRemoteUserDataService {
 
 	isEnabled(): boolean;
 
-	registerRemoteUserDataProvider(name: string, remoteUserDataProvider: IRemoteUserDataProvider): void;
+	registerUserDataSyncStore(name: string, userDataSyncStore: IUserDataSyncStore): void;
 
-	deregisterRemoteUserDataProvider(): void;
+	deregisterUserDataSyncStore(): void;
 
 	getName(): string | null;
 

@@ -6,7 +6,7 @@
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MainContext, ExtHostContext, IExtHostContext, MainThreadUserDataShape, ExtHostUserDataShape } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IRemoteUserDataService, IUserData } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncStoreService, IUserData } from 'vs/workbench/services/userData/common/userData';
 
 @extHostNamedCustomer(MainContext.MainThreadUserData)
 export class MainThreadUserData extends Disposable implements MainThreadUserDataShape {
@@ -15,16 +15,16 @@ export class MainThreadUserData extends Disposable implements MainThreadUserData
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IRemoteUserDataService private readonly remoteUserDataService: IRemoteUserDataService
+		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService
 	) {
 		super();
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostUserData);
-		this._register(toDisposable(() => this.remoteUserDataService.deregisterRemoteUserDataProvider()));
+		this._register(toDisposable(() => this.userDataSyncStoreService.deregisterUserDataSyncStore()));
 	}
 
 	$registerUserDataProvider(name: string): void {
 		const proxy = this.proxy;
-		this.remoteUserDataService.registerRemoteUserDataProvider(name, {
+		this.userDataSyncStoreService.registerUserDataSyncStore(name, {
 			read(key: string): Promise<IUserData | null> {
 				return proxy.$read(key);
 			},
@@ -35,7 +35,7 @@ export class MainThreadUserData extends Disposable implements MainThreadUserData
 	}
 
 	$deregisterUserDataProvider(): void {
-		this.remoteUserDataService.deregisterRemoteUserDataProvider();
+		this.userDataSyncStoreService.deregisterUserDataSyncStore();
 	}
 
 }

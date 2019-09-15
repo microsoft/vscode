@@ -1020,7 +1020,7 @@ declare module 'vscode' {
 
 	export namespace window {
 
-		export function registerUserDataProvider(name: string, userDataProvider: UserDataProvider): Disposable;
+		export function registerUserDataSyncProvider(name: string, userDataProvider: UserDataSyncProvider): Disposable;
 
 	}
 
@@ -1034,7 +1034,7 @@ declare module 'vscode' {
 		constructor();
 	}
 
-	export interface UserDataProvider {
+	export interface UserDataSyncProvider {
 
 		read(key: string): Promise<{ content: string, ref: string } | null>;
 

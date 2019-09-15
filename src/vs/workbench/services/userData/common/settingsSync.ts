@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IRemoteUserDataService, IUserData, RemoteUserDataError, RemoteUserDataErrorCode, ISynchroniser, SyncStatus, SETTINGS_PREVIEW_RESOURCE } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncStoreService, IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, SETTINGS_PREVIEW_RESOURCE } from 'vs/workbench/services/userData/common/userData';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, findNodeAtLocation, parseTree, ParseError } from 'vs/base/common/json';
 import { ITextModel } from 'vs/editor/common/model';
@@ -54,7 +54,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		@IFileService private readonly fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IRemoteUserDataService private readonly remoteUserDataService: IRemoteUserDataService,
+		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -107,7 +107,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
 			this.setStatus(SyncStatus.Idle);
-			if (e instanceof RemoteUserDataError && e.code === RemoteUserDataErrorCode.Rejected) {
+			if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Rejected) {
 				// Rejected as there is a new remote version. Syncing again,
 				this.logService.info('Failed to Synchronise settings as there is a new remote version available. Synchronising again...');
 				return this.sync();
@@ -193,7 +193,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	private async generatePreview(): Promise<ISyncPreviewResult> {
-		const remoteUserData = await this.remoteUserDataService.read(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY);
+		const remoteUserData = await this.userDataSyncStoreService.read(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY);
 		// Get file content last to get the latest
 		const fileContent = await this.getLocalFileContent();
 		const { settingsPreview, hasLocalChanged, hasRemoteChanged, hasConflicts } = this.computeChanges(fileContent, remoteUserData);
@@ -433,7 +433,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	private async writeToRemote(content: string, ref: string | null): Promise<string> {
-		return this.remoteUserDataService.write(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY, content, ref);
+		return this.userDataSyncStoreService.write(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY, content, ref);
 	}
 
 	private async writeToLocal(newContent: string, oldContent: IFileContent | null): Promise<void> {

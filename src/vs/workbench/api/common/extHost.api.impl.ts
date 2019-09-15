@@ -542,7 +542,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createInputBox(): vscode.InputBox {
 				return extHostQuickOpen.createInputBox(extension.identifier);
 			},
-			registerUserDataProvider: (identity: string, userDataProvider: vscode.UserDataProvider): vscode.Disposable => {
+			registerUserDataSyncProvider: (identity: string, userDataProvider: vscode.UserDataSyncProvider): vscode.Disposable => {
 				checkProposedApiEnabled(extension);
 				return extHostUserData.registerUserDataProvider(identity, userDataProvider);
 			}

@@ -12,7 +12,7 @@ import { IUserData } from 'vs/workbench/services/userData/common/userData';
 export class ExtHostUserData implements ExtHostUserDataShape {
 
 	private name: string | null = null;
-	private userDataProvider: vscode.UserDataProvider | null = null;
+	private userDataProvider: vscode.UserDataSyncProvider | null = null;
 
 	constructor(
 		private readonly proxy: MainThreadUserDataShape,
@@ -20,7 +20,7 @@ export class ExtHostUserData implements ExtHostUserDataShape {
 	) {
 	}
 
-	registerUserDataProvider(name: string, userDataProvider: vscode.UserDataProvider): vscode.Disposable {
+	registerUserDataProvider(name: string, userDataProvider: vscode.UserDataSyncProvider): vscode.Disposable {
 		if (this.userDataProvider) {
 			this.logService.warn(`A user data provider '${this.name}' already exists hence ignoring the remote user data provider '${name}'.`);
 			return Disposable.None;
