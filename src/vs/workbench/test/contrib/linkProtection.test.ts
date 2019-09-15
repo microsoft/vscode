@@ -32,11 +32,11 @@ suite('Link protection domain matching', () => {
 
 	test('* star', () => {
 		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['https://*.x.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.b.x.org'), ['https://*.x.org']));
 		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['https://a.x.*']));
 		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['https://a.*.org']));
 		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['https://*.*.org']));
-
-		assert.ok(!isURLDomainTrusted(URI.parse('https://a.b.c.org'), ['https://*.*.org']));
-		assert.ok(isURLDomainTrusted(URI.parse('https://a.b.c.org'), ['https://*.*.*.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.b.x.org'), ['https://*.b.*.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.a.b.x.org'), ['https://*.b.*.org']));
 	});
 });

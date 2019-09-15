@@ -15,6 +15,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { configureOpenerTrustedDomainsHandler } from 'vs/workbench/contrib/url/common/trustedDomains';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 	constructor(
@@ -22,7 +23,8 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IProductService private readonly _productService: IProductService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
 	}
@@ -68,7 +70,8 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					trustedDomains,
 					domainToOpen,
 					this._quickInputService,
-					this._storageService
+					this._storageService,
+					this._editorService
 				);
 				// Trust all domains
 				if (pickedDomains.indexOf('*') !== -1) {
@@ -114,7 +117,7 @@ function isLocalhostAuthority(authority: string) {
  *
  * - Schemes must match
  * - There's no subdomain matching. For example https://microsoft.com doesn't match https://www.microsoft.com
- * - Star matches all. For example https://*.microsoft.com matches https://www.microsoft.com
+ * - Star matches all subdomains. For example https://*.microsoft.com matches https://www.microsoft.com and https://foo.bar.microsoft.com
  */
 export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 	if (isLocalhostAuthority(url.authority)) {
@@ -135,17 +138,21 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 		if (trustedDomains[i].indexOf('*') !== -1) {
 			const parsedTrustedDomain = URI.parse(trustedDomains[i]);
 			if (url.scheme === parsedTrustedDomain.scheme) {
-				const authoritySegments = url.authority.split('.');
-				const trustedDomainAuthoritySegments = parsedTrustedDomain.authority.split('.');
+				let reversedAuthoritySegments = url.authority.split('.').reverse();
+				const reversedTrustedDomainAuthoritySegments = parsedTrustedDomain.authority.split('.').reverse();
+				if (
+					reversedTrustedDomainAuthoritySegments.length < reversedAuthoritySegments.length &&
+					reversedTrustedDomainAuthoritySegments[reversedTrustedDomainAuthoritySegments.length - 1] === '*'
+				) {
+					reversedAuthoritySegments = reversedAuthoritySegments.slice(0, reversedTrustedDomainAuthoritySegments.length);
+				}
 
-				if (authoritySegments.length === trustedDomainAuthoritySegments.length) {
-					if (
-						authoritySegments.every(
-							(val, i) => trustedDomainAuthoritySegments[i] === '*' || val === trustedDomainAuthoritySegments[i]
-						)
-					) {
-						return true;
-					}
+				if (
+					reversedAuthoritySegments.every((val, i) => {
+						return reversedTrustedDomainAuthoritySegments[i] === '*' || val === reversedTrustedDomainAuthoritySegments[i];
+					})
+				) {
+					return true;
 				}
 			}
 		}

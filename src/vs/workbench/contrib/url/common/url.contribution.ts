@@ -16,6 +16,7 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { configureTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/common/trustedDomains';
 import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/common/trustedDomainsValidator';
+import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/common/trustedDomainsFileSystemProvider';
 
 export class OpenUrlAction extends Action {
 	static readonly ID = 'workbench.action.url.openUrl';
@@ -60,4 +61,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	OpenerValidatorContributions,
 	LifecyclePhase.Restored
 );
-
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	TrustedDomainsFileSystemProvider,
+	LifecyclePhase.Ready
+);
