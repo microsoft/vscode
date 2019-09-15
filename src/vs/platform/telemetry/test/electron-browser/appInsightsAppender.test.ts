@@ -24,7 +24,7 @@ class AppInsightsMock implements ITelemetryClient {
 }
 
 class TestableLogService extends AbstractLogService implements ILogService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	public logs: string[] = [];
 

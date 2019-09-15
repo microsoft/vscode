@@ -48,11 +48,13 @@
 	cursor: text;
 }
 
-.repl .repl-tree .output.expression > .value {
+.repl .repl-tree .output.expression > .value,
+.repl .repl-tree .evaluation-result.expression > .value {
 	margin-left: 0px;
 }
 
-.repl .repl-tree .output.expression > .annotation {
+.repl .repl-tree .output.expression > .annotation,
+.repl .repl-tree .evaluation-result.expression > .annotation {
 	font-size: inherit;
 	padding-left: 6px;
 }
@@ -67,7 +69,7 @@
 }
 
 /* Only show 'stale expansion' info when the element gets expanded. */
-.repl .repl-tree .input-output-pair > .output > .annotation::before  {
+.repl .repl-tree .evaluation-result > .annotation::before  {
 	content: '';
 }
 
@@ -132,9 +134,3 @@
 .monaco-workbench .repl .repl-tree .output.expression .code-bold	{ font-weight: bold; }
 .monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
 .monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline; }
-
-/* Links */
-.monaco-workbench .repl .repl-tree .output.expression a {
-	text-decoration: underline;
-	cursor: pointer;
-}

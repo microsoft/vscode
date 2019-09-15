@@ -21,7 +21,7 @@ export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
 	private viewModel: INotificationViewItem[];
-	private isVisible: boolean;
+	private isVisible: boolean | undefined;
 
 	constructor(
 		private container: HTMLElement,
@@ -72,6 +72,7 @@ export class NotificationsList extends Themable {
 		// List
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList,
+			'NotificationsList',
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],

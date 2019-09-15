@@ -350,6 +350,7 @@
 		"editorWhitespace.foreground": "#586E7580",
 		"editor.lineHighlightBackground": "#EEE8D5",
 		"editor.selectionBackground": "#EEE8D5",
+		"minimap.selectionHighlight": "#EEE8D5",
 		"editorIndentGuide.background": "#586E7580",
 		"editorIndentGuide.activeBackground": "#081E2580",
 		"editorHoverWidget.background": "#CCC4B0",

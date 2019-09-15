@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	_serviceBrand!: ServiceIdentifier<ILifecycleService>;
+	_serviceBrand: undefined;
 
 	constructor(
 		@ILogService readonly logService: ILogService

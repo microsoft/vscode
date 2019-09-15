@@ -18,7 +18,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 
 export class DarwinUpdateService extends AbstractUpdateService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private disposables: IDisposable[] = [];
 

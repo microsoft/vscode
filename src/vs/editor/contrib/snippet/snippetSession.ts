@@ -23,6 +23,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 registerThemingParticipant((theme, collector) => {
 
@@ -444,7 +445,7 @@ export class SnippetSession {
 
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
-				new ClipboardBasedVariableResolver(clipboardText, idx, indexedSelections.length),
+				new ClipboardBasedVariableResolver(clipboardText, idx, indexedSelections.length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
 				new SelectionBasedVariableResolver(model, selection),
 				new CommentBasedVariableResolver(model),
 				new TimeBasedVariableResolver,

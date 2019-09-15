@@ -15,7 +15,7 @@ import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTr
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './codeActionTrigger';
 import { TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 export interface CodeActionSet extends IDisposable {
 	readonly actions: readonly CodeAction[];
@@ -143,6 +143,6 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 		{ type: 'manual', filter: { includeSourceActions: true, kind: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
 		CancellationToken.None);
 
-	setTimeout(() => codeActionSet.dispose(), 0);
+	setTimeout(() => codeActionSet.dispose(), 100);
 	return codeActionSet.actions;
 });

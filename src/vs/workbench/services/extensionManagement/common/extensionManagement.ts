@@ -19,7 +19,7 @@ export interface IExtensionManagementServer {
 }
 
 export interface IExtensionManagementServerService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	readonly localExtensionManagementServer: IExtensionManagementServer | null;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer | null;
@@ -37,7 +37,7 @@ export const enum EnablementState {
 export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
 
 export interface IExtensionEnablementService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly allUserExtensionsDisabled: boolean;
 
@@ -97,7 +97,7 @@ export interface IExtensionRecommendation {
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; };
 	getFileBasedRecommendations(): IExtensionRecommendation[];
 	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;

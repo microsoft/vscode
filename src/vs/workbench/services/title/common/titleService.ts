@@ -14,7 +14,7 @@ export interface ITitleProperties {
 }
 
 export interface ITitleService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event when the menubar visibility changes.

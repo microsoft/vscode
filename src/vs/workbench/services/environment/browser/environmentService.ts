@@ -5,7 +5,6 @@
 
 import { IWindowConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 import { IExtensionHostDebugParams, IDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -69,7 +68,7 @@ interface IBrowserWorkbenchEnvironemntConstructionOptions extends IWorkbenchCons
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
 
-	_serviceBrand!: ServiceIdentifier<IWorkbenchEnvironmentService>;
+	_serviceBrand: undefined;
 
 	readonly configuration: IWindowConfiguration = new BrowserWindowConfiguration();
 
@@ -96,11 +95,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			break: false
 		};
 
-		this.webviewEndpoint = options.webviewEndpoint;
 		this.untitledWorkspacesHome = URI.from({ scheme: Schemas.untitled, path: 'Workspaces' });
 
 		if (document && document.location && document.location.search) {
-
 			const map = new Map<string, string>();
 			const query = document.location.search.substring(1);
 			const vars = query.split('&');
@@ -170,7 +167,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	verbose: boolean;
 	skipGettingStarted: boolean;
 	skipReleaseNotes: boolean;
-	skipAddToRecentlyOpened: boolean;
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
 	nodeCachedDataDir?: string;
@@ -179,16 +175,15 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	disableCrashReporter: boolean;
 	driverHandle?: string;
 	driverVerbose: boolean;
-	webviewEndpoint?: string;
 	galleryMachineIdResource?: URI;
 	readonly logFile: URI;
 
 	get webviewResourceRoot(): string {
-		return this.webviewEndpoint ? this.webviewEndpoint + '/vscode-resource{{resource}}' : 'vscode-resource:{{resource}}';
+		return this.options.webviewEndpoint ? `${this.options.webviewEndpoint}/vscode-resource{{resource}}` : 'vscode-resource:{{resource}}';
 	}
 
 	get webviewCspSource(): string {
-		return this.webviewEndpoint ? this.webviewEndpoint : 'vscode-resource:';
+		return this.options.webviewEndpoint ? this.options.webviewEndpoint : 'vscode-resource:';
 	}
 }
 

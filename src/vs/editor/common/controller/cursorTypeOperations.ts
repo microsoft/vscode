@@ -105,7 +105,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _distributePasteToCursors(selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] | null {
+	private static _distributePasteToCursors(config: CursorConfiguration, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] | null {
 		if (pasteOnNewLine) {
 			return null;
 		}
@@ -118,20 +118,27 @@ export class TypeOperations {
 			return multicursorText;
 		}
 
-		// Remove trailing \n if present
-		if (text.charCodeAt(text.length - 1) === CharCode.LineFeed) {
-			text = text.substr(0, text.length - 1);
-		}
-		let lines = text.split(/\r\n|\r|\n/);
-		if (lines.length === selections.length) {
-			return lines;
+		if (config.multiCursorPaste === 'spread') {
+			// Try to spread the pasted text in case the line count matches the cursor count
+			// Remove trailing \n if present
+			if (text.charCodeAt(text.length - 1) === CharCode.LineFeed) {
+				text = text.substr(0, text.length - 1);
+			}
+			// Remove trailing \r if present
+			if (text.charCodeAt(text.length - 1) === CharCode.CarriageReturn) {
+				text = text.substr(0, text.length - 1);
+			}
+			let lines = text.split(/\r\n|\r|\n/);
+			if (lines.length === selections.length) {
+				return lines;
+			}
 		}
 
 		return null;
 	}
 
 	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): EditOperationResult {
-		const distributedPaste = this._distributePasteToCursors(selections, text, pasteOnNewLine, multicursorText);
+		const distributedPaste = this._distributePasteToCursors(config, selections, text, pasteOnNewLine, multicursorText);
 
 		if (distributedPaste) {
 			selections = selections.sort(Range.compareRangesUsingStarts);
@@ -431,10 +438,8 @@ export class TypeOperations {
 		return null;
 	}
 
-	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): boolean {
-		const autoCloseConfig = isQuote(ch) ? config.autoClosingQuotes : config.autoClosingBrackets;
-
-		if (autoCloseConfig === 'never') {
+	private static _isAutoClosingOvertype(config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): boolean {
+		if (config.autoClosingOvertype === 'never') {
 			return false;
 		}
 
@@ -458,23 +463,25 @@ export class TypeOperations {
 			}
 
 			// Must over-type a closing character typed by the editor
-			let found = false;
-			for (let j = 0, lenJ = autoClosedCharacters.length; j < lenJ; j++) {
-				const autoClosedCharacter = autoClosedCharacters[j];
-				if (position.lineNumber === autoClosedCharacter.startLineNumber && position.column === autoClosedCharacter.startColumn) {
-					found = true;
-					break;
+			if (config.autoClosingOvertype === 'auto') {
+				let found = false;
+				for (let j = 0, lenJ = autoClosedCharacters.length; j < lenJ; j++) {
+					const autoClosedCharacter = autoClosedCharacters[j];
+					if (position.lineNumber === autoClosedCharacter.startLineNumber && position.column === autoClosedCharacter.startColumn) {
+						found = true;
+						break;
+					}
 				}
-			}
-			if (!found) {
-				return false;
+				if (!found) {
+					return false;
+				}
 			}
 		}
 
 		return true;
 	}
 
-	private static _runAutoClosingCloseCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
+	private static _runAutoClosingOvertype(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -765,7 +772,7 @@ export class TypeOperations {
 			return null;
 		}
 
-		if (this._isAutoClosingCloseCharType(config, model, selections, autoClosedCharacters, ch)) {
+		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
 			// Unfortunately, the close character is at this point "doubled", so we need to delete it...
 			const commands = selections.map(s => new ReplaceCommand(new Range(s.positionLineNumber, s.positionColumn, s.positionLineNumber, s.positionColumn + 1), '', false));
 			return new EditOperationResult(EditOperationType.Typing, commands, {
@@ -813,8 +820,8 @@ export class TypeOperations {
 			}
 		}
 
-		if (this._isAutoClosingCloseCharType(config, model, selections, autoClosedCharacters, ch)) {
-			return this._runAutoClosingCloseCharType(prevEditOperationType, config, model, selections, ch);
+		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
+			return this._runAutoClosingOvertype(prevEditOperationType, config, model, selections, ch);
 		}
 
 		const autoClosingPairOpenCharType = this._isAutoClosingOpenCharType(config, model, selections, ch, true);

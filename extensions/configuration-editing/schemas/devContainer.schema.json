@@ -129,6 +129,13 @@
 					"type": "string",
 					"description": "The service you want to work on."
 				},
+				"runServices": {
+					"type": "array",
+					"description": "An array of services that should be started and stopped.",
+					"items": {
+						"type": "string"
+					}
+				},
 				"workspaceFolder": {
 					"type": "string",
 					"description": "The path of the workspace folder inside the container."

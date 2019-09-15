@@ -13,17 +13,18 @@ import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
-import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/browser/webview';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
-import { WebviewFindWidget } from '../browser/webviewFindWidget';
+import { WebviewFindWidget, WebviewFindDelegate } from '../browser/webviewFindWidget';
 
 interface IKeydownEvent {
 	key: string;
@@ -219,7 +220,7 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
-export class ElectronWebviewBasedWebview extends Disposable implements Webview {
+export class ElectronWebviewBasedWebview extends Disposable implements Webview, WebviewFindDelegate {
 	private _webview: Electron.WebviewTag | undefined;
 	private _ready: Promise<void>;
 
@@ -376,12 +377,17 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 					return;
 			}
 		}));
+
 		this._register(addDisposableListener(this._webview, 'devtools-opened', () => {
 			this._send('devtools-opened');
 		}));
 
 		if (_options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+
+			this._register(addDisposableListener(this._webview, 'found-in-page', e => {
+				this._hasFindResult.fire(e.result.matches > 0);
+			}));
 		}
 
 		this.style(themeService.getTheme());
@@ -425,6 +431,9 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
+
+	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
+	public readonly onMissingCsp = this._onMissingCsp.event;
 
 	private _send(channel: string, data?: any): void {
 		this._ready
@@ -522,7 +531,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 
 		if (this._options.extension && this._options.extension.id) {
 			if (this._environementService.isExtensionDevelopment) {
-				console.warn(`${this._options.extension.id.value} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
+				this._onMissingCsp.fire(this._options.extension.id);
 			}
 
 			type TelemetryClassification = {
@@ -572,6 +581,9 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 		});
 	}
 
+	private readonly _hasFindResult = this._register(new Emitter<boolean>());
+	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
+
 	public startFind(value: string, options?: Electron.FindInPageOptions) {
 		if (!value || !this._webview) {
 			return;
@@ -619,6 +631,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview {
 	}
 
 	public stopFind(keepSelection?: boolean): void {
+		this._hasFindResult.fire(false);
 		if (!this._webview) {
 			return;
 		}

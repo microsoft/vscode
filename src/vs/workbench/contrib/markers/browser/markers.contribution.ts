@@ -118,6 +118,7 @@ registerAction({
 		group: 'navigation'
 	},
 	keybinding: {
+		weight: KeybindingWeight.WorkbenchContrib,
 		keys: {
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C
 		},
@@ -155,6 +156,7 @@ registerAction({
 	},
 	keybinding: {
 		when: Constants.MarkerPanelFilterFocusContextKey,
+		weight: KeybindingWeight.WorkbenchContrib,
 		keys: {
 			primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 		},
@@ -167,6 +169,7 @@ registerAction({
 	},
 	keybinding: {
 		when: Constants.MarkerPanelFocusContextKey,
+		weight: KeybindingWeight.WorkbenchContrib,
 		keys: {
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 		},

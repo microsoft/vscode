@@ -20,7 +20,7 @@ steps:
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
 - task: AzureKeyVault@1
@@ -87,15 +87,23 @@ steps:
 
 - script: |
     set -e
-    yarn gulp hygiene
+    yarn gulp hygiene --skip-tslint
+    yarn gulp tslint
     yarn monaco-compile-check
-  displayName: Run hygiene checks
+  displayName: Run hygiene, tslint and monaco compile checks
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -
     ./build/azure-pipelines/common/extract-telemetry.sh
   displayName: Extract Telemetry
+  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
+
+- script: |
+    set -e
+    AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
+    ./build/azure-pipelines/common/publish-webview.sh
+  displayName: Publish Webview
   condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
 
 - script: |

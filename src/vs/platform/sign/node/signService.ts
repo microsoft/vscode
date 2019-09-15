@@ -6,7 +6,7 @@
 import { ISignService } from 'vs/platform/sign/common/sign';
 
 export class SignService implements ISignService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private vsda(): Promise<typeof import('vsda')> {
 		return import('vsda');

@@ -21,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -60,6 +60,8 @@ enum Storage {
 	PANEL_SIZE = 'workbench.panel.size',
 	PANEL_SIZE_BEFORE_MAXIMIZED = 'workbench.panel.sizeBeforeMaximized',
 
+	EDITOR_HIDDEN = 'workbench.editor.hidden',
+
 	ZEN_MODE_ENABLED = 'workbench.zenmode.active',
 	CENTERED_LAYOUT_ENABLED = 'workbench.centerededitorlayout.active',
 
@@ -78,7 +80,7 @@ enum Classes {
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private readonly _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTitleBarVisibilityChange: Event<void> = this._onTitleBarVisibilityChange.event;
@@ -220,8 +222,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private registerLayoutListeners(): void {
 
 		// Restore editor if hidden and it changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.setEditorHidden(false)));
-		this._register(this.editorGroupService.onDidActivateGroup(() => this.setEditorHidden(false)));
+		const showEditorIfHidden = () => {
+			if (this.state.editor.hidden) {
+				this.toggleMaximizedPanel();
+			}
+		};
+
+
+		this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
+		this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
@@ -601,6 +610,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return offset;
 	}
 
+	getMaximumEditorDimensions(): Dimension {
+		const takenWidth =
+			(this.isVisible(Parts.ACTIVITYBAR_PART) ? this.activityBarPartView.minimumWidth : 0) +
+			(this.isVisible(Parts.SIDEBAR_PART) ? this.sideBarPartView.minimumWidth : 0) +
+			(this.isVisible(Parts.PANEL_PART) && this.state.panel.position === Position.RIGHT ? this.panelPartView.minimumWidth : 0);
+
+		const takenHeight =
+			(this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0) +
+			(this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0) +
+			(this.isVisible(Parts.PANEL_PART) && this.state.panel.position === Position.BOTTOM ? this.panelPartView.minimumHeight : 0);
+
+		const availableWidth = this.dimension.width - takenWidth;
+		const availableHeight = this.dimension.height - takenHeight;
+
+		return { width: availableWidth, height: availableHeight };
+	}
+
 	getWorkbenchContainer(): HTMLElement {
 		return this.parent;
 	}
@@ -617,7 +643,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
 			if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
 				const model = editor.getModel();
-				lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri });
+				lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getModeId() });
 			}
 			if (!lineNumbers) {
 				lineNumbers = this.configurationService.getValue('editor.lineNumbers');
@@ -769,16 +795,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
 
+		// View references for all parts
+		this.titleBarPartView = titleBar;
+		this.sideBarPartView = sideBar;
+		this.activityBarPartView = activityBar;
+		this.editorPartView = editorPart;
+		this.panelPartView = panelPart;
+		this.statusBarPartView = statusBar;
+
 		if (this.configurationService.getValue('workbench.useExperimentalGridLayout')) {
-
-			// View references for all parts
-			this.titleBarPartView = titleBar;
-			this.sideBarPartView = sideBar;
-			this.activityBarPartView = activityBar;
-			this.editorPartView = editorPart;
-			this.panelPartView = panelPart;
-			this.statusBarPartView = statusBar;
-
 			const viewMap = {
 				[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
 				[Parts.TITLEBAR_PART]: this.titleBarPartView,
@@ -985,6 +1010,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
+		// Remember in settings
+		if (hidden) {
+			this.storageService.store(Storage.EDITOR_HIDDEN, true, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE);
+		}
+
 		// The editor and panel cannot be hidden at the same time
 		if (hidden && this.state.panel.hidden) {
 			this.setPanelHidden(false, true);
@@ -1110,7 +1142,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (this.workbenchGrid instanceof Grid) {
 			const size = this.workbenchGrid.getViewSize(this.panelPartView);
 			if (!this.isPanelMaximized()) {
-				this.state.panel.sizeBeforeMaximize = this.state.panel.position === Position.BOTTOM ? size.height : size.width;
+				if (this.state.panel.hidden) {
+					this.state.panel.sizeBeforeMaximize = this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView) || this.panelPartView.minimumHeight;
+				} else {
+					this.state.panel.sizeBeforeMaximize = this.state.panel.position === Position.BOTTOM ? size.height : size.width;
+				}
+
 				this.storageService.store(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, this.state.panel.sizeBeforeMaximize, StorageScope.GLOBAL);
 				this.setEditorHidden(true);
 			} else {
@@ -1215,6 +1252,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// At some point, we will not fall back to old keys from legacy layout, but for now, let's migrate the keys
 		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, this.storageService.getNumber('workbench.sidebar.width', StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300))!);
 		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(this.state.panel.position === Position.BOTTOM ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, workbenchDimensions.height / 3));
+		const wasEditorHidden = this.storageService.getBoolean(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE, false);
 
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
@@ -1239,13 +1277,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const editorNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.EDITOR_PART },
-			size: this.state.panel.position === Position.BOTTOM ? middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) : editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize)
+			size: this.state.panel.position === Position.BOTTOM ? middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) : editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize),
+			visible: true
 		};
 
 		const panelNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.PANEL_PART },
-			size: panelSize,
+			size: wasEditorHidden ? this.state.panel.sizeBeforeMaximize : panelSize,
 			visible: !this.state.panel.hidden
 		};
 

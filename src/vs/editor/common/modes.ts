@@ -1402,6 +1402,15 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
+/**
+ * @internal
+ */
+export const enum WebviewEditorState {
+	Readonly = 1,
+	Unchanged = 2,
+	Dirty = 3,
+}
+
 export interface CodeLens {
 	range: IRange;
 	id?: string;

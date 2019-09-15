@@ -10,7 +10,7 @@ import { IExtHostDecorations, ExtHostDecorations } from 'vs/workbench/api/common
 import { IExtHostConfiguration, ExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { IExtHostCommands, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { IExtHostTerminalService, WorkerExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
@@ -48,7 +48,7 @@ function NotImplementedProxy<T>(name: ServiceIdentifier<T>): { new(): T } {
 		}
 	};
 }
-registerSingleton(IExtHostTerminalService, class extends NotImplementedProxy(IExtHostTerminalService) { });
+registerSingleton(IExtHostTerminalService, WorkerExtHostTerminalService);
 registerSingleton(IExtHostTask, class extends NotImplementedProxy(IExtHostTask) { });
 registerSingleton(IExtHostDebugService, class extends NotImplementedProxy(IExtHostDebugService) { });
 registerSingleton(IExtHostSearch, class extends NotImplementedProxy(IExtHostSearch) { });

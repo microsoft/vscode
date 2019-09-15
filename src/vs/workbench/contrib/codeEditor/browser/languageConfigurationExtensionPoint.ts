@@ -17,6 +17,7 @@ import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/c
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
+import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 interface IRegExp {
 	pattern: string;
@@ -101,7 +102,7 @@ export class LanguageConfigurationFileHandler {
 			const errors: ParseError[] = [];
 			const configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
 			if (errors.length) {
-				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation.toString(), errors.join('\n')));
+				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation.toString(), errors.map(e => (`[${e.offset}, ${e.length}] ${getParseErrorMessage(e.error)}`)).join('\n')));
 			}
 			this._handleConfig(languageIdentifier, configuration);
 		}, (err) => {
@@ -358,6 +359,7 @@ export class LanguageConfigurationFileHandler {
 const schemaId = 'vscode://schemas/language-configuration';
 const schema: IJSONSchema = {
 	allowComments: true,
+	allowsTrailingCommas: true,
 	default: {
 		comments: {
 			blockComment: ['/*', '*/'],

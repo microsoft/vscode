@@ -9,13 +9,12 @@ import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbe
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class NotificationService extends Disposable implements INotificationService {
 
-	_serviceBrand!: ServiceIdentifier<INotificationService>;
+	_serviceBrand: undefined;
 
 	private _model: INotificationsModel = this._register(new NotificationsModel());
 

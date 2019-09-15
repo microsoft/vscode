@@ -21,7 +21,6 @@ const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const plumber = require('gulp-plumber');
-const _ = require('underscore');
 const ext = require('./lib/extensions');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
@@ -37,16 +36,16 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(extensionsPath, tsconfigFile);
 	const relativeDirname = path.dirname(tsconfigFile);
 
-	const tsconfig = require(absolutePath);
-	const tsOptions = _.assign({}, tsconfig.extends ? require(path.join(extensionsPath, relativeDirname, tsconfig.extends)).compilerOptions : {}, tsconfig.compilerOptions);
-	tsOptions.verbose = false;
-	tsOptions.sourceMap = true;
+	const overrideOptions = {};
+	overrideOptions.sourceMap = true;
 
 	const name = relativeDirname.replace(/\//g, '-');
 
 	const root = path.join('extensions', relativeDirname);
 	const srcBase = path.join(root, 'src');
 	const src = path.join(srcBase, '**');
+	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
+
 	const out = path.join(root, 'out');
 	const baseUrl = getBaseUrl(out);
 
@@ -63,12 +62,12 @@ const tasks = compilations.map(function (tsconfigFile) {
 	function createPipeline(build, emitError) {
 		const reporter = createReporter();
 
-		tsOptions.inlineSources = !!build;
-		tsOptions.base = path.dirname(absolutePath);
+		overrideOptions.inlineSources = Boolean(build);
+		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(tsOptions, null, null, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, false, err => reporter(err.toString()));
 
-		return function () {
+		const pipeline = function () {
 			const input = es.through();
 			const tsFilter = filter(['**/*.ts', '!**/lib/lib*.d.ts', '!**/node_modules/**'], { restore: true });
 			const output = input
@@ -98,15 +97,19 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 			return es.duplex(input, output);
 		};
-	}
 
-	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
+		// add src-stream for project files
+		pipeline.tsProjectSrc = () => {
+			return compilation.src(srcOpts);
+		};
+		return pipeline;
+	}
 
 	const cleanTask = task.define(`clean-extension-${name}`, util.rimraf(out));
 
 	const compileTask = task.define(`compile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true);
-		const input = gulp.src(src, srcOpts);
+		const input = pipeline.tsProjectSrc();
 
 		return input
 			.pipe(pipeline())
@@ -115,8 +118,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const watchTask = task.define(`watch-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false);
-		const input = gulp.src(src, srcOpts);
-		const watchInput = watcher(src, srcOpts);
+		const input = pipeline.tsProjectSrc();
+		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
 
 		return watchInput
 			.pipe(util.incremental(pipeline, input))
@@ -125,7 +128,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const compileBuildTask = task.define(`compile-build-extension-${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(true, true);
-		const input = gulp.src(src, srcOpts);
+		const input = pipeline.tsProjectSrc();
 
 		return input
 			.pipe(pipeline())

@@ -44,7 +44,7 @@ const emptyEditableSettingsContent = '{\n}';
 
 export class PreferencesService extends Disposable implements IPreferencesService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 
@@ -214,7 +214,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private openSettings2(options?: ISettingsEditorOptions): Promise<IEditor> {
 		const input = this.settingsEditor2Input;
-		return this.editorGroupService.activeGroup.openEditor(input, options)
+		return this.editorService.openEditor(input, options ? SettingsEditorOptions.create(options) : undefined)
 			.then(() => this.editorGroupService.activeGroup.activeControl!);
 	}
 

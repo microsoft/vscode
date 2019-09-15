@@ -28,7 +28,7 @@ import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -58,7 +58,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange: Event<boolean> = this._onMenubarVisibilityChange.event;
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	private title: HTMLElement;
 	private dragRegion: HTMLElement;
@@ -554,7 +554,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				rightMarker < (this.element.clientWidth + this.title.clientWidth) / 2) {
 				this.title.style.position = null;
 				this.title.style.left = null;
-				this.title.style.transform = null;
+				this.title.style.transform = '';
 				return;
 			}
 		}
