@@ -37,7 +37,7 @@ import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/wo
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { extname } from 'vs/base/common/resources';
-import { IExeBasedExtensionTip, IProductService } from 'vs/platform/product/common/product';
+import { IExeBasedExtensionTip, IProductService } from 'vs/platform/product/common/productService';
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
 import { setImmediate, isWeb } from 'vs/base/common/platform';

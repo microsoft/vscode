@@ -24,7 +24,7 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';

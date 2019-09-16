@@ -10,7 +10,7 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ISurveyData, IProductService } from 'vs/platform/product/common/product';
+import { ISurveyData, IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';

@@ -50,7 +50,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;

@@ -5,7 +5,7 @@
 
 import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { IProductConfiguration } from 'vs/platform/product/common/product';
+import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { assign } from 'vs/base/common/objects';
 
 const rootPath = path.dirname(getPathFromAmdModule(require, ''));

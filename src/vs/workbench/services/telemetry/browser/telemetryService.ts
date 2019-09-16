@@ -14,7 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/browser/workbenchCommonProperties';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ApplicationInsights } from '@microsoft/applicationinsights-web';
 
 export class WebTelemetryAppender implements ITelemetryAppender {

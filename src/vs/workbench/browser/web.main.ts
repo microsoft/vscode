@@ -13,7 +13,7 @@ import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/browser/product';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';

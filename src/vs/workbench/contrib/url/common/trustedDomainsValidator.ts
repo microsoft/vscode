@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';

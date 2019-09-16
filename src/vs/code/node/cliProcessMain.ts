@@ -45,7 +45,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);

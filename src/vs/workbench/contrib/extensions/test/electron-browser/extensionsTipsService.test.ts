@@ -51,7 +51,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {

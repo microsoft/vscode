@@ -17,7 +17,7 @@ import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';

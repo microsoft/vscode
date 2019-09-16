@@ -58,7 +58,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';

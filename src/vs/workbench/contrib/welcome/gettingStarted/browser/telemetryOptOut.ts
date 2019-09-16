@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { language, locale } from 'vs/base/common/platform';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class TelemetryOptOut implements IWorkbenchContribution {
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProductConfiguration } from 'vs/platform/product/common/product';
+import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { assign } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
 import * as path from 'vs/base/common/path';

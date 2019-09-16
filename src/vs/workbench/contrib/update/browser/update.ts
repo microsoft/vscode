@@ -28,7 +28,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 

@@ -10,7 +10,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import * as platform from 'vs/base/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class GettingStarted implements IWorkbenchContribution {
 
