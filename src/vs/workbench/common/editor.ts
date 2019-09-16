@@ -837,6 +837,7 @@ export class TextEditorOptions extends EditorOptions {
 	private endColumn: number;
 
 	private revealInCenterIfOutsideViewport: boolean;
+	private revealAtDefinition: boolean;
 	private editorViewState: IEditorViewState | null;
 
 	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
@@ -870,6 +871,13 @@ export class TextEditorOptions extends EditorOptions {
 
 		if (options.viewState) {
 			this.editorViewState = options.viewState as IEditorViewState;
+		}
+
+		if (typeof options.revealAtDefinition === 'boolean') {
+			this.revealAtDefinition = options.revealAtDefinition;
+			if (options.revealInCenterIfOutsideViewport) {
+				throw new Error('revealInCenterIfOutsideViewport and revealAtDefinition cannot both be true');
+			}
 		}
 
 		if (typeof options.revealInCenterIfOutsideViewport === 'boolean') {
@@ -942,7 +950,9 @@ export class TextEditorOptions extends EditorOptions {
 					endColumn: this.endColumn
 				};
 				editor.setSelection(range);
-				if (this.revealInCenterIfOutsideViewport) {
+				if (this.revealAtDefinition) {
+					editor.revealRangeAtDefinition(range, scrollType);
+				} else if (this.revealInCenterIfOutsideViewport) {
 					editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
 				} else {
 					editor.revealRangeInCenter(range, scrollType);
@@ -956,7 +966,9 @@ export class TextEditorOptions extends EditorOptions {
 					column: this.startColumn
 				};
 				editor.setPosition(pos);
-				if (this.revealInCenterIfOutsideViewport) {
+				if (this.revealAtDefinition) {
+					editor.revealPositionAtDefinition(pos, scrollType);
+				} else if (this.revealInCenterIfOutsideViewport) {
 					editor.revealPositionInCenterIfOutsideViewport(pos, scrollType);
 				} else {
 					editor.revealPositionInCenter(pos, scrollType);

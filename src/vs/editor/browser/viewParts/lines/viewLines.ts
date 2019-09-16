@@ -616,14 +616,23 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		let newScrollTop: number;
 
-		if (verticalType === viewEvents.VerticalRevealType.Center || verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport) {
+		if (verticalType === viewEvents.VerticalRevealType.Center || verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport
+			|| verticalType === viewEvents.VerticalRevealType.Definition
+		) {
 			if (verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport && viewportStartY <= boxStartY && boxEndY <= viewportEndY) {
 				// Box is already in the viewport... do nothing
 				newScrollTop = viewportStartY;
 			} else {
 				// Box is outside the viewport... center it
 				const boxMiddleY = (boxStartY + boxEndY) / 2;
-				newScrollTop = Math.max(0, boxMiddleY - viewportHeight / 2);
+				let delta = viewportHeight * 0.5;
+				if (verticalType === viewEvents.VerticalRevealType.Definition) {
+					// Definition scrolls to 20% from the top of the viewport, but ensures a minimum amount of space from the top
+					// and never scrolls beyond the center.
+					const minSpace = 100;
+					delta = Math.min(delta, Math.max(minSpace, viewportHeight * 0.2));
+				}
+				newScrollTop = Math.max(0, boxMiddleY - delta);
 			}
 		} else {
 			newScrollTop = this._computeMinimumScrolling(viewportStartY, viewportEndY, boxStartY, boxEndY, verticalType === viewEvents.VerticalRevealType.Top, verticalType === viewEvents.VerticalRevealType.Bottom);

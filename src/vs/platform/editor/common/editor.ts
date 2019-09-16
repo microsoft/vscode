@@ -202,6 +202,13 @@ export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 * This can't be used in combination with revealAtDefinition.
 	 */
 	revealInCenterIfOutsideViewport?: boolean;
+
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport,
+	 * optimized for viewing a code definition.
+	 */
+	revealAtDefinition?: boolean;
 }

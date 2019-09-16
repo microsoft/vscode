@@ -415,6 +415,9 @@ export class MainThreadTextEditor {
 			case TextEditorRevealType.AtTop:
 				this._codeEditor.revealRangeAtTop(range, editorCommon.ScrollType.Smooth);
 				break;
+			case TextEditorRevealType.AtDefinition:
+				this._codeEditor.revealRangeAtDefinition(range, editorCommon.ScrollType.Smooth);
+				break;
 			default:
 				console.warn(`Unknown revealType: ${revealType}`);
 				break;

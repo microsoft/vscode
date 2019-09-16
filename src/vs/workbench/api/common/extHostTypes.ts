@@ -1420,7 +1420,8 @@ export enum TextEditorRevealType {
 	Default = 0,
 	InCenter = 1,
 	InCenterIfOutsideViewport = 2,
-	AtTop = 3
+	AtTop = 3,
+	AtDefinition = 4,
 }
 
 export enum TextEditorSelectionChangeKind {
