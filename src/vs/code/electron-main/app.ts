@@ -34,7 +34,6 @@ import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -474,7 +473,7 @@ export class CodeApplication extends Disposable {
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
-			const commonProperties = resolveCommonProperties(product.commit, pkg.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
+			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
 			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, trueMachineId };
 

@@ -162,7 +162,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 	}
 }
 
-export class QuickOpenRecentAction extends BaseOpenRecentAction {
+class QuickOpenRecentAction extends BaseOpenRecentAction {
 
 	static readonly ID = 'workbench.action.quickOpenRecent';
 	static readonly LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
@@ -186,7 +186,7 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 	}
 }
 
-export class ToggleFullScreenAction extends Action {
+class ToggleFullScreenAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleFullScreen';
 	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
@@ -226,7 +226,7 @@ export class ReloadWindowAction extends Action {
 	}
 }
 
-export class ShowAboutDialogAction extends Action {
+class ShowAboutDialogAction extends Action {
 
 	static readonly ID = 'workbench.action.showAboutDialog';
 	static readonly LABEL = nls.localize('about', "About");

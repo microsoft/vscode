@@ -21,7 +21,6 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
 import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
 
 export class PerfviewContrib {
 
@@ -127,7 +126,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _addSummary(md: MarkdownBuilder, metrics: IStartupMetrics): void {
 		md.heading(2, 'System Info');
-		md.li(`${product.nameShort}: ${pkg.version} (${product.commit || '0000000'})`);
+		md.li(`${product.nameShort}: ${product.version} (${product.commit || '0000000'})`);
 		md.li(`OS: ${metrics.platform}(${metrics.release})`);
 		if (metrics.cpus) {
 			md.li(`CPUs: ${metrics.cpus.model}(${metrics.cpus.count} x ${metrics.cpus.speed})`);

@@ -10,7 +10,6 @@ import { join, basename } from 'vs/base/common/path';
 import { parse, ParseError } from 'vs/base/common/json';
 import { listProcesses } from 'vs/base/node/ps';
 import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
 import { repeat, pad } from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -267,7 +266,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		const GB = 1024 * MB;
 
 		const output: string[] = [];
-		output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
+		output.push(`Version:          ${product.nameShort} ${product.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
 		output.push(`OS Version:       ${osLib.type()} ${osLib.arch()} ${osLib.release()}`);
 		const cpus = osLib.cpus();
 		if (cpus && cpus.length > 0) {

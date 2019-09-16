@@ -32,9 +32,8 @@ import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecyc
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { isRootUser, isWindows, isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
+import { isRootUser, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -460,7 +459,7 @@ export class ElectronWindow extends Disposable {
 			productName,
 			submitURL: isWindows ? hockeyAppConfig[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? hockeyAppConfig[`linux-x64`] : hockeyAppConfig.darwin,
 			extra: {
-				vscode_version: pkg.version,
+				vscode_version: product.version,
 				vscode_commit: product.commit
 			}
 		};
@@ -615,7 +614,7 @@ class NativeMenubarControl extends MenubarControl {
 			environmentService,
 			accessibilityService);
 
-		if (isMacintosh && !isWeb) {
+		if (isMacintosh) {
 			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
 			this.topLevelTitles['Preferences'] = nls.localize('mPreferences', "Preferences");
 		}

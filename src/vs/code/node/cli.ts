@@ -8,7 +8,6 @@ import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile, OP
 import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
 import * as paths from 'vs/base/common/path';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -46,12 +45,12 @@ export async function main(argv: string[]): Promise<any> {
 	// Help
 	if (args.help) {
 		const executable = `${product.applicationName}${os.platform() === 'win32' ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, pkg.version, OPTIONS));
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS));
 	}
 
 	// Version Info
 	else if (args.version) {
-		console.log(buildVersionMessage(pkg.version, product.commit));
+		console.log(buildVersionMessage(product.version, product.commit));
 	}
 
 	// Extensions Management

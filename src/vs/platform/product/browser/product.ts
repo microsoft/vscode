@@ -5,16 +5,46 @@
 
 import { IProductConfiguration } from 'vs/platform/product/common/product';
 import { assign } from 'vs/base/common/objects';
+import { isWeb } from 'vs/base/common/platform';
+import * as path from 'vs/base/common/path';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { env } from 'vs/base/common/process';
 
-// Built time configuration (do NOT modify)
-const product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfiguration;
+let product: IProductConfiguration;
+if (isWeb) {
 
-// Running out of sources
-if (Object.keys(product).length === 0) {
+	// Built time configuration (do NOT modify)
+	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfiguration;
+
+	// Running out of sources
+	if (Object.keys(product).length === 0) {
+		assign(product, {
+			version: '1.39.0-dev',
+			nameLong: 'Visual Studio Code Web Dev',
+			nameShort: 'VSCode Web Dev'
+		});
+	}
+} else {
+
+	// Obtain values from product.json and package.json
+	const rootPath = path.dirname(getPathFromAmdModule(require, ''));
+	const productJsonPath = path.join(rootPath, 'product.json');
+	const packageJsonPath = path.join(rootPath, 'package.json');
+
+	product = assign({}, require.__$__nodeRequire(productJsonPath) as IProductConfiguration);
+	const pkg = require.__$__nodeRequire(packageJsonPath) as { version: string; };
+
+	// Running out of sources
+	if (env['VSCODE_DEV']) {
+		assign(product, {
+			nameShort: `${product.nameShort} Dev`,
+			nameLong: `${product.nameLong} Dev`,
+			dataFolderName: `${product.dataFolderName}-dev`
+		});
+	}
+
 	assign(product, {
-		version: '1.39.0-dev',
-		nameLong: 'Visual Studio Code Web Dev',
-		nameShort: 'VSCode Web Dev'
+		version: pkg.version
 	});
 }
 

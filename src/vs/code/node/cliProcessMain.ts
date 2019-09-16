@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
 import * as path from 'vs/base/common/path';
 import * as semver from 'semver-umd';
 
@@ -350,7 +349,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
-				commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
 				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
 			};
 

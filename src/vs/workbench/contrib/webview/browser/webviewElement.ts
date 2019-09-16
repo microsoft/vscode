@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
-import product from 'vs/platform/product/browser/product';
+import { IProductService } from 'vs/platform/product/common/product';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -46,6 +46,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string')) {
@@ -158,7 +159,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		if (!useExternalEndpoint) {
 			return undefined;
 		}
-		const commit = product.quality && product.commit ? product.commit : '211fa02efe8c041fd7baa8ec3dce199d5185aa44';
+		const commit = this._productService.quality && this._productService.commit ? this._productService.commit : '211fa02efe8c041fd7baa8ec3dce199d5185aa44';
 		return `https://{{uuid}}.vscode-webview-test.com/${commit}`;
 	}
 

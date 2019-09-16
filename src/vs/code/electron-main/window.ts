@@ -26,7 +26,6 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { endsWith } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
-import pkg from 'vs/platform/product/node/package';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -310,7 +309,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private handleMarketplaceRequests(): void {
 
 		// Resolve marketplace headers
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(pkg.version, this.environmentService, this.fileService);
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentService, this.fileService);
 
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
