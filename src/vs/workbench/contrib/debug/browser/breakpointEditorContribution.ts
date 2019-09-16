@@ -8,20 +8,75 @@ import * as env from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { IAction, Action } from 'vs/base/common/actions';
+import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { RemoveBreakpointAction } from 'vs/workbench/contrib/debug/browser/debugActions';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+
+interface IBreakpointDecoration {
+	decorationId: string;
+	breakpointId: string;
+	range: Range;
+}
+
+const breakpointHelperDecoration: IModelDecorationOptions = {
+	glyphMarginClassName: 'debug-breakpoint-hint',
+	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+};
+
+function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, debugService: IDebugService): { range: Range; options: IModelDecorationOptions; }[] {
+	const result: { range: Range; options: IModelDecorationOptions; }[] = [];
+	breakpoints.forEach((breakpoint) => {
+		if (breakpoint.lineNumber <= model.getLineCount()) {
+			const column = model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber);
+			const range = model.validateRange(
+				breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
+					: new Range(breakpoint.lineNumber, column, breakpoint.lineNumber, column + 1) // Decoration has to have a width #20688
+			);
+
+			result.push({
+				options: getBreakpointDecorationOptions(model, breakpoint, debugService),
+				range
+			});
+		}
+	});
+
+	return result;
+}
+
+function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, debugService: IDebugService): IModelDecorationOptions {
+	const { className, message } = getBreakpointMessageAndClassName(debugService, breakpoint);
+	let glyphMarginHoverMessage: MarkdownString | undefined;
+
+	if (message) {
+		if (breakpoint.condition || breakpoint.hitCondition) {
+			const modeId = model.getLanguageIdentifier().language;
+			glyphMarginHoverMessage = new MarkdownString().appendCodeblock(modeId, message);
+		} else {
+			glyphMarginHoverMessage = new MarkdownString().appendText(message);
+		}
+	}
+
+	return {
+		glyphMarginClassName: className,
+		glyphMarginHoverMessage,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		beforeContentClassName: breakpoint.column ? `debug-breakpoint-column ${className}-column` : undefined
+	};
+}
 
 class BreakpointEditorContribution implements IBreakpointEditorContribution {
 
@@ -29,6 +84,8 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 	private breakpointWidget: BreakpointWidget | undefined;
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private toDispose: IDisposable[] = [];
+	private ignoreDecorationsChangedEvent = false;
+	private breakpointDecorations: IBreakpointDecoration[] = [];
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -132,7 +189,10 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
 			this.closeBreakpointWidget();
+			this.setDecorations();
 		}));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.setDecorations()));
+		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.onModelDecorationsChanged()));
 	}
 
 	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: uri, lineNumber: number): Array<IAction | ContextSubMenu> {
@@ -226,7 +286,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		const newDecoration: IModelDeltaDecoration[] = [];
 		if (showBreakpointHintAtLineNumber !== -1) {
 			newDecoration.push({
-				options: BreakpointEditorContribution.BREAKPOINT_HELPER_DECORATION,
+				options: breakpointHelperDecoration,
 				range: {
 					startLineNumber: showBreakpointHintAtLineNumber,
 					startColumn: 1,
@@ -237,6 +297,70 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		}
 
 		this.breakpointHintDecoration = this.editor.deltaDecorations(this.breakpointHintDecoration, newDecoration);
+	}
+
+	private setDecorations(): void {
+		if (!this.editor.hasModel()) {
+			return;
+		}
+
+		const model = this.editor.getModel();
+		const breakpoints = this.debugService.getModel().getBreakpoints({ uri: model.uri });
+		const desiredDecorations = createBreakpointDecorations(model, breakpoints, this.debugService);
+
+		try {
+			this.ignoreDecorationsChangedEvent = true;
+			const decorationIds = this.editor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), desiredDecorations);
+			this.breakpointDecorations = decorationIds.map((decorationId, index) => ({
+				decorationId,
+				breakpointId: breakpoints[index].getId(),
+				range: desiredDecorations[index].range
+			}));
+		} finally {
+			this.ignoreDecorationsChangedEvent = false;
+		}
+	}
+
+	private async onModelDecorationsChanged(): Promise<void> {
+		if (this.breakpointDecorations.length === 0 || this.ignoreDecorationsChangedEvent || !this.editor.hasModel()) {
+			// I have no decorations
+			return;
+		}
+		let somethingChanged = false;
+		const model = this.editor.getModel();
+		this.breakpointDecorations.forEach(breakpointDecoration => {
+			if (somethingChanged) {
+				return;
+			}
+			const newBreakpointRange = model.getDecorationRange(breakpointDecoration.decorationId);
+			if (newBreakpointRange && (!breakpointDecoration.range.equalsRange(newBreakpointRange))) {
+				somethingChanged = true;
+			}
+		});
+		if (!somethingChanged) {
+			// nothing to do, my decorations did not change.
+			return;
+		}
+
+		const data = new Map<string, IBreakpointUpdateData>();
+		const breakpoints = this.debugService.getModel().getBreakpoints();
+		for (let i = 0, len = this.breakpointDecorations.length; i < len; i++) {
+			const breakpointDecoration = this.breakpointDecorations[i];
+			const decorationRange = model.getDecorationRange(breakpointDecoration.decorationId);
+			// check if the line got deleted.
+			if (decorationRange) {
+				const breakpoint = breakpoints.filter(bp => bp.getId() === breakpointDecoration.breakpointId).pop();
+				// since we know it is collapsed, it cannot grow to multiple lines
+				if (breakpoint) {
+					data.set(breakpoint.getId(), {
+						lineNumber: decorationRange.startLineNumber,
+						column: breakpoint.column ? decorationRange.startColumn : undefined,
+					});
+				}
+			}
+		}
+
+		await this.debugService.updateBreakpoints(model.uri, data, true);
 	}
 
 	// breakpoint widget
@@ -263,13 +387,9 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		if (this.breakpointWidget) {
 			this.breakpointWidget.dispose();
 		}
+		this.editor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), []);
 		dispose(this.toDispose);
 	}
-
-	private static BREAKPOINT_HELPER_DECORATION: IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-breakpoint-hint',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-	};
 }
 
 registerEditorContribution(BreakpointEditorContribution);
