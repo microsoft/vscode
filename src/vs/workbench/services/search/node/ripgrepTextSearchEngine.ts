@@ -125,7 +125,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 	const firstLine = lines[0].trim();
 
 	if (lines.some(l => startsWith(l, 'regex parse error'))) {
-		return new SearchError('Regex parse error', SearchErrorCode.regexParseError);
+		return new SearchError(buildRegexParseError(lines), SearchErrorCode.regexParseError);
 	}
 
 	const match = firstLine.match(/grep config error: unknown encoding: (.*)/);
@@ -149,6 +149,21 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 
 	return undefined;
 }
+
+export function buildRegexParseError(lines: string[]): string {
+	let errorMessage: string[] = ['Regex parse error'];
+	let pcre2ErrorLine = lines.filter(l => (startsWith(l, 'PCRE2:')));
+	if (pcre2ErrorLine.length >= 1) {
+		let pcre2ErrorMessage = pcre2ErrorLine[0].replace('PCRE2:', '');
+		if (pcre2ErrorMessage.indexOf(':') !== -1 && pcre2ErrorMessage.split(':').length >= 2) {
+			let pcre2ActualErrorMessage = pcre2ErrorMessage.split(':')[1];
+			errorMessage.push(':' + pcre2ActualErrorMessage);
+		}
+	}
+
+	return errorMessage.join('');
+}
+
 
 export class RipgrepParser extends EventEmitter {
 	private remainder = '';
@@ -394,13 +409,11 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 		args.push('--encoding', options.encoding);
 	}
 
-	let pattern = query.pattern;
-
 	// Ripgrep handles -- as a -- arg separator. Only --.
 	// - is ok, --- is ok, --some-flag is also ok. Need to special case.
-	if (pattern === '--') {
+	if (query.pattern === '--') {
 		query.isRegExp = true;
-		pattern = '\\-\\-';
+		query.pattern = '\\-\\-';
 	}
 
 	if (query.isMultiline && !query.isRegExp) {
@@ -413,7 +426,7 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 	}
 
 	if (query.isRegExp) {
-		pattern = unicodeEscapesToPCRE2(pattern);
+		query.pattern = unicodeEscapesToPCRE2(query.pattern);
 	}
 
 	// Allow $ to match /r/n
@@ -421,7 +434,7 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 
 	let searchPatternAfterDoubleDashes: Maybe<string>;
 	if (query.isWordMatch) {
-		const regexp = createRegExp(pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
+		const regexp = createRegExp(query.pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
@@ -430,7 +443,7 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 		args.push('--regexp', fixedRegexpQuery);
 		args.push('--auto-hybrid-regex');
 	} else {
-		searchPatternAfterDoubleDashes = pattern;
+		searchPatternAfterDoubleDashes = query.pattern;
 		args.push('--fixed-strings');
 	}
 
@@ -479,11 +492,18 @@ export function spreadGlobComponents(globArg: string): string[] {
 }
 
 export function unicodeEscapesToPCRE2(pattern: string): string {
-	const reg = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})(?!\d)/g;
-	// Replace an unescaped $ at the end of the pattern with \r?$
-	// Match $ preceeded by none or even number of literal \
-	while (pattern.match(reg)) {
-		pattern = pattern.replace(reg, `$1\\x{$2}`);
+	// Match \u1234
+	const unicodePattern = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})/g;
+
+	while (pattern.match(unicodePattern)) {
+		pattern = pattern.replace(unicodePattern, `$1\\x{$2}`);
+	}
+
+	// Match \u{1234}
+	// \u with 5-6 characters will be left alone because \x only takes 4 characters.
+	const unicodePatternWithBraces = /((?:[^\\]|^)(?:\\\\)*)\\u\{([a-z0-9]{4})\}/g;
+	while (pattern.match(unicodePatternWithBraces)) {
+		pattern = pattern.replace(unicodePatternWithBraces, `$1\\x{$2}`);
 	}
 
 	return pattern;

@@ -19,6 +19,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	if (isMacintosh) {
@@ -67,7 +68,7 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
-		if (!this._editor.getConfiguration().dragAndDrop) {
+		if (!this._editor.getOption(EditorOption.dragAndDrop)) {
 			return;
 		}
 
@@ -83,7 +84,7 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 	}
 
 	private onEditorKeyUp(e: IKeyboardEvent): void {
-		if (!this._editor.getConfiguration().dragAndDrop) {
+		if (!this._editor.getOption(EditorOption.dragAndDrop)) {
 			return;
 		}
 

@@ -8,7 +8,6 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { DataUri } from 'vs/base/common/resources';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 
 /**
  * An editor input to present data URIs in a binary editor. Data URIs have the form of:
@@ -51,8 +50,8 @@ export class DataUriEditorInput extends EditorInput {
 		return DataUriEditorInput.ID;
 	}
 
-	getName(): string | null {
-		return withUndefinedAsNull(this.name);
+	getName(): string | undefined {
+		return this.name;
 	}
 
 	getDescription(): string | undefined {

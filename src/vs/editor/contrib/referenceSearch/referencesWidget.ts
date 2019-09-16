@@ -311,8 +311,9 @@ export class ReferenceWidget extends PeekViewWidget {
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
 			identityProvider: new IdentityProvider()
 		};
-		this._tree = this._instantiationService.createInstance<HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
+		this._tree = this._instantiationService.createInstance<string, HTMLElement, IListVirtualDelegate<TreeElement>, ITreeRenderer<any, FuzzyScore, any>[], IAsyncDataSource<ReferencesModel | FileReferences, TreeElement>, IAsyncDataTreeOptions<TreeElement, FuzzyScore>, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
+			'ReferencesWidget',
 			this._treeContainer,
 			new Delegate(),
 			[
@@ -382,8 +383,11 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 		this._tree.onDidOpen(e => {
 			const aside = (e.browserEvent instanceof MouseEvent) && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
-			const goto = !e.browserEvent || ((e.browserEvent instanceof MouseEvent) && e.browserEvent.detail === 2);
-
+			let goto = !e.browserEvent || ((e.browserEvent instanceof MouseEvent) && e.browserEvent.detail === 2);
+			if (e.browserEvent instanceof KeyboardEvent) {
+				// todo@joh make this a command
+				goto = true;
+			}
 			if (aside) {
 				onEvent(e.elements[0], 'side');
 			} else if (goto) {

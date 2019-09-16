@@ -5,20 +5,24 @@
 
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
-import { UriComponents } from 'vs/base/common/uri';
-import { IFileSystemProvider } from 'vs/platform/files/common/files';
-import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
+import { UriComponents, URI } from 'vs/base/common/uri';
+import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, FileChangeType } from 'vs/platform/files/common/files';
+import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
-export interface IWorkbenchConstructionOptions {
+interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Experimental: the remote authority is the IP:PORT from where the workbench is served
 	 * from. It is for example being used for the websocket connections as address.
 	 */
-	remoteAuthority: string;
+	remoteAuthority?: string;
 
 	/**
 	 * The connection token to send to the server.
@@ -53,6 +57,11 @@ export interface IWorkbenchConstructionOptions {
 	webSocketFactory?: IWebSocketFactory;
 
 	/**
+	 * A provider for resource URIs.
+	 */
+	resourceUriProvider?: (uri: URI) => UriComponents;
+
+	/**
 	 * Experimental: Whether to enable the smoke test driver.
 	 */
 	driver?: boolean;
@@ -71,6 +80,16 @@ export interface IWorkbenchConstructionOptions {
 	 * Experimental: Support for URL callbacks.
 	 */
 	urlCallbackProvider?: IURLCallbackProvider;
+
+	/**
+	 * Current logging level. Default is `LogLevel.Info`.
+	 */
+	logLevel?: LogLevel;
+
+	/**
+	 * Experimental: Support for update reporting.
+	 */
+	updateProvider?: IUpdateProvider;
 }
 
 /**
@@ -84,5 +103,42 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 }
 
 export {
-	create
+
+	// Factory
+	create,
+	IWorkbenchConstructionOptions,
+
+	// Basic Types
+	UriComponents,
+	URI,
+	Event,
+	Emitter,
+	IDisposable,
+	Disposable,
+
+	// FileSystem
+	IFileSystemProvider,
+	FileSystemProviderCapabilities,
+	IFileChange,
+	FileChangeType,
+
+	// WebSockets
+	IWebSocketFactory,
+	IWebSocket,
+
+	// Credentials
+	ICredentialsProvider,
+
+	// Static Extensions
+	IExtensionManifest,
+
+	// Callbacks
+	IURLCallbackProvider,
+
+	// LogLevel
+	LogLevel,
+
+	// Updates
+	IUpdateProvider,
+	IUpdate
 };

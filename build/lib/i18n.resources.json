@@ -107,6 +107,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/userData",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/remote",
 			"project": "vscode-workbench"
 		},
@@ -168,6 +172,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/webview",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/customEditor",
 			"project": "vscode-workbench"
 		},
 		{
@@ -272,6 +280,10 @@
 		},
 		{
 			"name": "vs/workbench/services/notification",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/userData",
 			"project": "vscode-workbench"
 		}
 	]

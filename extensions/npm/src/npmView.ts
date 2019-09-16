@@ -145,25 +145,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		subscriptions.push(commands.registerCommand('npm.runInstall', this.runInstall, this));
 	}
 
-	private scriptIsValid(scripts: any, task: Task): boolean {
-		for (const script in scripts) {
-			let label = getTaskName(script, task.definition.path);
-			if (task.name === label) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	private async runScript(script: NpmScript) {
-		let task = script.task;
-		let uri = getPackageJsonUriFromTask(task);
-		let scripts = await getScripts(uri!);
-
-		if (!this.scriptIsValid(scripts, task)) {
-			this.scriptNotValid(task);
-			return;
-		}
 		tasks.executeTask(script.task);
 	}
 
@@ -175,11 +157,6 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let task = script.task;
 		let uri = getPackageJsonUriFromTask(task);
 		let scripts = await getScripts(uri!);
-
-		if (!this.scriptIsValid(scripts, task)) {
-			this.scriptNotValid(task);
-			return;
-		}
 
 		let debugArg = this.extractDebugArg(scripts, task);
 		if (!debugArg) {
@@ -193,11 +170,6 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			return;
 		}
 		startDebugging(task.name, debugArg[0], debugArg[1], script.getFolder());
-	}
-
-	private scriptNotValid(task: Task) {
-		let message = localize('scriptInvalid', 'Could not find the script "{0}". Try to refresh the view.', task.name);
-		window.showErrorMessage(message);
 	}
 
 	private findScript(document: TextDocument, script?: NpmScript): number {
@@ -258,7 +230,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let document: TextDocument = await workspace.openTextDocument(uri);
 		let offset = this.findScript(document, selection instanceof NpmScript ? selection : undefined);
 		let position = document.positionAt(offset);
-		await window.showTextDocument(document, { selection: new Selection(position, position) });
+		await window.showTextDocument(document, { preserveFocus: true, selection: new Selection(position, position) });
 	}
 
 	public refresh() {

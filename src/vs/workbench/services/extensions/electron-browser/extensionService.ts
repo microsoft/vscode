@@ -32,7 +32,7 @@ import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription }
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { flatten } from 'vs/base/common/arrays';
 import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
@@ -484,7 +484,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 
 			// fetch the remote environment
-			const remoteEnv = (await this._remoteAgentService.getEnvironment())!;
+			const remoteEnv = (await this._remoteAgentService.getEnvironment());
+
+			if (!remoteEnv) {
+				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('getEnvironmentFailure', "Could not fetch remote environment") });
+				// Proceed with the local extension host
+				await this._startLocalExtensionHost(extensionHost, localExtensions, localExtensions.map(extension => extension.identifier));
+				return;
+			}
 
 			// enable or disable proposed API per extension
 			this._checkEnableProposedApi(remoteEnv.extensions);

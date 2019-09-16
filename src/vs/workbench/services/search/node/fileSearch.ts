@@ -43,20 +43,20 @@ process.on('exit', () => {
 export class FileWalker {
 	private config: IFileQuery;
 	private filePattern: string;
-	private normalizedFilePatternLowercase: string;
+	private normalizedFilePatternLowercase: string | null = null;
 	private includePattern: glob.ParsedExpression | undefined;
 	private maxResults: number | null;
 	private exists: boolean;
-	private maxFilesize: number | null;
+	private maxFilesize: number | null = null;
 	private isLimitHit: boolean;
 	private resultCount: number;
-	private isCanceled: boolean;
-	private fileWalkSW: StopWatch;
+	private isCanceled = false;
+	private fileWalkSW: StopWatch | null = null;
 	private directoriesWalked: number;
 	private filesWalked: number;
 	private errors: string[];
-	private cmdSW: StopWatch;
-	private cmdResultCount: number;
+	private cmdSW: StopWatch | null = null;
+	private cmdResultCount: number = 0;
 
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression | undefined;
@@ -139,8 +139,8 @@ export class FileWalker {
 					rootFolderDone(null, undefined);
 				}
 			});
-		}, (errors, result) => {
-			this.fileWalkSW.stop();
+		}, (errors, _result) => {
+			this.fileWalkSW!.stop();
 			const err = errors ? arrays.coalesce(errors)[0] : null;
 			done(err, this.isLimitHit);
 		});
@@ -455,8 +455,8 @@ export class FileWalker {
 
 	getStats(): ISearchEngineStats {
 		return {
-			cmdTime: this.cmdSW && this.cmdSW.elapsed(),
-			fileWalkTime: this.fileWalkSW.elapsed(),
+			cmdTime: this.cmdSW!.elapsed(),
+			fileWalkTime: this.fileWalkSW!.elapsed(),
 			directoriesWalked: this.directoriesWalked,
 			filesWalked: this.filesWalked,
 			cmdResultCount: this.cmdResultCount
@@ -578,7 +578,9 @@ export class FileWalker {
 				return true; // support the all-matching wildcard
 			}
 
-			return strings.fuzzyContains(path, this.normalizedFilePatternLowercase);
+			if (this.normalizedFilePatternLowercase) {
+				return strings.fuzzyContains(path, this.normalizedFilePatternLowercase);
+			}
 		}
 
 		// No patterns means we match all

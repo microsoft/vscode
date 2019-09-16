@@ -9,7 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TerminalNativeService implements ITerminalNativeService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public get linuxDistro(): LinuxDistro { return LinuxDistro.Unknown; }
 

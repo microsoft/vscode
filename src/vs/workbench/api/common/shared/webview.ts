@@ -14,11 +14,10 @@ export interface WebviewInitData {
 export function asWebviewUri(
 	initData: WebviewInitData,
 	uuid: string,
-	resource: vscode.Uri
+	resource: vscode.Uri,
 ): vscode.Uri {
 	const uri = initData.webviewResourceRoot
 		.replace('{{resource}}', resource.toString().replace(/^\S+?:/, ''))
 		.replace('{{uuid}}', uuid);
-
 	return URI.parse(uri);
 }

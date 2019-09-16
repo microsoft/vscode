@@ -23,7 +23,7 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
@@ -57,7 +57,7 @@ const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "O
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
 
-const FIND_WIDGET_INITIAL_WIDTH = 411;
+const FIND_WIDGET_INITIAL_WIDTH = 419;
 const PART_WIDTH = 275;
 const FIND_INPUT_AREA_WIDTH = PART_WIDTH - 54;
 
@@ -67,6 +67,7 @@ let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COU
 const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
 const ctrlEnterReplaceAllWarningPromptedKey = 'ctrlEnterReplaceAll.windows.donotask';
 
+const ctrlKeyMod = (platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 export class FindWidgetViewZone implements IViewZone {
 	public readonly afterLineNumber: number;
 	public heightInPx: number;
@@ -111,7 +112,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private readonly _notificationService: INotificationService;
 
 	private _domNode!: HTMLElement;
-	private _cachedHeight: number | null;
+	private _cachedHeight: number | null = null;
 	private _findInput!: FindInput;
 	private _replaceInput!: ReplaceInput;
 
@@ -175,24 +176,24 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._tryUpdateWidgetWidth();
 		this._findInput.inputBox.layout();
 
-		this._register(this._codeEditor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.readOnly) {
-				if (this._codeEditor.getConfiguration().readOnly) {
+		this._register(this._codeEditor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.readOnly)) {
+				if (this._codeEditor.getOption(EditorOption.readOnly)) {
 					// Hide replace part if editor becomes read only
 					this._state.change({ isReplaceRevealed: false }, false);
 				}
 				this._updateButtons();
 			}
-			if (e.layoutInfo) {
+			if (e.hasChanged(EditorOption.layoutInfo)) {
 				this._tryUpdateWidgetWidth();
 			}
 
-			if (e.accessibilitySupport) {
+			if (e.hasChanged(EditorOption.accessibilitySupport)) {
 				this.updateAccessibilitySupport();
 			}
 
-			if (e.contribInfo) {
-				const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+			if (e.hasChanged(EditorOption.find)) {
+				const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
 				if (addExtraSpaceOnTop && !this._viewZone) {
 					this._viewZone = new FindWidgetViewZone(0);
 					this._showViewZone();
@@ -238,7 +239,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 
 		this._codeEditor.addOverlayWidget(this);
-		if (this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop) {
+		if (this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop) {
 			this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
 		}
 
@@ -315,7 +316,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 		if (e.isReplaceRevealed) {
 			if (this._state.isReplaceRevealed) {
-				if (!this._codeEditor.getConfiguration().readOnly && !this._isReplaceVisible) {
+				if (!this._codeEditor.getOption(EditorOption.readOnly) && !this._isReplaceVisible) {
 					this._isReplaceVisible = true;
 					this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
 					this._updateButtons();
@@ -456,7 +457,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._toggleReplaceBtn.toggleClass('expand', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
-		let canReplace = !this._codeEditor.getConfiguration().readOnly;
+		let canReplace = !this._codeEditor.getOption(EditorOption.readOnly);
 		this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
 	}
 
@@ -466,7 +467,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			const selection = this._codeEditor.getSelection();
 			const isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
-			if (isSelection && this._codeEditor.getConfiguration().contribInfo.find.autoFindInSelection) {
+			if (isSelection && this._codeEditor.getOption(EditorOption.find).autoFindInSelection) {
 				this._toggleSelectionFind.checked = true;
 			} else {
 				this._toggleSelectionFind.checked = false;
@@ -487,7 +488,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._codeEditor.layoutOverlayWidget(this);
 
 			let adjustEditorScrollTop = true;
-			if (this._codeEditor.getConfiguration().contribInfo.find.seedSearchStringFromSelection && selection) {
+			if (this._codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection && selection) {
 				const domNode = this._codeEditor.getDomNode();
 				if (domNode) {
 					const editorCoords = dom.getDomNodePagePosition(domNode);
@@ -534,7 +535,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _layoutViewZone() {
-		const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+		const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
 
 		if (!addExtraSpaceOnTop) {
 			this._removeViewZone();
@@ -562,7 +563,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			return;
 		}
 
-		const addExtraSpaceOnTop = this._codeEditor.getConfiguration().contribInfo.find.addExtraSpaceOnTop;
+		const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
 
 		if (!addExtraSpaceOnTop) {
 			return;
@@ -641,8 +642,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (!this._isVisible) {
 			return;
 		}
+		if (!dom.isInDOM(this._domNode)) {
+			// the widget is not in the DOM
+			return;
+		}
 
-		const editorContentWidth = this._codeEditor.getConfiguration().layoutInfo.contentWidth;
+		const layoutInfo = this._codeEditor.getLayoutInfo();
+		const editorContentWidth = layoutInfo.contentWidth;
 
 		if (editorContentWidth <= 0) {
 			// for example, diff view original editor
@@ -652,8 +658,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			dom.removeClass(this._domNode, 'hiddenEditor');
 		}
 
-		const editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
-		const minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
+		const editorWidth = layoutInfo.width;
+		const minimapWidth = layoutInfo.minimapWidth;
 		let collapsedFindWidget = false;
 		let reducedFindWidget = false;
 		let narrowFindWidget = false;
@@ -775,20 +781,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
-		if (e.equals(KeyMod.WinCtrl | KeyCode.Enter)) {
-			const inputElement = this._findInput.inputBox.inputElement;
-			const start = inputElement.selectionStart;
-			const end = inputElement.selectionEnd;
-			const content = inputElement.value;
-
-			if (start && end) {
-				const value = content.substr(0, start) + '\n' + content.substr(end);
-				this._findInput.inputBox.value = value;
-				inputElement.setSelectionRange(start + 1, start + 1);
-				this._findInput.inputBox.layout();
-				e.preventDefault();
-				return;
-			}
+		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
+			this._findInput.inputBox.insertAtCursor('\n');
+			e.preventDefault();
+			return;
 		}
 
 		if (e.equals(KeyCode.Tab)) {
@@ -817,7 +813,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
-		if (e.equals(KeyMod.WinCtrl | KeyCode.Enter)) {
+		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
 			if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
 				// this is the first time when users press Ctrl + Enter to replace all
 				this._notificationService.info(
@@ -830,19 +826,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			}
 
-			const inputElement = this._replaceInput.inputBox.inputElement;
-			const start = inputElement.selectionStart;
-			const end = inputElement.selectionEnd;
-			const content = inputElement.value;
-
-			if (start && end) {
-				const value = content.substr(0, start) + '\n' + content.substr(end);
-				this._replaceInput.inputBox.value = value;
-				inputElement.setSelectionRange(start + 1, start + 1);
-				this._replaceInput.inputBox.layout();
-				e.preventDefault();
-				return;
-			}
+			this._replaceInput.inputBox.insertAtCursor('\n');
+			e.preventDefault();
+			return;
 		}
 
 		if (e.equals(KeyCode.Tab)) {
@@ -1172,10 +1158,44 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._findInput.inputBox.layout();
 			this._tryUpdateHeight();
 		}));
+
+		this._register(this._resizeSash.onDidReset(() => {
+			// users double click on the sash
+			const currentWidth = dom.getTotalWidth(this._domNode);
+
+			if (currentWidth < FIND_WIDGET_INITIAL_WIDTH) {
+				// The editor is narrow and the width of the find widget is controlled fully by CSS.
+				return;
+			}
+
+			let width = FIND_WIDGET_INITIAL_WIDTH;
+
+			if (!this._resized || currentWidth === FIND_WIDGET_INITIAL_WIDTH) {
+				// 1. never resized before, double click should maximizes it
+				// 2. users resized it already but its width is the same as default
+				const layoutInfo = this._codeEditor.getLayoutInfo();
+				width = layoutInfo.width - 28 - layoutInfo.minimapWidth - 15;
+				this._resized = true;
+			} else {
+				/**
+				 * no op, the find widget should be shrinked to its default size.
+				 */
+			}
+
+			const inputBoxWidth = width - FIND_ALL_CONTROLS_WIDTH;
+
+			this._domNode.style.width = `${width}px`;
+			this._findInput.inputBox.width = inputBoxWidth;
+			if (this._isReplaceVisible) {
+				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+			}
+
+			this._findInput.inputBox.layout();
+		}));
 	}
 
 	private updateAccessibilitySupport(): void {
-		const value = this._codeEditor.getConfiguration().accessibilitySupport;
+		const value = this._codeEditor.getOption(EditorOption.accessibilitySupport);
 		this._findInput.setFocusInputOnOptionClick(value !== AccessibilitySupport.Enabled);
 	}
 }

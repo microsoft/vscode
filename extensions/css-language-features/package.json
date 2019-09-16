@@ -34,6 +34,15 @@
         "id": "css",
         "title": "%css.title%",
         "properties": {
+          "css.customData": {
+            "type": "array",
+            "markdownDescription": "%css.customData.desc%",
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "scope": "resource"
+          },
           "css.experimental.customData": {
             "type": "array",
             "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",
@@ -41,13 +50,20 @@
             "items": {
               "type": "string"
             },
-            "scope": "resource"
+            "scope": "resource",
+            "deprecationMessage": "This setting is no longe experimental. Use `css.customData` instead."
           },
           "css.completion.triggerPropertyValueCompletion": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%css.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "css.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.completion.completePropertyWithSemicolon.desc%"
           },
           "css.validate": {
             "type": "boolean",
@@ -735,6 +751,10 @@
       {
         "fileMatch": "*.css-data.json",
         "url": "https://raw.githubusercontent.com/Microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
+      },
+      {
+        "fileMatch": "package.json",
+        "url": "./schemas/package.schema.json"
       }
     ]
   },

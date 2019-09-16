@@ -4,7 +4,7 @@ steps:
     versionSpec: "10.15.1"
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
 - task: UsePythonVersion@0
   inputs:
     versionSpec: '2.x'
@@ -26,10 +26,12 @@ steps:
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - powershell: |
     yarn gulp electron
-  displayName: Download Electron
-- powershell: |
-    yarn gulp hygiene
+- script: |
+    yarn gulp hygiene --skip-tslint
   displayName: Run Hygiene Checks
+- script: |
+    yarn gulp tslint
+  displayName: Run TSLint Checks
 - powershell: |
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks

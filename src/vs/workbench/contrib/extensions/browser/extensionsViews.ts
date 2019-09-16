@@ -44,7 +44,7 @@ import { IAction } from 'vs/base/common/actions';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
@@ -124,12 +124,12 @@ export class ExtensionsListView extends ViewletPanel {
 		const delegate = new Delegate();
 		const extensionsViewState = new ExtensionsViewState();
 		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState);
-		this.list = this.instantiationService.createInstance(WorkbenchPagedList, extensionsList, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance(WorkbenchPagedList, 'Extensions', extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false
-		}) as WorkbenchPagedList<IExtension>;
+		});
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
 		this._register(this.list.onFocusChange(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this));
 		this._register(this.list);

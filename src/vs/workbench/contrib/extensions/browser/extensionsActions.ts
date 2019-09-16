@@ -58,7 +58,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -1605,7 +1605,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@recommended ');
+				viewlet.search('@recommended ', true);
 				viewlet.focus();
 			});
 	}
@@ -2049,13 +2049,13 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				removeFrom = removeFrom.filter(x => x.toLowerCase() !== extensionIdLowerCase);
 
 				return this.jsonEditingService.write(workspaceConfigurationFile,
-					{
+					[{
 						key: 'extensions',
 						value: {
 							recommendations: shouldRecommend ? insertInto : removeFrom,
 							unwantedRecommendations: shouldRecommend ? removeFrom : insertInto
 						}
-					},
+					}],
 					true);
 			});
 	}
@@ -2078,19 +2078,19 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				if (removeFrom.some(e => e.toLowerCase() === extensionIdLowerCase)) {
 					removeFrom = removeFrom.filter(x => x.toLowerCase() !== extensionIdLowerCase);
 					removeFromPromise = this.jsonEditingService.write(extensionsFileResource,
-						{
+						[{
 							key: shouldRecommend ? 'unwantedRecommendations' : 'recommendations',
 							value: removeFrom
-						},
+						}],
 						true);
 				}
 
 				return removeFromPromise.then(() =>
 					this.jsonEditingService.write(extensionsFileResource,
-						{
+						[{
 							key: shouldRecommend ? 'recommendations' : 'unwantedRecommendations',
 							value: insertInto
-						},
+						}],
 						true)
 				);
 			});
@@ -2115,7 +2115,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			.then(content => {
 				const workspaceRecommendations = <IExtensionsConfigContent>json.parse(content.value.toString())['extensions'];
 				if (!workspaceRecommendations || !workspaceRecommendations.recommendations) {
-					return this.jsonEditingService.write(workspaceConfigurationFile, { key: 'extensions', value: { recommendations: [] } }, true)
+					return this.jsonEditingService.write(workspaceConfigurationFile, [{ key: 'extensions', value: { recommendations: [] } }], true)
 						.then(() => this.fileService.readFile(workspaceConfigurationFile));
 				}
 				return content;
@@ -3046,7 +3046,7 @@ export class InstallLocalExtensionsInRemoteAction extends Action {
 
 	get label(): string {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return localize('select and install local extensions', "Install Local Extensions in {0}...", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+			return localize('select and install local extensions', "Install Local Extensions in '{0}'...", this.extensionManagementServerService.remoteExtensionManagementServer.label);
 		}
 		return '';
 	}
@@ -3091,7 +3091,7 @@ export class InstallLocalExtensionsInRemoteAction extends Action {
 		const localExtensionsToInstall = await this.queryExtensionsToInstall();
 		quickPick.busy = false;
 		if (localExtensionsToInstall.length) {
-			quickPick.title = localize('install local extensions title', "Install Local Extensions in {0}", this.extensionManagementServerService.remoteExtensionManagementServer!.label);
+			quickPick.title = localize('install local extensions title', "Install Local Extensions in '{0}'", this.extensionManagementServerService.remoteExtensionManagementServer!.label);
 			quickPick.placeholder = localize('select extensions to install', "Select extensions to install");
 			quickPick.canSelectMany = true;
 			localExtensionsToInstall.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));

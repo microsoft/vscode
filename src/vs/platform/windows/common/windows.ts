@@ -94,7 +94,7 @@ export interface IDevToolsOptions {
 
 export interface IWindowsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onWindowOpen: Event<number>;
 	readonly onWindowFocus: Event<number>;
@@ -221,7 +221,7 @@ export function isFileToOpen(uriToOpen: IURIToOpen): uriToOpen is IFileToOpen {
 
 export interface IWindowService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChangeFocus: Event<boolean>;
 	readonly onDidChangeMaximize: Event<boolean>;

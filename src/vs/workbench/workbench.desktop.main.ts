@@ -29,7 +29,6 @@ import 'vs/workbench/electron-browser/desktop.main';
 //#region --- workbench services
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
-import 'vs/workbench/services/workspace/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/search/node/searchService';
 import 'vs/workbench/services/output/node/outputChannelModelService';
 import 'vs/workbench/services/textfile/node/textFileService';
@@ -49,6 +48,7 @@ import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/credentials/node/credentialsService';
 import 'vs/workbench/services/url/electron-browser/urlService';
+import 'vs/workbench/services/workspace/electron-browser/workspacesService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -66,8 +66,6 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateService } from 'vs/platform/update/electron-browser/updateService';
 import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IssueService } from 'vs/platform/issue/electron-browser/issueService';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspacesService } from 'vs/platform/workspaces/electron-browser/workspacesService';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
 
@@ -79,7 +77,6 @@ registerSingleton(ISharedProcessService, SharedProcessService, true);
 registerSingleton(IWindowsService, WindowsService);
 registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
-registerSingleton(IWorkspacesService, WorkspacesService);
 registerSingleton(IMenubarService, MenubarService);
 
 //#endregion
@@ -122,10 +119,6 @@ import 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 // Update
 import 'vs/workbench/contrib/update/electron-browser/update.contribution';
 
-// Surveys
-import 'vs/workbench/contrib/surveys/electron-browser/nps.contribution';
-import 'vs/workbench/contrib/surveys/electron-browser/languageSurveys.contribution';
-
 // Performance
 import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
 
@@ -134,10 +127,6 @@ import 'vs/workbench/contrib/cli/node/cli.contribution';
 
 // Themes Support
 import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution';
-
-// Welcome
-import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
-import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';

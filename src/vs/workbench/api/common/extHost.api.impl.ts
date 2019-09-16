@@ -15,7 +15,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext, ExtHostLogServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, ExtHostLogServiceShape, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -68,6 +68,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { ExtHostUserData } from 'vs/workbench/api/common/extHostUserData';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -124,6 +125,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHosLabelService, new ExtHostLabelService(rpcProtocol));
+	const extHostUserData = rpcProtocol.set(ExtHostContext.ExtHostUserData, new ExtHostUserData(rpcProtocol.getProxy(MainContext.MainThreadUserData), extHostLogService));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
@@ -250,6 +252,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
+			},
+			get uiKind() {
+				checkProposedApiEnabled(extension);
+				return initData.uiKind;
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
@@ -512,7 +518,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					}
 					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
-				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
+				return extHostTerminalService.createTerminal(nameOrOptions, shellPath, shellArgs);
 			},
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
@@ -522,6 +528,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
+			},
+			registerWebviewEditorProvider: (viewType: string, provider: vscode.WebviewEditorProvider) => {
+				checkProposedApiEnabled(extension);
+				return extHostWebviews.registerWebviewEditorProvider(viewType, provider);
 			},
 			registerDecorationProvider(provider: vscode.DecorationProvider) {
 				checkProposedApiEnabled(extension);
@@ -535,6 +545,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createInputBox(): vscode.InputBox {
 				return extHostQuickOpen.createInputBox(extension.identifier);
+			},
+			registerUserDataSyncProvider: (identity: string, userDataProvider: vscode.UserDataSyncProvider): vscode.Disposable => {
+				checkProposedApiEnabled(extension);
+				return extHostUserData.registerUserDataProvider(identity, userDataProvider);
 			}
 		};
 
@@ -831,7 +845,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DocumentSymbol: extHostTypes.DocumentSymbol,
 			EndOfLine: extHostTypes.EndOfLine,
 			EventEmitter: Emitter,
-			ExtensionExecutionContext: extHostTypes.ExtensionExecutionContext,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			CustomExecution2: extHostTypes.CustomExecution2,
 			FileChangeType: extHostTypes.FileChangeType,
@@ -890,8 +903,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed
-			CallHierarchyDirection: extHostTypes.CallHierarchyDirection,
-			CallHierarchyItem: extHostTypes.CallHierarchyItem
+			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
+			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
+			CallHierarchyItem: extHostTypes.CallHierarchyItem,
+			Decoration: extHostTypes.Decoration,
+			UserDataError: extHostTypes.UserDataError,
+			WebviewEditorState: extHostTypes.WebviewEditorState,
+			UIKind: UIKind
 		};
 	};
 }

@@ -13,20 +13,21 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions } from 'vs/workbench/common/editor';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class WebviewEditor extends BaseEditor {
 
-	public static readonly ID = 'WebviewEditor';
+	public static ID = 'WebviewEditor';
 
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean>;
 	private _editorFrame?: HTMLElement;
 	private _content?: HTMLElement;
+	private _dimension?: DOM.Dimension;
 
 	private readonly _webviewFocusTrackerDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
@@ -88,9 +89,10 @@ export class WebviewEditor extends BaseEditor {
 		this.withWebview(webview => webview.reload());
 	}
 
-	public layout(_dimension: DOM.Dimension): void {
-		if (this.input && this.input instanceof WebviewEditorInput) {
-			this.synchronizeWebviewContainerDimensions(this.input.webview);
+	public layout(dimension: DOM.Dimension): void {
+		this._dimension = dimension;
+		if (this.input && this.input instanceof WebviewInput) {
+			this.synchronizeWebviewContainerDimensions(this.input.webview, dimension);
 			this.input.webview.layout();
 		}
 	}
@@ -109,35 +111,39 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public withWebview(f: (element: Webview) => void): void {
-		if (this.input && this.input instanceof WebviewEditorInput) {
+		if (this.input && this.input instanceof WebviewInput) {
 			f(this.input.webview);
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
-		const webview = this.input && (this.input as WebviewEditorInput).webview;
+	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		const webview = this.input && (this.input as WebviewInput).webview;
 		if (webview) {
 			if (visible) {
 				webview.claim(this);
 			} else {
 				webview.release(this);
 			}
-			this.claimWebview(this.input as WebviewEditorInput);
+			this.claimWebview(this.input as WebviewInput);
 		}
 
 		super.setEditorVisible(visible, group);
 	}
 
 	public clearInput() {
-		if (this.input && this.input instanceof WebviewEditorInput) {
+		if (this.input && this.input instanceof WebviewInput) {
 			this.input.webview.release(this);
 		}
 
 		super.clearInput();
 	}
 
-	public async setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		if (this.input && this.input instanceof WebviewEditorInput) {
+	public async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+		if (input.matches(this.input)) {
+			return;
+		}
+
+		if (this.input && this.input instanceof WebviewInput) {
 			this.input.webview.release(this);
 		}
 
@@ -147,14 +153,19 @@ export class WebviewEditor extends BaseEditor {
 			return;
 		}
 
-		if (this.group) {
-			input.updateGroup(this.group.id);
-		}
+		if (input instanceof WebviewInput) {
+			if (this.group) {
+				input.updateGroup(this.group.id);
+			}
 
-		this.claimWebview(input);
+			this.claimWebview(input);
+			if (this._dimension) {
+				this.layout(this._dimension);
+			}
+		}
 	}
 
-	private claimWebview(input: WebviewEditorInput): void {
+	private claimWebview(input: WebviewInput): void {
 		input.webview.claim(this);
 
 		if (input.webview.options.enableFindWidget) {
@@ -170,17 +181,16 @@ export class WebviewEditor extends BaseEditor {
 		this.trackFocus(input.webview);
 	}
 
-	private synchronizeWebviewContainerDimensions(webview: WebviewEditorOverlay) {
+	private synchronizeWebviewContainerDimensions(webview: WebviewEditorOverlay, dimension?: DOM.Dimension) {
 		const webviewContainer = webview.container;
 		if (webviewContainer && webviewContainer.parentElement && this._editorFrame) {
 			const frameRect = this._editorFrame.getBoundingClientRect();
 			const containerRect = webviewContainer.parentElement.getBoundingClientRect();
-
 			webviewContainer.style.position = 'absolute';
 			webviewContainer.style.top = `${frameRect.top - containerRect.top}px`;
 			webviewContainer.style.left = `${frameRect.left - containerRect.left}px`;
-			webviewContainer.style.width = `${frameRect.width}px`;
-			webviewContainer.style.height = `${frameRect.height}px`;
+			webviewContainer.style.width = `${dimension ? dimension.width : frameRect.width}px`;
+			webviewContainer.style.height = `${dimension ? dimension.height : frameRect.height}px`;
 		}
 	}
 

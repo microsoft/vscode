@@ -19,7 +19,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -35,7 +35,7 @@ import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
-	_serviceBrand!: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 

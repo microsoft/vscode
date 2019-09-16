@@ -39,6 +39,7 @@ import { ExplorerRootContext, ExplorerFolderContext } from 'vs/workbench/contrib
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
@@ -366,6 +367,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+const PREFERENCES_EDITOR_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`));
+const PREFERENCES_EDITOR_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`));
 class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
@@ -381,8 +384,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				id: OpenGlobalKeybindingsAction.ID,
 				title: OpenGlobalKeybindingsAction.LABEL,
 				iconLocation: {
-					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
-					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
+					light: PREFERENCES_EDITOR_LIGHT_ICON_URI,
+					dark: PREFERENCES_EDITOR_DARK_ICON_URI
 				}
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.keybindingsResource.toString()),
@@ -397,8 +400,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				id: commandId,
 				title: OpenSettings2Action.LABEL,
 				iconLocation: {
-					light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
-					dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
+					light: PREFERENCES_EDITOR_LIGHT_ICON_URI,
+					dark: PREFERENCES_EDITOR_DARK_ICON_URI
 				}
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.settingsResource.toString()),
@@ -438,8 +441,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: commandId,
 					title: OpenSettings2Action.LABEL,
 					iconLocation: {
-						light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
-						dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
+						light: PREFERENCES_EDITOR_LIGHT_ICON_URI,
+						dark: PREFERENCES_EDITOR_DARK_ICON_URI
 					}
 				},
 				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
@@ -466,8 +469,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						id: commandId,
 						title: OpenSettings2Action.LABEL,
 						iconLocation: {
-							light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
-							dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
+							light: PREFERENCES_EDITOR_LIGHT_ICON_URI,
+							dark: PREFERENCES_EDITOR_DARK_ICON_URI
 						}
 					},
 					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
@@ -533,8 +536,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: OpenGlobalKeybindingsFileAction.ID,
 		title: OpenGlobalKeybindingsFileAction.LABEL,
 		iconLocation: {
-			light: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`)),
-			dark: URI.parse(require.toUrl(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`))
+			light: PREFERENCES_EDITOR_LIGHT_ICON_URI,
+			dark: PREFERENCES_EDITOR_DARK_ICON_URI
 		}
 	},
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
@@ -817,8 +820,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 		title: nls.localize('openSettingsJson', "Open Settings (JSON)"),
 		iconLocation: {
-			dark: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg')),
-			light: URI.parse(require.toUrl('vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg'))
+			dark: PREFERENCES_EDITOR_DARK_ICON_URI,
+			light: PREFERENCES_EDITOR_LIGHT_ICON_URI
 		}
 	},
 	group: 'navigation',

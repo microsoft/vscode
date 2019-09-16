@@ -13,6 +13,8 @@ import Constants from './constants';
 import { URI } from 'vs/base/common/uri';
 import { groupBy } from 'vs/base/common/arrays';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Event } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
@@ -22,12 +24,12 @@ export interface IFilter {
 }
 
 export interface IMarkersWorkbenchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	readonly markersModel: MarkersModel;
 }
 
 export class MarkersWorkbenchService extends Disposable implements IMarkersWorkbenchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly markersModel: MarkersModel;
 
@@ -38,17 +40,16 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		super();
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel, this.readMarkers()));
 
-		for (const group of groupBy(this.readMarkers(), compareMarkersByUri)) {
-			this.markersModel.setResourceMarkers(group[0].resource, group);
-		}
-
-		this._register(markerService.onMarkerChanged(resources => this.onMarkerChanged(resources)));
+		this.markersModel.setResourceMarkers(groupBy(this.readMarkers(), compareMarkersByUri).map(group => [group[0].resource, group]));
+		this._register(Event.debounce<URI[], ResourceMap<URI>>(markerService.onMarkerChanged, (resourcesMap, resources) => {
+			resourcesMap = resourcesMap ? resourcesMap : new ResourceMap<URI>();
+			resources.forEach(resource => resourcesMap!.set(resource, resource));
+			return resourcesMap;
+		}, 0)(resourcesMap => this.onMarkerChanged(resourcesMap.values())));
 	}
 
 	private onMarkerChanged(resources: URI[]): void {
-		for (const resource of resources) {
-			this.markersModel.setResourceMarkers(resource, this.readMarkers(resource));
-		}
+		this.markersModel.setResourceMarkers(resources.map(resource => [resource, this.readMarkers(resource)]));
 	}
 
 	private readMarkers(resource?: URI): IMarker[] {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { env, extensions, ExtensionKind } from 'vscode';
+import { env, extensions, ExtensionKind, UIKind } from 'vscode';
 
 suite('env-namespace', () => {
 
@@ -28,20 +28,25 @@ suite('env-namespace', () => {
 
 	test('env.remoteName', function () {
 		const remoteName = env.remoteName;
-		const apiTestExtension = extensions.getExtension('vscode.vscode-api-tests');
-		const testResolverExtension = extensions.getExtension('vscode.vscode-test-resolver');
+		const knownWorkspaceExtension = extensions.getExtension('vscode.git');
+		const knownUiExtension = extensions.getExtension('vscode.git-ui');
 		if (typeof remoteName === 'undefined') {
-			assert.ok(apiTestExtension);
-			assert.ok(testResolverExtension);
-			assert.equal(ExtensionKind.UI, apiTestExtension!.extensionKind);
-			assert.equal(ExtensionKind.UI, testResolverExtension!.extensionKind);
+			// not running in remote, so we expect both extensions
+			assert.ok(knownWorkspaceExtension);
+			assert.ok(knownUiExtension);
+			assert.equal(ExtensionKind.UI, knownUiExtension!.extensionKind);
 		} else if (typeof remoteName === 'string') {
-			assert.ok(apiTestExtension);
-			assert.ok(!testResolverExtension); // we currently can only access extensions that run on same host
-			assert.equal(ExtensionKind.Workspace, apiTestExtension!.extensionKind);
+			// running in remote, so we only expect workspace extensions
+			assert.ok(knownWorkspaceExtension);
+			assert.ok(!knownUiExtension); // we currently can only access extensions that run on same host
+			assert.equal(ExtensionKind.Workspace, knownWorkspaceExtension!.extensionKind);
 		} else {
 			assert.fail();
 		}
 	});
 
+	test('env.uiKind', function () {
+		const kind = env.uiKind;
+		assert.equal(kind, UIKind.Desktop);
+	});
 });

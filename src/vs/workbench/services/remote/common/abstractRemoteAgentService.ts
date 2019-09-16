@@ -24,7 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export abstract class AbstractRemoteAgentService extends Disposable {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 

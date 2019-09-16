@@ -17,7 +17,6 @@ import { isWindows } from 'vs/base/common/platform';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ltrim, endsWith } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { Schemas } from 'vs/base/common/network';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
@@ -92,7 +91,7 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ResourceLabelFormattersHandler, LifecyclePhase.Restored);
 
 export class LabelService implements ILabelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private formatters: ResourceLabelFormatter[] = [];
 	private readonly _onDidChangeFormatters = new Emitter<void>();
@@ -129,7 +128,10 @@ export class LabelService implements ILabelService {
 	}
 
 	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
-		const formatting = this.findFormatting(resource);
+		return this.doGetUriLabel(resource, this.findFormatting(resource), options);
+	}
+
+	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
 		if (!formatting) {
 			return getPathLabel(resource.path, this.environmentService, options.relative ? this.contextService : undefined);
 		}
@@ -161,10 +163,13 @@ export class LabelService implements ILabelService {
 	}
 
 	getUriBasenameLabel(resource: URI): string {
-		const label = this.getUriLabel(resource);
 		const formatting = this.findFormatting(resource);
-		if (formatting && formatting.separator === '\\') {
-			return paths.win32.basename(label);
+		const label = this.doGetUriLabel(resource, formatting);
+		if (formatting) {
+			switch (formatting.separator) {
+				case paths.win32.sep: return paths.win32.basename(label);
+				case paths.posix.sep: return paths.posix.basename(label);
+			}
 		}
 
 		return paths.basename(label);
@@ -277,12 +282,8 @@ export class LabelService implements ILabelService {
 	}
 
 	private appendWorkspaceSuffix(label: string, uri: URI): string {
-		if (uri.scheme === Schemas.file) {
-			return label;
-		}
-
 		const formatting = this.findFormatting(uri);
-		const suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : uri.scheme;
+		const suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : undefined;
 		return suffix ? `${label} [${suffix}]` : label;
 	}
 }

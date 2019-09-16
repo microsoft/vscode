@@ -49,6 +49,7 @@ import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -481,7 +482,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private onDidEditorOpen(editor: EditorInput): void {
 
-		// Telemetry
 		/* __GDPR__
 			"editorOpened" : {
 				"${include}": [
@@ -520,14 +520,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		});
 
-		// Telemetry
 		/* __GDPR__
-				"editorClosed" : {
-					"${include}": [
-						"${EditorTelemetryDescriptor}"
-					]
-				}
-			*/
+			"editorClosed" : {
+				"${include}": [
+					"${EditorTelemetryDescriptor}"
+				]
+			}
+		*/
 		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(event.editor));
 
 		// Update container
@@ -810,7 +809,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onWillOpenEditor.fire(event);
 		const prevented = event.isPrevented();
 		if (prevented) {
-			return prevented();
+			return withUndefinedAsNull(await prevented());
 		}
 
 		// Proceed with opening
@@ -833,12 +832,35 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			openEditorOptions.active = true;
 		}
 
-		// Set group active unless we open inactive or preserve focus
+		let activateGroup = false;
+		let restoreGroup = false;
+
+		if (options && options.activation === EditorActivation.ACTIVATE) {
+			// Respect option to force activate an editor group.
+			activateGroup = true;
+		} else if (options && options.activation === EditorActivation.RESTORE) {
+			// Respect option to force restore an editor group.
+			restoreGroup = true;
+		} else if (options && options.activation === EditorActivation.PRESERVE) {
+			// Respect option to preserve active editor group.
+			activateGroup = false;
+			restoreGroup = false;
+		} else if (openEditorOptions.active) {
+			// Finally, we only activate/restore an editor which is
+			// opening as active editor.
+			// If preserveFocus is enabled, we only restore but never
+			// activate the group.
+			activateGroup = !options || !options.preserveFocus;
+			restoreGroup = !activateGroup;
+		}
+
 		// Do this before we open the editor in the group to prevent a false
 		// active editor change event before the editor is loaded
 		// (see https://github.com/Microsoft/vscode/issues/51679)
-		if (openEditorOptions.active && (!options || !options.preserveFocus)) {
+		if (activateGroup) {
 			this.accessor.activateGroup(this);
+		} else if (restoreGroup) {
+			this.accessor.restoreGroup(this);
 		}
 
 		// Actually move the editor if a specific index is provided and we figure
@@ -1498,7 +1520,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 }
 
 class EditorOpeningEvent implements IEditorOpeningEvent {
-	private override: () => Promise<IEditor>;
+	private override: () => Promise<IEditor | undefined>;
 
 	constructor(
 		private _group: GroupIdentifier,
@@ -1519,11 +1541,11 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 		return this._options;
 	}
 
-	prevent(callback: () => Promise<IEditor>): void {
+	prevent(callback: () => Promise<IEditor | undefined>): void {
 		this.override = callback;
 	}
 
-	isPrevented(): () => Promise<IEditor> {
+	isPrevented(): () => Promise<IEditor | undefined> {
 		return this.override;
 	}
 }

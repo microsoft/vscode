@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-import { addDisposableListener, addClass } from 'vs/base/browser/dom';
-import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
+import { isWeb } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
-import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
+import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
+import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
+import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface WebviewContent {
 	readonly html: string;
@@ -40,15 +42,13 @@ export class IFrameWebview extends Disposable implements Webview {
 		contentOptions: WebviewContentOptions,
 		@IThemeService themeService: IThemeService,
 		@ITunnelService tunnelService: ITunnelService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
-
-		if (typeof environmentService.webviewEndpoint !== 'string' && !useExternalEndpoint) {
-			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
+		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.webviewExternalEndpoint !== 'string')) {
+			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewExternalEndpoint`');
 		}
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
@@ -65,7 +65,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 		this.element = document.createElement('iframe');
 		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
-		this.element.setAttribute('src', `${this.endpoint}/index.html?id=${this.id}`);
+		this.element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
@@ -143,14 +143,16 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._register(themeService.onThemeChange(this.style, this));
 	}
 
-	private get endpoint(): string {
-		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
-		const baseEndpoint = useExternalEndpoint ? 'https://{{uuid}}.vscode-webview-test.com/8fa811108f0f0524c473020ef57b6620f6c201e1' : this.environmentService.webviewEndpoint!;
-		const endpoint = baseEndpoint.replace('{{uuid}}', this.id);
+	private get externalEndpoint(): string {
+		const endpoint = this.environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}
 		return endpoint;
+	}
+
+	private get useExternalEndpoint(): boolean {
+		return isWeb || this._configurationService.getValue<boolean>('webview.experimental.useExternalEndpoint');
 	}
 
 	public mountTo(parent: HTMLElement) {
@@ -183,7 +185,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private preprocessHtml(value: string): string {
 		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
-			`${startQuote}${this.endpoint}/vscode-resource${path}${endQuote}`);
+			`${startQuote}${this.externalEndpoint}/vscode-resource${path}${endQuote}`);
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
@@ -203,7 +205,7 @@ export class IFrameWebview extends Disposable implements Webview {
 			contents: this.content.html,
 			options: this.content.options,
 			state: this.content.state,
-			endpoint: this.endpoint,
+			endpoint: this.externalEndpoint,
 		});
 	}
 
@@ -230,6 +232,10 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
+
+	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
+	public readonly onMissingCsp = this._onMissingCsp.event;
+
 
 	sendMessage(data: any): void {
 		this._send('message', data);

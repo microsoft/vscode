@@ -10,13 +10,12 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import severity from 'vs/base/common/severity';
-import { isObject, isString, isUndefinedOrNull } from 'vs/base/common/types';
+import { isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
-	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel, IReplElementSource,
-	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint
+	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
+	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint
 } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
@@ -25,81 +24,20 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextEditor } from 'vs/workbench/common/editor';
 
-export class SimpleReplElement implements IReplElement {
-	constructor(
-		private id: string,
-		public value: string,
-		public severity: severity,
-		public sourceData?: IReplElementSource,
-	) { }
-
-	toString(): string {
-		return this.value;
-	}
-
-	getId(): string {
-		return this.id;
-	}
-}
-
-export class RawObjectReplElement implements IExpression {
-
-	private static readonly MAX_CHILDREN = 1000; // upper bound of children per value
-
-	constructor(private id: string, public name: string, public valueObj: any, public sourceData?: IReplElementSource, public annotation?: string) { }
-
-	getId(): string {
-		return this.id;
-	}
-
-	get value(): string {
-		if (this.valueObj === null) {
-			return 'null';
-		} else if (Array.isArray(this.valueObj)) {
-			return `Array[${this.valueObj.length}]`;
-		} else if (isObject(this.valueObj)) {
-			return 'Object';
-		} else if (isString(this.valueObj)) {
-			return `"${this.valueObj}"`;
-		}
-
-		return String(this.valueObj) || '';
-	}
-
-	get hasChildren(): boolean {
-		return (Array.isArray(this.valueObj) && this.valueObj.length > 0) || (isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0);
-	}
-
-	getChildren(): Promise<IExpression[]> {
-		let result: IExpression[] = [];
-		if (Array.isArray(this.valueObj)) {
-			result = (<any[]>this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
-				.map((v, index) => new RawObjectReplElement(`${this.id}:${index}`, String(index), v));
-		} else if (isObject(this.valueObj)) {
-			result = Object.getOwnPropertyNames(this.valueObj).slice(0, RawObjectReplElement.MAX_CHILDREN)
-				.map((key, index) => new RawObjectReplElement(`${this.id}:${index}`, key, this.valueObj[key]));
-		}
-
-		return Promise.resolve(result);
-	}
-
-	toString(): string {
-		return `${this.name}\n${this.value}`;
-	}
-}
-
 export class ExpressionContainer implements IExpressionContainer {
 
 	public static allValues = new Map<string, string>();
 	// Use chunks to support variable paging #9537
 	private static readonly BASE_CHUNK_SIZE = 100;
 
+	public type: string | undefined;
 	public valueChanged = false;
 	private _value: string = '';
 	protected children?: Promise<IExpression[]>;
 
 	constructor(
 		protected session: IDebugSession | undefined,
+		protected threadId: number | undefined,
 		private _reference: number | undefined,
 		private id: string,
 		public namedVariables: number | undefined = 0,
@@ -148,7 +86,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			for (let i = 0; i < numberOfChunks; i++) {
 				const start = (this.startOfVariables || 0) + i * chunkSize;
 				const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-				children.push(new Variable(this.session, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, { kind: 'virtual' }, undefined, true, start));
+				children.push(new Variable(this.session, this.threadId, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, { kind: 'virtual' }, undefined, true, start));
 			}
 
 			return children;
@@ -172,12 +110,12 @@ export class ExpressionContainer implements IExpressionContainer {
 	}
 
 	private fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
-		return this.session!.variables(this.reference || 0, filter, start, count).then(response => {
+		return this.session!.variables(this.reference || 0, this.threadId, filter, start, count).then(response => {
 			return response && response.body && response.body.variables
 				? distinct(response.body.variables.filter(v => !!v && isString(v.name)), (v: DebugProtocol.Variable) => v.name).map((v: DebugProtocol.Variable) =>
-					new Variable(this.session, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
+					new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
 				: [];
-		}, (e: Error) => [new Variable(this.session, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, undefined, false)]);
+		}, (e: Error) => [new Variable(this.session, this.threadId, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, undefined, false)]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
@@ -195,16 +133,46 @@ export class ExpressionContainer implements IExpressionContainer {
 	toString(): string {
 		return this.value;
 	}
+
+	async evaluateExpression(
+		expression: string,
+		session: IDebugSession | undefined,
+		stackFrame: IStackFrame | undefined,
+		context: string): Promise<boolean> {
+
+		if (!session || (!stackFrame && context !== 'repl')) {
+			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
+			this.reference = 0;
+			return false;
+		}
+
+		this.session = session;
+		try {
+			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+			if (response && response.body) {
+				this.value = response.body.result || '';
+				this.reference = response.body.variablesReference;
+				this.namedVariables = response.body.namedVariables;
+				this.indexedVariables = response.body.indexedVariables;
+				this.type = response.body.type || this.type;
+				return true;
+			}
+			return false;
+		} catch (e) {
+			this.value = e.message || '';
+			this.reference = 0;
+			return false;
+		}
+	}
 }
 
 export class Expression extends ExpressionContainer implements IExpression {
 	static DEFAULT_VALUE = nls.localize('notAvailable', "not available");
 
 	public available: boolean;
-	public type: string | undefined;
 
 	constructor(public name: string, id = generateUuid()) {
-		super(undefined, 0, id);
+		super(undefined, undefined, 0, id);
 		this.available = false;
 		// name is not set if the expression is just being added
 		// in that case do not set default value to prevent flashing #14499
@@ -214,30 +182,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 	}
 
 	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<void> {
-		if (!session || (!stackFrame && context !== 'repl')) {
-			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
-			this.available = false;
-			this.reference = 0;
-
-			return Promise.resolve(undefined);
-		}
-
-		this.session = session;
-		try {
-			const response = await session.evaluate(this.name, stackFrame ? stackFrame.frameId : undefined, context);
-			this.available = !!(response && response.body);
-			if (response && response.body) {
-				this.value = response.body.result || '';
-				this.reference = response.body.variablesReference;
-				this.namedVariables = response.body.namedVariables;
-				this.indexedVariables = response.body.indexedVariables;
-				this.type = response.body.type || this.type;
-			}
-		} catch (e) {
-			this.value = e.message || '';
-			this.available = false;
-			this.reference = 0;
-		}
+		this.available = await this.evaluateExpression(this.name, session, stackFrame, context);
 	}
 
 	toString(): string {
@@ -252,6 +197,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 
 	constructor(
 		session: IDebugSession | undefined,
+		threadId: number | undefined,
 		public parent: IExpressionContainer,
 		reference: number | undefined,
 		public name: string,
@@ -264,7 +210,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		public available = true,
 		startOfVariables = 0
 	) {
-		super(session, reference, `variable:${parent.getId()}:${name}`, namedVariables, indexedVariables, startOfVariables);
+		super(session, threadId, reference, `variable:${parent.getId()}:${name}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = value || '';
 	}
 
@@ -304,7 +250,7 @@ export class Scope extends ExpressionContainer implements IScope {
 		indexedVariables?: number,
 		public range?: IRange
 	) {
-		super(stackFrame.thread.session, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
+		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
 	}
 
 	toString(): string {
@@ -332,7 +278,7 @@ export class StackFrame implements IStackFrame {
 
 	getScopes(): Promise<IScope[]> {
 		if (!this.scopes) {
-			this.scopes = this.thread.session.scopes(this.frameId).then(response => {
+			this.scopes = this.thread.session.scopes(this.frameId, this.thread.threadId).then(response => {
 				return response && response.body && response.body.scopes ?
 					response.body.scopes.map((rs, index) => new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
 						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : undefined)) : [];
@@ -394,6 +340,10 @@ export class StackFrame implements IStackFrame {
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | null> {
 		return !this.source.available ? Promise.resolve(null) :
 			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
+	}
+
+	equals(other: IStackFrame): boolean {
+		return (this.name === other.name) && (other.thread === this.thread) && (other.source === this.source) && (Range.equalsRange(this.range, other.range));
 	}
 }
 
@@ -578,13 +528,22 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		this.sessionId = sessionId;
 	}
 
+	get message(): string | undefined {
+		const data = this.getSessionData();
+		if (!data) {
+			return undefined;
+		}
+
+		return data.message;
+	}
+
 	get verified(): boolean {
 		const data = this.getSessionData();
 		return data ? data.verified : true;
 	}
 
-	get idFromAdapter(): number | undefined {
-		const data = this.getSessionData();
+	getIdFromAdapter(sessionId: string): number | undefined {
+		const data = this.sessionData.get(sessionId);
 		return data ? data.id : undefined;
 	}
 
@@ -637,15 +596,11 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get message(): string | undefined {
-		const data = this.getSessionData();
-		if (!data) {
-			return undefined;
-		}
 		if (this.textFileService.isDirty(this.uri)) {
 			return nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.");
 		}
 
-		return data.message;
+		return super.message;
 	}
 
 	get adapterData(): any {
@@ -797,13 +752,13 @@ export class DebugModel implements IDebugModel {
 	private toDispose: lifecycle.IDisposable[];
 	private schedulers = new Map<string, RunOnceScheduler>();
 	private breakpointsSessionId: string | undefined;
+	private breakpointsActivated = true;
 	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent | undefined>;
 	private readonly _onDidChangeCallStack: Emitter<void>;
 	private readonly _onDidChangeWatchExpressions: Emitter<IExpression | undefined>;
 
 	constructor(
 		private breakpoints: Breakpoint[],
-		private breakpointsActivated: boolean,
 		private functionBreakpoints: FunctionBreakpoint[],
 		private exceptionBreakpoints: ExceptionBreakpoint[],
 		private dataBreakopints: DataBreakpoint[],
@@ -901,7 +856,16 @@ export class DebugModel implements IDebugModel {
 					if (!this.schedulers.has(thread.getId())) {
 						this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
 							thread.fetchCallStack(19).then(() => {
-								this._onDidChangeCallStack.fire();
+								const stale = thread.getStaleCallStack();
+								const current = thread.getCallStack();
+								let bottomOfCallStackChanged = stale.length !== current.length;
+								for (let i = 1; i < stale.length && !bottomOfCallStackChanged; i++) {
+									bottomOfCallStackChanged = !stale[i].equals(current[i]);
+								}
+
+								if (bottomOfCallStackChanged) {
+									this._onDidChangeCallStack.fire();
+								}
 								c();
 							});
 						}, 420));
@@ -1065,9 +1029,9 @@ export class DebugModel implements IDebugModel {
 	}
 
 	setEnablement(element: IEnablement, enable: boolean): void {
-		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint || element instanceof ExceptionBreakpoint) {
-			const changed: Array<IBreakpoint | IFunctionBreakpoint> = [];
-			if (element.enabled !== enable && (element instanceof Breakpoint || element instanceof FunctionBreakpoint)) {
+		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint || element instanceof ExceptionBreakpoint || element instanceof DataBreakpoint) {
+			const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint> = [];
+			if (element.enabled !== enable && (element instanceof Breakpoint || element instanceof FunctionBreakpoint || element instanceof DataBreakpoint)) {
 				changed.push(element);
 			}
 

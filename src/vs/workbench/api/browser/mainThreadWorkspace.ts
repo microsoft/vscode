@@ -8,6 +8,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { isNative } from 'vs/base/common/platform';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -25,6 +26,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IFileService } from 'vs/platform/files/common/files';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -44,10 +46,18 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IWindowService private readonly _windowService: IWindowService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IFileService fileService: IFileService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
-		this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace)));
+		const workspace = this._contextService.getWorkspace();
+		// The workspace file is provided be a unknown file system provider. It might come
+		// from the extension host. So initialize now knowing that `rootPath` is undefined.
+		if (workspace.configuration && !isNative && !fileService.canHandleResource(workspace.configuration)) {
+			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace));
+		} else {
+			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace)));
+		}
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
 	}

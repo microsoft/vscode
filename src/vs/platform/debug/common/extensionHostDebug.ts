@@ -34,7 +34,7 @@ export interface ICloseSessionEvent {
 }
 
 export interface IExtensionHostDebugService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	reload(sessionId: string): void;
 	onReload: Event<IReloadSessionEvent>;

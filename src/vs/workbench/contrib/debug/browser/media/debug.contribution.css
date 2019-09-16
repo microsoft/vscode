@@ -62,6 +62,18 @@
 	background: url('breakpoint-function-disabled.svg') center center no-repeat;
 }
 
+.debug-data-breakpoint {
+	background: url('breakpoint-data.svg') center center no-repeat;
+}
+
+.debug-data-breakpoint-unverified {
+	background: url('breakpoint-data-unverified.svg') center center no-repeat;
+}
+
+.debug-data-breakpoint-disabled {
+	background: url('breakpoint-data-disabled.svg') center center no-repeat;
+}
+
 .debug-breakpoint-conditional,
 .monaco-editor .debug-breakpoint-column.debug-breakpoint-conditional-column::before {
 	background: url('breakpoint-conditional.svg') center center no-repeat;
@@ -133,6 +145,16 @@
 
 .monaco-workbench .monaco-list-row .expression .value {
 	margin-left: 6px;
+}
+
+/* Links */
+
+.monaco-workbench .monaco-list-row .expression .value a {
+	text-decoration: underline;
+}
+
+.monaco-workbench .monaco-list-row .expression .value a.pointer {
+	cursor: pointer;
 }
 
 /* White color when element is selected and list is focused. White looks better on blue selection background. */

@@ -24,7 +24,7 @@ export const IWebviewService = createDecorator<IWebviewService>('webviewService'
  * Handles the creation of webview elements.
  */
 export interface IWebviewService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createWebview(
 		id: string,
@@ -70,6 +70,7 @@ export interface Webview extends IDisposable {
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onMessage: Event<any>;
+	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
 	sendMessage(data: any): void;
 	update(

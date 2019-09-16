@@ -21,7 +21,9 @@ interface ServerReadyAction {
 }
 
 class ServerReadyDetector extends vscode.Disposable {
-	static detectors = new Map<vscode.DebugSession, ServerReadyDetector>();
+
+	private static detectors = new Map<vscode.DebugSession, ServerReadyDetector>();
+	private static terminalDataListener: vscode.Disposable | undefined;
 
 	private hasFired = false;
 	private shellPid?: number;
@@ -55,6 +57,29 @@ class ServerReadyDetector extends vscode.Disposable {
 		}
 	}
 
+	static async startListeningTerminalData() {
+		if (!this.terminalDataListener) {
+			this.terminalDataListener = vscode.window.onDidWriteTerminalData(async e => {
+
+				// first find the detector with a matching pid
+				const pid = await e.terminal.processId;
+				for (let [, detector] of this.detectors) {
+					if (detector.shellPid === pid) {
+						detector.detectPattern(e.data);
+						return;
+					}
+				}
+
+				// if none found, try all detectors until one matches
+				for (let [, detector] of this.detectors) {
+					if (detector.detectPattern(e.data)) {
+						return;
+					}
+				}
+			});
+		}
+	}
+
 	private constructor(private session: vscode.DebugSession) {
 		super(() => this.internalDispose());
 
@@ -66,35 +91,17 @@ class ServerReadyDetector extends vscode.Disposable {
 		this.disposables = [];
 	}
 
-	async trackTerminals() {
-
-		let terminals: vscode.Terminal[] = [];
-
-		// either find the terminal where the debug is started with "runInTerminal" or use all terminals
-		for (let terminal of vscode.window.terminals) {
-			if (!this.shellPid || await terminal.processId === this.shellPid) {
-				terminals.push(terminal);
-			}
-		}
-		this.shellPid = undefined;
-
-		terminals.forEach(terminal => {
-			this.disposables.push(terminal.onDidWriteData(s => {
-				this.detectPattern(s);
-			}));
-		});
-	}
-
-	detectPattern(s: string): void {
-
+	detectPattern(s: string): boolean {
 		if (!this.hasFired) {
 			const matches = this.regexp.exec(s);
 			if (matches && matches.length >= 1) {
 				this.openExternalWithString(this.session, matches.length > 1 ? matches[1] : '');
 				this.hasFired = true;
 				this.internalDispose();
+				return true;
 			}
 		}
+		return false;
 	}
 
 	private openExternalWithString(session: vscode.DebugSession, captureString: string) {
@@ -132,11 +139,12 @@ class ServerReadyDetector extends vscode.Disposable {
 
 		const args: ServerReadyAction = session.configuration.serverReadyAction;
 		switch (args.action || 'openExternally') {
+
 			case 'openExternally':
 				vscode.env.openExternal(vscode.Uri.parse(uri));
 				break;
-			case 'debugWithChrome':
 
+			case 'debugWithChrome':
 				if (vscode.env.remoteName === 'wsl' || !!vscode.extensions.getExtension('msjsdiag.debugger-for-chrome')) {
 					vscode.debug.startDebugging(session.workspaceFolder, {
 						type: 'chrome',
@@ -150,6 +158,7 @@ class ServerReadyDetector extends vscode.Disposable {
 					vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
 				}
 				break;
+
 			default:
 				// not supported
 				break;
@@ -163,7 +172,7 @@ export function activate(context: vscode.ExtensionContext) {
 		if (session && session.configuration.serverReadyAction) {
 			const detector = ServerReadyDetector.start(session);
 			if (detector) {
-				detector.trackTerminals();
+				ServerReadyDetector.startListeningTerminalData();
 			}
 		}
 	}));

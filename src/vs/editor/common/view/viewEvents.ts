@@ -6,7 +6,7 @@
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -34,32 +34,14 @@ export class ViewConfigurationChangedEvent {
 
 	public readonly type = ViewEventType.ViewConfigurationChanged;
 
-	public readonly canUseLayerHinting: boolean;
-	public readonly pixelRatio: boolean;
-	public readonly editorClassName: boolean;
-	public readonly lineHeight: boolean;
-	public readonly readOnly: boolean;
-	public readonly accessibilitySupport: boolean;
-	public readonly emptySelectionClipboard: boolean;
-	public readonly copyWithSyntaxHighlighting: boolean;
-	public readonly layoutInfo: boolean;
-	public readonly fontInfo: boolean;
-	public readonly viewInfo: boolean;
-	public readonly wrappingInfo: boolean;
+	public readonly _source: ConfigurationChangedEvent;
 
-	constructor(source: IConfigurationChangedEvent) {
-		this.canUseLayerHinting = source.canUseLayerHinting;
-		this.pixelRatio = source.pixelRatio;
-		this.editorClassName = source.editorClassName;
-		this.lineHeight = source.lineHeight;
-		this.readOnly = source.readOnly;
-		this.accessibilitySupport = source.accessibilitySupport;
-		this.emptySelectionClipboard = source.emptySelectionClipboard;
-		this.copyWithSyntaxHighlighting = source.copyWithSyntaxHighlighting;
-		this.layoutInfo = source.layoutInfo;
-		this.fontInfo = source.fontInfo;
-		this.viewInfo = source.viewInfo;
-		this.wrappingInfo = source.wrappingInfo;
+	constructor(source: ConfigurationChangedEvent) {
+		this._source = source;
+	}
+
+	public hasChanged(id: EditorOption): boolean {
+		return this._source.hasChanged(id);
 	}
 }
 
@@ -198,7 +180,13 @@ export class ViewRevealRangeRequestEvent {
 
 	public readonly scrollType: ScrollType;
 
-	constructor(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
+	/**
+	 * Source of the call that caused the event.
+	 */
+	readonly source: string;
+
+	constructor(source: string, range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
+		this.source = source;
 		this.range = range;
 		this.verticalType = verticalType;
 		this.revealHorizontal = revealHorizontal;

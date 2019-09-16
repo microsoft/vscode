@@ -81,6 +81,7 @@
 	display: flex;
 	flex: initial;
 	opacity: 0.5;
+	padding-right: 8px;
 	height: 35px;
 }
 

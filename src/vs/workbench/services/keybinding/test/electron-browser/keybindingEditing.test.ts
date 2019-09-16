@@ -46,14 +46,14 @@ import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { URI } from 'vs/base/common/uri';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 class TestEnvironmentService extends WorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
+		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
