@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService, SETTINGS_PREVIEW_RESOURCE as SETTINGS_CONFLICTS_RESOURCE } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService, SETTINGS_PREVIEW_RESOURCE } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -40,7 +40,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
-	readonly conflicts: URI = SETTINGS_CONFLICTS_RESOURCE;
+	readonly conflicts: URI = SETTINGS_PREVIEW_RESOURCE;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,

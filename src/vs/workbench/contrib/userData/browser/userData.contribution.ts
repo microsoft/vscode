@@ -25,8 +25,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IFileService } from 'vs/platform/files/common/files';
-import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 
 const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 
@@ -49,13 +47,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 class UserDataSyncContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@IFileService fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 	) {
 		super();
-		this._register(fileService.registerProvider(USER_DATA_PREVIEW_SCHEME, new InMemoryFileSystemProvider()));
 		this.sync(true);
 		this._register(Event.any<any>(
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync')),
