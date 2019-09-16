@@ -747,7 +747,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	protected updateFocus(fromRight?: boolean): void {
 		if (typeof this.focusedItem === 'undefined') {
-			this.actionsList.focus();
+			this.actionsList.focus({ preventScroll: true });
 		}
 
 		for (let i = 0; i < this.viewItems.length; i++) {
@@ -759,7 +759,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 					if (actionViewItem.isEnabled() && types.isFunction(actionViewItem.focus)) {
 						actionViewItem.focus(fromRight);
 					} else {
-						this.actionsList.focus();
+						this.actionsList.focus({ preventScroll: true });
 					}
 				}
 			} else {
