@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -607,30 +607,5 @@ export class SimpleWindowsService implements IWindowsService {
 }
 
 registerSingleton(IWindowsService, SimpleWindowsService);
-
-//#endregion
-
-//#region Workspaces
-
-export class SimpleWorkspacesService implements IWorkspacesService {
-
-	_serviceBrand: undefined;
-
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-
-	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
-		return Promise.resolve(undefined);
-	}
-
-	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> {
-		// @ts-ignore
-		return Promise.resolve(undefined);
-	}
-}
-
-registerSingleton(IWorkspacesService, SimpleWorkspacesService);
 
 //#endregion

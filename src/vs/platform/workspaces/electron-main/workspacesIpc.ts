@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 

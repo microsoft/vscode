@@ -48,6 +48,7 @@ import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/credentials/node/credentialsService';
 import 'vs/workbench/services/url/electron-browser/urlService';
+import 'vs/workbench/services/workspace/electron-browser/workspacesService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -65,8 +66,6 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateService } from 'vs/platform/update/electron-browser/updateService';
 import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IssueService } from 'vs/platform/issue/electron-browser/issueService';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspacesService } from 'vs/platform/workspaces/electron-browser/workspacesService';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
 
@@ -78,7 +77,6 @@ registerSingleton(ISharedProcessService, SharedProcessService, true);
 registerSingleton(IWindowsService, WindowsService);
 registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
-registerSingleton(IWorkspacesService, WorkspacesService);
 registerSingleton(IMenubarService, MenubarService);
 
 //#endregion

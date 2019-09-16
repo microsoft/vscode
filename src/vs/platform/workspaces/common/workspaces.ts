@@ -5,7 +5,6 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -18,9 +17,6 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { toSlashes } from 'vs/base/common/extpath';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-
-export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
-export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
@@ -95,23 +91,10 @@ export interface IUntitledWorkspaceInfo {
 	remoteAuthority?: string;
 }
 
-export interface IWorkspacesMainService extends IWorkspacesService {
-	_serviceBrand: undefined;
-
-	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
-
-	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
-
-	resolveLocalWorkspaceSync(path: URI): IResolvedWorkspace | null;
-
-	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
-
-	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
-
-	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[];
-}
+export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
 export interface IWorkspacesService {
+
 	_serviceBrand: undefined;
 
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
