@@ -8,9 +8,9 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/product/node/product';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { IProductService } from 'vs/platform/product/common/product';
 
 export class GettingStarted implements IWorkbenchContribution {
 
@@ -23,23 +23,20 @@ export class GettingStarted implements IWorkbenchContribution {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService productService: IProductService
 	) {
-		this.appName = product.nameLong;
+		this.appName = productService.nameLong;
+		this.welcomePageURL = productService.welcomePage;
 
-		if (!product.welcomePage) {
+		if (
+			!productService.welcomePage ||
+			environmentService.skipGettingStarted ||
+			environmentService.isExtensionDevelopment
+		) {
 			return;
 		}
 
-		if (environmentService.skipGettingStarted) {
-			return;
-		}
-
-		if (environmentService.isExtensionDevelopment) {
-			return;
-		}
-
-		this.welcomePageURL = product.welcomePage;
 		this.handleWelcome();
 	}
 

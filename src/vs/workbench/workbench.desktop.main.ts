@@ -134,11 +134,6 @@ import 'vs/workbench/contrib/cli/node/cli.contribution';
 // Themes Support
 import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution';
 
-// Welcome
-import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
-import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/gettingStarted.contribution';
-import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
-
 // Issues
 import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
 

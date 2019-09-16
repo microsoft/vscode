@@ -6,7 +6,6 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import product from 'vs/platform/product/node/product';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { URI } from 'vs/base/common/uri';
@@ -18,6 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { language, locale } from 'vs/base/common/platform';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IProductService } from 'vs/platform/product/common/product';
 
 export class TelemetryOptOut implements IWorkbenchContribution {
 
@@ -33,9 +33,10 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExperimentService private readonly experimentService: IExperimentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IProductService productService: IProductService
 	) {
-		if (!product.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
+		if (!productService.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
 			return;
 		}
 		const experimentId = 'telemetryOptOut';
@@ -49,17 +50,17 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 			}
 			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
 
-			this.privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;
+			this.privacyUrl = productService.privacyStatementUrl || productService.telemetryOptOutUrl;
 
 			if (experimentState && experimentState.state === ExperimentState.Run && telemetryService.isOptedIn) {
 				this.runExperiment(experimentId);
 				return;
 			}
 
-			const telemetryOptOutUrl = product.telemetryOptOutUrl;
+			const telemetryOptOutUrl = productService.telemetryOptOutUrl;
 			if (telemetryOptOutUrl) {
-				const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", this.privacyUrl, product.telemetryOptOutUrl);
-				const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", this.privacyUrl, product.telemetryOptOutUrl);
+				const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", this.privacyUrl, productService.telemetryOptOutUrl);
+				const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", this.privacyUrl, productService.telemetryOptOutUrl);
 
 				notificationService.prompt(
 					Severity.Info,
