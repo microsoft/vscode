@@ -8,6 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
@@ -24,6 +25,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	readonly onDidChangeLocal: Event<void>;
 
 	constructor(
+		@IFileService fileService: IFileService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
