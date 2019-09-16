@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, USER_DATA_PREVIEW_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncStoreService } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, USER_DATA_PREVIEW_SCHEME, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -42,7 +41,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async sync(): Promise<boolean> {
-		if (!this.userDataSyncStoreService.isEnabled()) {
+		if (!this.userDataSyncStoreService.enabled) {
 			throw new Error('Not enabled');
 		}
 		for (const synchroniser of this.synchronisers) {
@@ -54,7 +53,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async continueSync(): Promise<boolean> {
-		if (!this.userDataSyncStoreService.isEnabled()) {
+		if (!this.userDataSyncStoreService.enabled) {
 			throw new Error('Not enabled');
 		}
 		for (const synchroniser of this.synchronisers) {
@@ -66,7 +65,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	handleConflicts(): boolean {
-		if (!this.userDataSyncStoreService.isEnabled()) {
+		if (!this.userDataSyncStoreService.enabled) {
 			throw new Error('Not enabled');
 		}
 		for (const synchroniser of this.synchronisers) {
@@ -89,7 +88,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private computeStatus(): SyncStatus {
-		if (!this.userDataSyncStoreService.isEnabled()) {
+		if (!this.userDataSyncStoreService.enabled) {
 			return SyncStatus.Uninitialized;
 		}
 		if (this.synchronisers.some(s => s.status === SyncStatus.HasConflicts)) {

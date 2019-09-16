@@ -6,8 +6,7 @@
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MainContext, ExtHostContext, IExtHostContext, MainThreadUserDataShape, ExtHostUserDataShape } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IUserData } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncStoreService } from 'vs/workbench/services/userData/common/userData';
+import { IUserData, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 
 @extHostNamedCustomer(MainContext.MainThreadUserData)
 export class MainThreadUserData extends Disposable implements MainThreadUserDataShape {
@@ -25,7 +24,8 @@ export class MainThreadUserData extends Disposable implements MainThreadUserData
 
 	$registerUserDataProvider(name: string): void {
 		const proxy = this.proxy;
-		this.userDataSyncStoreService.registerUserDataSyncStore(name, {
+		this.userDataSyncStoreService.registerUserDataSyncStore({
+			name,
 			read(key: string): Promise<IUserData | null> {
 				return proxy.$read(key);
 			},

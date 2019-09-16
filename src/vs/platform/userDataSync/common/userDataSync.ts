@@ -58,12 +58,26 @@ export class UserDataSyncStoreError extends Error {
 }
 
 export interface IUserDataSyncStore {
+	readonly name: string;
+	read(key: string): Promise<IUserData | null>;
+	write(key: string, content: string, ref: string | null): Promise<string>;
+}
+
+export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+
+export interface IUserDataSyncStoreService {
+	_serviceBrand: undefined;
+
+	readonly onDidChangeEnablement: Event<boolean>;
+	readonly enabled: boolean;
+
+	registerUserDataSyncStore(userDataSyncStore: IUserDataSyncStore): void;
+	deregisterUserDataSyncStore(): void;
 
 	read(key: string): Promise<IUserData | null>;
-
 	write(key: string, content: string, ref: string | null): Promise<string>;
-
 }
+
 
 export enum SyncStatus {
 	Uninitialized = 'uninitialized',

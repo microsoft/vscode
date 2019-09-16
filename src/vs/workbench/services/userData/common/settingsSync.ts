@@ -6,8 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, SETTINGS_PREVIEW_RESOURCE, ISettingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncStoreService } from 'vs/workbench/services/userData/common/userData';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, SETTINGS_PREVIEW_RESOURCE, ISettingsMergeService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

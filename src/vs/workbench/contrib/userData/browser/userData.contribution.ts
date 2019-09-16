@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, USER_DATA_PREVIEW_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncStoreService } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncService, SyncStatus, USER_DATA_PREVIEW_SCHEME, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -63,7 +62,7 @@ class UserDataSyncContribution extends Disposable implements IWorkbenchContribut
 	}
 
 	private async sync(loop: boolean): Promise<void> {
-		if (this.configurationService.getValue<boolean>('userConfiguration.enableSync') && this.userDataSyncStoreService.isEnabled()) {
+		if (this.configurationService.getValue<boolean>('userConfiguration.enableSync') && this.userDataSyncStoreService.enabled) {
 			try {
 				await this.userDataSyncService.sync();
 			} catch (e) {
