@@ -81,6 +81,7 @@ import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
 import 'vs/workbench/services/userData/common/userDataSyncStoreService';
 import 'vs/workbench/services/userData/common/userDataSyncService';
+import 'vs/workbench/services/userData/common/settingsMergeService';
 import 'vs/workbench/services/workspace/browser/workspaceEditingService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

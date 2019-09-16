@@ -92,3 +92,13 @@ export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUser
 export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
 }
+
+export const ISettingsMergeService = createDecorator<ISettingsMergeService>('ISettingsMergeService');
+
+export interface ISettingsMergeService {
+
+	_serviceBrand: undefined;
+
+	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<string>;
+
+}
