@@ -78,6 +78,9 @@ if (INSIDERS) {
 // Connection Token
 serverArgs.push('--connectionToken', '00000');
 
+// Server should really only listen from localhost
+serverArgs.push('--host', '127.0.0.1');
+
 const env = { ...process.env };
 let node;
 let entryPoint;
