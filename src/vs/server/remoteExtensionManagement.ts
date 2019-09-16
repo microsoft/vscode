@@ -21,14 +21,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Main as CliMain } from 'vs/code/node/cliProcessMain';
 import { VSBuffer } from 'vs/base/common/buffer';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerEnvironmentService } from 'vs/server/remoteExtensionHostAgent';
 
 export interface IExtensionsManagementProcessInitData {

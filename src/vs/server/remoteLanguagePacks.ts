@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 
 import * as lp from 'vs/base/node/languagePacks';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const metaData = path.join(getPathFromAmdModule(require, ''), 'nls.metadata.json');

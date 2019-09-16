@@ -15,7 +15,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { ServerEnvironmentService } from 'vs/server/remoteExtensionHostAgent';
 import { parsePathArg } from 'vs/platform/environment/node/environmentService';
 
