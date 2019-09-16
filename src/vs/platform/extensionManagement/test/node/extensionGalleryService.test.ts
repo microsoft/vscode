@@ -18,7 +18,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 
 suite('Extension Gallery Service', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'extensiongalleryservice');

@@ -28,7 +28,7 @@ import { Limiter, createCancelablePromise, CancelablePromise, Queue } from 'vs/b
 import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'semver-umd';
 import { URI } from 'vs/base/common/uri';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';

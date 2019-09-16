@@ -7,7 +7,7 @@ import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';

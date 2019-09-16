@@ -7,7 +7,7 @@ import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile, OPTIONS } from 'vs/platform/environment/node/argv';
 import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import * as paths from 'vs/base/common/path';
 import * as os from 'os';
 import * as fs from 'fs';

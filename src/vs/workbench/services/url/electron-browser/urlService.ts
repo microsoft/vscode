@@ -9,7 +9,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProces
 import { URLServiceChannelClient, URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/node/urlService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 

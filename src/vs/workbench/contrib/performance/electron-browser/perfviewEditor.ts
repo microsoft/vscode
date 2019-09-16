@@ -20,7 +20,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 
 export class PerfviewContrib {
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { Action } from 'vs/base/common/actions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';

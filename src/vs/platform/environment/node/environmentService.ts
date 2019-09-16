@@ -10,7 +10,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';

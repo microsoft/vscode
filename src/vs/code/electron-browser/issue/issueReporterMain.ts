@@ -10,7 +10,7 @@ import { $ } from 'vs/base/browser/dom';
 import * as collections from 'vs/base/common/collections';
 import * as browser from 'vs/base/browser/browser';
 import { escape } from 'vs/base/common/strings';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import * as os from 'os';
 import { debounce } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';

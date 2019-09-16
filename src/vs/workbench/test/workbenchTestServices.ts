@@ -85,7 +85,7 @@ import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { NodeTextFileService } from 'vs/workbench/services/textfile/node/textFileService';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
