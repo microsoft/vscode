@@ -12,11 +12,14 @@ set VSCODE_DEV=1
 :: Sync built-in extensions
 call yarn download-builtin-extensions
 
+FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
+
 :: Download nodejs executable for remote
-call yarn gulp node
+IF NOT EXIST "%NODE%" (
+	call yarn gulp node
+)
 
 :: Launch Agent
-FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
 call "%NODE%" out\vs\server\main.js %*
 
 popd
