@@ -6,7 +6,8 @@
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MainContext, ExtHostContext, IExtHostContext, MainThreadUserDataShape, ExtHostUserDataShape } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IUserDataSyncStoreService, IUserData } from 'vs/workbench/services/userData/common/userData';
+import { IUserData } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService } from 'vs/workbench/services/userData/common/userData';
 
 @extHostNamedCustomer(MainContext.MainThreadUserData)
 export class MainThreadUserData extends Disposable implements MainThreadUserDataShape {

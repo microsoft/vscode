@@ -6,7 +6,8 @@
 import { Disposable, } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IUserDataSyncStoreService, IUserDataSyncStore, IUserData, UserDataSyncStoreError, toUserDataSyncStoreErrorCode } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncStore, IUserData, UserDataSyncStoreError, toUserDataSyncStoreErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService } from 'vs/workbench/services/userData/common/userData';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {

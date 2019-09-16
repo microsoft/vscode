@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, ISynchroniser, USER_DATA_PREVIEW_SCHEME } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, USER_DATA_PREVIEW_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService } from 'vs/workbench/services/userData/common/userData';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

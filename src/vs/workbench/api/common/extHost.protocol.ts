@@ -46,7 +46,7 @@ import { ExtensionActivationError } from 'vs/workbench/services/extensions/commo
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUserData } from 'vs/workbench/services/userData/common/userData';
+import { IUserData } from 'vs/platform/userDataSync/common/userDataSync';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;

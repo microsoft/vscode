@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, USER_DATA_PREVIEW_SCHEME, IUserDataSyncStoreService } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncService, SyncStatus, USER_DATA_PREVIEW_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService } from 'vs/workbench/services/userData/common/userData';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';

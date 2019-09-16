@@ -7,7 +7,7 @@ import { ExtHostUserDataShape, MainThreadUserDataShape } from './extHost.protoco
 import * as vscode from 'vscode';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IUserData } from 'vs/workbench/services/userData/common/userData';
+import { IUserData } from 'vs/platform/userDataSync/common/userDataSync';
 
 export class ExtHostUserData implements ExtHostUserDataShape {
 
