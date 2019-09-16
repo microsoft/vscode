@@ -12,7 +12,7 @@ import { Schemas } from 'vs/base/common/network';
 import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
 import { join } from 'vs/base/common/path';
 import { IDebugParams } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 
 export class WorkbenchEnvironmentService extends EnvironmentService implements IWorkbenchEnvironmentService {
 
