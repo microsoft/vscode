@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IProductService } from 'vs/platform/product/common/product';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { URI } from 'vs/base/common/uri';
-import { readTrustedDomains } from 'vs/workbench/contrib/url/common/trustedDomainsValidator';
-import { IProductService } from 'vs/platform/product/common/product';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
 
@@ -112,4 +111,19 @@ export async function configureOpenerTrustedDomainsHandler(
 	}
 
 	return [];
+}
+
+export function readTrustedDomains(storageService: IStorageService, productService: IProductService) {
+	let trustedDomains: string[] = productService.linkProtectionTrustedDomains
+		? [...productService.linkProtectionTrustedDomains]
+		: [];
+
+	try {
+		const trustedDomainsSrc = storageService.get('http.linkProtectionTrustedDomains', StorageScope.GLOBAL);
+		if (trustedDomainsSrc) {
+			trustedDomains = JSON.parse(trustedDomainsSrc);
+		}
+	} catch (err) { }
+
+	return trustedDomains;
 }

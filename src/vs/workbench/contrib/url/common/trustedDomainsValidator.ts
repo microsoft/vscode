@@ -12,9 +12,9 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/product';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { configureOpenerTrustedDomainsHandler } from 'vs/workbench/contrib/url/common/trustedDomains';
+import { configureOpenerTrustedDomainsHandler, readTrustedDomains } from 'vs/workbench/contrib/url/common/trustedDomains';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
@@ -87,21 +87,6 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 			return false;
 		}
 	}
-}
-
-export function readTrustedDomains(storageService: IStorageService, productService: IProductService) {
-	let trustedDomains: string[] = productService.linkProtectionTrustedDomains
-		? [...productService.linkProtectionTrustedDomains]
-		: [];
-
-	try {
-		const trustedDomainsSrc = storageService.get('http.linkProtectionTrustedDomains', StorageScope.GLOBAL);
-		if (trustedDomainsSrc) {
-			trustedDomains = JSON.parse(trustedDomainsSrc);
-		}
-	} catch (err) { }
-
-	return trustedDomains;
 }
 
 const rLocalhost = /^localhost(:\d+)?$/i;
