@@ -91,14 +91,13 @@ export const SETTINGS_PREVIEW_RESOURCE = URI.file('Settings-Preview').with({ sch
 
 export interface ISynchroniser {
 
+	readonly conflicts: URI | null;
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
-
 	readonly onDidChangeLocal: Event<void>;
 
 	sync(): Promise<boolean>;
 	continueSync(): Promise<boolean>;
-	handleConflicts(): boolean;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');

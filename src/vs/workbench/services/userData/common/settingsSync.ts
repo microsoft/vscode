@@ -6,16 +6,15 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, SETTINGS_PREVIEW_RESOURCE, ISettingsMergeService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService, SETTINGS_PREVIEW_RESOURCE } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { URI } from 'vs/base/common/uri';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -41,15 +40,15 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
+	readonly conflicts: URI = SETTINGS_PREVIEW_RESOURCE;
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@IEditorService private readonly editorService: IEditorService,
 		@ISettingsMergeService private readonly settingsMergeService: ISettingsMergeService,
 		@ILogService private readonly logService: ILogService,
-		@IHistoryService private readonly historyService: IHistoryService,
 	) {
 		super();
 		this.throttledDelayer = this._register(new ThrottledDelayer<void>(500));
@@ -111,24 +110,6 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		}
 	}
 
-	handleConflicts(): boolean {
-		if (this.status !== SyncStatus.HasConflicts) {
-			return false;
-		}
-		const resourceInput = {
-			resource: SETTINGS_PREVIEW_RESOURCE,
-			label: localize('Settings Conflicts', "Local ↔ Remote (Settings Conflicts)"),
-			options: {
-				preserveFocus: false,
-				pinned: false,
-				revealIfVisible: true,
-			},
-			mode: 'jsonc'
-		};
-		this.editorService.openEditor(resourceInput).then(() => this.historyService.remove(resourceInput));
-		return true;
-	}
-
 	async continueSync(): Promise<boolean> {
 		if (this.status !== SyncStatus.HasConflicts) {
 			return false;
@@ -142,8 +123,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			return;
 		}
 
-		if (await this.fileService.exists(SETTINGS_PREVIEW_RESOURCE)) {
-			const settingsPreivew = await this.fileService.readFile(SETTINGS_PREVIEW_RESOURCE);
+		if (await this.fileService.exists(this.conflicts)) {
+			const settingsPreivew = await this.fileService.readFile(this.conflicts);
 			const content = settingsPreivew.value.toString();
 			if (this.hasErrors(content)) {
 				return Promise.reject(localize('errorInvalidSettings', "Unable to sync settings. Please resolve conflicts without any errors/warnings and try again."));
@@ -162,7 +143,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			}
 
 			// Delete the preview
-			await this.fileService.del(SETTINGS_PREVIEW_RESOURCE);
+			await this.fileService.del(this.conflicts);
 		}
 
 		this.syncPreviewResultPromise = null;
@@ -194,7 +175,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		if (fileContent && !remoteUserData) {
 			this.logService.trace('Settings Sync: Remote contents does not exist. So sync with settings file.');
 			hasRemoteChanged = true;
-			await this.fileService.writeFile(SETTINGS_PREVIEW_RESOURCE, VSBuffer.fromString(fileContent.value.toString()));
+			await this.fileService.writeFile(this.conflicts, VSBuffer.fromString(fileContent.value.toString()));
 			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 		}
 
@@ -202,7 +183,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		if (remoteUserData && !fileContent) {
 			this.logService.trace('Settings Sync: Settings file does not exist. So sync with remote contents');
 			hasLocalChanged = true;
-			await this.fileService.writeFile(SETTINGS_PREVIEW_RESOURCE, VSBuffer.fromString(remoteUserData.content));
+			await this.fileService.writeFile(this.conflicts, VSBuffer.fromString(remoteUserData.content));
 			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 		}
 
@@ -221,7 +202,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 				if (hasLocalChanged || hasRemoteChanged) {
 					// Sync only if there are changes
 					hasConflicts = this.hasErrors(mergeContent);
-					await this.fileService.writeFile(SETTINGS_PREVIEW_RESOURCE, VSBuffer.fromString(mergeContent));
+					await this.fileService.writeFile(this.conflicts, VSBuffer.fromString(mergeContent));
 					return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 				}
 			}

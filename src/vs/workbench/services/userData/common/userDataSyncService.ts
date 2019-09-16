@@ -11,6 +11,7 @@ import { SettingsSynchroniser } from 'vs/workbench/services/userData/common/sett
 import { Emitter, Event } from 'vs/base/common/event';
 import { IFileService } from 'vs/platform/files/common/files';
 import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
+import { URI } from 'vs/base/common/uri';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -40,6 +41,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
 	}
 
+	get conflicts(): URI | null {
+		const synchroniser = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
+		return synchroniser ? synchroniser.conflicts : null;
+	}
+
 	async sync(): Promise<boolean> {
 		if (!this.userDataSyncStoreService.enabled) {
 			throw new Error('Not enabled');
@@ -58,18 +64,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.continueSync()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	handleConflicts(): boolean {
-		if (!this.userDataSyncStoreService.enabled) {
-			throw new Error('Not enabled');
-		}
-		for (const synchroniser of this.synchronisers) {
-			if (synchroniser.handleConflicts()) {
 				return true;
 			}
 		}
