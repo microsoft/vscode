@@ -31,11 +31,29 @@ const TRUSTED_DOMAINS_STAT: IStat = {
 	size: 0
 };
 
-const CONFIG_HELP_TEXT = `// Configure trusted domains by editing and saving this file
-// You can use \`*\` to match subdomains. For example https://*.visualstudio.com would match:
-// - https://code.visualstudio.com
-// - https://update.code.visualstudio.com
+const CONFIG_HELP_TEXT = `// You can run "Configure Trusted Domains" command to edit trusted domains settings in this JSON file.
+// The setting is updated upon saving this file.
+// Links that match one of the entries can be opened without link protection.
+//
+// Example entries include:
+// - "microsoft.com"
+// - "*.microsoft.com": Match all domains ending in "microsoft.com"
+// - "*": Match all domains
+//
+// By default, VS Code whitelists certain localhost and domains such as "code.visualstudio.com"
 `;
+const CONFIG_PLACEHOLDER_TEXT = `[
+	// "microsoft.com"
+]
+`;
+
+function computeTrustedDomainContent(trustedDomains: string[]) {
+	if (trustedDomains.length === 0) {
+		return CONFIG_HELP_TEXT + CONFIG_PLACEHOLDER_TEXT;
+	}
+
+	return CONFIG_HELP_TEXT + JSON.stringify(trustedDomains, null, 2);
+}
 
 export class TrustedDomainsFileSystemProvider implements IFileSystemProvider, IWorkbenchContribution {
 	readonly capabilities = FileSystemProviderCapabilities.FileReadWrite;
@@ -64,9 +82,8 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProvider, IW
 			}
 		} catch (err) { }
 
-		const trustedDomainsContent = CONFIG_HELP_TEXT + JSON.stringify(trustedDomains, null, 2);
 
-
+		const trustedDomainsContent = computeTrustedDomainContent(trustedDomains);
 		const buffer = VSBuffer.fromString(trustedDomainsContent).buffer;
 		return Promise.resolve(buffer);
 	}
