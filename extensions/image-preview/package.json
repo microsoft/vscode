@@ -24,7 +24,8 @@
         "displayName": "%webviewEditors.displayName%",
         "selector": [
           {
-            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,tga,tif,tiff,webp}"
+            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,tga,tif,tiff,webp}",
+            "mime": "image/*"
           }
         ]
       }
