@@ -10,7 +10,6 @@ import { Lazy, lazy } from '../util/lazy';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { SkinnyTextDocument, SkinnyTextLine } from '../tableOfContentsProvider';
 import { flatten } from '../util/arrays';
-import { DocumentIndex } from '../docIndex';
 
 export interface WorkspaceMarkdownDocumentProvider {
 	getAllMarkdownDocuments(): Thenable<Iterable<SkinnyTextDocument>>;
@@ -27,7 +26,6 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	private readonly _onDidDeleteMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<vscode.Uri>());
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
-	private _docIndex: DocumentIndex = this._register(new DocumentIndex());
 
 	async getAllMarkdownDocuments() {
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
@@ -83,9 +81,9 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	}
 
 	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		const existingDocument = this._docIndex.getByUri(resource);
-		if (existingDocument) {
-			return existingDocument;
+		const matchingDocuments = vscode.workspace.textDocuments.filter((doc) => doc.uri.toString() === resource.toString());
+		if (matchingDocuments.length !== 0) {
+			return matchingDocuments[0];
 		}
 
 		const bytes = await vscode.workspace.fs.readFile(resource);
