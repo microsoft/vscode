@@ -1245,7 +1245,7 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 
 				this.queue(translatedMainFile);
 				for (let extension in extensionsPacks) {
-					const translatedExtFile = createI18nFile(`.build/extensions/${extension}`, extensionsPacks[extension]);
+					const translatedExtFile = createI18nFile(`extensions/${extension}`, extensionsPacks[extension]);
 					this.queue(translatedExtFile);
 
 					const externalExtensionId = externalExtensions[extension];

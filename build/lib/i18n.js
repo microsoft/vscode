@@ -176,7 +176,6 @@ class XLF {
         this.buffer.push(line.toString());
     }
 }
-exports.XLF = XLF;
 XLF.parsePseudo = function (xlfString) {
     return new Promise((resolve) => {
         let parser = new xml2js.Parser();
@@ -249,6 +248,7 @@ XLF.parse = function (xlfString) {
         });
     });
 };
+exports.XLF = XLF;
 class Limiter {
     constructor(maxDegreeOfParalellism) {
         this.maxDegreeOfParalellism = maxDegreeOfParalellism;
@@ -1080,7 +1080,7 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
             resultingTranslationPaths.push({ id: 'vscode', resourceName: 'main.i18n.json' });
             this.queue(translatedMainFile);
             for (let extension in extensionsPacks) {
-                const translatedExtFile = createI18nFile(`.build/extensions/${extension}`, extensionsPacks[extension]);
+                const translatedExtFile = createI18nFile(`extensions/${extension}`, extensionsPacks[extension]);
                 this.queue(translatedExtFile);
                 const externalExtensionId = externalExtensions[extension];
                 if (externalExtensionId) {
