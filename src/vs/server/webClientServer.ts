@@ -196,7 +196,13 @@ export class WebClientServer {
 			})))
 			.replace('{{REMOTE_USER_DATA_URI}}', escapeAttribute(JSON.stringify(transformer.transformOutgoing(webUserDataHome))));
 
-		res.writeHead(200, { 'Content-Type': 'text/html' });
+		res.writeHead(200, {
+			'Content-Type': 'text/html',
+			// At this point we know the client has a valid cookie
+			// and we want to set it prolong it to ensure that this
+			// client is valid for another 1 week at least
+			'Set-Cookie': cookie.serialize('vscode-tkn', this._connectionToken, { maxAge: 60 * 60 * 24 * 7 /* 1 week */ })
+		});
 		return res.end(data);
 	}
 
