@@ -203,11 +203,11 @@ export const toggleClass: (node: HTMLElement | SVGElement, className: string, sh
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;
-	private _node: Element | Window | Document;
+	private _node: EventTarget;
 	private readonly _type: string;
 	private readonly _options: boolean | AddEventListenerOptions;
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, options?: boolean | AddEventListenerOptions) {
+	constructor(node: EventTarget, type: string, handler: (e: any) => void, options?: boolean | AddEventListenerOptions) {
 		this._node = node;
 		this._type = type;
 		this._handler = handler;
@@ -229,10 +229,10 @@ class DomListener implements IDisposable {
 	}
 }
 
-export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: Element | Window | Document, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture: AddEventListenerOptions): IDisposable;
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean | AddEventListenerOptions): IDisposable {
+export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture: AddEventListenerOptions): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean | AddEventListenerOptions): IDisposable {
 	return new DomListener(node, type, handler, useCapture);
 }
 
