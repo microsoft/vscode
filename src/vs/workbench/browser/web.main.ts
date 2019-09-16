@@ -75,6 +75,11 @@ class CodeRendererMain extends Disposable {
 		// Layout
 		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
 
+		// Prevent the back/forward gestures in macOS
+		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
+			e.preventDefault();
+		}, { passive: false }));
+
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (services.storageService.hasPendingUpdate) {
