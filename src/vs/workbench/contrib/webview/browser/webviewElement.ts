@@ -6,11 +6,11 @@
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -19,7 +19,6 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isWeb } from 'vs/base/common/platform';
 
 interface WebviewContent {
 	readonly html: string;
@@ -46,11 +45,10 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IProductService private readonly _productService: IProductService
 	) {
 		super();
-		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string')) {
-			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
+		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.webviewExternalEndpoint !== 'string')) {
+			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewExternalEndpoint`');
 		}
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
@@ -67,7 +65,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 		this.element = document.createElement('iframe');
 		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
-		this.element.setAttribute('src', `${this.endpoint}/index.html?id=${this.id}`);
+		this.element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		this.element.style.border = 'none';
 		this.element.style.width = '100%';
 		this.element.style.height = '100%';
@@ -145,22 +143,12 @@ export class IFrameWebview extends Disposable implements Webview {
 		this._register(themeService.onThemeChange(this.style, this));
 	}
 
-	private get endpoint(): string {
-		const baseEndpoint = this.externalEndpoint || this.environmentService.options!.webviewEndpoint!;
-		const endpoint = baseEndpoint.replace('{{uuid}}', this.id);
+	private get externalEndpoint(): string {
+		const endpoint = this.environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}
 		return endpoint;
-	}
-
-	private get externalEndpoint(): string | undefined {
-		const useExternalEndpoint = this.useExternalEndpoint;
-		if (!useExternalEndpoint) {
-			return undefined;
-		}
-		const commit = this._productService.quality && this._productService.commit ? this._productService.commit : '211fa02efe8c041fd7baa8ec3dce199d5185aa44';
-		return `https://{{uuid}}.vscode-webview-test.com/${commit}`;
 	}
 
 	private get useExternalEndpoint(): boolean {
@@ -197,7 +185,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private preprocessHtml(value: string): string {
 		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
-			`${startQuote}${this.endpoint}/vscode-resource${path}${endQuote}`);
+			`${startQuote}${this.externalEndpoint}/vscode-resource${path}${endQuote}`);
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
@@ -217,7 +205,7 @@ export class IFrameWebview extends Disposable implements Webview {
 			contents: this.content.html,
 			options: this.content.options,
 			state: this.content.state,
-			endpoint: this.endpoint,
+			endpoint: this.externalEndpoint,
 		});
 	}
 
