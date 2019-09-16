@@ -11,11 +11,11 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { BACKUPS, IDebugParams, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { LogLevel } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/browser/product';
 import { IPath, IPathsToWaitFor, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import product from 'vs/platform/product/common/product';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
