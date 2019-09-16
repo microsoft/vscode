@@ -87,7 +87,7 @@ export enum SyncStatus {
 }
 
 export const USER_DATA_PREVIEW_SCHEME = 'vscode-userdata-preview';
-export const SETTINGS_PREVIEW_RESOURCE = URI.file('Settings-Preview').with({ scheme: USER_DATA_PREVIEW_SCHEME });
+export const SETTINGS_CONFLICTS_RESOURCE = URI.file('Settings-Preview').with({ scheme: USER_DATA_PREVIEW_SCHEME });
 
 export interface ISynchroniser {
 
