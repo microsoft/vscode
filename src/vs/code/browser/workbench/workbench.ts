@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create } from 'vs/workbench/workbench.web.api';
-import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { IWorkbenchConstructionOptions, create, URI, Event, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider } from 'vs/workbench/workbench.web.api';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { request } from 'vs/base/parts/request/browser/request';
-import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 
 interface ICredential {
 	service: string;
