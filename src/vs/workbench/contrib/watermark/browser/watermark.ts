@@ -69,7 +69,7 @@ const folderEntries = [
 const WORKBENCH_TIPS_ENABLED_KEY = 'workbench.tips.enabled';
 
 export class WatermarkContribution extends Disposable implements IWorkbenchContribution {
-	private watermark: HTMLElement;
+	private watermark: HTMLElement | undefined;
 	private watermarkDisposable = this._register(new DisposableStore());
 	private enabled: boolean;
 	private workbenchState: WorkbenchState;

@@ -19,7 +19,7 @@ export class LifecycleService extends AbstractLifecycleService {
 
 	_serviceBrand: undefined;
 
-	private shutdownReason: ShutdownReason;
+	private shutdownReason: ShutdownReason | undefined;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
