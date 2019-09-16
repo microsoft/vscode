@@ -45,7 +45,6 @@ import { LocalizationsService } from 'vs/platform/localizations/node/localizatio
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import pkg from 'vs/platform/product/node/package';
 import { getMachineId } from 'vs/base/node/id';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -154,7 +153,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const machineId = await getMachineId();
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(this._logService)),
-				commonProperties: resolveCommonProperties(product.commit, pkg.version + '-remote', machineId, product.msftInternalDomains, this._environmentService.installSourcePath, 'remoteAgent'),
+				commonProperties: resolveCommonProperties(product.commit, product.version + '-remote', machineId, product.msftInternalDomains, this._environmentService.installSourcePath, 'remoteAgent'),
 				piiPaths: [this._environmentService.appRoot]
 			};
 

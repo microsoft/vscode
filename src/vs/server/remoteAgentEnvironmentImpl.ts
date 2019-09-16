@@ -12,7 +12,6 @@ import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import pkg from 'vs/platform/product/node/package';
 import product from 'vs/platform/product/node/product';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionResolver, IExtensionReference } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -307,7 +306,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			const extDescsP = extensionDevelopmentPaths.map(extDevPath => {
 				return ExtensionScanner.scanOneOrMultipleExtensions(
 					new ExtensionScannerInput(
-						pkg.version,
+						product.version,
 						product.commit,
 						language,
 						true, // dev mode
@@ -331,7 +330,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	}
 
 	private scanBuiltinExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
-		const version = pkg.version;
+		const version = product.version;
 		const commit = product.commit;
 		const devMode = !!process.env['VSCODE_DEV'];
 
@@ -372,7 +371,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
 	private scanInstalledExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
 		const input = new ExtensionScannerInput(
-			pkg.version,
+			product.version,
 			product.commit,
 			language,
 			true,
