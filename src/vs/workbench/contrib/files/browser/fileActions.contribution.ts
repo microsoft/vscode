@@ -14,7 +14,7 @@ import { openWindowCommand, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEA
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { isWindows, isMacintosh, isWeb } from 'vs/base/common/platform';
+import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, IExplorerService, ExplorerResourceMoveableToTrash, ExplorerViewletVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -23,9 +23,9 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { SupportsWorkspacesContext, IsWebContext, RemoteFileDialogContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
+import { SupportsWorkspacesContext, IsWebContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { OpenFileFolderAction, OpenLocalFileFolderCommand, OpenFileAction, OpenFolderAction, OpenLocalFileCommand, OpenLocalFolderCommand, OpenWorkspaceAction, SaveLocalFileCommand } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ActiveEditorIsSaveableContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
 import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
@@ -45,54 +45,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ShowOpenedFileInNewWin
 registry.registerWorkbenchAction(new SyncActionDescriptor(CompareWithClipboardAction, CompareWithClipboardAction.ID, CompareWithClipboardAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_C) }), 'File: Compare Active File with Clipboard', category.value);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleAutoSaveAction, ToggleAutoSaveAction.ID, ToggleAutoSaveAction.LABEL), 'File: Toggle Auto Save', category.value);
 
-
-const fileCategory = nls.localize('file', "File");
-
-if (isMacintosh) {
-	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open...', fileCategory);
-	if (!isWeb) {
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: OpenLocalFileFolderCommand.ID,
-			weight: KeybindingWeight.WorkbenchContrib,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_O,
-			when: RemoteFileDialogContext,
-			description: { description: OpenLocalFileFolderCommand.LABEL, args: [] },
-			handler: OpenLocalFileFolderCommand.handler()
-		});
-	}
-} else {
-	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open File...', fileCategory);
-	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'File: Open Folder...', fileCategory);
-	if (!isWeb) {
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: OpenLocalFileCommand.ID,
-			weight: KeybindingWeight.WorkbenchContrib,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_O,
-			when: RemoteFileDialogContext,
-			description: { description: OpenLocalFileCommand.LABEL, args: [] },
-			handler: OpenLocalFileCommand.handler()
-		});
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: OpenLocalFolderCommand.ID,
-			weight: KeybindingWeight.WorkbenchContrib,
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O),
-			when: RemoteFileDialogContext,
-			description: { description: OpenLocalFolderCommand.LABEL, args: [] },
-			handler: OpenLocalFolderCommand.handler()
-		});
-	}
-}
-
-if (!isWeb) {
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: SaveLocalFileCommand.ID,
-		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
-		when: RemoteFileDialogContext,
-		description: { description: SaveLocalFileCommand.LABEL, args: [] },
-		handler: SaveLocalFileCommand.handler()
-	});
-}
 
 const workspacesCategory = nls.localize('workspaces', "Workspaces");
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory, SupportsWorkspacesContext);
