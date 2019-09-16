@@ -9,11 +9,12 @@
 url("./codicon.svg?e042d2dda15ef7b36b910e3edf539f26#codicon") format("svg");
 }
 
-.codicon {
+.codicon[class*='codicon-'] {
 	font: normal normal normal 16px/1 codicon;
 	display: inline-block;
 	text-decoration: none;
 	text-rendering: auto;
+	text-align: center;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 	-webkit-user-select: none;

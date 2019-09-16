@@ -124,20 +124,6 @@
 	margin-right: 10px;
 }
 
-/* Close */
-.monaco-workbench .hide-panel-action {
-	background: url('close-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .hide-panel-action {
-	background: url('close-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench .hide-panel-action {
-	background: url('close-hc.svg') center center no-repeat;
-}
-
-
 /* Up */
 .monaco-workbench .maximize-panel-action {
 	background-image: url('chevron-up-light.svg');
