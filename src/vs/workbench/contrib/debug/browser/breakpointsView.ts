@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, EDITOR_CONTRIBUTION_ID, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, IDebugEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAllBreakpointsAction, RemoveBreakpointAction, EnableAllBreakpointsAction, DisableAllBreakpointsAction, ReapplyBreakpointsAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -167,7 +167,7 @@ export class BreakpointsView extends ViewletPanel {
 						if (editor) {
 							const codeEditor = editor.getControl();
 							if (isCodeEditor(codeEditor)) {
-								codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
+								codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber);
 							}
 						}
 					});
@@ -649,8 +649,8 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 	};
 	if (debugActive && !breakpoint.verified) {
 		return {
-			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : breakpoint.logMessage ? 'debug-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
-			message: breakpoint.logMessage ? nls.localize('unverifiedLogpoint', "Unverified Logpoint") : nls.localize('unverifiedBreakopint', "Unverified Breakpoint"),
+			className: breakpoint instanceof DataBreakpoint ? 'debug-data-breakpoint-unverified' : breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : breakpoint.logMessage ? 'debug-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
+			message: breakpoint.message || (breakpoint.logMessage ? nls.localize('unverifiedLogpoint', "Unverified Logpoint") : nls.localize('unverifiedBreakopint', "Unverified Breakpoint")),
 		};
 	}
 
@@ -665,7 +665,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 
 		return {
 			className: 'debug-function-breakpoint',
-			message: nls.localize('functionBreakpoint', "Function Breakpoint")
+			message: breakpoint.message || nls.localize('functionBreakpoint', "Function Breakpoint")
 		};
 	}
 
@@ -679,7 +679,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 
 		return {
 			className: 'debug-data-breakpoint',
-			message: nls.localize('dataBreakpoint', "Data Breakpoint")
+			message: breakpoint.message || nls.localize('dataBreakpoint', "Data Breakpoint")
 		};
 	}
 

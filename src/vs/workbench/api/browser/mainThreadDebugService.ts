@@ -361,23 +361,24 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 		super();
 	}
 
-	public fireError(handle: number, err: Error) {
+	fireError(handle: number, err: Error) {
 		this._onError.fire(err);
 	}
 
-	public fireExit(handle: number, code: number, signal: string) {
+	fireExit(handle: number, code: number, signal: string) {
 		this._onExit.fire(code);
 	}
 
-	public startSession(): Promise<void> {
+	startSession(): Promise<void> {
 		return Promise.resolve(this._proxy.$startDASession(this._handle, this._ds.getSessionDto(this._session)));
 	}
 
-	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
+	sendMessage(message: DebugProtocol.ProtocolMessage): void {
 		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, true));
 	}
 
-	public stopSession(): Promise<void> {
+	async stopSession(): Promise<void> {
+		await this.cancelPendingRequests();
 		return Promise.resolve(this._proxy.$stopDASession(this._handle));
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IDialogService, IDialogOptions, IConfirmation, IConfirmationResult, DialogType } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -78,7 +78,7 @@ export class DialogService implements IDialogService {
 		return (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none';
 	}
 
-	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number> {
+	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
 		const dialogDisposables = new DisposableStore();
@@ -97,7 +97,9 @@ export class DialogService implements IDialogService {
 							EventHelper.stop(event, true);
 						}
 					}
-				}
+				},
+				checkboxLabel: options && options.checkbox ? options.checkbox.label : undefined,
+				checkboxChecked: options && options.checkbox ? options.checkbox.checked : undefined
 			});
 
 		dialogDisposables.add(dialog);
@@ -106,6 +108,9 @@ export class DialogService implements IDialogService {
 		const result = await dialog.show();
 		dialogDisposables.dispose();
 
-		return result.button;
+		return {
+			choice: result.button,
+			checkboxChecked: result.checkboxChecked
+		};
 	}
 }

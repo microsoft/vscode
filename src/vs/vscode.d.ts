@@ -8059,7 +8059,8 @@ declare module 'vscode' {
 		 * * `file`-scheme: Open a file on disk, will be rejected if the file does not exist or cannot be loaded.
 		 * * `untitled`-scheme: A new file that should be saved on disk, e.g. `untitled:c:\frodo\new.js`. The language
 		 * will be derived from the file name.
-		 * * For all other schemes the registered text document content [providers](#TextDocumentContentProvider) are consulted.
+		 * * For all other schemes contributed [text document content providers](#TextDocumentContentProvider) and
+		 * [file system providers](#FileSystemProvider) are consulted.
 		 *
 		 * *Note* that the lifecycle of the returned document is owned by the editor and not by the extension. That means an
 		 * [`onDidClose`](#workspace.onDidCloseTextDocument)-event can occur at any time after opening it.

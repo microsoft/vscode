@@ -101,15 +101,6 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		}
 		const modelLineNumber = modelPosition.lineNumber;
 
-		if (!this._renderFinalNewline) {
-			const lineCount = this._context.model.getLineCount();
-			const lineContent = this._context.model.getLineContent(modelLineNumber);
-
-			if (modelLineNumber === lineCount && lineContent === '') {
-				return '';
-			}
-		}
-
 		if (this._renderCustomLineNumbers) {
 			return this._renderCustomLineNumbers(modelLineNumber);
 		}
@@ -146,9 +137,18 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		const common = '<div class="' + LineNumbersOverlay.CLASS_NAME + lineHeightClassName + '" style="left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;">';
 
+		const lineCount = this._context.model.getLineCount();
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
+
+			if (!this._renderFinalNewline) {
+				if (lineNumber === lineCount && this._context.model.getLineLength(lineNumber) === 0) {
+					// Do not render last (empty) line
+					output[lineIndex] = '';
+					continue;
+				}
+			}
 
 			const renderLineNumber = this._getLineRenderLineNumber(lineNumber);
 

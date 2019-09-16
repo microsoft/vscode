@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -18,6 +19,7 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isWeb } from 'vs/base/common/platform';
 
 interface WebviewContent {
 	readonly html: string;
@@ -44,11 +46,10 @@ export class IFrameWebview extends Disposable implements Webview {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
-		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
-
-		if (!useExternalEndpoint && (!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string')) {
+		if (!this.useExternalEndpoint && (!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string')) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
 		}
 
@@ -145,13 +146,25 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	private get endpoint(): string {
-		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
-		const baseEndpoint = useExternalEndpoint ? 'https://{{uuid}}.vscode-webview-test.com/8fa811108f0f0524c473020ef57b6620f6c201e1' : this.environmentService.options!.webviewEndpoint!;
+		const baseEndpoint = this.externalEndpoint || this.environmentService.options!.webviewEndpoint!;
 		const endpoint = baseEndpoint.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}
 		return endpoint;
+	}
+
+	private get externalEndpoint(): string | undefined {
+		const useExternalEndpoint = this.useExternalEndpoint;
+		if (!useExternalEndpoint) {
+			return undefined;
+		}
+		const commit = this._productService.quality && this._productService.commit ? this._productService.commit : '211fa02efe8c041fd7baa8ec3dce199d5185aa44';
+		return `https://{{uuid}}.vscode-webview-test.com/${commit}`;
+	}
+
+	private get useExternalEndpoint(): boolean {
+		return isWeb || this._configurationService.getValue<boolean>('webview.experimental.useExternalEndpoint');
 	}
 
 	public mountTo(parent: HTMLElement) {

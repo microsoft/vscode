@@ -559,13 +559,11 @@ class SizeUtils {
 // Position & Dimension
 
 export class Dimension {
-	public width: number;
-	public height: number;
 
-	constructor(width: number, height: number) {
-		this.width = width;
-		this.height = height;
-	}
+	constructor(
+		public readonly width: number,
+		public readonly height: number,
+	) { }
 
 	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
@@ -1193,7 +1191,7 @@ export function asDomUri(uri: URI): URI {
 		return uri;
 	}
 	if (Schemas.vscodeRemote === uri.scheme) {
-		return RemoteAuthorities.rewrite(uri.authority, uri.path);
+		return RemoteAuthorities.rewrite(uri);
 	}
 	return uri;
 }

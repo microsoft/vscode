@@ -8,8 +8,9 @@ import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Lazy, lazy } from '../util/lazy';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
-import { SkinnyTextDocument } from '../tableOfContentsProvider';
+import { SkinnyTextDocument, SkinnyTextLine } from '../tableOfContentsProvider';
 import { flatten } from '../util/arrays';
+import { DocumentIndex } from '../docIndex';
 
 export interface WorkspaceMarkdownDocumentProvider {
 	getAllMarkdownDocuments(): Thenable<Iterable<SkinnyTextDocument>>;
@@ -26,6 +27,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	private readonly _onDidDeleteMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<vscode.Uri>());
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
+	private _docIndex: DocumentIndex = this._register(new DocumentIndex());
 
 	async getAllMarkdownDocuments() {
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
@@ -81,11 +83,38 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	}
 
 	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		const doc = await vscode.workspace.openTextDocument(resource);
-		return doc && isMarkdownFile(doc) ? doc : undefined;
+		const existingDocument = this._docIndex.getByUri(resource);
+		if (existingDocument) {
+			return existingDocument;
+		}
+
+		const bytes = await vscode.workspace.fs.readFile(resource);
+
+		// We assume that markdown is in UTF-8
+		const text = Buffer.from(bytes).toString('utf-8');
+
+		const lines: SkinnyTextLine[] = [];
+		const parts = text.split(/(\r?\n)/);
+		const lineCount = Math.floor(parts.length / 2) + 1;
+		for (let line = 0; line < lineCount; line++) {
+			lines.push({
+				text: parts[line * 2]
+			});
+		}
+
+		return {
+			uri: resource,
+			version: 0,
+			lineCount: lineCount,
+			lineAt: (index) => {
+				return lines[index];
+			},
+			getText: () => {
+				return text;
+			}
+		};
 	}
 }
-
 
 export default class MarkdownWorkspaceSymbolProvider extends Disposable implements vscode.WorkspaceSymbolProvider {
 	private _symbolCache = new Map<string, Lazy<Thenable<vscode.SymbolInformation[]>>>();

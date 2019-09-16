@@ -27,7 +27,7 @@ import { clamp } from 'vs/base/common/numbers';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
-export class InspectContextKeysAction extends Action {
+class InspectContextKeysAction extends Action {
 
 	static readonly ID = 'workbench.action.inspectContextKeys';
 	static LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
@@ -91,7 +91,7 @@ export class InspectContextKeysAction extends Action {
 	}
 }
 
-export class ToggleScreencastModeAction extends Action {
+class ToggleScreencastModeAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleScreencastMode';
 	static LABEL = nls.localize('toggle screencast mode', "Toggle Screencast Mode");
@@ -195,7 +195,7 @@ export class ToggleScreencastModeAction extends Action {
 	}
 }
 
-export class LogStorageAction extends Action {
+class LogStorageAction extends Action {
 
 	static readonly ID = 'workbench.action.logStorage';
 	static LABEL = nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
@@ -223,8 +223,6 @@ const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActio
 registry.registerWorkbenchAction(new SyncActionDescriptor(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleScreencastModeAction, ToggleScreencastModeAction.ID, ToggleScreencastModeAction.LABEL), 'Developer: Toggle Screencast Mode', developerCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage Database Contents', developerCategory);
-
-// --- Menu Registration
 
 // Screencast Mode
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

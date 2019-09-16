@@ -8,7 +8,7 @@ import { Barrier } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { connectRemoteAgentTunnel, IConnectionOptions } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';

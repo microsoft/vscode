@@ -264,7 +264,7 @@ export class MockSession implements IDebugSession {
 	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse> {
 		throw new Error('Method not implemented.');
 	}
-	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse> {
+	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse> {
 		throw new Error('Method not implemented.');
 	}
 	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse> {

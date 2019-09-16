@@ -78,11 +78,11 @@ class ServerReadyDetector extends vscode.Disposable {
 		}
 		this.shellPid = undefined;
 
-		terminals.forEach(terminal => {
-			this.disposables.push(terminal.onDidWriteData(s => {
-				this.detectPattern(s);
-			}));
-		});
+		this.disposables.push(vscode.window.onDidWriteTerminalData(e => {
+			if (terminals.indexOf(e.terminal) !== -1) {
+				this.detectPattern(e.data);
+			}
+		}));
 	}
 
 	detectPattern(s: string): void {

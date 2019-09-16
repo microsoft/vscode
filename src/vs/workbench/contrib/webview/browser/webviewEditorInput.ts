@@ -11,7 +11,7 @@ import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } fr
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 
-export const WebviewPanelResourceScheme = 'webview-panel';
+const WebviewPanelResourceScheme = 'webview-panel';
 
 class WebviewIconsManager {
 	private readonly _icons = new Map<string, { light: URI, dark: URI }>();
@@ -52,7 +52,7 @@ class WebviewIconsManager {
 	}
 }
 
-export class WebviewEditorInput extends EditorInput {
+export class WebviewInput extends EditorInput {
 
 	public static typeId = 'workbench.editors.webviewInput';
 
@@ -82,7 +82,7 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public getTypeId(): string {
-		return WebviewEditorInput.typeId;
+		return WebviewInput.typeId;
 	}
 
 	public getResource(): URI {
@@ -119,7 +119,7 @@ export class WebviewEditorInput extends EditorInput {
 
 	public set iconPath(value: { light: URI, dark: URI } | undefined) {
 		this._iconPath = value;
-		WebviewEditorInput.iconsManager.setIcons(this.id, value);
+		WebviewInput.iconsManager.setIcons(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {
@@ -143,7 +143,7 @@ export class WebviewEditorInput extends EditorInput {
 	}
 }
 
-export class RevivedWebviewEditorInput extends WebviewEditorInput {
+export class RevivedWebviewEditorInput extends WebviewInput {
 	private _revived: boolean = false;
 
 	constructor(
@@ -154,7 +154,7 @@ export class RevivedWebviewEditorInput extends WebviewEditorInput {
 			readonly location: URI;
 			readonly id: ExtensionIdentifier
 		},
-		private readonly reviver: (input: WebviewEditorInput) => Promise<void>,
+		private readonly reviver: (input: WebviewInput) => Promise<void>,
 		webview: Unowned<WebviewEditorOverlay>
 	) {
 		super(id, viewType, name, extension, webview);

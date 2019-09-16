@@ -149,6 +149,10 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		return logStorage(result[0], result[1], this.globalStorageFile.toString(), this.workspaceStorageFile.toString());
 	}
 
+	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
+		throw new Error('Migrating storage is currently unsupported in Web');
+	}
+
 	close(): void {
 		// We explicitly do not close our DBs because writing data onBeforeUnload()
 		// can result in unexpected results. Namely, it seems that - even though this

@@ -41,6 +41,22 @@ export interface IConfirmationResult {
 	checkboxChecked?: boolean;
 }
 
+export interface IShowResult {
+
+	/**
+	 * Selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned.
+	 */
+	choice: number;
+
+	/**
+	 * This will only be defined if the confirmation was created
+	 * with the checkbox option defined.
+	 */
+	checkboxChecked?: boolean;
+}
+
 export interface IPickAndOpenOptions {
 	forceNewWindow?: boolean;
 	defaultUri?: URI;
@@ -127,6 +143,10 @@ export const IDialogService = createDecorator<IDialogService>('dialogService');
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
+	checkbox?: {
+		label: string;
+		checked?: boolean;
+	};
 }
 
 /**
@@ -151,7 +171,7 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number>;
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
 }
 
 export const IFileDialogService = createDecorator<IFileDialogService>('fileDialogService');
@@ -219,7 +239,7 @@ export interface IFileDialogService {
 }
 
 const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, resourcesToConfirm: URI[]): string {
+export function getConfirmMessage(start: string, resourcesToConfirm: readonly URI[]): string {
 	const message = [start];
 	message.push('');
 	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r)));

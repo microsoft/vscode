@@ -126,7 +126,7 @@ class HelpDataSource implements IAsyncDataSource<any, any> {
 	}
 
 	getChildren(element: any) {
-		if (element instanceof HelpModel) {
+		if (element instanceof HelpModel && element.items) {
 			return element.items;
 		}
 
@@ -201,7 +201,7 @@ class IssueReporterItem implements IHelpItem {
 }
 
 class HelpModel {
-	items: IHelpItem[];
+	items: IHelpItem[] | undefined;
 
 	constructor(
 		viewModel: IViewModel,

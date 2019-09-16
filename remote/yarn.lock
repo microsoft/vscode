@@ -725,10 +725,10 @@ nanomatch@^1.2.9:
     snapdragon "^0.8.1"
     to-regex "^3.0.1"
 
-native-watchdog@1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.0.0.tgz#97344e83cd6815a8c8e6c44a52e7be05832e65ca"
-  integrity sha512-HKQATz5KLUMPyQQ/QaalzgTXaGz2plYPBxjyalaR4ECIu/UznXY8YJD+a9SLkkcvtxnJ8/zHLY3xik06vUZ7uA==
+native-watchdog@1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.2.0.tgz#9c710093ac6e9e60b19517cb1ef4ac9d7c997395"
+  integrity sha512-jOOoA3PLSxt1adaeuEW7ymV9cApZiDxn4y4iFs7b4sP73EG+5Lsz+OgUNFcGMyrtznTw6ZvlLcilIN4jeAIgaQ==
 
 node-addon-api@1.6.2:
   version "1.6.2"

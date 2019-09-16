@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/common/product';
 import { Action } from 'vs/base/common/actions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
@@ -139,7 +139,7 @@ class ReportExtensionSlowAction extends Action {
 - Extension Name: \`${this.extension.name}\`
 - Extension Version: \`${this.extension.version}\`
 - OS Version: \`${osVersion}\`
-- VSCode version: \`${pkg.version}\`\n\n${message}`);
+- VSCode version: \`${product.version}\`\n\n${message}`);
 
 		const url = `${this.repoInfo.base}/${this.repoInfo.owner}/${this.repoInfo.repo}/issues/new/?body=${body}&title=${title}`;
 		this._openerService.open(URI.parse(url));

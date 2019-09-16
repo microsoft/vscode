@@ -37,6 +37,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	constructor(
 		protected session: IDebugSession | undefined,
+		protected threadId: number | undefined,
 		private _reference: number | undefined,
 		private id: string,
 		public namedVariables: number | undefined = 0,
@@ -85,7 +86,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			for (let i = 0; i < numberOfChunks; i++) {
 				const start = (this.startOfVariables || 0) + i * chunkSize;
 				const count = Math.min(chunkSize, this.indexedVariables - i * chunkSize);
-				children.push(new Variable(this.session, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, { kind: 'virtual' }, undefined, true, start));
+				children.push(new Variable(this.session, this.threadId, this, this.reference, `[${start}..${start + count - 1}]`, '', '', undefined, count, { kind: 'virtual' }, undefined, true, start));
 			}
 
 			return children;
@@ -109,12 +110,12 @@ export class ExpressionContainer implements IExpressionContainer {
 	}
 
 	private fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
-		return this.session!.variables(this.reference || 0, filter, start, count).then(response => {
+		return this.session!.variables(this.reference || 0, this.threadId, filter, start, count).then(response => {
 			return response && response.body && response.body.variables
 				? distinct(response.body.variables.filter(v => !!v && isString(v.name)), (v: DebugProtocol.Variable) => v.name).map((v: DebugProtocol.Variable) =>
-					new Variable(this.session, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
+					new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
 				: [];
-		}, (e: Error) => [new Variable(this.session, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, undefined, false)]);
+		}, (e: Error) => [new Variable(this.session, this.threadId, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, undefined, false)]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
@@ -171,7 +172,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 	public available: boolean;
 
 	constructor(public name: string, id = generateUuid()) {
-		super(undefined, 0, id);
+		super(undefined, undefined, 0, id);
 		this.available = false;
 		// name is not set if the expression is just being added
 		// in that case do not set default value to prevent flashing #14499
@@ -196,6 +197,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 
 	constructor(
 		session: IDebugSession | undefined,
+		threadId: number | undefined,
 		public parent: IExpressionContainer,
 		reference: number | undefined,
 		public name: string,
@@ -208,7 +210,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		public available = true,
 		startOfVariables = 0
 	) {
-		super(session, reference, `variable:${parent.getId()}:${name}`, namedVariables, indexedVariables, startOfVariables);
+		super(session, threadId, reference, `variable:${parent.getId()}:${name}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = value || '';
 	}
 
@@ -248,7 +250,7 @@ export class Scope extends ExpressionContainer implements IScope {
 		indexedVariables?: number,
 		public range?: IRange
 	) {
-		super(stackFrame.thread.session, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
+		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
 	}
 
 	toString(): string {
@@ -276,7 +278,7 @@ export class StackFrame implements IStackFrame {
 
 	getScopes(): Promise<IScope[]> {
 		if (!this.scopes) {
-			this.scopes = this.thread.session.scopes(this.frameId).then(response => {
+			this.scopes = this.thread.session.scopes(this.frameId, this.thread.threadId).then(response => {
 				return response && response.body && response.body.scopes ?
 					response.body.scopes.map((rs, index) => new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
 						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : undefined)) : [];
@@ -526,6 +528,15 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		this.sessionId = sessionId;
 	}
 
+	get message(): string | undefined {
+		const data = this.getSessionData();
+		if (!data) {
+			return undefined;
+		}
+
+		return data.message;
+	}
+
 	get verified(): boolean {
 		const data = this.getSessionData();
 		return data ? data.verified : true;
@@ -585,15 +596,11 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get message(): string | undefined {
-		const data = this.getSessionData();
-		if (!data) {
-			return undefined;
-		}
 		if (this.textFileService.isDirty(this.uri)) {
 			return nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.");
 		}
 
-		return data.message;
+		return super.message;
 	}
 
 	get adapterData(): any {

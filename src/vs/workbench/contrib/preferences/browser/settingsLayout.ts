@@ -195,6 +195,11 @@ export const tocData: ITOCEntry = {
 					id: 'application/telemetry',
 					label: localize('telemetry', "Telemetry"),
 					settings: ['telemetry.*']
+				},
+				{
+					id: 'application/sync',
+					label: localize('sync', "Sync"),
+					settings: ['userConfiguration.*']
 				}
 			]
 		}
@@ -218,3 +223,5 @@ export const knownAcronyms = new Set<string>();
 export const knownTermMappings = new Map<string, string>();
 knownTermMappings.set('power shell', 'PowerShell');
 knownTermMappings.set('powershell', 'PowerShell');
+knownTermMappings.set('javascript', 'JavaScript');
+knownTermMappings.set('typescript', 'TypeScript');
