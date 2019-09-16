@@ -11,6 +11,8 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { env } from 'vs/base/common/process';
 
 let product: IProductConfiguration;
+
+// Web
 if (isWeb) {
 
 	// Built time configuration (do NOT modify)
@@ -24,15 +26,16 @@ if (isWeb) {
 			nameShort: 'VSCode Web Dev'
 		});
 	}
-} else {
+}
+
+// Node: AMD loader
+else if (typeof require !== 'undefined' && typeof require.__$__nodeRequire === 'function') {
 
 	// Obtain values from product.json and package.json
 	const rootPath = path.dirname(getPathFromAmdModule(require, ''));
-	const productJsonPath = path.join(rootPath, 'product.json');
-	const packageJsonPath = path.join(rootPath, 'package.json');
 
-	product = assign({}, require.__$__nodeRequire(productJsonPath) as IProductConfiguration);
-	const pkg = require.__$__nodeRequire(packageJsonPath) as { version: string; };
+	product = assign({}, require.__$__nodeRequire(path.join(rootPath, 'product.json')) as IProductConfiguration);
+	const pkg = require.__$__nodeRequire(path.join(rootPath, 'package.json')) as { version: string; };
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {
@@ -46,6 +49,11 @@ if (isWeb) {
 	assign(product, {
 		version: pkg.version
 	});
+}
+
+// Unknown
+else {
+	throw new Error('Unable to resolve product configuration');
 }
 
 export default product;
