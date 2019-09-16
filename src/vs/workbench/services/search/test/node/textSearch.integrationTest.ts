@@ -387,7 +387,7 @@ suite('Search-integration', function () {
 				throw new Error('expected fail');
 			}, err => {
 				const searchError = deserializeSearchError(err.message);
-				let regexParseErrorForUnclosedParenthesis = 'Regex parse error :  unmatched closing parenthesis';
+				let regexParseErrorForUnclosedParenthesis = 'Regex parse error: unmatched closing parenthesis';
 				assert.equal(searchError.message, regexParseErrorForUnclosedParenthesis);
 				assert.equal(searchError.code, SearchErrorCode.regexParseError);
 			});
@@ -404,7 +404,7 @@ suite('Search-integration', function () {
 				throw new Error('expected fail');
 			}, err => {
 				const searchError = deserializeSearchError(err.message);
-				let regexParseErrorForLookAround = 'Regex parse error :  lookbehind assertion is not fixed length';
+				let regexParseErrorForLookAround = 'Regex parse error: lookbehind assertion is not fixed length';
 				assert.equal(searchError.message, regexParseErrorForLookAround);
 				assert.equal(searchError.code, SearchErrorCode.regexParseError);
 			});
