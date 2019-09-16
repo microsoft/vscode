@@ -152,11 +152,16 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 
 export function buildRegexParseError(lines: string[]): string {
 	let errorMessage: string[] = ['Regex parse error'];
-	let pcre2ErrorLine = lines.filter(l => (startsWith(l, 'PCRE2:')))[0];
-	let pcre2ErrorMessage = pcre2ErrorLine.replace('PCRE2:', '');
-	let pcre2ActualErrorMessage = pcre2ErrorMessage.split(':')[1];
-	errorMessage.push(pcre2ActualErrorMessage);
-	return errorMessage.join(':');
+	let pcre2ErrorLine = lines.filter(l => (startsWith(l, 'PCRE2:')));
+	if (pcre2ErrorLine.length >= 1) {
+		let pcre2ErrorMessage = pcre2ErrorLine[0].replace('PCRE2:', '');
+		if (pcre2ErrorMessage.indexOf(':') !== -1 && pcre2ErrorMessage.split(':').length >= 2) {
+			let pcre2ActualErrorMessage = pcre2ErrorMessage.split(':')[1];
+			errorMessage.push(':' + pcre2ActualErrorMessage);
+		}
+	}
+
+	return errorMessage.join('');
 }
 
 
