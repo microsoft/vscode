@@ -418,6 +418,12 @@ export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notF
 	return index < 0 ? notFoundValue : array[index];
 }
 
+export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
+export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
+export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
+	return array.length > 0 ? array[0] : notFoundValue;
+}
+
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
 	let result = 0;
 
