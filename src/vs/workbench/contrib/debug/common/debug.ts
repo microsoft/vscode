@@ -855,7 +855,7 @@ export interface IDebugEditorContribution extends IEditorContribution {
 }
 
 export interface IBreakpointEditorContribution extends IEditorContribution {
-	showBreakpointWidget(lineNumber: number, context?: BreakpointWidgetContext): void;
+	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 }
 
