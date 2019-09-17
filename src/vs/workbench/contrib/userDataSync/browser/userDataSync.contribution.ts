@@ -26,6 +26,9 @@ import { Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isEqual } from 'vs/base/common/resources';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isWeb } from 'vs/base/common/platform';
+import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 
 const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 
@@ -44,6 +47,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			}
 		}
 	});
+
+class UserDataAutoSyncContribution extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super();
+		if (isWeb) {
+			instantiationService.createInstance(UserDataAutoSync);
+		}
+	}
+}
 
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userData/browser/media/sync-push-light.svg`));
 const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userData/browser/media/sync-push-dark.svg`));
@@ -128,7 +143,7 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 	}
 
 	private async handleConflicts(): Promise<void> {
-		if (this.userDataSyncService.conflictsSource === SyncSource.Settings ) {
+		if (this.userDataSyncService.conflictsSource === SyncSource.Settings) {
 			const resourceInput = {
 				resource: this.workbenchEnvironmentService.settingsSyncPreviewResource,
 				options: {
@@ -207,3 +222,4 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(SyncActionsContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(UserDataAutoSyncContribution, LifecyclePhase.Restored);
