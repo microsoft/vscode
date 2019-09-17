@@ -41,6 +41,7 @@ const vscodeWebResourceIncludes = [
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png}',
 	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
+	'out-build/vs/base/browser/ui/codiconLabel/codicon/**',
 	'out-build/vs/**/markdown.css',
 
 	// Webview
