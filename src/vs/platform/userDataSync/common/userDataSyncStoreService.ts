@@ -4,54 +4,45 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
+import { IUserData, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IUserDataSyncStore, IUserData, UserDataSyncStoreError, toUserDataSyncStoreErrorCode, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ILogService } from 'vs/platform/log/common/log';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
 	_serviceBrand: any;
 
-	private userDataSyncStore: IUserDataSyncStore | null = null;
+	get enabled(): boolean { return !!this.productService.settingsSyncStoreUrl; }
 
-	get enabled(): boolean { return !!this.userDataSyncStore; }
-	private readonly _onDidChangeEnablement: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
+	private _loggedIn: boolean = false;
+	get loggedIn(): boolean { return this._loggedIn; }
+	private readonly _onDidChangeLoggedIn: Emitter<boolean> = this._register(new Emitter<boolean>());
+	readonly onDidChangeLoggedIn: Event<boolean> = this._onDidChangeLoggedIn.event;
 
 	constructor(
-		@ILogService private logService: ILogService
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 	}
 
-	registerUserDataSyncStore(userDataSyncStore: IUserDataSyncStore): void {
-		if (this.userDataSyncStore) {
-			this.logService.warn(`A user data sync store '${this.userDataSyncStore.name}' already registered. Hence ignoring the newly registered '${userDataSyncStore.name}' store.`);
-			return;
-		}
-		this.userDataSyncStore = userDataSyncStore;
-		this._onDidChangeEnablement.fire(true);
+	async login(): Promise<void> {
 	}
 
-	deregisterUserDataSyncStore(): void {
-		this.userDataSyncStore = null;
-		this._onDidChangeEnablement.fire(false);
+	async logout(): Promise<void> {
 	}
 
-	read(key: string): Promise<IUserData | null> {
-		if (!this.userDataSyncStore) {
-			throw new Error('No user sync store exists.');
+	async read(key: string): Promise<IUserData | null> {
+		if (!this.enabled) {
+			return Promise.reject(new Error('No settings sync store url configured.'));
 		}
-		return this.userDataSyncStore.read(key)
-			.then(null, error => Promise.reject(new UserDataSyncStoreError(error.message, toUserDataSyncStoreErrorCode(error))));
+		return null;
 	}
 
-	write(key: string, content: string, ref: string | null): Promise<string> {
-		if (!this.userDataSyncStore) {
-			throw new Error('No user sync store exists.');
+	async write(key: string, content: string, ref: string | null): Promise<string> {
+		if (!this.enabled) {
+			return Promise.reject(new Error('No settings sync store url configured.'));
 		}
-		return this.userDataSyncStore.write(key, content, ref)
-			.then(null, error => Promise.reject(new UserDataSyncStoreError(error.message, toUserDataSyncStoreErrorCode(error))));
+		return '';
 	}
 
 }

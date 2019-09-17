@@ -4,10 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IUserData } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
+
+export function markAsUserDataSyncStoreError(error: Error, code: UserDataSyncStoreErrorCode): Error {
+	error.name = code ? `${code} (UserDataSyncStoreError)` : `UserDataSyncStoreError`;
+
+	return error;
+}
+
+export function toUserDataSyncStoreErrorCode(error: Error | undefined | null): UserDataSyncStoreErrorCode {
+
+	// Guard against abuse
+	if (!error) {
+		return UserDataSyncStoreErrorCode.Unknown;
+	}
+
+	// FileSystemProviderError comes with the code
+	if (error instanceof UserDataSyncStoreError) {
+		return error.code;
+	}
+
+	// Any other error, check for name match by assuming that the error
+	// went through the markAsUserDataSyncStoreError() method
+	const match = /^(.+) \(UserDataSyncStoreError\)$/.exec(error.name);
+	if (!match) {
+		return UserDataSyncStoreErrorCode.Unknown;
+	}
+
+	switch (match[1]) {
+		case UserDataSyncStoreErrorCode.Rejected: return UserDataSyncStoreErrorCode.Rejected;
+	}
+
+	return UserDataSyncStoreErrorCode.Unknown;
+}
 
 export interface IUserDataSyncStore {
 	readonly id: string;

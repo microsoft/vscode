@@ -32,7 +32,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.instantiationService.createInstance(SettingsSynchroniser)
 		];
 		this.updateStatus();
-		this._register(Event.any(this.userDataSyncStoreService.onDidChangeEnablement, ...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
+		this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
 	}
 

@@ -17,38 +17,6 @@ export enum UserDataSyncStoreErrorCode {
 	Unknown = 'Unknown'
 }
 
-export function markAsUserDataSyncStoreError(error: Error, code: UserDataSyncStoreErrorCode): Error {
-	error.name = code ? `${code} (UserDataSyncStoreError)` : `UserDataSyncStoreError`;
-
-	return error;
-}
-
-export function toUserDataSyncStoreErrorCode(error: Error | undefined | null): UserDataSyncStoreErrorCode {
-
-	// Guard against abuse
-	if (!error) {
-		return UserDataSyncStoreErrorCode.Unknown;
-	}
-
-	// FileSystemProviderError comes with the code
-	if (error instanceof UserDataSyncStoreError) {
-		return error.code;
-	}
-
-	// Any other error, check for name match by assuming that the error
-	// went through the markAsUserDataSyncStoreError() method
-	const match = /^(.+) \(UserDataSyncStoreError\)$/.exec(error.name);
-	if (!match) {
-		return UserDataSyncStoreErrorCode.Unknown;
-	}
-
-	switch (match[1]) {
-		case UserDataSyncStoreErrorCode.Rejected: return UserDataSyncStoreErrorCode.Rejected;
-	}
-
-	return UserDataSyncStoreErrorCode.Unknown;
-}
-
 export class UserDataSyncStoreError extends Error {
 
 	constructor(message: string, public readonly code: UserDataSyncStoreErrorCode) {
@@ -57,23 +25,17 @@ export class UserDataSyncStoreError extends Error {
 
 }
 
-export interface IUserDataSyncStore {
-	readonly id: string;
-	readonly name: string;
-	read(key: string): Promise<IUserData | null>;
-	write(key: string, content: string, ref: string | null): Promise<string>;
-}
-
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 
 export interface IUserDataSyncStoreService {
 	_serviceBrand: undefined;
 
-	readonly onDidChangeEnablement: Event<boolean>;
 	readonly enabled: boolean;
 
-	registerUserDataSyncStore(userDataSyncStore: IUserDataSyncStore): void;
-	deregisterUserDataSyncStore(): void;
+	readonly loggedIn: boolean;
+	readonly onDidChangeLoggedIn: Event<boolean>;
+	login(): Promise<void>;
+	logout(): Promise<void>;
 
 	read(key: string): Promise<IUserData | null>;
 	write(key: string, content: string, ref: string | null): Promise<string>;

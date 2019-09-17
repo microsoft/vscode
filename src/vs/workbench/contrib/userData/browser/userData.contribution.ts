@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, USER_DATA_PREVIEW_SCHEME, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, USER_DATA_PREVIEW_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -52,14 +52,11 @@ class UserDataSyncContribution extends Disposable implements IWorkbenchContribut
 		@IFileService fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 	) {
 		super();
 		this._register(fileService.registerProvider(USER_DATA_PREVIEW_SCHEME, new InMemoryFileSystemProvider()));
 		this.sync(true);
-		this._register(Event.any<any>(
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync')),
-			this.userDataSyncStoreService.onDidChangeEnablement)
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync'))
 			(() => this.sync(true)));
 
 		// Sync immediately if there is a local change.
@@ -67,7 +64,7 @@ class UserDataSyncContribution extends Disposable implements IWorkbenchContribut
 	}
 
 	private async sync(loop: boolean): Promise<void> {
-		if (this.configurationService.getValue<boolean>('userConfiguration.enableSync') && this.userDataSyncStoreService.enabled) {
+		if (this.configurationService.getValue<boolean>('userConfiguration.enableSync')) {
 			try {
 				await this.userDataSyncService.sync();
 			} catch (e) {
