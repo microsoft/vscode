@@ -11,6 +11,7 @@ import { IRequestService, asJson, asText } from 'vs/platform/request/common/requ
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -51,7 +52,8 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		}
 		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
 		const data = JSON.stringify({ content, ref });
-		const context = await this.requestService.request({ type: 'POST', url, data }, CancellationToken.None);
+		const headers: IStringDictionary<string> = { 'Content-Type': 'application/json' };
+		const context = await this.requestService.request({ type: 'POST', url, data, headers }, CancellationToken.None);
 		const newRef = await asText(context);
 		if (!newRef) {
 			throw new Error('Server did not return the ref');
