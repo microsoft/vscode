@@ -47,6 +47,8 @@ import { compareFileNames } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IViewDescriptor } from 'vs/workbench/common/views';
 
+type TreeElement = ISCMResourceGroup | IBranchNode<ISCMResource> | ISCMResource;
+
 interface ResourceGroupTemplate {
 	name: HTMLElement;
 	count: CountBadge;
@@ -454,8 +456,6 @@ function convertValidationType(type: InputValidationType): MessageType {
 		case InputValidationType.Error: return MessageType.ERROR;
 	}
 }
-
-type TreeElement = ISCMResourceGroup | IBranchNode<ISCMResource> | ISCMResource;
 
 export class RepositoryPanel extends ViewletPanel {
 
