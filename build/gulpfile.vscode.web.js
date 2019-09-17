@@ -89,7 +89,7 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 ));
 
 const vscodeWebPatchProductTask = () => {
-	const fullpath = path.join(process.cwd(), 'out-build', 'vs', 'platform', 'product', 'browser', 'product.js');
+	const fullpath = path.join(process.cwd(), 'out-build', 'vs', 'platform', 'product', 'common', 'product.js');
 	const contents = fs.readFileSync(fullpath).toString();
 	const productConfiguration = JSON.stringify({
 		...product,
