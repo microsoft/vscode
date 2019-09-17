@@ -14,7 +14,7 @@ import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { IHistoryMainService, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile } from 'vs/platform/history/common/history';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isEqual as areResourcesEqual, dirname, originalFSPath, basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -24,6 +24,22 @@ import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
 import { toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/history/common/historyStorage';
 import { exists } from 'vs/base/node/pfs';
 import { ILifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
+
+export interface IHistoryMainService {
+	_serviceBrand: undefined;
+
+	onRecentlyOpenedChange: CommonEvent<void>;
+
+	addRecentlyOpened(recents: IRecent[]): void;
+	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier, currentFolder?: ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened;
+	removeFromRecentlyOpened(paths: URI[]): void;
+	clearRecentlyOpened(): void;
+
+	updateWindowsJumpList(): void;
+}
 
 export class HistoryMainService implements IHistoryMainService {
 

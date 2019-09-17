@@ -19,7 +19,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';

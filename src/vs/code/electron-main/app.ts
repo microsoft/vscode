@@ -17,7 +17,7 @@ import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
-import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
+import { LaunchMainService, LaunchChannel, ILaunchMainService } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -37,7 +37,6 @@ import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { URI } from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/electron-main/workspacesIpc';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
@@ -46,8 +45,8 @@ import { Win32UpdateService } from 'vs/platform/update/electron-main/updateServi
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
 import { IIssueService } from 'vs/platform/issue/node/issue';
-import { IssueChannel } from 'vs/platform/issue/node/issueIpc';
-import { IssueService } from 'vs/platform/issue/electron-main/issueService';
+import { IssueChannel } from 'vs/platform/issue/electron-main/issueIpc';
+import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
@@ -66,8 +65,8 @@ import { IStorageMainService, StorageMainService } from 'vs/platform/storage/nod
 import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
 import { startsWith } from 'vs/base/common/strings';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
-import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
+import { HistoryMainService, IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { URLService } from 'vs/platform/url/node/urlService';
 import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { statSync } from 'fs';
@@ -451,12 +450,12 @@ export class CodeApplication extends Disposable {
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, [sharedProcess]));
-		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
 		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
 
-		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
+		services.set(IIssueService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IElectronService, new SyncDescriptor(ElectronMainService));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 
@@ -530,7 +529,7 @@ export class CodeApplication extends Disposable {
 	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>): ICodeWindow[] {
 
 		// Register more Main IPC services
-		const launchService = accessor.get(ILaunchService);
+		const launchService = accessor.get(ILaunchMainService);
 		const launchChannel = new LaunchChannel(launchService);
 		this.mainIpcServer.registerChannel('launch', launchChannel);
 

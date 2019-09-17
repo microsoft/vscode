@@ -16,7 +16,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { mnemonicMenuLabel as baseMnemonicLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
-import { IHistoryMainService } from 'vs/platform/history/common/history';
+import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/node/menubar';
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';

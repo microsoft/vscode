@@ -6,26 +6,9 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
-
-export interface ISerializedWorkspace { id: string; configURIPath: string; remoteAuthority?: string; }
-
-export interface IBackupWorkspacesFormat {
-	rootURIWorkspaces: ISerializedWorkspace[];
-	folderURIWorkspaces: string[];
-	emptyWorkspaceInfos: IEmptyWindowBackupInfo[];
-
-	// deprecated
-	folderWorkspaces?: string[]; // use folderURIWorkspaces instead
-	emptyWorkspaces?: string[];
-	rootWorkspaces?: { id: string, configPath: string }[]; // use rootURIWorkspaces instead
-}
+import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 
 export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
-
-export interface IEmptyWindowBackupInfo {
-	backupFolder: string;
-	remoteAuthority?: string;
-}
 
 export interface IWorkspaceBackupInfo {
 	workspace: IWorkspaceIdentifier;

@@ -19,10 +19,10 @@ import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launchService';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
 
-export const ID = 'launchService';
-export const ILaunchService = createDecorator<ILaunchService>(ID);
+export const ID = 'launchMainService';
+export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
 
 export interface IStartArguments {
 	args: ParsedArgs;
@@ -51,7 +51,7 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 	return [];
 }
 
-export interface ILaunchService {
+export interface ILaunchMainService {
 	_serviceBrand: undefined;
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 	getMainProcessId(): Promise<number>;
@@ -62,7 +62,7 @@ export interface ILaunchService {
 
 export class LaunchChannel implements IServerChannel {
 
-	constructor(private service: ILaunchService) { }
+	constructor(private service: ILaunchMainService) { }
 
 	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
@@ -91,7 +91,7 @@ export class LaunchChannel implements IServerChannel {
 	}
 }
 
-export class LaunchChannelClient implements ILaunchService {
+export class LaunchChannelClient implements ILaunchMainService {
 
 	_serviceBrand: undefined;
 
@@ -118,7 +118,7 @@ export class LaunchChannelClient implements ILaunchService {
 	}
 }
 
-export class LaunchService implements ILaunchService {
+export class LaunchMainService implements ILaunchMainService {
 
 	_serviceBrand: undefined;
 
