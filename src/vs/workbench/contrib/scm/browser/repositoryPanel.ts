@@ -7,7 +7,7 @@ import 'vs/css!./media/scmViewlet';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { basename, relativePath } from 'vs/base/common/resources';
-import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -35,7 +35,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as platform from 'vs/base/common/platform';
-import { ITreeNode, ITreeFilter, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ISequence, ISplice } from 'vs/base/common/sequence';
 import { ResourceTree, IBranchNode, isBranchNode, INode } from 'vs/base/common/resourceTree';
 import { ObjectTree, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
@@ -347,6 +347,14 @@ interface IGroupItem {
 	readonly disposable: IDisposable;
 }
 
+function groupItemAsTreeElement(item: IGroupItem, flat: boolean): ICompressedTreeElement<TreeElement> {
+	const children = flat
+		? Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true }))
+		: Iterator.map(item.tree.root.children, node => asTreeElement(node, true));
+
+	return { element: item.group, children, incompressible: true };
+}
+
 function asTreeElement(node: INode<ISCMResource>, incompressible: boolean): ICompressedTreeElement<TreeElement> {
 	if (isBranchNode(node)) {
 		return {
@@ -360,36 +368,18 @@ function asTreeElement(node: INode<ISCMResource>, incompressible: boolean): ICom
 	return { element: node.element, incompressible: true };
 }
 
-class ResourceGroupSplicer {
+// TODO: cache tree scrollTop
+class ViewModel {
 
 	private flat = false;
 	private items: IGroupItem[] = [];
+	private visibilityDisposables = new DisposableStore();
 	private disposables = new DisposableStore();
 
 	constructor(
-		groupSequence: ISequence<ISCMResourceGroup>,
+		private groups: ISequence<ISCMResourceGroup>,
 		private tree: ObjectTree<TreeElement, FuzzyScore>
-	) {
-		groupSequence.onDidSplice(this.onDidSpliceGroups, this, this.disposables);
-		this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: groupSequence.elements });
-	}
-
-	// TODO@joao: optimize
-	private fullRefresh(): void {
-		if (this.flat) {
-			this.tree.setChildren(null, this.items.map(item => ({
-				element: item.group,
-				children: Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true })),
-				incompressible: true
-			})));
-		} else {
-			this.tree.setChildren(null, this.items.map(item => ({
-				element: item.group,
-				children: Iterator.map(item.tree.root.children, node => asTreeElement(node, true)),
-				incompressible: true
-			})));
-		}
-	}
+	) { }
 
 	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
 		const itemsToInsert: IGroupItem[] = [];
@@ -398,10 +388,16 @@ class ResourceGroupSplicer {
 			const tree = new ResourceTree<ISCMResource>();
 			const resources: ISCMResource[] = [...group.elements];
 			const disposable = combinedDisposable(
-				group.onDidChange(() => this.onDidChangeGroup()),
+				group.onDidChange(() => this.tree.refilter()),
 				group.onDidSplice(splice => this.onDidSpliceGroup(item, splice))
 			);
+
 			const item = { group, resources, tree, disposable };
+			const root = item.group.provider.rootUri || URI.file('/');
+
+			for (const resource of resources) {
+				item.tree.add(relativePath(root, resource.sourceUri) || resource.sourceUri.fsPath, resource);
+			}
 
 			itemsToInsert.push(item);
 		}
@@ -412,38 +408,7 @@ class ResourceGroupSplicer {
 			item.disposable.dispose();
 		}
 
-		this.fullRefresh();
-	}
-
-	private onDidChangeGroup(): void {
-		this.fullRefresh();
-		// 	const itemIndex = firstIndex(this.items, item => item.group === group);
-
-		// 	if (itemIndex < 0) {
-		// 		return;
-		// 	}
-
-		// 	const item = this.items[itemIndex];
-		// 	const visible = isGroupVisible(group);
-
-		// 	if (item.visible === visible) {
-		// 		return;
-		// 	}
-
-		// 	let absoluteStart = 0;
-
-		// 	for (let i = 0; i < itemIndex; i++) {
-		// 		const item = this.items[i];
-		// 		absoluteStart += (item.visible ? 1 : 0) + item.group.elements.length;
-		// 	}
-
-		// 	if (visible) {
-		// 		this.spliceable.splice(absoluteStart, 0, [group, ...group.elements]);
-		// 	} else {
-		// 		this.spliceable.splice(absoluteStart, 1 + group.elements.length, []);
-		// 	}
-
-		// 	item.visible = visible;
+		this.refresh();
 	}
 
 	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
@@ -459,43 +424,31 @@ class ResourceGroupSplicer {
 			item.tree.delete(relativePath(root, resource.sourceUri) || resource.sourceUri.fsPath);
 		}
 
-		this.fullRefresh();
-		// const itemIndex = firstIndex(this.items, item => item.group === group);
+		this.refresh(item);
+	}
 
-		// if (itemIndex < 0) {
-		// 	return;
-		// }
+	setVisible(visible: boolean): void {
+		if (visible) {
+			this.visibilityDisposables = new DisposableStore();
+			this.groups.onDidSplice(this.onDidSpliceGroups, this, this.visibilityDisposables);
+			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: this.groups.elements });
+		} else {
+			this.visibilityDisposables.dispose();
+			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: [] });
+		}
+	}
 
-		// const item = this.items[itemIndex];
-		// const visible = isGroupVisible(group);
-
-		// if (!item.visible && !visible) {
-		// 	return;
-		// }
-
-		// let absoluteStart = start;
-
-		// for (let i = 0; i < itemIndex; i++) {
-		// 	const item = this.items[i];
-		// 	absoluteStart += (item.visible ? 1 : 0) + item.group.elements.length;
-		// }
-
-		// if (item.visible && !visible) {
-		// 	this.spliceable.splice(absoluteStart, 1 + deleteCount, toInsert);
-		// } else if (!item.visible && visible) {
-		// 	this.spliceable.splice(absoluteStart, deleteCount, [group, ...toInsert]);
-		// } else {
-		// 	this.spliceable.splice(absoluteStart + 1, deleteCount, toInsert);
-		// }
-
-		// item.visible = visible;
-
-
+	private refresh(item?: IGroupItem): void {
+		if (item) {
+			this.tree.setChildren(item.group, groupItemAsTreeElement(item, this.flat).children);
+		} else {
+			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.flat)));
+		}
 	}
 
 	dispose(): void {
-		this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: [] });
-		this.disposables = dispose(this.disposables);
+		this.visibilityDisposables.dispose();
+		this.disposables.dispose();
 	}
 }
 
@@ -513,14 +466,13 @@ export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
-	private cachedScrollTop: number | undefined = undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
 	private tree: ObjectTree<TreeElement, FuzzyScore>;
+	private viewModel: ViewModel;
 	private listLabels: ResourceLabels;
 	private menus: SCMMenus;
-	private visibilityDisposables: IDisposable[] = [];
 	protected contextKeyService: IContextKeyService;
 
 	constructor(
@@ -679,25 +631,17 @@ export class RepositoryPanel extends ViewletPanel {
 		// 	.filter(e => !!e && isSCMResource(e))
 		// 	.on(this.pin, this));
 
-		// this._register(this.tree.onContextMenu(this.onListContextMenu, this));
+		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
 		// this.tree.setInput(this.repository);
 
 		// this._register(this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this));
 		// this.onDidChangeVisibility(this.viewModel.isVisible());
-		this.onDidChangeVisibility();
-		this.onDidChangeBodyVisibility(visible => this.inputBox.setEnabled(visible));
-	}
+		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree);
+		this._register(this.viewModel);
 
-	private onDidChangeVisibility(): void {
-		// if (visible) {
-		const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.tree);
-		this.visibilityDisposables.push(listSplicer);
-		// } else {
-		// 	this.cachedScrollTop = this.tree.scrollTop;
-		// 	this.visibilityDisposables = dispose(this.visibilityDisposables);
-		// }
+		this._register(this.onDidChangeBodyVisibility(this._onDidChangeVisibility, this));
 	}
 
 	layoutBody(height: number | undefined = this.cachedHeight, width: number | undefined = this.cachedWidth): void {
@@ -721,13 +665,6 @@ export class RepositoryPanel extends ViewletPanel {
 			this.listContainer.style.height = `${height}px`;
 			this.tree.layout(height, width);
 		}
-
-		if (this.cachedScrollTop !== undefined && this.tree.scrollTop !== this.cachedScrollTop) {
-			this.tree.scrollTop = Math.min(this.cachedScrollTop, this.tree.scrollHeight);
-			// Applying the cached scroll position just once until the next leave.
-			// This, also, avoids the scrollbar to flicker when resizing the sidebar.
-			this.cachedScrollTop = undefined;
-		}
 	}
 
 	focus(): void {
@@ -742,6 +679,11 @@ export class RepositoryPanel extends ViewletPanel {
 
 			this.repository.focus();
 		}
+	}
+
+	private _onDidChangeVisibility(visible: boolean): void {
+		this.inputBox.setEnabled(visible);
+		this.viewModel.setVisible(visible);
 	}
 
 	getActions(): IAction[] {
@@ -775,27 +717,29 @@ export class RepositoryPanel extends ViewletPanel {
 	// 	}
 	// }
 
-	// private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {
-	// 	if (!e.element) {
-	// 		return;
-	// 	}
+	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
+		if (!e.element) {
+			return;
+		}
 
-	// 	const element = e.element;
-	// 	let actions: IAction[];
+		const element = e.element;
+		let actions: IAction[];
 
-	// 	if (isSCMResource(element)) {
-	// 		actions = this.menus.getResourceContextActions(element);
-	// 	} else {
-	// 		actions = this.menus.getResourceGroupContextActions(element);
-	// 	}
+		if (isBranchNode(element)) {
+			actions = [];
+		} else if (isSCMResource(element)) {
+			actions = this.menus.getResourceContextActions(element);
+		} else {
+			actions = this.menus.getResourceGroupContextActions(element);
+		}
 
-	// 	this.contextMenuService.showContextMenu({
-	// 		getAnchor: () => e.anchor,
-	// 		getActions: () => actions,
-	// 		getActionsContext: () => element,
-	// 		actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
-	// 	});
-	// }
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => actions,
+			getActionsContext: () => element,
+			actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
+		});
+	}
 
 	private getSelectedResources(): ISCMResource[] {
 		return this.tree.getSelection()
@@ -814,11 +758,6 @@ export class RepositoryPanel extends ViewletPanel {
 		if (this.cachedHeight) {
 			this.layoutBody(this.cachedHeight);
 		}
-	}
-
-	dispose(): void {
-		this.visibilityDisposables = dispose(this.visibilityDisposables);
-		super.dispose();
 	}
 }
 
