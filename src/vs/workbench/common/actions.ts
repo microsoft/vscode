@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -120,23 +119,3 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		}
 	}
 });
-
-export namespace OpenLocalFileCommand {
-	export const ID = 'workbench.action.files.openLocalFile';
-	export const LABEL = nls.localize('openLocalFile', "Open Local File...");
-}
-
-export namespace SaveLocalFileCommand {
-	export const ID = 'workbench.action.files.saveLocalFile';
-	export const LABEL = nls.localize('saveLocalFile', "Save Local File...");
-}
-
-export namespace OpenLocalFolderCommand {
-	export const ID = 'workbench.action.files.openLocalFolder';
-	export const LABEL = nls.localize('openLocalFolder', "Open Local Folder...");
-}
-
-export namespace OpenLocalFileFolderCommand {
-	export const ID = 'workbench.action.files.openLocalFileFolder';
-	export const LABEL = nls.localize('openLocalFileFolder', "Open Local...");
-}
