@@ -60,8 +60,8 @@ class UserDataAutoSyncContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
-const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userData/browser/media/sync-push-light.svg`));
-const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userData/browser/media/sync-push-dark.svg`));
+const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/sync-push-light.svg`));
+const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/sync-push-dark.svg`));
 class SyncActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly syncEnablementContext: IContextKey<string>;
