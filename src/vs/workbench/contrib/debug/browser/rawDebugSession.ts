@@ -381,6 +381,13 @@ export class RawDebugSession implements IDisposable {
 		return this.send<DebugProtocol.SetExceptionBreakpointsResponse>('setExceptionBreakpoints', args);
 	}
 
+	breakpointLocations(args: DebugProtocol.BreakpointLocationsArguments): Promise<DebugProtocol.BreakpointLocationsResponse> {
+		if (this.capabilities.supportsBreakpointLocationsRequest) {
+			return this.send('breakpointLocations', args);
+		}
+		return Promise.reject(new Error('breakpointLocations is not supported'));
+	}
+
 	configurationDone(): Promise<DebugProtocol.ConfigurationDoneResponse> {
 		if (this.capabilities.supportsConfigurationDoneRequest) {
 			return this.send('configurationDone', null);

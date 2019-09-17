@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/node/issue';
 import { BrowserWindow, ipcMain, screen, dialog } from 'electron';
-import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
+import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -20,7 +20,7 @@ import { listProcesses } from 'vs/base/node/ps';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
-export class IssueService implements IIssueService {
+export class IssueMainService implements IIssueService {
 	_serviceBrand: undefined;
 	_issueWindow: BrowserWindow | null = null;
 	_issueParentWindow: BrowserWindow | null = null;
@@ -31,7 +31,7 @@ export class IssueService implements IIssueService {
 		private machineId: string,
 		private userEnv: IProcessEnvironment,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILaunchService private readonly launchService: ILaunchService,
+		@ILaunchMainService private readonly launchService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
 		@IWindowsService private readonly windowsService: IWindowsService

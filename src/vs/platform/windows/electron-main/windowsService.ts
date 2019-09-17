@@ -11,9 +11,10 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { shell, crashReporter, app, Menu } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { IHistoryMainService, IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
+import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
@@ -44,7 +45,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
 		@IHistoryMainService private readonly historyService: IHistoryMainService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -333,24 +334,6 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		this.logService.trace('windowsService#getWindowCount');
 
 		return this.windowsMainService.getWindows().length;
-	}
-
-	async log(severity: string, args: string[]): Promise<void> {
-		let consoleFn = console.log;
-
-		switch (severity) {
-			case 'error':
-				consoleFn = console.error;
-				break;
-			case 'warn':
-				consoleFn = console.warn;
-				break;
-			case 'info':
-				consoleFn = console.info;
-				break;
-		}
-
-		consoleFn.call(console, ...args);
 	}
 
 	async showItemInFolder(resource: URI): Promise<void> {

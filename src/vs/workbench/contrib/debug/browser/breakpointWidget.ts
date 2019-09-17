@@ -37,7 +37,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
-const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakopintWidgetService');
+const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
 export interface IPrivateBreakpointWidgetService {
 	_serviceBrand: undefined;
 	close(success: boolean): void;
@@ -55,7 +55,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private logMessageInput = '';
 	private breakpoint: IBreakpoint | undefined;
 
-	constructor(editor: ICodeEditor, private lineNumber: number, private context: Context,
+	constructor(editor: ICodeEditor, private lineNumber: number, private column: number | undefined, private context: Context,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -70,7 +70,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const model = this.editor.getModel();
 		if (model) {
 			const uri = model.uri;
-			const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber: this.lineNumber, uri });
+			const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber: this.lineNumber, column: this.column, uri });
 			this.breakpoint = breakpoints.length ? breakpoints[0] : undefined;
 		}
 
@@ -130,12 +130,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
-	show(rangeOrPos: IRange | IPosition, heightInLines: number) {
+	show(rangeOrPos: IRange | IPosition): void {
 		const lineNum = this.input.getModel().getLineCount();
 		super.show(rangeOrPos, lineNum + 1);
 	}
 
-	fitHeightToContent() {
+	fitHeightToContent(): void {
 		const lineNum = this.input.getModel().getLineCount();
 		this._relayout(lineNum + 1);
 	}
@@ -293,6 +293,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				if (model) {
 					this.debugService.addBreakpoints(model.uri, [{
 						lineNumber: this.lineNumber,
+						column: this.column,
 						enabled: true,
 						condition,
 						hitCondition,

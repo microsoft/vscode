@@ -187,6 +187,8 @@ export const activeContrastBorder = registerColor('contrastActiveBorder', { ligh
 
 export const selectionBackground = registerColor('selection.background', { light: null, dark: null, hc: null }, nls.localize('selectionBackground', "The background color of text selections in the workbench (e.g. for input fields or text areas). Note that this does not apply to selections within the editor."));
 
+export const iconForeground = registerColor('icon.foreground', { light: '#424242', dark: '#C5C5C5', hc: '#FFFFFF' }, nls.localize('iconForeground', "The default color for icons in the workbench."));
+
 // ------ text colors
 
 export const textSeparatorForeground = registerColor('textSeparator.foreground', { light: '#0000002e', dark: '#ffffff2e', hc: Color.black }, nls.localize('textSeparatorForeground', "Color for text separators."));

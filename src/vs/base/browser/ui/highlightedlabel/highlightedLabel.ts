@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as objects from 'vs/base/common/objects';
-import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import { escape } from 'vs/base/common/strings';
 
 export interface IHighlight {
@@ -65,13 +65,13 @@ export class HighlightedLabel {
 			if (pos < highlight.start) {
 				htmlContent += '<span>';
 				const substring = this.text.substring(pos, highlight.start);
-				htmlContent += this.supportOcticons ? renderOcticons(substring) : escape(substring);
+				htmlContent += this.supportOcticons ? renderCodicons(substring) : escape(substring);
 				htmlContent += '</span>';
 				pos = highlight.end;
 			}
 			htmlContent += '<span class="highlight">';
 			const substring = this.text.substring(highlight.start, highlight.end);
-			htmlContent += this.supportOcticons ? renderOcticons(substring) : escape(substring);
+			htmlContent += this.supportOcticons ? renderCodicons(substring) : escape(substring);
 			htmlContent += '</span>';
 			pos = highlight.end;
 		}
@@ -79,7 +79,7 @@ export class HighlightedLabel {
 		if (pos < this.text.length) {
 			htmlContent += '<span>';
 			const substring = this.text.substring(pos);
-			htmlContent += this.supportOcticons ? renderOcticons(substring) : escape(substring);
+			htmlContent += this.supportOcticons ? renderCodicons(substring) : escape(substring);
 			htmlContent += '</span>';
 		}
 

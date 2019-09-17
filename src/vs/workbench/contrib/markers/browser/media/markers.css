@@ -56,19 +56,6 @@
 	display: none;
 }
 
-.vs .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('exclude-settings-light.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
-.hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('exclude-settings-dark.svg') center center no-repeat;
-}
-
-.hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('exclude-settings-hc.svg') center center no-repeat;
-}
-
 .markers-panel .markers-panel-container {
 	height: 100%;
 }
