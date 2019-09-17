@@ -9,16 +9,13 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { isNative } from 'vs/base/common/platform';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData, ITextSearchComplete } from '../common/extHost.protocol';
@@ -224,19 +221,3 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._windowService.resolveProxy(url);
 	}
 }
-
-CommandsRegistry.registerCommand('_workbench.enterWorkspace', async function (accessor: ServicesAccessor, workspace: URI, disableExtensions: string[]) {
-	const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-	const extensionService = accessor.get(IExtensionService);
-	const windowService = accessor.get(IWindowService);
-
-	if (disableExtensions && disableExtensions.length) {
-		const runningExtensions = await extensionService.getExtensions();
-		// If requested extension to disable is running, then reload window with given workspace
-		if (disableExtensions && runningExtensions.some(runningExtension => disableExtensions.some(id => ExtensionIdentifier.equals(runningExtension.identifier, id)))) {
-			return windowService.openWindow([{ workspaceUri: workspace }], { args: { _: [], 'disable-extension': disableExtensions } });
-		}
-	}
-
-	return workspaceEditingService.enterWorkspace(workspace);
-});
