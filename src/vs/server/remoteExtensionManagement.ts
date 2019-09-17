@@ -23,7 +23,6 @@ import { Main as CliMain } from 'vs/code/node/cliProcessMain';
 import { VSBuffer } from 'vs/base/common/buffer';
 import product from 'vs/platform/product/common/product';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
@@ -50,20 +49,13 @@ export class ManagementConnection {
 		this._disconnectWaitTimer = null;
 
 		this.protocol.onClose(() => this._cleanResources());
-		if (protocol.getSocket() instanceof NodeSocket) {
-			this.protocol.onSocketClose(() => {
-				// The socket has closed, let's give the renderer a certain amount of time to reconnect
-				this._disconnectWaitTimer = setTimeout(() => {
-					this._disconnectWaitTimer = null;
-					this._cleanResources();
-				}, ProtocolConstants.ReconnectionGraceTime);
-			});
-		} else {
-			protocol.onSocketClose(() => {
-				// Do not wait for web companion to reconnect
+		this.protocol.onSocketClose(() => {
+			// The socket has closed, let's give the renderer a certain amount of time to reconnect
+			this._disconnectWaitTimer = setTimeout(() => {
+				this._disconnectWaitTimer = null;
 				this._cleanResources();
-			});
-		}
+			}, ProtocolConstants.ReconnectionGraceTime);
+		});
 	}
 
 	private _cleanResources(): void {

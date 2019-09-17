@@ -116,21 +116,14 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 						protocol.onClose(() => onTerminate());
 						resolve(protocol);
 
-						if (msg.skipWebSocketFrames) {
-							// Wait for rich client to reconnect
-							protocol.onSocketClose(() => {
-								// The socket has closed, let's give the renderer a certain amount of time to reconnect
-								disconnectWaitTimer = setTimeout(() => {
-									disconnectWaitTimer = null;
-									onTerminate();
-								}, ProtocolConstants.ReconnectionGraceTime);
-							});
-						} else {
-							// Do not wait for web companion to reconnect
-							protocol.onSocketClose(() => {
+						// Wait for rich client to reconnect
+						protocol.onSocketClose(() => {
+							// The socket has closed, let's give the renderer a certain amount of time to reconnect
+							disconnectWaitTimer = setTimeout(() => {
+								disconnectWaitTimer = null;
 								onTerminate();
-							});
-						}
+							}, ProtocolConstants.ReconnectionGraceTime);
+						});
 					}
 				}
 			});
