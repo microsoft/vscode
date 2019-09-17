@@ -77,6 +77,8 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { ElectronMainService, ElectronChannel } from 'vs/platform/electron/electron-main/electronMainService';
 
 export class CodeApplication extends Disposable {
 
@@ -423,7 +425,6 @@ export class CodeApplication extends Disposable {
 	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessClient: Promise<Client<string>>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
-		// Files
 		const fileService = this._register(new FileService(this.logService));
 		services.set(IFileService, fileService);
 
@@ -456,6 +457,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
 
 		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
+		services.set(IElectronService, new SyncDescriptor(ElectronMainService));
 		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
@@ -541,6 +543,10 @@ export class CodeApplication extends Disposable {
 		const issueChannel = new IssueChannel(issueService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
+		const electronService = accessor.get(IElectronService);
+		const electronChannel = new ElectronChannel(electronService);
+		electronIpcServer.registerChannel('electron', electronChannel);
+
 		const workspacesService = accessor.get(IWorkspacesMainService);
 		const workspacesChannel = new WorkspacesChannel(workspacesService);
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
@@ -562,7 +568,6 @@ export class CodeApplication extends Disposable {
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));
 		electronIpcServer.registerChannel('storage', storageChannel);
 
-		// Log level management
 		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
 		electronIpcServer.registerChannel('loglevel', logLevelChannel);
 		sharedProcessClient.then(client => client.registerChannel('loglevel', logLevelChannel));

@@ -2049,13 +2049,13 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				removeFrom = removeFrom.filter(x => x.toLowerCase() !== extensionIdLowerCase);
 
 				return this.jsonEditingService.write(workspaceConfigurationFile,
-					{
+					[{
 						key: 'extensions',
 						value: {
 							recommendations: shouldRecommend ? insertInto : removeFrom,
 							unwantedRecommendations: shouldRecommend ? removeFrom : insertInto
 						}
-					},
+					}],
 					true);
 			});
 	}
@@ -2078,19 +2078,19 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				if (removeFrom.some(e => e.toLowerCase() === extensionIdLowerCase)) {
 					removeFrom = removeFrom.filter(x => x.toLowerCase() !== extensionIdLowerCase);
 					removeFromPromise = this.jsonEditingService.write(extensionsFileResource,
-						{
+						[{
 							key: shouldRecommend ? 'unwantedRecommendations' : 'recommendations',
 							value: removeFrom
-						},
+						}],
 						true);
 				}
 
 				return removeFromPromise.then(() =>
 					this.jsonEditingService.write(extensionsFileResource,
-						{
+						[{
 							key: shouldRecommend ? 'recommendations' : 'unwantedRecommendations',
 							value: insertInto
-						},
+						}],
 						true)
 				);
 			});
@@ -2115,7 +2115,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			.then(content => {
 				const workspaceRecommendations = <IExtensionsConfigContent>json.parse(content.value.toString())['extensions'];
 				if (!workspaceRecommendations || !workspaceRecommendations.recommendations) {
-					return this.jsonEditingService.write(workspaceConfigurationFile, { key: 'extensions', value: { recommendations: [] } }, true)
+					return this.jsonEditingService.write(workspaceConfigurationFile, [{ key: 'extensions', value: { recommendations: [] } }], true)
 						.then(() => this.fileService.readFile(workspaceConfigurationFile));
 				}
 				return content;

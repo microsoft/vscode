@@ -6,7 +6,8 @@
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import * as glob from 'vs/base/common/glob';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
+import { basename, DataUri } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -16,7 +17,7 @@ import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/ed
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { webviewEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/browser/extensionPoint';
 import { CustomEditorDiscretion, CustomEditorInfo, CustomEditorSelector, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -203,25 +204,33 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		}
 
 		if (editor instanceof DiffEditorInput) {
-			if (editor.modifiedInput instanceof CustomFileEditorInput) {
-				return;
-			}
-			const resource = editor.modifiedInput.getResource();
-			if (!resource) {
-				return;
-			}
+			const getCustomEditorOverrideForSubInput = (subInput: IEditorInput): EditorInput | undefined => {
+				if (subInput instanceof CustomFileEditorInput) {
+					return undefined;
+				}
+				const resource = subInput.getResource();
+				if (!resource) {
+					return undefined;
+				}
 
-			const customEditors = distinct([
-				...this.customEditorService.getUserConfiguredCustomEditors(resource),
-				...this.customEditorService.getContributedCustomEditors(resource),
-			], editor => editor.id);
+				const editors = distinct([
+					...this.customEditorService.getUserConfiguredCustomEditors(resource),
+					...this.customEditorService.getContributedCustomEditors(resource),
+				], editor => editor.id);
 
-			// Always prefer the first editor in the diff editor case
-			if (customEditors.length > 0) {
+				// Always prefer the first editor in the diff editor case
+				return editors.length
+					? this.customEditorService.createInput(resource, editors[0].id, group)
+					: undefined;
+			};
+
+			const modifiedOverride = getCustomEditorOverrideForSubInput(editor.modifiedInput);
+			const originalOverride = getCustomEditorOverrideForSubInput(editor.originalInput);
+
+			if (modifiedOverride || originalOverride) {
 				return {
 					override: (async () => {
-						const newModified = this.customEditorService.createInput(resource, customEditors[0].id, group);
-						const input = new DiffEditorInput(editor.getName(), editor.getDescription(), editor.originalInput, newModified);
+						const input = new DiffEditorInput(editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput);
 						return this.editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
 					})(),
 				};
@@ -285,6 +294,15 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 }
 
 function matches(selector: CustomEditorSelector, resource: URI): boolean {
+	if (resource.scheme === Schemas.data) {
+		const metadata = DataUri.parseMetaData(resource);
+		const mime = metadata.get(DataUri.META_DATA_MIME);
+		if (!selector.mime || !mime) {
+			return false;
+		}
+		return glob.match(selector.mime, mime.toLowerCase());
+	}
+
 	if (!selector.filenamePattern && !selector.scheme) {
 		return false;
 	}

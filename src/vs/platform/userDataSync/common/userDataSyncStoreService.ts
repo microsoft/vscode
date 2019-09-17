@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IUserDataSyncStoreService, IUserDataSyncStore, IUserData, UserDataSyncStoreError, toUserDataSyncStoreErrorCode } from 'vs/workbench/services/userData/common/userData';
+import { IUserDataSyncStore, IUserData, UserDataSyncStoreError, toUserDataSyncStoreErrorCode, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
@@ -14,8 +13,8 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	_serviceBrand: any;
 
 	private userDataSyncStore: IUserDataSyncStore | null = null;
-	private name: string | null = null;
 
+	get enabled(): boolean { return !!this.userDataSyncStore; }
 	private readonly _onDidChangeEnablement: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
 
@@ -25,28 +24,18 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		super();
 	}
 
-	registerUserDataSyncStore(name: string, userDataSyncStore: IUserDataSyncStore): void {
+	registerUserDataSyncStore(userDataSyncStore: IUserDataSyncStore): void {
 		if (this.userDataSyncStore) {
-			this.logService.warn(`A user data sync store '${this.name}' already registered. Hence ignoring the newly registered '${name}' store.`);
+			this.logService.warn(`A user data sync store '${this.userDataSyncStore.name}' already registered. Hence ignoring the newly registered '${userDataSyncStore.name}' store.`);
 			return;
 		}
 		this.userDataSyncStore = userDataSyncStore;
-		this.name = name;
 		this._onDidChangeEnablement.fire(true);
 	}
 
 	deregisterUserDataSyncStore(): void {
 		this.userDataSyncStore = null;
-		this.name = null;
 		this._onDidChangeEnablement.fire(false);
-	}
-
-	getName(): string | null {
-		return this.name;
-	}
-
-	isEnabled(): boolean {
-		return !!this.userDataSyncStore;
 	}
 
 	read(key: string): Promise<IUserData | null> {
@@ -66,5 +55,3 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 }
-
-registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);

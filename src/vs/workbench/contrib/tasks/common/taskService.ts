@@ -83,6 +83,7 @@ export interface ITaskService {
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
+	setJsonTasksSupported(areSuppored: Promise<boolean>): void;
 
 	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
 }

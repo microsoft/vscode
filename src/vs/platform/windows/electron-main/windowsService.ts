@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as os from 'os';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import product from 'vs/platform/product/common/product';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, INewWindowOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { shell, crashReporter, app, Menu, clipboard } from 'electron';
+import { shell, crashReporter, app, Menu } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -20,8 +17,7 @@ import { IHistoryMainService, IRecentlyOpened, IRecent } from 'vs/platform/histo
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isMacintosh, isLinux, IProcessEnvironment } from 'vs/base/common/platform';
+import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class WindowsService extends Disposable implements IWindowsService, IURLHandler {
@@ -405,52 +401,6 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 
 		this.sharedProcess.toggle();
 
-	}
-
-	async openAboutDialog(): Promise<void> {
-		this.logService.trace('windowsService#openAboutDialog');
-
-		let version = app.getVersion();
-		if (product.target) {
-			version = `${version} (${product.target} setup)`;
-		}
-
-		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
-		const detail = nls.localize('aboutDetail',
-			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
-			version,
-			product.commit || 'Unknown',
-			product.date || 'Unknown',
-			process.versions['electron'],
-			process.versions['chrome'],
-			process.versions['node'],
-			process.versions['v8'],
-			`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
-		);
-
-		const ok = nls.localize('okButton', "OK");
-		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
-		let buttons: string[];
-		if (isLinux) {
-			buttons = [copy, ok];
-		} else {
-			buttons = [ok, copy];
-		}
-
-		const result = await this.windowsMainService.showMessageBox({
-			title: product.nameLong,
-			type: 'info',
-			message: product.nameLong,
-			detail: `\n${detail}`,
-			buttons,
-			noLink: true,
-			defaultId: buttons.indexOf(ok),
-			cancelId: buttons.indexOf(ok)
-		}, this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow());
-
-		if (buttons[result.button] === copy) {
-			clipboard.writeText(detail);
-		}
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {

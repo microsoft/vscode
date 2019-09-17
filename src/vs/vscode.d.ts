@@ -7015,6 +7015,11 @@ declare module 'vscode' {
 		readonly onDidChangeVisibility: Event<TreeViewVisibilityChangeEvent>;
 
 		/**
+		 * An optional human-readable message that will be rendered in the view.
+		 */
+		message?: string;
+
+		/**
 		 * Reveals the given element in the tree view.
 		 * If the tree view is not visible then the tree view is shown and element is revealed.
 		 *

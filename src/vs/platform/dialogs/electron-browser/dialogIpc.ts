@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDialogService, IConfirmation, IConfirmationResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
+import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Event } from 'vs/base/common/event';
 
 export class DialogChannel implements IServerChannel {
@@ -20,22 +19,8 @@ export class DialogChannel implements IServerChannel {
 		switch (command) {
 			case 'show': return this.dialogService.show(args![0], args![1], args![2]);
 			case 'confirm': return this.dialogService.confirm(args![0]);
+			case 'about': return this.dialogService.about();
 		}
 		return Promise.reject(new Error('invalid command'));
-	}
-}
-
-export class DialogChannelClient implements IDialogService {
-
-	_serviceBrand: undefined;
-
-	constructor(private channel: IChannel) { }
-
-	show(severity: Severity, message: string, options: string[]): Promise<IShowResult> {
-		return this.channel.call('show', [severity, message, options]);
-	}
-
-	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		return this.channel.call('confirm', [confirmation]);
 	}
 }

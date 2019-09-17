@@ -642,6 +642,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (!this._isVisible) {
 			return;
 		}
+		if (!dom.isInDOM(this._domNode)) {
+			// the widget is not in the DOM
+			return;
+		}
 
 		const layoutInfo = this._codeEditor.getLayoutInfo();
 		const editorContentWidth = layoutInfo.contentWidth;

@@ -58,34 +58,26 @@ export class UserDataSyncStoreError extends Error {
 }
 
 export interface IUserDataSyncStore {
-
+	readonly name: string;
 	read(key: string): Promise<IUserData | null>;
-
 	write(key: string, content: string, ref: string | null): Promise<string>;
-
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 
 export interface IUserDataSyncStoreService {
-
 	_serviceBrand: undefined;
 
 	readonly onDidChangeEnablement: Event<boolean>;
+	readonly enabled: boolean;
 
-	isEnabled(): boolean;
-
-	registerUserDataSyncStore(name: string, userDataSyncStore: IUserDataSyncStore): void;
-
+	registerUserDataSyncStore(userDataSyncStore: IUserDataSyncStore): void;
 	deregisterUserDataSyncStore(): void;
 
-	getName(): string | null;
-
 	read(key: string): Promise<IUserData | null>;
-
 	write(key: string, content: string, ref: string | null): Promise<string>;
-
 }
+
 
 export enum SyncStatus {
 	Uninitialized = 'uninitialized',
@@ -95,19 +87,31 @@ export enum SyncStatus {
 }
 
 export const USER_DATA_PREVIEW_SCHEME = 'vscode-userdata-preview';
-export const SETTINGS_PREVIEW_RESOURCE = URI.file('Settings-Preview').with({ scheme: USER_DATA_PREVIEW_SCHEME });
+export const SETTINGS_CONFLICTS_RESOURCE = URI.file('Settings-Preview').with({ scheme: USER_DATA_PREVIEW_SCHEME });
 
 export interface ISynchroniser {
+
+	readonly conflicts: URI | null;
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	readonly onDidChangeLocal: Event<void>;
+
 	sync(): Promise<boolean>;
 	continueSync(): Promise<boolean>;
-	handleConflicts(): boolean;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 
 export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
+}
+
+export const ISettingsMergeService = createDecorator<ISettingsMergeService>('ISettingsMergeService');
+
+export interface ISettingsMergeService {
+
+	_serviceBrand: undefined;
+
+	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<string>;
+
 }

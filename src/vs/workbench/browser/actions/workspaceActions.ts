@@ -9,13 +9,9 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Schemas } from 'vs/base/common/network';
-import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { toResource } from 'vs/workbench/common/editor';
-import { URI } from 'vs/base/common/uri';
 import { MenuRegistry, MenuId, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { WorkbenchStateContext, SupportsWorkspacesContext } from 'vs/workbench/browser/contextkeys';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -40,36 +36,6 @@ export class OpenFileAction extends Action {
 	}
 }
 
-export namespace OpenLocalFileCommand {
-	export const ID = 'workbench.action.files.openLocalFile';
-	export const LABEL = nls.localize('openLocalFile', "Open Local File...");
-
-	export function handler(): ICommandHandler {
-		return accessor => {
-			const dialogService = accessor.get(IFileDialogService);
-			return dialogService.pickFileAndOpen({ forceNewWindow: false, availableFileSystems: [Schemas.file] });
-		};
-	}
-}
-
-export namespace SaveLocalFileCommand {
-	export const ID = 'workbench.action.files.saveLocalFile';
-	export const LABEL = nls.localize('saveLocalFile', "Save Local File...");
-
-	export function handler(): ICommandHandler {
-		return accessor => {
-			const textFileService = accessor.get(ITextFileService);
-			const editorService = accessor.get(IEditorService);
-			let resource: URI | undefined = toResource(editorService.activeEditor);
-			const options: ISaveOptions = { force: true, availableFileSystems: [Schemas.file] };
-			if (resource) {
-				return textFileService.saveAs(resource, undefined, options);
-			}
-			return Promise.resolve(undefined);
-		};
-	}
-}
-
 export class OpenFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.files.openFolder';
@@ -88,18 +54,6 @@ export class OpenFolderAction extends Action {
 	}
 }
 
-export namespace OpenLocalFolderCommand {
-	export const ID = 'workbench.action.files.openLocalFolder';
-	export const LABEL = nls.localize('openLocalFolder', "Open Local Folder...");
-
-	export function handler(): ICommandHandler {
-		return accessor => {
-			const dialogService = accessor.get(IFileDialogService);
-			return dialogService.pickFolderAndOpen({ forceNewWindow: false, availableFileSystems: [Schemas.file] });
-		};
-	}
-}
-
 export class OpenFileFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.files.openFileFolder';
@@ -115,19 +69,6 @@ export class OpenFileFolderAction extends Action {
 
 	run(event?: any, data?: ITelemetryData): Promise<any> {
 		return this.dialogService.pickFileFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
-	}
-}
-
-export namespace OpenLocalFileFolderCommand {
-
-	export const ID = 'workbench.action.files.openLocalFileFolder';
-	export const LABEL = nls.localize('openLocalFileFolder', "Open Local...");
-
-	export function handler(): ICommandHandler {
-		return accessor => {
-			const dialogService = accessor.get(IFileDialogService);
-			return dialogService.pickFileFolderAndOpen({ forceNewWindow: false, availableFileSystems: [Schemas.file] });
-		};
 	}
 }
 

@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
-import { IExtensionHostDebugParams, IDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ExportData } from 'vs/base/common/performance';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { joinPath } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { ExportData } from 'vs/base/common/performance';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { BACKUPS, IDebugParams, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { IPath, IPathsToWaitFor, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
-import { generateUuid } from 'vs/base/common/uuid';
+import product from 'vs/platform/product/common/product';
 
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
@@ -178,12 +179,18 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	galleryMachineIdResource?: URI;
 	readonly logFile: URI;
 
+	get webviewExternalEndpoint(): string {
+		// TODO: get fallback from product.json
+		return this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com';
+	}
+
 	get webviewResourceRoot(): string {
-		return this.options.webviewEndpoint ? `${this.options.webviewEndpoint}/vscode-resource{{resource}}` : 'vscode-resource:{{resource}}';
+		return `${this.webviewExternalEndpoint}/{{commit}}/vscode-resource{{resource}}`
+			.replace('{{commit}}', product.commit || '211fa02efe8c041fd7baa8ec3dce199d5185aa44');
 	}
 
 	get webviewCspSource(): string {
-		return this.options.webviewEndpoint ? this.options.webviewEndpoint : 'vscode-resource:';
+		return this.options.webviewEndpoint || `https://*.vscode-webview-test.com`;
 	}
 }
 

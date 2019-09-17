@@ -14,26 +14,27 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 class KeybindingsReferenceAction extends Action {
 
 	static readonly ID = 'workbench.action.keybindingsReference';
 	static readonly LABEL = nls.localize('keybindingsReference', "Keyboard Shortcuts Reference");
-
-	private static readonly URL = isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
-	static readonly AVAILABLE = !!KeybindingsReferenceAction.URL;
+	static readonly AVAILABLE = !!(isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin);
 
 	constructor(
 		id: string,
 		label: string,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		if (KeybindingsReferenceAction.URL) {
-			this.openerService.open(URI.parse(KeybindingsReferenceAction.URL));
+		const url = isLinux ? this.productService.keyboardShortcutsUrlLinux : isMacintosh ? this.productService.keyboardShortcutsUrlMac : this.productService.keyboardShortcutsUrlWin;
+		if (url) {
+			this.openerService.open(URI.parse(url));
 		}
 
 		return Promise.resolve();
@@ -44,21 +45,20 @@ class OpenDocumentationUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openDocumentationUrl';
 	static readonly LABEL = nls.localize('openDocumentationUrl', "Documentation");
-
-	private static readonly URL = product.documentationUrl;
-	static readonly AVAILABLE = !!OpenDocumentationUrlAction.URL;
+	static readonly AVAILABLE = !!product.documentationUrl;
 
 	constructor(
 		id: string,
 		label: string,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		if (OpenDocumentationUrlAction.URL) {
-			this.openerService.open(URI.parse(OpenDocumentationUrlAction.URL));
+		if (this.productService.documentationUrl) {
+			this.openerService.open(URI.parse(this.productService.documentationUrl));
 		}
 
 		return Promise.resolve();
@@ -69,21 +69,20 @@ class OpenIntroductoryVideosUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openIntroductoryVideosUrl';
 	static readonly LABEL = nls.localize('openIntroductoryVideosUrl', "Introductory Videos");
-
-	private static readonly URL = product.introductoryVideosUrl;
-	static readonly AVAILABLE = !!OpenIntroductoryVideosUrlAction.URL;
+	static readonly AVAILABLE = !!product.introductoryVideosUrl;
 
 	constructor(
 		id: string,
 		label: string,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		if (OpenIntroductoryVideosUrlAction.URL) {
-			this.openerService.open(URI.parse(OpenIntroductoryVideosUrlAction.URL));
+		if (this.productService.introductoryVideosUrl) {
+			this.openerService.open(URI.parse(this.productService.introductoryVideosUrl));
 		}
 
 		return Promise.resolve();
@@ -94,21 +93,20 @@ class OpenTipsAndTricksUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openTipsAndTricksUrl';
 	static readonly LABEL = nls.localize('openTipsAndTricksUrl', "Tips and Tricks");
-
-	private static readonly URL = product.tipsAndTricksUrl;
-	static readonly AVAILABLE = !!OpenTipsAndTricksUrlAction.URL;
+	static readonly AVAILABLE = !!product.tipsAndTricksUrl;
 
 	constructor(
 		id: string,
 		label: string,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		if (OpenTipsAndTricksUrlAction.URL) {
-			this.openerService.open(URI.parse(OpenTipsAndTricksUrlAction.URL));
+		if (this.productService.tipsAndTricksUrl) {
+			this.openerService.open(URI.parse(this.productService.tipsAndTricksUrl));
 		}
 
 		return Promise.resolve();
@@ -125,7 +123,8 @@ class OpenNewsletterSignupUrlAction extends Action {
 		id: string,
 		label: string,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
@@ -133,27 +132,28 @@ class OpenNewsletterSignupUrlAction extends Action {
 	async run(): Promise<void> {
 		const info = await this.telemetryService.getTelemetryInfo();
 
-		this.openerService.open(URI.parse(`${product.newsletterSignupUrl}?machineId=${encodeURIComponent(info.machineId)}`));
+		this.openerService.open(URI.parse(`${this.productService.newsletterSignupUrl}?machineId=${encodeURIComponent(info.machineId)}`));
 	}
 }
 
 class OpenTwitterUrlAction extends Action {
 
 	static readonly ID = 'workbench.action.openTwitterUrl';
-	static readonly LABEL = nls.localize('openTwitterUrl', "Join Us on Twitter", product.applicationName);
+	static readonly LABEL = nls.localize('openTwitterUrl', "Join Us on Twitter");
 	static readonly AVAILABLE = !!product.twitterUrl;
 
 	constructor(
 		id: string,
 		label: string,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		if (product.twitterUrl) {
-			this.openerService.open(URI.parse(product.twitterUrl));
+		if (this.productService.twitterUrl) {
+			this.openerService.open(URI.parse(this.productService.twitterUrl));
 		}
 
 		return Promise.resolve();
@@ -169,14 +169,15 @@ class OpenRequestFeatureUrlAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		if (product.requestFeatureUrl) {
-			this.openerService.open(URI.parse(product.requestFeatureUrl));
+		if (this.productService.requestFeatureUrl) {
+			this.openerService.open(URI.parse(this.productService.requestFeatureUrl));
 		}
 
 		return Promise.resolve();
@@ -192,18 +193,19 @@ class OpenLicenseUrlAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		if (product.licenseUrl) {
+		if (this.productService.licenseUrl) {
 			if (language) {
-				const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-				this.openerService.open(URI.parse(`${product.licenseUrl}${queryArgChar}lang=${language}`));
+				const queryArgChar = this.productService.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+				this.openerService.open(URI.parse(`${this.productService.licenseUrl}${queryArgChar}lang=${language}`));
 			} else {
-				this.openerService.open(URI.parse(product.licenseUrl));
+				this.openerService.open(URI.parse(this.productService.licenseUrl));
 			}
 		}
 
@@ -220,18 +222,19 @@ class OpenPrivacyStatementUrlAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		if (product.privacyStatementUrl) {
+		if (this.productService.privacyStatementUrl) {
 			if (language) {
-				const queryArgChar = product.privacyStatementUrl.indexOf('?') > 0 ? '&' : '?';
-				this.openerService.open(URI.parse(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`));
+				const queryArgChar = this.productService.privacyStatementUrl.indexOf('?') > 0 ? '&' : '?';
+				this.openerService.open(URI.parse(`${this.productService.privacyStatementUrl}${queryArgChar}lang=${language}`));
 			} else {
-				this.openerService.open(URI.parse(product.privacyStatementUrl));
+				this.openerService.open(URI.parse(this.productService.privacyStatementUrl));
 			}
 		}
 
