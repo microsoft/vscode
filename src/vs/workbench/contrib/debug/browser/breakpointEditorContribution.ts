@@ -24,7 +24,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { getBreakpointStatus } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 
 interface IBreakpointDecoration {
 	decorationId: string;
@@ -58,7 +58,7 @@ function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArr
 }
 
 function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, debugService: IDebugService): IModelDecorationOptions {
-	const { className, message } = getBreakpointMessageAndClassName(debugService, breakpoint);
+	const { className, message } = getBreakpointStatus(debugService, breakpoint);
 	let glyphMarginHoverMessage: MarkdownString | undefined;
 
 	if (message) {

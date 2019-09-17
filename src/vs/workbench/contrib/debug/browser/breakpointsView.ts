@@ -346,12 +346,10 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), { relative: true });
 		data.checkbox.checked = breakpoint.enabled;
 
-		const { message, className } = getBreakpointMessageAndClassName(this.debugService, breakpoint);
-		data.icon.className = className + ' icon';
-		data.breakpoint.title = breakpoint.message || message || '';
-
-		const debugActive = this.debugService.state === State.Running || this.debugService.state === State.Stopped;
-		if (debugActive && !breakpoint.verified) {
+		const status = getBreakpointStatus(this.debugService, breakpoint);
+		data.icon.className = status.className + ' icon';
+		data.breakpoint.title = status.message || '';
+		if (status.disabled || status.unsupported || status.unverified) {
 			dom.addClass(data.breakpoint, 'disabled');
 		}
 	}
@@ -441,17 +439,15 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 	renderElement(functionBreakpoint: FunctionBreakpoint, index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = functionBreakpoint;
 		data.name.textContent = functionBreakpoint.name;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService, functionBreakpoint);
-		data.icon.className = className + ' icon';
-		data.icon.title = message ? message : '';
+		const status = getBreakpointStatus(this.debugService, functionBreakpoint);
+		data.icon.className = status.className + ' icon';
+		data.icon.title = status.message;
 		data.checkbox.checked = functionBreakpoint.enabled;
-		data.breakpoint.title = message ? message : '';
+		data.breakpoint.title = status.message;
 
 		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
-		const session = this.debugService.getViewModel().focusedSession;
-		dom.toggleClass(data.breakpoint, 'disabled', (session && !session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
-		if (session && !session.capabilities.supportsFunctionBreakpoints) {
-			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
+		if (status.disabled || status.unsupported) {
+			dom.addClass(data.breakpoint, 'disabled');
 		}
 	}
 
@@ -496,17 +492,15 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IBaseBrea
 	renderElement(dataBreakpoint: DataBreakpoint, index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = dataBreakpoint;
 		data.name.textContent = dataBreakpoint.label;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService, dataBreakpoint);
-		data.icon.className = className + ' icon';
-		data.icon.title = message ? message : '';
+		const status = getBreakpointStatus(this.debugService, dataBreakpoint);
+		data.icon.className = status.className + ' icon';
+		data.icon.title = status.message;
 		data.checkbox.checked = dataBreakpoint.enabled;
-		data.breakpoint.title = message ? message : '';
+		data.breakpoint.title = status.message;
 
 		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
-		const session = this.debugService.getViewModel().focusedSession;
-		dom.toggleClass(data.breakpoint, 'disabled', (session && !session.capabilities.supportsDataBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
-		if (session && !session.capabilities.supportsDataBreakpoints) {
-			data.breakpoint.title = nls.localize('dataBreakpointsNotSupported', "Data breakpoints are not supported by this debug type");
+		if (status.disabled || status.unsupported) {
+			dom.addClass(data.breakpoint, 'disabled');
 		}
 	}
 
@@ -586,10 +580,10 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	renderElement(functionBreakpoint: FunctionBreakpoint, index: number, data: IInputTemplateData): void {
 		data.breakpoint = functionBreakpoint;
 		data.reactedOnEvent = false;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService, functionBreakpoint);
+		const { className, message } = getBreakpointStatus(this.debugService, functionBreakpoint);
 
 		data.icon.className = className + ' icon';
-		data.icon.title = message ? message : '';
+		data.icon.title = message;
 		data.checkbox.checked = functionBreakpoint.enabled;
 		data.checkbox.disabled = true;
 		data.inputBox.value = functionBreakpoint.name || '';
@@ -633,97 +627,103 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndClassName(debugService: IDebugService, breakpoint: IBreakpoint | FunctionBreakpoint | DataBreakpoint): { message?: string, className: string } {
-	const state = debugService.state;
-	const debugActive = state === State.Running || state === State.Stopped;
-
+export function getBreakpointStatus(debugService: IDebugService, breakpoint: IBreakpoint | FunctionBreakpoint | DataBreakpoint): { message: string, className: string, disabled?: boolean, unsupported?: boolean, unverified?: boolean } {
 	if (!breakpoint.enabled || !debugService.getModel().areBreakpointsActivated()) {
 		return {
 			className: breakpoint instanceof DataBreakpoint ? 'debug-data-breakpoint-disabled' : breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-disabled' : breakpoint.logMessage ? 'debug-breakpoint-log-disabled' : 'debug-breakpoint-disabled',
 			message: breakpoint.logMessage ? nls.localize('disabledLogpoint', "Disabled Logpoint") : nls.localize('disabledBreakpoint', "Disabled Breakpoint"),
+			disabled: true
 		};
 	}
 
-	const appendMessage = (text: string): string => {
-		return !(breakpoint instanceof FunctionBreakpoint) && !(breakpoint instanceof DataBreakpoint) && breakpoint.message ? text.concat(', ' + breakpoint.message) : text;
-	};
-	if (debugActive && !breakpoint.verified) {
+	if (!(breakpoint instanceof FunctionBreakpoint) && !(breakpoint instanceof DataBreakpoint) && breakpoint.dirty) {
+		return {
+			className: breakpoint.logMessage ? 'debug-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
+			message: nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session."),
+			unverified: true
+		};
+	}
+
+	const infos: string[] = [];
+	const errors: string[] = [];
+	const oks: string[] = [];
+	let hasSupported = false;
+	let hasVerified = false;
+
+	if (breakpoint.logMessage) {
+		infos.push(nls.localize('logMessage', "Log Message: {0}", breakpoint.logMessage));
+	}
+	if (breakpoint.condition) {
+		infos.push(nls.localize('expression', "Expression: {0}", breakpoint.condition));
+	}
+	if (breakpoint.hitCondition) {
+		infos.push(nls.localize('hitCount', "Hit Count: {0}", breakpoint.hitCondition));
+	}
+
+	const sessions = debugService.getModel().getSessions();
+	const statuses = breakpoint.getStatusPerSession();
+	for (const session of sessions) {
+		const status = statuses.get(session.getId());
+		let message = '';
+		let supported = true;
+		const verified = !!status && status.verified;
+		if (breakpoint instanceof FunctionBreakpoint && !session.capabilities.supportsFunctionBreakpoints) {
+			supported = false;
+			message = nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported");
+		}
+		if (breakpoint instanceof DataBreakpoint && !session.capabilities.supportsDataBreakpoints) {
+			supported = false;
+			message = nls.localize('dataBreakpointUnsupported', "Data breakpoints not supported");
+		}
+		if (breakpoint.logMessage && !session.capabilities.supportsLogPoints) {
+			supported = false;
+			message = nls.localize('logBreakpointUnsupported', "Logpoints not supported");
+		}
+		if (breakpoint.condition && !session.capabilities.supportsConditionalBreakpoints) {
+			supported = false;
+			message = nls.localize('conditionalBreakpointUnsupported', "Conditional breakpoints not supported");
+		}
+		if (breakpoint.hitCondition && !session.capabilities.supportsHitConditionalBreakpoints) {
+			supported = false;
+			message = nls.localize('hitBreakpointUnsupported', "Hit conditional breakpoints not supported");
+		}
+		if (status && status.message) {
+			message = status.message;
+		} else if (!message && !verified) {
+			message = nls.localize('unverified', "Unverified");
+		}
+		hasVerified = hasVerified || verified;
+		hasSupported = hasSupported || supported;
+		if (message) {
+			errors.push((sessions.length > 1 ? session.getLabel() + ': ' : '') + message);
+		} else {
+			oks.push((sessions.length > 1 ? session.getLabel() + ': ' : '') + nls.localize('verified', "Verified"));
+		}
+	}
+
+	if (infos.length) {
+		infos.push('');
+	}
+	if (oks.length) {
+		oks.push('');
+	}
+	const message = [...infos, ...oks, ...errors].join('\n');
+	if (sessions.length && !hasSupported) {
+		return {
+			className: 'debug-breakpoint-unsupported',
+			message,
+			unsupported: true
+		};
+	}
+	if (sessions.length && !hasVerified) {
 		return {
 			className: breakpoint instanceof DataBreakpoint ? 'debug-data-breakpoint-unverified' : breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : breakpoint.logMessage ? 'debug-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
-			message: breakpoint.message || (breakpoint.logMessage ? nls.localize('unverifiedLogpoint', "Unverified Logpoint") : nls.localize('unverifiedBreakopint', "Unverified Breakpoint")),
+			message: message || (breakpoint.logMessage ? nls.localize('unverifiedLogpoint', "Unverified Logpoint") : nls.localize('unverifiedBreakopint', "Unverified Breakpoint")),
+			unverified: true
 		};
 	}
-
-	const session = debugService.getViewModel().focusedSession;
-	if (breakpoint instanceof FunctionBreakpoint) {
-		if (session && !session.capabilities.supportsFunctionBreakpoints) {
-			return {
-				className: 'debug-function-breakpoint-unverified',
-				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
-			};
-		}
-
-		return {
-			className: 'debug-function-breakpoint',
-			message: breakpoint.message || nls.localize('functionBreakpoint', "Function Breakpoint")
-		};
-	}
-
-	if (breakpoint instanceof DataBreakpoint) {
-		if (session && !session.capabilities.supportsDataBreakpoints) {
-			return {
-				className: 'debug-data-breakpoint-unverified',
-				message: nls.localize('dataBreakpointUnsupported', "Data breakpoints not supported by this debug type"),
-			};
-		}
-
-		return {
-			className: 'debug-data-breakpoint',
-			message: breakpoint.message || nls.localize('dataBreakpoint', "Data Breakpoint")
-		};
-	}
-
-	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
-		const messages: string[] = [];
-		if (breakpoint.logMessage) {
-			if (session && !session.capabilities.supportsLogPoints) {
-				return {
-					className: 'debug-breakpoint-unsupported',
-					message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
-				};
-			}
-
-			messages.push(nls.localize('logMessage', "Log Message: {0}", breakpoint.logMessage));
-		}
-
-		if (session && breakpoint.condition && !session.capabilities.supportsConditionalBreakpoints) {
-			return {
-				className: 'debug-breakpoint-unsupported',
-				message: nls.localize('conditionalBreakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
-			};
-		}
-		if (session && breakpoint.hitCondition && !session.capabilities.supportsHitConditionalBreakpoints) {
-			return {
-				className: 'debug-breakpoint-unsupported',
-				message: nls.localize('hitBreakpointUnsupported', "Hit conditional breakpoints not supported by this debug type"),
-			};
-		}
-
-		if (breakpoint.condition) {
-			messages.push(nls.localize('expression', "Expression: {0}", breakpoint.condition));
-		}
-		if (breakpoint.hitCondition) {
-			messages.push(nls.localize('hitCount', "Hit Count: {0}", breakpoint.hitCondition));
-		}
-
-		return {
-			className: breakpoint.logMessage ? 'debug-breakpoint-log' : 'debug-breakpoint-conditional',
-			message: appendMessage(messages.join('\n'))
-		};
-	}
-
 	return {
-		className: 'debug-breakpoint',
-		message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
+		className: breakpoint instanceof DataBreakpoint ? 'debug-data-breakpoint' : breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint' : breakpoint.logMessage ? 'debug-breakpoint-log' : (breakpoint.condition || breakpoint.hitCondition) ? 'debug-breakpoint-conditional' : 'debug-breakpoint',
+		message: message || (breakpoint instanceof FunctionBreakpoint ? nls.localize('functionBreakpoint', "Function Breakpoint") : breakpoint instanceof DataBreakpoint ? nls.localize('dataBreakpoint', "Data Breakpoint") : breakpoint.logMessage ? nls.localize('logpoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint"))
 	};
 }

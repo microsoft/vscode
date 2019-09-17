@@ -336,11 +336,16 @@ export interface IBreakpointUpdateData {
 	readonly column?: number;
 }
 
+export interface IBreakpointPerSessionStatus {
+	readonly message?: string;
+	readonly verified: boolean;
+}
+
 export interface IBaseBreakpoint extends IEnablement {
 	readonly condition?: string;
 	readonly hitCondition?: string;
 	readonly logMessage?: string;
-	readonly verified: boolean;
+	getStatusPerSession(): Map<string, IBreakpointPerSessionStatus>;
 	getIdFromAdapter(sessionId: string): number | undefined;
 }
 
@@ -350,7 +355,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endLineNumber?: number;
 	readonly column?: number;
 	readonly endColumn?: number;
-	readonly message?: string;
+	readonly dirty: boolean;
 	readonly adapterData: any;
 	readonly sessionAgnosticData: { lineNumber: number, column: number | undefined };
 }

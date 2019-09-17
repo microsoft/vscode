@@ -15,7 +15,7 @@ import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
-	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint
+	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint, IBreakpointPerSessionStatus
 } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
@@ -528,18 +528,12 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		this.sessionId = sessionId;
 	}
 
-	get message(): string | undefined {
-		const data = this.getSessionData();
-		if (!data) {
-			return undefined;
+	getStatusPerSession(): Map<string, IBreakpointPerSessionStatus> {
+		const result = new Map<string, IBreakpointPerSessionStatus>();
+		for (const [sessionId, data] of this.sessionData) {
+			result.set(sessionId, { message: data.message, verified: !!data.verified });
 		}
-
-		return data.message;
-	}
-
-	get verified(): boolean {
-		const data = this.getSessionData();
-		return data ? data.verified : true;
+		return result;
 	}
 
 	getIdFromAdapter(sessionId: string): number | undefined {
@@ -577,30 +571,17 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	get lineNumber(): number {
 		const data = this.getSessionData();
-		return this.verified && data && typeof data.line === 'number' ? data.line : this._lineNumber;
+		return data && data.verified && !this.textFileService.isDirty(this.uri) && typeof data.line === 'number' ? data.line : this._lineNumber;
 	}
 
-	get verified(): boolean {
-		const data = this.getSessionData();
-		if (data) {
-			return data.verified && !this.textFileService.isDirty(this.uri);
-		}
-
-		return true;
+	get dirty(): boolean {
+		return this.textFileService.isDirty(this.uri);
 	}
 
 	get column(): number | undefined {
 		const data = this.getSessionData();
 		// Only respect the column if the user explictly set the column to have an inline breakpoint
 		return data && typeof data.column === 'number' && typeof this._column === 'number' ? data.column : this._column;
-	}
-
-	get message(): string | undefined {
-		if (this.textFileService.isDirty(this.uri)) {
-			return nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.");
-		}
-
-		return super.message;
 	}
 
 	get adapterData(): any {
