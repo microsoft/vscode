@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scmViewlet';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
@@ -21,7 +21,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
-import { IAction, IActionViewItem, ActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './menus';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -46,6 +46,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IViewDescriptor } from 'vs/workbench/common/views';
+import { localize } from 'vs/nls';
 
 type TreeElement = ISCMResourceGroup | IBranchNode<ISCMResource> | ISCMResource;
 
@@ -344,8 +345,8 @@ interface IGroupItem {
 	readonly disposable: IDisposable;
 }
 
-function groupItemAsTreeElement(item: IGroupItem, flat: boolean): ICompressedTreeElement<TreeElement> {
-	const children = flat
+function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode): ICompressedTreeElement<TreeElement> {
+	const children = mode === ViewModelMode.List
 		? Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true }))
 		: Iterator.map(item.tree.root.children, node => asTreeElement(node, true));
 
@@ -365,10 +366,25 @@ function asTreeElement(node: INode<ISCMResource>, incompressible: boolean): ICom
 	return { element: node.element, incompressible: true };
 }
 
+const enum ViewModelMode {
+	List = 'list',
+	Tree = 'tree'
+}
+
 // TODO: cache tree scrollTop
 class ViewModel {
 
-	private flat = false;
+	private _mode = ViewModelMode.Tree;
+	private _onDidChangeMode = new Emitter<ViewModelMode>();
+	readonly onDidChangeMode = this._onDidChangeMode.event;
+
+	get mode(): ViewModelMode { return this._mode; }
+	set mode(mode: ViewModelMode) {
+		this._mode = mode;
+		this.refresh();
+		this._onDidChangeMode.fire(mode);
+	}
+
 	private items: IGroupItem[] = [];
 	private visibilityDisposables = new DisposableStore();
 	private disposables = new DisposableStore();
@@ -434,15 +450,36 @@ class ViewModel {
 
 	private refresh(item?: IGroupItem): void {
 		if (item) {
-			this.tree.setChildren(item.group, groupItemAsTreeElement(item, this.flat).children);
+			this.tree.setChildren(item.group, groupItemAsTreeElement(item, this.mode).children);
 		} else {
-			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.flat)));
+			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.mode)));
 		}
 	}
 
 	dispose(): void {
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
+	}
+}
+
+export class ToggleViewModeAction extends Action {
+
+	static readonly ID = 'workbench.scm.action.toggleViewMode';
+	static readonly LABEL = localize('toggleViewMode', "ToggleViewMode");
+
+	constructor(private viewModel: ViewModel) {
+		super(ToggleViewModeAction.ID, ToggleViewModeAction.LABEL);
+
+		this._register(this.viewModel.onDidChangeMode(this.onDidChangeMode, this));
+		this.onDidChangeMode(this.viewModel.mode);
+	}
+
+	async run(): Promise<void> {
+		this.viewModel.mode = this.viewModel.mode === ViewModelMode.List ? ViewModelMode.Tree : ViewModelMode.List;
+	}
+
+	private onDidChangeMode(mode: ViewModelMode): void {
+		this.class = `scm-action toggle-view-mode ${mode}`;
 	}
 }
 
@@ -465,6 +502,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private viewModel: ViewModel;
 	private listLabels: ResourceLabels;
 	private menus: SCMMenus;
+	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 	protected contextKeyService: IContextKeyService;
 
 	constructor(
@@ -629,7 +667,12 @@ export class RepositoryPanel extends ViewletPanel {
 		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree);
 		this._register(this.viewModel);
 
+		this.toggleViewModelModeAction = new ToggleViewModeAction(this.viewModel);
+		this._register(this.toggleViewModelModeAction);
+
 		this._register(this.onDidChangeBodyVisibility(this._onDidChangeVisibility, this));
+
+		this.updateActions();
 	}
 
 	layoutBody(height: number | undefined = this.cachedHeight, width: number | undefined = this.cachedWidth): void {
@@ -675,7 +718,15 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	getActions(): IAction[] {
-		return this.menus.getTitleActions();
+		if (this.toggleViewModelModeAction) {
+
+			return [
+				this.toggleViewModelModeAction,
+				...this.menus.getTitleActions()
+			];
+		} else {
+			return this.menus.getTitleActions();
+		}
 	}
 
 	getSecondaryActions(): IAction[] {
