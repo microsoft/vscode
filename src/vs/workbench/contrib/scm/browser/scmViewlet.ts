@@ -54,11 +54,11 @@ import { ISequence, ISplice } from 'vs/base/common/sequence';
 import { ResourceTree, IBranchNode, isBranchNode, INode } from 'vs/base/common/resourceTree';
 import { ObjectTree, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
-import * as paths from 'vs/base/common/path';
-import { ICompressedTreeNode, ICompressedTreeElement, compress } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames } from 'vs/base/common/comparers';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -378,7 +378,7 @@ interface ResourceGroupTemplate {
 	dispose: () => void;
 }
 
-class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGroup, void, ResourceGroupTemplate> {
+class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGroup, FuzzyScore, ResourceGroupTemplate> {
 
 	static TEMPLATE_ID = 'resource group';
 	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
@@ -407,7 +407,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		};
 	}
 
-	renderElement(node: ITreeNode<ISCMResourceGroup>, index: number, template: ResourceGroupTemplate): void {
+	renderElement(node: ITreeNode<ISCMResourceGroup, FuzzyScore>, index: number, template: ResourceGroupTemplate): void {
 		template.elementDisposable.dispose();
 
 		const group = node.element;
@@ -425,11 +425,11 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		template.elementDisposable = disposables;
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceGroup>, void>, index: number, templateData: ResourceGroupTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceGroup>, FuzzyScore>, index: number, templateData: ResourceGroupTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible');
 	}
 
-	disposeElement(group: ITreeNode<ISCMResourceGroup>, index: number, template: ResourceGroupTemplate): void {
+	disposeElement(group: ITreeNode<ISCMResourceGroup, FuzzyScore>, index: number, template: ResourceGroupTemplate): void {
 		template.elementDisposable.dispose();
 	}
 
@@ -470,7 +470,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 	}
 }
 
-class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBranchNode<ISCMResource>, void, ResourceTemplate> {
+class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBranchNode<ISCMResource>, FuzzyScore, ResourceTemplate> {
 
 	static TEMPLATE_ID = 'resource';
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
@@ -486,7 +486,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 	renderTemplate(container: HTMLElement): ResourceTemplate {
 		const element = append(container, $('.resource'));
 		const name = append(element, $('.name'));
-		const fileLabel = this.labels.create(name);
+		const fileLabel = this.labels.create(name, { supportHighlights: true });
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider,
@@ -503,7 +503,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 		};
 	}
 
-	renderElement(node: ITreeNode<ISCMResource> | ITreeNode<IBranchNode<ISCMResource>>, index: number, template: ResourceTemplate): void {
+	renderElement(node: ITreeNode<ISCMResource, FuzzyScore> | ITreeNode<IBranchNode<ISCMResource>, FuzzyScore>, index: number, template: ResourceTemplate): void {
 		template.elementDisposable.dispose();
 
 		const resource = node.element;
@@ -512,7 +512,12 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 
 		const uri = isBranchNode(resource) ? URI.file(resource.path) : resource.sourceUri;
 		const fileKind = isBranchNode(resource) ? FileKind.FOLDER : FileKind.FILE;
-		template.fileLabel.setFile(uri, { fileDecorations: { colors: false, badges: !icon }, hidePath: true, fileKind });
+		template.fileLabel.setFile(uri, {
+			fileDecorations: { colors: false, badges: !icon },
+			hidePath: true,
+			fileKind,
+			matches: createMatches(node.filterData)
+		});
 		template.actionBar.clear();
 		template.actionBar.context = resource;
 
@@ -539,7 +544,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 		template.elementDisposable = disposables;
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IBranchNode<ISCMResource>>, void>, index: number, template: ResourceTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IBranchNode<ISCMResource>>, FuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
 		template.elementDisposable.dispose();
 
 		const compressed = node.element as ICompressedTreeNode<IBranchNode<ISCMResource>>;
@@ -548,7 +553,11 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 		const label = compressed.elements.map(e => e.name).join('/');
 		const uri = URI.file(resource.path);
 		const fileKind = FileKind.FOLDER;
-		template.fileLabel.setResource({ resource: uri, name: label }, { fileDecorations: { colors: false, badges: true }, fileKind });
+		template.fileLabel.setResource({ resource: uri, name: label }, {
+			fileDecorations: { colors: false, badges: true },
+			fileKind,
+			matches: createMatches(node.filterData)
+		});
 		template.actionBar.clear();
 		template.actionBar.context = resource;
 
@@ -562,7 +571,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 
 	}
 
-	disposeElement(resource: ITreeNode<ISCMResource> | ITreeNode<IBranchNode<ISCMResource>>, index: number, template: ResourceTemplate): void {
+	disposeElement(resource: ITreeNode<ISCMResource, FuzzyScore> | ITreeNode<IBranchNode<ISCMResource>, FuzzyScore>, index: number, template: ResourceTemplate): void {
 		template.elementDisposable.dispose();
 	}
 
@@ -619,6 +628,21 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 	}
 }
 
+export class SCMTreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<TreeElement> {
+
+	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | undefined {
+		if (isSCMResourceGroup(element)) {
+			return element.label;
+		}
+
+		if (isSCMResource(element)) {
+			return basename(element.sourceUri);
+		}
+
+		return '';
+	}
+}
+
 const scmResourceIdentityProvider = new class implements IIdentityProvider<TreeElement> {
 	getId(e: TreeElement): string {
 		if (isBranchNode(e)) {
@@ -630,18 +654,6 @@ const scmResourceIdentityProvider = new class implements IIdentityProvider<TreeE
 		} else {
 			const provider = e.provider;
 			return `${provider.contextValue}/${e.id}`;
-		}
-	}
-};
-
-const scmKeyboardNavigationLabelProvider = new class implements IKeyboardNavigationLabelProvider<TreeElement> {
-	getKeyboardNavigationLabel(e: TreeElement) {
-		if (isBranchNode(e)) {
-			return paths.posix.basename(e.path);
-		} else if (isSCMResource(e)) {
-			return basename(e.sourceUri);
-		} else {
-			return e.label;
 		}
 	}
 };
@@ -678,12 +690,13 @@ class ResourceGroupSplicer {
 
 	constructor(
 		groupSequence: ISequence<ISCMResourceGroup>,
-		private tree: ObjectTree<TreeElement>
+		private tree: ObjectTree<TreeElement, FuzzyScore>
 	) {
 		groupSequence.onDidSplice(this.onDidSpliceGroups, this, this.disposables);
 		this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: groupSequence.elements });
 	}
 
+	// TODO@joao: optimize
 	private fullRefresh(): void {
 		this.tree.setChildren(null, this.items.map(item => {
 			return {
@@ -820,7 +833,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
-	private tree: ObjectTree<TreeElement>;
+	private tree: ObjectTree<TreeElement, FuzzyScore>;
 	private listLabels: ResourceLabels;
 	private menus: SCMMenus;
 	private visibilityDisposables: IDisposable[] = [];
@@ -957,6 +970,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const filter = new SCMTreeFilter();
 		const sorter = new SCMTreeSorter();
+		const keyboardNavigationLabelProvider = new SCMTreeKeyboardNavigationLabelProvider();
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleObjectTree,
@@ -966,10 +980,10 @@ export class RepositoryPanel extends ViewletPanel {
 			renderers,
 			{
 				identityProvider: scmResourceIdentityProvider,
-				keyboardNavigationLabelProvider: scmKeyboardNavigationLabelProvider,
 				horizontalScrolling: false,
 				filter,
-				sorter
+				sorter,
+				keyboardNavigationLabelProvider
 			});
 
 		this._register(Event.chain(this.tree.onDidOpen)
