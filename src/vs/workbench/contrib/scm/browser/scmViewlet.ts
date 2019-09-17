@@ -685,6 +685,7 @@ function asTreeElement(node: INode<ISCMResource>, incompressible: boolean): ICom
 
 class ResourceGroupSplicer {
 
+	private flat = true;
 	private items: IGroupItem[] = [];
 	private disposables = new DisposableStore();
 
@@ -698,13 +699,19 @@ class ResourceGroupSplicer {
 
 	// TODO@joao: optimize
 	private fullRefresh(): void {
-		this.tree.setChildren(null, this.items.map(item => {
-			return {
+		if (this.flat) {
+			this.tree.setChildren(null, this.items.map(item => ({
+				element: item.group,
+				children: Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true })),
+				incompressible: true
+			})));
+		} else {
+			this.tree.setChildren(null, this.items.map(item => ({
 				element: item.group,
 				children: Iterator.map(item.tree.root.children, node => asTreeElement(node, true)),
 				incompressible: true
-			} as ICompressedTreeElement<TreeElement>;
-		}));
+			})));
+		}
 	}
 
 	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
