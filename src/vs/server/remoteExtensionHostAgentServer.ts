@@ -60,7 +60,7 @@ import { RequestChannel } from 'vs/platform/request/common/requestIpc';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { WebClientServer, serveError, serveFile } from 'vs/server/webClientServer';
 import { URI } from 'vs/base/common/uri';
@@ -129,7 +129,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 		// TODO: @Sandy @Joao need dynamic context based router
 		const router = new StaticRouter<RemoteAgentConnectionContext>(ctx => ctx.clientId === 'renderer');
-		this._socketServer.registerChannel('loglevel', new LogLevelSetterChannel(this._logService));
+		this._socketServer.registerChannel('logger', new LoggerChannel(this._logService));
 
 		services.set(IEnvironmentService, this._environmentService);
 		services.set(ILogService, this._logService);
