@@ -5,7 +5,6 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
@@ -14,6 +13,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { URI } from 'vs/base/common/uri';
+import { joinPath } from 'vs/base/common/resources';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -25,7 +26,6 @@ interface ISyncPreviewResult {
 
 export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
-	private static LAST_SYNC_SETTINGS_STORAGE_KEY: string = 'LAST_SYNC_SETTINGS_CONTENTS';
 	private static EXTERNAL_USER_DATA_SETTINGS_KEY: string = 'settings';
 
 	private syncPreviewResultPromise: CancelablePromise<ISyncPreviewResult> | null = null;
@@ -39,22 +39,24 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
+	private readonly lastSyncSettingsResource: URI;
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@ISettingsMergeService private readonly settingsMergeService: ISettingsMergeService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this.lastSyncSettingsResource = joinPath(this.environmentService.appSettingsHome, '.lastSyncSettings.json');
 		this.throttledDelayer = this._register(new ThrottledDelayer<void>(500));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.settingsResource))(() => this.throttledDelayer.trigger(() => this.onDidChangeSettings())));
 	}
 
 	private async onDidChangeSettings(): Promise<void> {
 		const localFileContent = await this.getLocalFileContent();
-		const lastSyncData = this.getLastSyncUserData();
+		const lastSyncData = await this.getLastSyncUserData();
 		if (localFileContent && lastSyncData) {
 			if (localFileContent.value.toString() !== lastSyncData.content) {
 				this._onDidChangeLocal.fire();
@@ -140,7 +142,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 				await this.writeToLocal(content, fileContent);
 			}
 			if (remoteUserData) {
-				this.updateLastSyncValue(remoteUserData);
+				await this.updateLastSyncValue(remoteUserData);
 			}
 
 			// Delete the preview
@@ -191,7 +193,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		if (fileContent && remoteUserData) {
 			const localContent: string = fileContent.value.toString();
 			const remoteContent: string = remoteUserData.content;
-			const lastSyncData = this.getLastSyncUserData();
+			const lastSyncData = await this.getLastSyncUserData();
 			if (!lastSyncData // First time sync
 				|| lastSyncData.content !== localContent // Local has moved forwarded
 				|| lastSyncData.content !== remoteContent // Remote has moved forwarded
@@ -213,22 +215,20 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 	}
 
-	private getLastSyncUserData(): IUserData | null {
-		const lastSyncStorageContents = this.storageService.get(SettingsSynchroniser.LAST_SYNC_SETTINGS_STORAGE_KEY, StorageScope.GLOBAL, undefined);
-		if (lastSyncStorageContents) {
-			return JSON.parse(lastSyncStorageContents);
+	private async getLastSyncUserData(): Promise<IUserData | null> {
+		try {
+			const content = await this.fileService.readFile(this.lastSyncSettingsResource);
+			return JSON.parse(content.value.toString());
+		} catch (error) {
+			return null;
 		}
-		return null;
 	}
 
 	private async getLocalFileContent(): Promise<IFileContent | null> {
 		try {
 			return await this.fileService.readFile(this.environmentService.settingsResource);
 		} catch (error) {
-			if (error instanceof FileSystemProviderError && error.code !== FileSystemProviderErrorCode.FileNotFound) {
-				return null;
-			}
-			throw error;
+			return null;
 		}
 	}
 
@@ -246,12 +246,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		}
 	}
 
-	private updateLastSyncValue(remoteUserData: IUserData): void {
-		const lastSyncUserData = this.getLastSyncUserData();
-		if (lastSyncUserData && lastSyncUserData.ref === remoteUserData.ref) {
-			return;
-		}
-		this.storageService.store(SettingsSynchroniser.LAST_SYNC_SETTINGS_STORAGE_KEY, JSON.stringify(remoteUserData), StorageScope.GLOBAL);
+	private async updateLastSyncValue(remoteUserData: IUserData): Promise<void> {
+		await this.fileService.writeFile(this.lastSyncSettingsResource, VSBuffer.fromString(JSON.stringify(remoteUserData)));
 	}
 
 }
