@@ -103,7 +103,6 @@ class CommentingRangeDecorator {
 
 	private decorationOptions: ModelDecorationOptions;
 	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
-	private disposables: IDisposable[] = [];
 
 	constructor() {
 		const decorationOptions: IModelDecorationOptions = {
@@ -146,7 +145,6 @@ class CommentingRangeDecorator {
 	}
 
 	public dispose(): void {
-		this.disposables = dispose(this.disposables);
 		this.commentingRangeDecorations = [];
 	}
 }
