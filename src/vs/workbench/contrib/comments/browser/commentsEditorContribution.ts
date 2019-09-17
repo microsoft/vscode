@@ -10,7 +10,7 @@ import { coalesce, findFirstInSorted } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/review';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -150,8 +150,8 @@ class CommentingRangeDecorator {
 }
 
 export class ReviewController implements IEditorContribution {
-	private globalToDispose: IDisposable[];
-	private localToDispose: IDisposable[];
+	private readonly globalToDispose = new DisposableStore();
+	private readonly localToDispose = new DisposableStore();
 	private editor: ICodeEditor;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _commentInfos: ICommentInfo[];
@@ -173,8 +173,6 @@ export class ReviewController implements IEditorContribution {
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		this.globalToDispose = [];
-		this.localToDispose = [];
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._pendingCommentCache = {};
@@ -188,20 +186,20 @@ export class ReviewController implements IEditorContribution {
 
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
 
-		this.globalToDispose.push(this.commentService.onDidDeleteDataProvider(ownerId => {
+		this.globalToDispose.add(this.commentService.onDidDeleteDataProvider(ownerId => {
 			delete this._pendingCommentCache[ownerId];
 			this.beginCompute();
 		}));
-		this.globalToDispose.push(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
+		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
 
-		this.globalToDispose.push(this.commentService.onDidSetResourceCommentInfos(e => {
+		this.globalToDispose.add(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 			if (editorURI && editorURI.toString() === e.resource.toString()) {
 				this.setComments(e.commentInfos.filter(commentInfo => commentInfo !== null));
 			}
 		}));
 
-		this.globalToDispose.push(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
+		this.globalToDispose.add(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
 		this.codeEditorService.registerDecorationType(COMMENTEDITOR_DECORATION_KEY, {});
 		this.beginCompute();
 	}
@@ -324,8 +322,8 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.globalToDispose = dispose(this.globalToDispose);
-		this.localToDispose = dispose(this.localToDispose);
+		this.globalToDispose.dispose();
+		this.localToDispose.dispose();
 
 		this._commentWidgets.forEach(widget => widget.dispose());
 
@@ -333,15 +331,15 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	public onModelChanged(e: IModelChangedEvent): void {
-		this.localToDispose = dispose(this.localToDispose);
+		this.localToDispose.clear();
 
 		this.removeCommentWidgetsAndStoreCache();
 
-		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
-		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
+		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 
 		this._computeCommentingRangeScheduler = new Delayer<ICommentInfo[]>(200);
-		this.localToDispose.push({
+		this.localToDispose.add({
 			dispose: () => {
 				if (this._computeCommentingRangeScheduler) {
 					this._computeCommentingRangeScheduler.cancel();
@@ -349,10 +347,10 @@ export class ReviewController implements IEditorContribution {
 				this._computeCommentingRangeScheduler = null;
 			}
 		});
-		this.localToDispose.push(this.editor.onDidChangeModelContent(async () => {
+		this.localToDispose.add(this.editor.onDidChangeModelContent(async () => {
 			this.beginComputeCommentingRanges();
 		}));
-		this.localToDispose.push(this.commentService.onDidUpdateCommentThreads(async e => {
+		this.localToDispose.add(this.commentService.onDidUpdateCommentThreads(async e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 			if (!editorURI) {
 				return;
