@@ -5,11 +5,12 @@
 
 import * as nls from 'vs/nls';
 import * as env from 'vs/base/common/platform';
+import * as dom from 'vs/base/browser/dom';
 import { URI as uri } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,11 +26,16 @@ import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointW
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { generateUuid } from 'vs/base/common/uuid';
+import { memoize } from 'vs/base/common/decorators';
+
+const $ = dom.$;
 
 interface IBreakpointDecoration {
 	decorationId: string;
 	breakpointId: string;
 	range: Range;
+	inlineWidget?: InlineBreakpointWidget;
 }
 
 const breakpointHelperDecoration: IModelDecorationOptions = {
@@ -74,7 +80,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 		glyphMarginClassName: className,
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		beforeContentClassName: breakpoint.column ? `debug-breakpoint-column ${className}-column` : undefined
+		beforeContentClassName: breakpoint.column ? `debug-breakpoint-placeholder` : undefined
 	};
 }
 
@@ -85,6 +91,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private toDispose: IDisposable[] = [];
 	private ignoreDecorationsChangedEvent = false;
+	private ignoreFirstBreakpointsChangeEvent = false;
 	private breakpointDecorations: IBreakpointDecoration[] = [];
 
 	constructor(
@@ -191,7 +198,13 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			this.closeBreakpointWidget();
 			this.setDecorations();
 		}));
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.setDecorations()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => {
+			if (this.ignoreFirstBreakpointsChangeEvent) {
+				this.ignoreFirstBreakpointsChangeEvent = false;
+				return;
+			}
+			this.setDecorations();
+		}));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.onModelDecorationsChanged()));
 	}
 
@@ -304,17 +317,24 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			return;
 		}
 
-		const model = this.editor.getModel();
+		const activeCodeEditor = this.editor;
+		const model = activeCodeEditor.getModel();
 		const breakpoints = this.debugService.getModel().getBreakpoints({ uri: model.uri });
 		const desiredDecorations = createBreakpointDecorations(model, breakpoints, this.debugService);
 
 		try {
 			this.ignoreDecorationsChangedEvent = true;
-			const decorationIds = this.editor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), desiredDecorations);
+			const decorationIds = activeCodeEditor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), desiredDecorations);
+			this.breakpointDecorations.forEach(bpd => {
+				if (bpd.inlineWidget) {
+					bpd.inlineWidget.dispose();
+				}
+			});
 			this.breakpointDecorations = decorationIds.map((decorationId, index) => ({
 				decorationId,
 				breakpointId: breakpoints[index].getId(),
-				range: desiredDecorations[index].range
+				range: desiredDecorations[index].range,
+				inlineWidget: breakpoints[index].column ? new InlineBreakpointWidget(activeCodeEditor, decorationId, desiredDecorations[index].options.glyphMarginClassName) : undefined
 			}));
 		} finally {
 			this.ignoreDecorationsChangedEvent = false;
@@ -360,7 +380,12 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			}
 		}
 
-		await this.debugService.updateBreakpoints(model.uri, data, true);
+		try {
+			this.ignoreFirstBreakpointsChangeEvent = true;
+			await this.debugService.updateBreakpoints(model.uri, data, true);
+		} finally {
+			this.ignoreFirstBreakpointsChangeEvent = false;
+		}
 	}
 
 	// breakpoint widget
@@ -388,6 +413,69 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			this.breakpointWidget.dispose();
 		}
 		this.editor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), []);
+		dispose(this.toDispose);
+	}
+}
+
+class InlineBreakpointWidget implements IContentWidget, IDisposable {
+
+	// editor.IContentWidget.allowEditorOverflow
+	allowEditorOverflow = false;
+	suppressMouseDown = true;
+
+	private domNode!: HTMLElement;
+	private range: Range | null;
+	private toDispose: IDisposable[] = [];
+
+	constructor(
+		private readonly editor: IActiveCodeEditor,
+		private readonly decorationId: string,
+		cssClass: string | null | undefined,
+	) {
+		this.range = this.editor.getModel().getDecorationRange(decorationId);
+		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => {
+			const model = this.editor.getModel();
+			const range = model.getDecorationRange(this.decorationId);
+			if (this.range && !this.range.equalsRange(range)) {
+				this.range = range;
+				this.editor.layoutContentWidget(this);
+			}
+		}));
+		this.create(cssClass);
+
+		this.editor.addContentWidget(this);
+		this.editor.layoutContentWidget(this);
+	}
+
+	private create(cssClass: string | null | undefined): void {
+		this.domNode = $('.inline-breakpoint-widget');
+		if (cssClass) {
+			this.domNode.classList.add(cssClass);
+		}
+	}
+
+	@memoize
+	getId(): string {
+		return generateUuid();
+	}
+
+	getDomNode(): HTMLElement {
+		return this.domNode;
+	}
+
+	getPosition(): IContentWidgetPosition | null {
+		if (!this.range) {
+			return null;
+		}
+
+		return {
+			position: { lineNumber: this.range.startLineNumber, column: this.range.startColumn - 1 },
+			preference: [ContentWidgetPositionPreference.EXACT]
+		};
+	}
+
+	dispose(): void {
+		this.editor.removeContentWidget(this);
 		dispose(this.toDispose);
 	}
 }
