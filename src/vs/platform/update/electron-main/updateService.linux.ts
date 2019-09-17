@@ -20,14 +20,14 @@ export class LinuxUpdateService extends AbstractUpdateService {
 	_serviceBrand: undefined;
 
 	constructor(
-		@ILifecycleMainService lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {
-		super(lifecycleService, configurationService, environmentService, requestService, logService);
+		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string {

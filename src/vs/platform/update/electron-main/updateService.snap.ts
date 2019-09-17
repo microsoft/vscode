@@ -35,7 +35,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService protected logService: ILogService,
 	) {
@@ -106,7 +106,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
-		this.lifecycleService.quit(true /* from update */).then(vetod => {
+		this.lifecycleMainService.quit(true /* from update */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
@@ -139,12 +139,12 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 	constructor(
 		private snap: string,
 		private snapRevision: string,
-		@ILifecycleMainService lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
-		super(lifecycleService, environmentService, logService);
+		super(lifecycleMainService, environmentService, logService);
 
 		const watcher = watch(path.dirname(this.snap));
 		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
@@ -152,7 +152,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		const onDebouncedCurrentChange = Event.debounce(onCurrentChange, (_, e) => e, 2000);
 		const listener = onDebouncedCurrentChange(this.checkForUpdates, this);
 
-		lifecycleService.onWillShutdown(() => {
+		lifecycleMainService.onWillShutdown(() => {
 			listener.dispose();
 			watcher.close();
 		});

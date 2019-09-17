@@ -38,15 +38,15 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id))
 	);
 
-	readonly onRecentlyOpenedChange: Event<void> = this.historyService.onRecentlyOpenedChange;
+	readonly onRecentlyOpenedChange: Event<void> = this.historyMainService.onRecentlyOpenedChange;
 
 	constructor(
 		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
-		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
-		@IHistoryMainService private readonly historyService: IHistoryMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IHistoryMainService private readonly historyMainService: IHistoryMainService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -157,25 +157,25 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 
 	async addRecentlyOpened(recents: IRecent[]): Promise<void> {
 		this.logService.trace('windowsService#addRecentlyOpened');
-		this.historyService.addRecentlyOpened(recents);
+		this.historyMainService.addRecentlyOpened(recents);
 	}
 
 	async removeFromRecentlyOpened(paths: URI[]): Promise<void> {
 		this.logService.trace('windowsService#removeFromRecentlyOpened');
 
-		this.historyService.removeFromRecentlyOpened(paths);
+		this.historyMainService.removeFromRecentlyOpened(paths);
 	}
 
 	async clearRecentlyOpened(): Promise<void> {
 		this.logService.trace('windowsService#clearRecentlyOpened');
 
-		this.historyService.clearRecentlyOpened();
+		this.historyMainService.clearRecentlyOpened();
 	}
 
 	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
 		this.logService.trace('windowsService#getRecentlyOpened', windowId);
 
-		return this.withWindow(windowId, codeWindow => this.historyService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpenOrCreate), () => this.historyService.getRecentlyOpened())!;
+		return this.withWindow(windowId, codeWindow => this.historyMainService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpenOrCreate), () => this.historyMainService.getRecentlyOpened())!;
 	}
 
 	async newWindowTab(): Promise<void> {
@@ -370,7 +370,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	async relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
 		this.logService.trace('windowsService#relaunch');
 
-		this.lifecycleService.relaunch(options);
+		this.lifecycleMainService.relaunch(options);
 	}
 
 	async whenSharedProcessReady(): Promise<void> {

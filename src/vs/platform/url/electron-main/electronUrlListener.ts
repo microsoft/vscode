@@ -28,7 +28,7 @@ export class ElectronURLListener {
 	constructor(
 		initial: string | string[],
 		@IURLService private readonly urlService: IURLService,
-		@IWindowsMainService windowsService: IWindowsMainService
+		@IWindowsMainService windowsMainService: IWindowsMainService
 	) {
 		const globalBuffer = ((<any>global).getOpenUrls() || []) as string[];
 		const rawBuffer = [
@@ -58,14 +58,14 @@ export class ElectronURLListener {
 		const onOpenUrl = Event.filter(Event.map(onOpenElectronUrl, uriFromRawUrl), uri => !!uri);
 		onOpenUrl(this.urlService.open, this.urlService, this.disposables);
 
-		const isWindowReady = windowsService.getWindows()
+		const isWindowReady = windowsMainService.getWindows()
 			.filter(w => w.isReady)
 			.length > 0;
 
 		if (isWindowReady) {
 			flush();
 		} else {
-			Event.once(windowsService.onWindowReady)(flush);
+			Event.once(windowsMainService.onWindowReady)(flush);
 		}
 	}
 
