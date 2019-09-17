@@ -335,10 +335,6 @@ const scmResourceIdentityProvider = new class implements IIdentityProvider<TreeE
 	}
 };
 
-// function isGroupVisible(group: ISCMResourceGroup) {
-// 	return group.elements.length > 0 || !group.hideWhenEmpty;
-// }
-
 interface IGroupItem {
 	readonly group: ISCMResourceGroup;
 	readonly resources: ISCMResource[];
