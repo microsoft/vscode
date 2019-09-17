@@ -6,7 +6,7 @@
 import 'vs/css!./media/style';
 
 import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { iconForeground, iconRedForeground, iconYellowForeground, iconBlueForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
@@ -15,6 +15,24 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const iconForegroundColor = theme.getColor(iconForeground);
 	if (iconForegroundColor) {
 		collector.addRule(`.monaco-workbench .codicon { color: ${iconForegroundColor}; }`);
+	}
+
+	// Icon Red
+	const iconRedForegroundColor = theme.getColor(iconRedForeground);
+	if (iconRedForegroundColor) {
+		collector.addRule(`.monaco-workbench .codicon-error { color: ${iconRedForegroundColor}; }`);
+	}
+
+	// Icon Yellow
+	const iconYellowForegroundColor = theme.getColor(iconYellowForeground);
+	if (iconYellowForegroundColor) {
+		collector.addRule(`.monaco-workbench .codicon-warning { color: ${iconYellowForegroundColor}; }`);
+	}
+
+	// Icon Blue
+	const iconBlueForegroundColor = theme.getColor(iconBlueForeground);
+	if (iconBlueForegroundColor) {
+		collector.addRule(`.monaco-workbench .codicon-info { color: ${iconBlueForegroundColor}; }`);
 	}
 
 	// Foreground

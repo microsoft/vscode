@@ -187,7 +187,10 @@ export const activeContrastBorder = registerColor('contrastActiveBorder', { ligh
 
 export const selectionBackground = registerColor('selection.background', { light: null, dark: null, hc: null }, nls.localize('selectionBackground', "The background color of text selections in the workbench (e.g. for input fields or text areas). Note that this does not apply to selections within the editor."));
 
-export const iconForeground = registerColor('icon.foreground', { light: '#424242', dark: '#C5C5C5', hc: '#FFFFFF' }, nls.localize('iconForeground', "The default color for icons in the workbench."));
+export const iconForeground = registerColor('icon.foreground', { dark: '#C5C5C5', light: '#424242', hc: '#FFFFFF' }, nls.localize('iconForeground', "The default color for icons in the workbench."));
+export const iconRedForeground = registerColor('iconRed.foreground', { dark: '#F48771', light: '#A1260D', hc: '#F48771' }, nls.localize('iconRedForeground', "The default color for icons in the workbench."));
+export const iconYellowForeground = registerColor('iconYellow.foreground', { dark: '#FFCC00', light: '#DDB100', hc: '#FFCC00' }, nls.localize('iconYellowForeground', "The default color for icons in the workbench."));
+export const iconBlueForeground = registerColor('iconBlue.foreground', { dark: '#75BEFF', light: '#007ACC', hc: '#75BEFF' }, nls.localize('iconYellowForeground', "The default color for icons in the workbench."));
 
 // ------ text colors
 
