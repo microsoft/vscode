@@ -118,9 +118,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	): Promise<void> {
 		if (shellLaunchConfig.isExtensionTerminal) {
 			this._processType = ProcessType.ExtensionTerminal;
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
+			// TODO: How to identify correct remote authority here?
+			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, null, this._terminalId, shellLaunchConfig, undefined, cols, rows, this._configHelper);
 		} else {
 			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
+			console.log('createProcess');
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
 			} else {
@@ -143,7 +145,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-				this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+				this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this.remoteAuthority, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
 			} else {
 				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
 			}

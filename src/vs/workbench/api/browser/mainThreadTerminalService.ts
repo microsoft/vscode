@@ -191,8 +191,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onRequestSpawnExtHostProcess(request: ISpawnExtHostProcessRequest): void {
-		// Only allow processes on remote ext hosts
-		if (!this._remoteAuthority) {
+		// Only respect request if it was for this extension host
+		console.log('_onRequestSpawnExtHostProcess on ext host ' + this._remoteAuthority, request.remoteAuthority);
+		if (this._remoteAuthority !== request.remoteAuthority) {
 			return;
 		}
 

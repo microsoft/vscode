@@ -46,6 +46,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	private _pendingLatencyRequests: ((value?: number | Thenable<number>) => void)[] = [];
 
 	constructor(
+		remoteAuthority: string | undefined,
 		public terminalId: number,
 		shellLaunchConfig: IShellLaunchConfig,
 		activeWorkspaceRootUri: URI,
@@ -63,10 +64,12 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 			this._terminalService.requestStartExtensionTerminal(this, cols, rows);
 		} else {
 			remoteAgentService.getEnvironment().then(env => {
-				if (!env) {
-					throw new Error('Could not fetch environment');
-				}
-				this._terminalService.requestSpawnExtHostProcess(this, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper.checkWorkspaceShellPermissions(env.os));
+				// if (!env) {
+				// 	throw new Error('Could not fetch environment');
+				// }
+				console.log('requestSpawnExtHostProcess');
+				// TODO: getEnvironment should only be called when remoteAuthority !== undefined
+				this._terminalService.requestSpawnExtHostProcess(this, remoteAuthority, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper.checkWorkspaceShellPermissions(env ? env.os : undefined));
 			});
 			if (!hasReceivedResponse) {
 				setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
