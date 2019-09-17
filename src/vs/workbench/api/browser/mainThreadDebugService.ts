@@ -21,7 +21,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	private readonly _proxy: ExtHostDebugServiceShape;
 	private readonly _toDispose = new DisposableStore();
-	private _breakpointEventsActive: boolean;
+	private _breakpointEventsActive: boolean | undefined;
 	private readonly _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
 	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
@@ -35,6 +35,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose.add(debugService.onDidNewSession(session => {
 			this._proxy.$acceptDebugSessionStarted(this.getSessionDto(session));
+			this._toDispose.add(session.onDidChangeName(name => {
+				this._proxy.$acceptDebugSessionNameChanged(this.getSessionDto(session), name);
+			}));
 		}));
 		// Need to start listening early to new session events because a custom event can come while a session is initialising
 		this._toDispose.add(debugService.onWillNewSession(session => {
@@ -225,6 +228,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		});
 	}
 
+	public $setDebugSessionName(sessionId: DebugSessionUUID, name: string): void {
+		const session = this.debugService.getModel().getSession(sessionId);
+		if (session) {
+			session.setName(name);
+		}
+	}
+
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
 		const session = this.debugService.getModel().getSession(sessionId, true);
 		if (session) {
@@ -351,23 +361,24 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 		super();
 	}
 
-	public fireError(handle: number, err: Error) {
+	fireError(handle: number, err: Error) {
 		this._onError.fire(err);
 	}
 
-	public fireExit(handle: number, code: number, signal: string) {
+	fireExit(handle: number, code: number, signal: string) {
 		this._onExit.fire(code);
 	}
 
-	public startSession(): Promise<void> {
+	startSession(): Promise<void> {
 		return Promise.resolve(this._proxy.$startDASession(this._handle, this._ds.getSessionDto(this._session)));
 	}
 
-	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
+	sendMessage(message: DebugProtocol.ProtocolMessage): void {
 		this._proxy.$sendDAMessage(this._handle, convertToDAPaths(message, true));
 	}
 
-	public stopSession(): Promise<void> {
+	async stopSession(): Promise<void> {
+		await this.cancelPendingRequests();
 		return Promise.resolve(this._proxy.$stopDASession(this._handle));
 	}
 }

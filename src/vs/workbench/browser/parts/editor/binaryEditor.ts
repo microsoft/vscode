@@ -23,7 +23,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions) => Promise<void>;
+	openInternal: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
 	openExternal: (uri: URI) => void;
 }
 
@@ -76,7 +76,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, token);
 		const model = await input.resolve();
 
@@ -102,7 +102,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		}, this.instantiationService);
 	}
 
-	private async handleOpenInternalCallback(input: EditorInput, options: EditorOptions): Promise<void> {
+	private async handleOpenInternalCallback(input: EditorInput, options: EditorOptions | undefined): Promise<void> {
 		await this.callbacks.openInternal(input, options);
 
 		// Signal to listeners that the binary editor has been opened in-place

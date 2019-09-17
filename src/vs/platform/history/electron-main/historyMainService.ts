@@ -12,7 +12,8 @@ import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IHistoryMainService, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile } from 'vs/platform/history/common/history';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isEqual as areResourcesEqual, dirname, originalFSPath, basename } from 'vs/base/common/resources';
@@ -22,7 +23,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
 import { toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/history/common/historyStorage';
 import { exists } from 'vs/base/node/pfs';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 
 export class HistoryMainService implements IHistoryMainService {
@@ -40,7 +40,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
-	_serviceBrand!: ServiceIdentifier<IHistoryMainService>;
+	_serviceBrand: undefined;
 
 	private _onRecentlyOpenedChange = new Emitter<void>();
 	readonly onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;

@@ -17,14 +17,14 @@ import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensi
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
 const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
 
 export class ExtensionEnablementService extends Disposable implements IExtensionEnablementService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _onEnablementChanged = new Emitter<IExtension[]>();
 	public readonly onEnablementChanged: Event<IExtension[]> = this._onEnablementChanged.event;

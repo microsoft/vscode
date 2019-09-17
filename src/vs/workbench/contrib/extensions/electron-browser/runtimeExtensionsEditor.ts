@@ -6,8 +6,7 @@
 import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import * as os from 'os';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/common/product';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -59,7 +58,7 @@ export enum ProfileSessionState {
 }
 
 export interface IExtensionHostProfileService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onDidChangeState: Event<void>;
 	readonly onDidChangeLastProfile: Event<void>;
@@ -404,7 +403,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			}
 		};
 
-		this._list = this._instantiationService.createInstance(WorkbenchList, parent, delegate, [renderer], {
+		this._list = this._instantiationService.createInstance(WorkbenchList,
+			'RuntimeExtensions',
+			parent, delegate, [renderer], {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false
@@ -502,13 +503,11 @@ export class ReportExtensionIssueAction extends Action {
 		status?: IExtensionsStatus;
 		unresponsiveProfile?: IExtensionHostProfile
 	}): string {
-
-
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
 		} else {
-			baseUrl = product.reportIssueUrl;
+			baseUrl = product.reportIssueUrl!;
 		}
 
 		let reason = 'Bug';
@@ -523,7 +522,7 @@ export class ReportExtensionIssueAction extends Action {
 - Extension Name: \`${extension.description.name}\`
 - Extension Version: \`${extension.description.version}\`
 - OS Version: \`${osVersion}\`
-- VSCode version: \`${pkg.version}\`\n\n${message}`
+- VSCode version: \`${product.version}\`\n\n${message}`
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}&title=${encodeURIComponent(title)}`;

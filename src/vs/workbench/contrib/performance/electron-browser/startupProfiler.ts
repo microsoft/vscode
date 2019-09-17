@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';
@@ -106,6 +106,11 @@ export class StartupProfiler implements IWorkbenchContribution {
 	}
 
 	private async _createPerfIssue(files: string[]): Promise<void> {
+		const reportIssueUrl = product.reportIssueUrl;
+		if (!reportIssueUrl) {
+			return;
+		}
+
 		const ref = await this._textModelResolverService.createModelReference(PerfviewInput.Uri);
 		await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
 		ref.dispose();
@@ -115,7 +120,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 1. :warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}
 `;
 
-		const baseUrl = product.reportIssueUrl;
+		const baseUrl = reportIssueUrl;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 
 		this._openerService.open(URI.parse(`${baseUrl}${queryStringPrefix}body=${encodeURIComponent(body)}`));

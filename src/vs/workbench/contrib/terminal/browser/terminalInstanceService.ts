@@ -17,7 +17,7 @@ let WebLinksAddon: typeof XTermWebLinksAddon;
 let SearchAddon: typeof XTermSearchAddon;
 
 export class TerminalInstanceService implements ITerminalInstanceService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _onRequestDefaultShellAndArgs = new Emitter<IDefaultShellAndArgsRequest>();
 	public get onRequestDefaultShellAndArgs(): Event<IDefaultShellAndArgsRequest> { return this._onRequestDefaultShellAndArgs.event; }

@@ -12,7 +12,6 @@ import { IBackupMainService, IEmptyWindowBackupInfo } from 'vs/platform/backup/c
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/common/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { hasArgs, asArray } from 'vs/platform/environment/node/argv';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, FileFilter } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason, LifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -21,12 +20,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen, isFileToOpen, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService, IRecent } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
@@ -37,7 +36,7 @@ import { exists, dirExists } from 'vs/base/node/pfs';
 import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
-import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -157,7 +156,7 @@ interface IWorkspacePathToOpen {
 
 export class WindowsManager extends Disposable implements IWindowsMainService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static readonly windowsStateStorageKey = 'windowsState';
 
@@ -211,10 +210,11 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	}
 
 	private installWindowsMutex(): void {
-		if (isWindows) {
+		const win32MutexName = product.win32MutexName;
+		if (isWindows && win32MutexName) {
 			try {
 				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
-				const mutex = new WindowsMutex(product.win32MutexName);
+				const mutex = new WindowsMutex(win32MutexName);
 				once(this.lifecycleService.onWillShutdown)(() => mutex.release());
 			} catch (e) {
 				this.logService.error(e);
@@ -309,7 +309,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		if (!currentWindowsState.lastActiveWindow) {
 			let activeWindow = this.getLastActiveWindow();
 			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
-				activeWindow = WindowsManager.WINDOWS.filter(w => !w.isExtensionDevelopmentHost)[0];
+				activeWindow = WindowsManager.WINDOWS.filter(window => !window.isExtensionDevelopmentHost)[0];
 			}
 
 			if (activeWindow) {
@@ -318,7 +318,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 
 		// 2.) Find extension host window
-		const extensionHostWindow = WindowsManager.WINDOWS.filter(w => w.isExtensionDevelopmentHost && !w.isExtensionTestHost)[0];
+		const extensionHostWindow = WindowsManager.WINDOWS.filter(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost)[0];
 		if (extensionHostWindow) {
 			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
 		}
@@ -329,7 +329,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.getWindowCount() > 1) {
-			currentWindowsState.openedWindows = WindowsManager.WINDOWS.filter(w => !w.isExtensionDevelopmentHost).map(w => this.toWindowState(w));
+			currentWindowsState.openedWindows = WindowsManager.WINDOWS.filter(window => !window.isExtensionDevelopmentHost).map(window => this.toWindowState(window));
 		}
 
 		// Persist
@@ -450,13 +450,13 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
 
-			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !hasArgs(openConfig.cli._) && !hasArgs(openConfig.cli['file-uri']) && !hasArgs(openConfig.cli['folder-uri']) && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
+			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
 			// 1.) focus last active window if we are not instructed to open any paths
 			if (focusLastActive) {
-				const lastActiveWindow = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow!.backupPath);
+				const lastActiveWindow = usedWindows.filter(window => window.backupPath === this.windowsState.lastActiveWindow!.backupPath);
 				if (lastActiveWindow.length) {
 					lastActiveWindow[0].focus();
 					focusLastOpened = false;
@@ -490,7 +490,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!usedWindows.some(w => w.isExtensionDevelopmentHost) && !openConfig.diffMode && !openConfig.noRecentEntry) {
+		if (!usedWindows.some(window => window.isExtensionDevelopmentHost) && !openConfig.diffMode && !openConfig.noRecentEntry) {
 			const recents: IRecent[] = [];
 			for (let pathToOpen of pathsToOpen) {
 				if (pathToOpen.workspace) {
@@ -556,7 +556,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			const fileToCheck = fileInputs.filesToOpenOrCreate[0] || fileInputs.filesToDiff[0];
 
 			// only look at the windows with correct authority
-			const windows = WindowsManager.WINDOWS.filter(w => w.remoteAuthority === fileInputs!.remoteAuthority);
+			const windows = WindowsManager.WINDOWS.filter(window => window.remoteAuthority === fileInputs!.remoteAuthority);
 
 			const bestWindowOrFolder = findBestWindowOrFolderForFile({
 				windows,
@@ -811,7 +811,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 
 		// Extract paths: from CLI
-		else if (hasArgs(openConfig.cli._) || hasArgs(openConfig.cli['folder-uri']) || hasArgs(openConfig.cli['file-uri'])) {
+		else if (openConfig.cli._.length || openConfig.cli['folder-uri'] || openConfig.cli['file-uri']) {
 			windowsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
 			isCommandLineOrAPICall = true;
 		}
@@ -885,31 +885,36 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		const parseOptions: IPathParseOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto, remoteAuthority: cli.remote || undefined };
 
 		// folder uris
-		const folderUris = asArray(cli['folder-uri']);
-		for (let f of folderUris) {
-			const folderUri = this.argToUri(f);
-			if (folderUri) {
-				const path = this.parseUri({ folderUri }, parseOptions);
-				if (path) {
-					pathsToOpen.push(path);
+		const folderUris = cli['folder-uri'];
+		if (folderUris) {
+			for (let f of folderUris) {
+				const folderUri = this.argToUri(f);
+				if (folderUri) {
+					const path = this.parseUri({ folderUri }, parseOptions);
+					if (path) {
+						pathsToOpen.push(path);
+					}
 				}
 			}
 		}
 
+
 		// file uris
-		const fileUris = asArray(cli['file-uri']);
-		for (let f of fileUris) {
-			const fileUri = this.argToUri(f);
-			if (fileUri) {
-				const path = this.parseUri(hasWorkspaceFileExtension(f) ? { workspaceUri: fileUri } : { fileUri }, parseOptions);
-				if (path) {
-					pathsToOpen.push(path);
+		const fileUris = cli['file-uri'];
+		if (fileUris) {
+			for (let f of fileUris) {
+				const fileUri = this.argToUri(f);
+				if (fileUri) {
+					const path = this.parseUri(hasWorkspaceFileExtension(f) ? { workspaceUri: fileUri } : { fileUri }, parseOptions);
+					if (path) {
+						pathsToOpen.push(path);
+					}
 				}
 			}
 		}
 
 		// folder or file paths
-		const cliArgs = asArray(cli._);
+		const cliArgs = cli._;
 		for (let cliArg of cliArgs) {
 			const path = this.parsePath(cliArg, parseOptions);
 			if (path) {
@@ -1166,7 +1171,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return { openFolderInNewWindow: !!openFolderInNewWindow, openFilesInNewWindow };
 	}
 
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string | string[], openConfig: IOpenConfiguration): void {
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): void {
 
 		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
@@ -1178,8 +1183,8 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 			return;
 		}
-		let folderUris = asArray(openConfig.cli['folder-uri']);
-		let fileUris = asArray(openConfig.cli['file-uri']);
+		let folderUris = openConfig.cli['folder-uri'] || [];
+		let fileUris = openConfig.cli['file-uri'] || [];
 		let cliArgs = openConfig.cli._;
 
 		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
@@ -1201,10 +1206,6 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 					}
 				}
 			}
-		}
-
-		if (!Array.isArray(extensionDevelopmentPath)) {
-			extensionDevelopmentPath = [extensionDevelopmentPath];
 		}
 
 		let authority = '';
@@ -1599,7 +1600,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	}
 
 	getLastActiveWindowForAuthority(remoteAuthority: string | undefined): ICodeWindow | undefined {
-		return getLastActiveWindow(WindowsManager.WINDOWS.filter(w => w.remoteAuthority === remoteAuthority));
+		return getLastActiveWindow(WindowsManager.WINDOWS.filter(window => window.remoteAuthority === remoteAuthority));
 	}
 
 	openNewWindow(context: OpenContext, options?: INewWindowOptions): ICodeWindow[] {
@@ -1642,13 +1643,13 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	}
 
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
-		WindowsManager.WINDOWS.forEach(w => {
-			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(w.id) >= 0) {
-				return; // do not send if we are instructed to ignore it
+		for (const window of WindowsManager.WINDOWS) {
+			if (windowIdsToIgnore && windowIdsToIgnore.indexOf(window.id) >= 0) {
+				continue; // do not send if we are instructed to ignore it
 			}
 
-			w.sendWhenReady(channel, payload);
-		});
+			window.sendWhenReady(channel, payload);
+		}
 	}
 
 	getFocusedWindow(): ICodeWindow | undefined {
@@ -1661,7 +1662,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	}
 
 	getWindowById(windowId: number): ICodeWindow | undefined {
-		const res = WindowsManager.WINDOWS.filter(w => w.id === windowId);
+		const res = WindowsManager.WINDOWS.filter(window => window.id === windowId);
 		if (res && res.length === 1) {
 			return res[0];
 		}
@@ -1954,24 +1955,21 @@ class Dialogs {
 	}
 
 	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): Promise<IMessageBoxResult> {
-		return this.getDialogQueue(window).queue(() => {
-			return new Promise(resolve => {
-				const callback = (response: number, checkboxChecked: boolean) => {
-					resolve({ button: response, checkboxChecked });
-				};
+		return this.getDialogQueue(window).queue(async () => {
+			let result: Electron.MessageBoxReturnValue;
+			if (window) {
+				result = await dialog.showMessageBox(window.win, options);
+			} else {
+				result = await dialog.showMessageBox(options);
+			}
 
-				if (window) {
-					dialog.showMessageBox(window.win, options, callback);
-				} else {
-					dialog.showMessageBox(options, callback);
-				}
-			});
+			return { button: result.response, checkboxChecked: result.checkboxChecked };
 		});
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): Promise<string> {
 
-		function normalizePath(path: string): string {
+		function normalizePath(path: string | undefined): string | undefined {
 			if (path && isMacintosh) {
 				path = normalizeNFC(path); // normalize paths returned from the OS
 			}
@@ -1979,24 +1977,21 @@ class Dialogs {
 			return path;
 		}
 
-		return this.getDialogQueue(window).queue(() => {
-			return new Promise(resolve => {
-				const callback = (path: string) => {
-					resolve(normalizePath(path));
-				};
+		return this.getDialogQueue(window).queue(async () => {
+			let result: Electron.SaveDialogReturnValue;
+			if (window) {
+				result = await dialog.showSaveDialog(window.win, options);
+			} else {
+				result = await dialog.showSaveDialog(options);
+			}
 
-				if (window) {
-					dialog.showSaveDialog(window.win, options, callback);
-				} else {
-					dialog.showSaveDialog(options, callback);
-				}
-			});
+			return normalizePath(result.filePath);
 		});
 	}
 
 	showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): Promise<string[]> {
 
-		function normalizePaths(paths: string[]): string[] {
+		function normalizePaths(paths: string[] | undefined): string[] | undefined {
 			if (paths && paths.length > 0 && isMacintosh) {
 				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
 			}
@@ -2004,32 +1999,25 @@ class Dialogs {
 			return paths;
 		}
 
-		return this.getDialogQueue(window).queue(() => {
-			return new Promise(resolve => {
+		return this.getDialogQueue(window).queue(async () => {
 
-				// Ensure the path exists (if provided)
-				let validatePathPromise: Promise<void> = Promise.resolve();
-				if (options.defaultPath) {
-					validatePathPromise = exists(options.defaultPath).then(exists => {
-						if (!exists) {
-							options.defaultPath = undefined;
-						}
-					});
+			// Ensure the path exists (if provided)
+			if (options.defaultPath) {
+				const pathExists = await exists(options.defaultPath);
+				if (!pathExists) {
+					options.defaultPath = undefined;
 				}
+			}
 
-				// Show dialog and wrap as promise
-				validatePathPromise.then(() => {
-					const callback = (paths: string[]) => {
-						resolve(normalizePaths(paths));
-					};
+			// Show dialog
+			let result: Electron.OpenDialogReturnValue;
+			if (window) {
+				result = await dialog.showOpenDialog(window.win, options);
+			} else {
+				result = await dialog.showOpenDialog(options);
+			}
 
-					if (window) {
-						dialog.showOpenDialog(window.win, options, callback);
-					} else {
-						dialog.showOpenDialog(options, callback);
-					}
-				});
-			});
+			return normalizePaths(result.filePaths);
 		});
 	}
 }

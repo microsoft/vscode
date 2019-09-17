@@ -22,6 +22,7 @@ import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
+export const ActiveEditorIsSaveableContext = new RawContextKey<boolean>('activeEditorIsSaveable', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
@@ -53,12 +54,12 @@ export interface IEditor {
 	/**
 	 * The assigned input of this editor.
 	 */
-	input: IEditorInput | null;
+	input: IEditorInput | undefined;
 
 	/**
 	 * The assigned options of this editor.
 	 */
-	options: IEditorOptions | null;
+	options: IEditorOptions | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.
@@ -292,7 +293,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display name of this input.
 	 */
-	getName(): string | null;
+	getName(): string | undefined;
 
 	/**
 	 * Returns the display description of this input.
@@ -302,7 +303,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display title of this input.
 	 */
-	getTitle(verbosity?: Verbosity): string | null;
+	getTitle(verbosity?: Verbosity): string | undefined;
 
 	/**
 	 * Resolves the input.
@@ -358,8 +359,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
 	 * above the editor area when the input is shown.
 	 */
-	getName(): string | null {
-		return null;
+	getName(): string | undefined {
+		return undefined;
 	}
 
 	/**
@@ -374,7 +375,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the title of this input that can be shown to the user. Examples include showing the title of
 	 * the input above the editor area as hover over the input label.
 	 */
-	getTitle(verbosity?: Verbosity): string | null {
+	getTitle(verbosity?: Verbosity): string | undefined {
 		return this.getName();
 	}
 
@@ -774,6 +775,11 @@ export class EditorOptions implements IEditorOptions {
 	ignoreError: boolean | undefined;
 
 	/**
+	 * Does not use editor overrides while opening the editor.
+	 */
+	ignoreOverrides: boolean | undefined;
+
+	/**
 	 * Overwrites option values from the provided bag.
 	 */
 	overwrite(options: IEditorOptions): EditorOptions {
@@ -811,6 +817,10 @@ export class EditorOptions implements IEditorOptions {
 
 		if (typeof options.index === 'number') {
 			this.index = options.index;
+		}
+
+		if (typeof options.ignoreOverrides === 'boolean') {
+			this.ignoreOverrides = options.ignoreOverrides;
 		}
 
 		return this;

@@ -15,7 +15,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
@@ -23,7 +23,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _onDidChangeState: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeState: Event<void> = this._onDidChangeState.event;

@@ -41,7 +41,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -2245,7 +2245,7 @@ suite('ExtensionsActions Test', () => {
 			extensionManagementService: remoteExtensionManagementService || createExtensionManagementService()
 		};
 		return {
-			_serviceBrand: {},
+			_serviceBrand: undefined,
 			localExtensionManagementServer: null,
 			remoteExtensionManagementServer,
 			getExtensionManagementServer: (location: URI) => {
@@ -2269,7 +2269,7 @@ suite('ExtensionsActions Test', () => {
 			extensionManagementService: remoteExtensionManagementService || createExtensionManagementService()
 		};
 		return {
-			_serviceBrand: {},
+			_serviceBrand: undefined,
 			localExtensionManagementServer,
 			remoteExtensionManagementServer,
 			getExtensionManagementServer: (location: URI) => {

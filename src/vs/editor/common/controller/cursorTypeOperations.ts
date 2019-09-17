@@ -105,7 +105,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _distributePasteToCursors(selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] | null {
+	private static _distributePasteToCursors(config: CursorConfiguration, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] | null {
 		if (pasteOnNewLine) {
 			return null;
 		}
@@ -118,20 +118,27 @@ export class TypeOperations {
 			return multicursorText;
 		}
 
-		// Remove trailing \n if present
-		if (text.charCodeAt(text.length - 1) === CharCode.LineFeed) {
-			text = text.substr(0, text.length - 1);
-		}
-		let lines = text.split(/\r\n|\r|\n/);
-		if (lines.length === selections.length) {
-			return lines;
+		if (config.multiCursorPaste === 'spread') {
+			// Try to spread the pasted text in case the line count matches the cursor count
+			// Remove trailing \n if present
+			if (text.charCodeAt(text.length - 1) === CharCode.LineFeed) {
+				text = text.substr(0, text.length - 1);
+			}
+			// Remove trailing \r if present
+			if (text.charCodeAt(text.length - 1) === CharCode.CarriageReturn) {
+				text = text.substr(0, text.length - 1);
+			}
+			let lines = text.split(/\r\n|\r|\n/);
+			if (lines.length === selections.length) {
+				return lines;
+			}
 		}
 
 		return null;
 	}
 
 	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): EditOperationResult {
-		const distributedPaste = this._distributePasteToCursors(selections, text, pasteOnNewLine, multicursorText);
+		const distributedPaste = this._distributePasteToCursors(config, selections, text, pasteOnNewLine, multicursorText);
 
 		if (distributedPaste) {
 			selections = selections.sort(Range.compareRangesUsingStarts);

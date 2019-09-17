@@ -93,20 +93,20 @@ export class SideBySideEditor extends BaseEditor {
 		this.updateStyles();
 	}
 
-	async setInput(newInput: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(newInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		const oldInput = this.input as SideBySideEditorInput;
 		await super.setInput(newInput, options, token);
 
 		return this.updateInput(oldInput, (newInput as SideBySideEditorInput), options, token);
 	}
 
-	setOptions(options: EditorOptions): void {
+	setOptions(options: EditorOptions | undefined): void {
 		if (this.masterEditor) {
 			this.masterEditor.setOptions(options);
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		if (this.masterEditor) {
 			this.masterEditor.setVisible(visible, group);
 		}
@@ -159,7 +159,7 @@ export class SideBySideEditor extends BaseEditor {
 		return this.detailsEditor;
 	}
 
-	private async updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	private async updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
@@ -173,12 +173,12 @@ export class SideBySideEditor extends BaseEditor {
 		}
 
 		await Promise.all([
-			this.detailsEditor.setInput(newInput.details, null, token),
+			this.detailsEditor.setInput(newInput.details, undefined, token),
 			this.masterEditor.setInput(newInput.master, options, token)
 		]);
 	}
 
-	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		const detailsEditor = this.doCreateEditor(newInput.details, this.detailsEditorContainer);
 		const masterEditor = this.doCreateEditor(newInput.master, this.masterEditorContainer);
 
@@ -198,7 +198,7 @@ export class SideBySideEditor extends BaseEditor {
 		return editor;
 	}
 
-	private async onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	private async onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		this.detailsEditor = details;
 		this.masterEditor = master;
 
@@ -210,7 +210,7 @@ export class SideBySideEditor extends BaseEditor {
 		this.onDidCreateEditors.fire(undefined);
 
 		await Promise.all([
-			this.detailsEditor.setInput(detailsInput, null, token),
+			this.detailsEditor.setInput(detailsInput, undefined, token),
 			this.masterEditor.setInput(masterInput, options, token)]
 		);
 	}

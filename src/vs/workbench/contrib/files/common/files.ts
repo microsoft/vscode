@@ -41,7 +41,7 @@ export interface IEditableData {
 }
 
 export interface IExplorerService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
 	readonly onDidChangeRoots: Event<void>;
@@ -51,6 +51,7 @@ export interface IExplorerService {
 	readonly onDidCopyItems: Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>;
 
 	setEditable(stat: ExplorerItem, data: IEditableData | null): void;
+	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
 	// If undefined is passed checks if any element is currently being edited.
 	isEditable(stat: ExplorerItem | undefined): boolean;

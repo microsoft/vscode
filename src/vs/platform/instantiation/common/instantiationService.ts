@@ -28,7 +28,7 @@ class CyclicDependencyError extends Error {
 
 export class InstantiationService implements IInstantiationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _services: ServiceCollection;
 	private readonly _strict: boolean;

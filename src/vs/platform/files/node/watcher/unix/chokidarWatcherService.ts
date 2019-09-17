@@ -37,11 +37,11 @@ export class ChokidarWatcherService implements IWatcherService {
 
 	private _pollingInterval?: number;
 	private _usePolling?: boolean;
-	private _verboseLogging: boolean;
+	private _verboseLogging: boolean | undefined;
 
-	private spamCheckStartTime: number;
-	private spamWarningLogged: boolean;
-	private enospcErrorLogged: boolean;
+	private spamCheckStartTime: number | undefined;
+	private spamWarningLogged: boolean | undefined;
+	private enospcErrorLogged: boolean | undefined;
 
 	private _onWatchEvent = new Emitter<IDiskFileChange[]>();
 	readonly onWatchEvent = this._onWatchEvent.event;
@@ -231,7 +231,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			if (undeliveredFileEvents.length === 0) {
 				this.spamWarningLogged = false;
 				this.spamCheckStartTime = now;
-			} else if (!this.spamWarningLogged && this.spamCheckStartTime + ChokidarWatcherService.EVENT_SPAM_WARNING_THRESHOLD < now) {
+			} else if (!this.spamWarningLogged && typeof this.spamCheckStartTime === 'number' && this.spamCheckStartTime + ChokidarWatcherService.EVENT_SPAM_WARNING_THRESHOLD < now) {
 				this.spamWarningLogged = true;
 				this.warn(`Watcher is busy catching up with ${undeliveredFileEvents.length} file changes in 60 seconds. Latest changed path is "${event.path}"`);
 			}

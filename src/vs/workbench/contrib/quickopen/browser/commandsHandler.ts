@@ -62,7 +62,7 @@ class CommandsHistory extends Disposable {
 	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
 	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
 
-	private commandHistoryLength: number;
+	private commandHistoryLength = 0;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -217,8 +217,8 @@ class CommandPaletteEditorAction extends EditorAction {
 }
 
 abstract class BaseCommandEntry extends QuickOpenEntryGroup {
-	private description: string;
-	private alias: string;
+	private description: string | undefined;
+	private alias: string | undefined;
 	private labelLowercase: string;
 	private readonly keybindingAriaLabel?: string;
 
@@ -258,7 +258,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		return this.labelLowercase;
 	}
 
-	getDescription(): string {
+	getDescription(): string | undefined {
 		return this.description;
 	}
 
@@ -270,7 +270,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		return this.keybinding;
 	}
 
-	getDetail(): string {
+	getDetail(): string | undefined {
 		return this.alias;
 	}
 
@@ -381,13 +381,13 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 
 	static readonly ID = 'workbench.picker.commands';
 
-	private commandHistoryEnabled: boolean;
+	private commandHistoryEnabled: boolean | undefined;
 	private readonly commandsHistory: CommandsHistory;
 
 	private readonly disposables = new DisposableStore();
 	private readonly disposeOnClose = new DisposableStore();
 
-	private waitedForExtensionsRegistered: boolean;
+	private waitedForExtensionsRegistered: boolean | undefined;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,

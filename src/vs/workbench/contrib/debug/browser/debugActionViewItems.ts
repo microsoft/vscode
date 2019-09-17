@@ -209,7 +209,13 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 			}
 		}));
 
-		this._register(this.debugService.onDidNewSession(() => this.update()));
+		this._register(this.debugService.onDidNewSession(session => {
+			this._register(session.onDidChangeName(() => this.update()));
+			this.update();
+		}));
+		this.getSessions().forEach(session => {
+			this._register(session.onDidChangeName(() => this.update()));
+		});
 		this._register(this.debugService.onDidEndSession(() => this.update()));
 
 		this.update();

@@ -32,7 +32,6 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, append, $, addClass, hide, show, addClasses } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface ICompositeTitleLabel {
 
@@ -240,7 +239,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Update title with composite title if it differs from descriptor
 		const descriptor = this.registry.getComposite(composite.getId());
 		if (descriptor && descriptor.name !== composite.getTitle()) {
-			this.updateTitle(composite.getId(), withNullAsUndefined(composite.getTitle()));
+			this.updateTitle(composite.getId(), composite.getTitle());
 		}
 
 		// Handle Composite Actions

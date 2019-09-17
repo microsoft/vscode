@@ -79,11 +79,7 @@ export class RowCache<T> implements IDisposable {
 		return result;
 	}
 
-	private garbageCollect(): void {
-		if (!this.renderers) {
-			return;
-		}
-
+	dispose(): void {
 		this.cache.forEach((cachedRows, templateId) => {
 			for (const cachedRow of cachedRows) {
 				const renderer = this.getRenderer(templateId);
@@ -94,12 +90,6 @@ export class RowCache<T> implements IDisposable {
 		});
 
 		this.cache.clear();
-	}
-
-	dispose(): void {
-		this.garbageCollect();
-		this.cache.clear();
-		this.renderers = null!; // StrictNullOverride: nulling out ok in dispose
 	}
 
 	private getRenderer(templateId: string): IListRenderer<T, any> {

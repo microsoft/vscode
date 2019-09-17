@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { State, IUpdate, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
@@ -17,7 +17,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,

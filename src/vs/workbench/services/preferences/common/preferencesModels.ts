@@ -1043,6 +1043,13 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 
 				const stringArrayValue = value as string[];
 
+				if (prop.uniqueItems) {
+					if (new Set(stringArrayValue).size < stringArrayValue.length) {
+						message += nls.localize('validations.stringArrayUniqueItems', 'Array has duplicate items');
+						message += '\n';
+					}
+				}
+
 				if (prop.minItems && stringArrayValue.length < prop.minItems) {
 					message += nls.localize('validations.stringArrayMinItem', 'Array must have at least {0} items', prop.minItems);
 					message += '\n';

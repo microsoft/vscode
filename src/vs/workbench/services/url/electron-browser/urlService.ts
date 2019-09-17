@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { URLServiceChannelClient, URLHandlerChannel } from 'vs/platform/url/node/urlIpc';
+import { URLServiceChannelClient, URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/node/urlService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class RelayURLService extends URLService implements IURLHandler {
 
@@ -18,7 +19,8 @@ export class RelayURLService extends URLService implements IURLHandler {
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super();
 
@@ -28,11 +30,20 @@ export class RelayURLService extends URLService implements IURLHandler {
 		openerService.registerOpener(this);
 	}
 
-	async open(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
-		if (options && options.openExternal) {
-			return false;
+	create(options?: Partial<UriComponents>): URI {
+		const uri = super.create(options);
+
+		let query = uri.query;
+		if (!query) {
+			query = `windowId=${encodeURIComponent(this.windowService.windowId)}`;
+		} else {
+			query += `&windowId=${encodeURIComponent(this.windowService.windowId)}`;
 		}
 
+		return uri.with({ query });
+	}
+
+	async open(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
 		if (resource.scheme !== product.urlProtocol) {
 			return false;
 		}

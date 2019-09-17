@@ -611,25 +611,25 @@ suite('TextModelSearch', () => {
 	});
 
 	test('parseSearchRequest non regex', () => {
-		assertParseSearchResult('foo', false, false, null, new SearchData(/foo/gi, null, null));
-		assertParseSearchResult('foo', false, false, USUAL_WORD_SEPARATORS, new SearchData(/foo/gi, usualWordSeparators, null));
-		assertParseSearchResult('foo', false, true, null, new SearchData(/foo/g, null, 'foo'));
-		assertParseSearchResult('foo', false, true, USUAL_WORD_SEPARATORS, new SearchData(/foo/g, usualWordSeparators, 'foo'));
-		assertParseSearchResult('foo\\n', false, false, null, new SearchData(/foo\\n/gi, null, null));
-		assertParseSearchResult('foo\\\\n', false, false, null, new SearchData(/foo\\\\n/gi, null, null));
-		assertParseSearchResult('foo\\r', false, false, null, new SearchData(/foo\\r/gi, null, null));
-		assertParseSearchResult('foo\\\\r', false, false, null, new SearchData(/foo\\\\r/gi, null, null));
+		assertParseSearchResult('foo', false, false, null, new SearchData(/foo/giu, null, null));
+		assertParseSearchResult('foo', false, false, USUAL_WORD_SEPARATORS, new SearchData(/foo/giu, usualWordSeparators, null));
+		assertParseSearchResult('foo', false, true, null, new SearchData(/foo/gu, null, 'foo'));
+		assertParseSearchResult('foo', false, true, USUAL_WORD_SEPARATORS, new SearchData(/foo/gu, usualWordSeparators, 'foo'));
+		assertParseSearchResult('foo\\n', false, false, null, new SearchData(/foo\\n/giu, null, null));
+		assertParseSearchResult('foo\\\\n', false, false, null, new SearchData(/foo\\\\n/giu, null, null));
+		assertParseSearchResult('foo\\r', false, false, null, new SearchData(/foo\\r/giu, null, null));
+		assertParseSearchResult('foo\\\\r', false, false, null, new SearchData(/foo\\\\r/giu, null, null));
 	});
 
 	test('parseSearchRequest regex', () => {
-		assertParseSearchResult('foo', true, false, null, new SearchData(/foo/gi, null, null));
-		assertParseSearchResult('foo', true, false, USUAL_WORD_SEPARATORS, new SearchData(/foo/gi, usualWordSeparators, null));
-		assertParseSearchResult('foo', true, true, null, new SearchData(/foo/g, null, null));
-		assertParseSearchResult('foo', true, true, USUAL_WORD_SEPARATORS, new SearchData(/foo/g, usualWordSeparators, null));
-		assertParseSearchResult('foo\\n', true, false, null, new SearchData(/foo\n/gim, null, null));
-		assertParseSearchResult('foo\\\\n', true, false, null, new SearchData(/foo\\n/gi, null, null));
-		assertParseSearchResult('foo\\r', true, false, null, new SearchData(/foo\r/gim, null, null));
-		assertParseSearchResult('foo\\\\r', true, false, null, new SearchData(/foo\\r/gi, null, null));
+		assertParseSearchResult('foo', true, false, null, new SearchData(/foo/giu, null, null));
+		assertParseSearchResult('foo', true, false, USUAL_WORD_SEPARATORS, new SearchData(/foo/giu, usualWordSeparators, null));
+		assertParseSearchResult('foo', true, true, null, new SearchData(/foo/gu, null, null));
+		assertParseSearchResult('foo', true, true, USUAL_WORD_SEPARATORS, new SearchData(/foo/gu, usualWordSeparators, null));
+		assertParseSearchResult('foo\\n', true, false, null, new SearchData(/foo\n/gimu, null, null));
+		assertParseSearchResult('foo\\\\n', true, false, null, new SearchData(/foo\\n/giu, null, null));
+		assertParseSearchResult('foo\\r', true, false, null, new SearchData(/foo\r/gimu, null, null));
+		assertParseSearchResult('foo\\\\r', true, false, null, new SearchData(/foo\\r/giu, null, null));
 	});
 
 	test('issue #53415. \W should match line break.', () => {
@@ -717,6 +717,20 @@ suite('TextModelSearch', () => {
 			[
 				[1, 5, 1, 7],
 				[1, 16, 3, 1]
+			]
+		);
+	});
+
+	test('Simple find using unicode escape sequences', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'\\u{0066}\\u006f\\u006F', true, false, null,
+			[
+				[1, 14, 1, 17],
+				[1, 44, 1, 47],
+				[2, 22, 2, 25],
+				[2, 48, 2, 51],
+				[4, 59, 4, 62]
 			]
 		);
 	});

@@ -14,6 +14,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 namespace LightBulbState {
 
@@ -78,7 +79,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);
-			const { lineHeight } = this._editor.getConfiguration();
+			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 
 			let pad = Math.floor(lineHeight / 3);
 			if (this._state.widgetPosition.position !== null && this._state.widgetPosition.position.lineNumber < this._state.editorPosition.lineNumber) {
@@ -106,7 +107,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}));
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			// hide when told to do so
-			if (e.contribInfo && !this._editor.getConfiguration().contribInfo.lightbulbEnabled) {
+			if (e.hasChanged(EditorOption.lightbulb) && !this._editor.getOption(EditorOption.lightbulb).enabled) {
 				this.hide();
 			}
 		}));
@@ -137,8 +138,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return this.hide();
 		}
 
-		const config = this._editor.getConfiguration();
-		if (!config.contribInfo.lightbulbEnabled) {
+		const options = this._editor.getOptions();
+		if (!options.get(EditorOption.lightbulb).enabled) {
 			return this.hide();
 		}
 
@@ -149,9 +150,10 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 
 		const tabSize = model.getOptions().tabSize;
+		const fontInfo = options.get(EditorOption.fontInfo);
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = TextModel.computeIndentLevel(lineContent, tabSize);
-		const lineHasSpace = config.fontInfo.spaceWidth * indent > 22;
+		const lineHasSpace = fontInfo.spaceWidth * indent > 22;
 		const isFolded = (lineNumber: number) => {
 			return lineNumber > 2 && this._editor.getTopForLineNumber(lineNumber) === this._editor.getTopForLineNumber(lineNumber - 1);
 		};
@@ -162,7 +164,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				effectiveLineNumber -= 1;
 			} else if (!isFolded(lineNumber + 1)) {
 				effectiveLineNumber += 1;
-			} else if (column * config.fontInfo.spaceWidth < 22) {
+			} else if (column * fontInfo.spaceWidth < 22) {
 				// cannot show lightbulb above/below and showing
 				// it inline would overlay the cursor...
 				return this.hide();

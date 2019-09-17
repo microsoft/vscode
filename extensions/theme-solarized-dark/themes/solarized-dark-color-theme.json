@@ -359,6 +359,7 @@
 		"editor.lineHighlightBackground": "#073642",
 		"editorLineNumber.activeForeground": "#949494",
 		"editor.selectionBackground": "#274642",
+		"minimap.selectionHighlight": "#274642",
 		"editorIndentGuide.background": "#93A1A180",
 		"editorIndentGuide.activeBackground": "#C3E1E180",
 		"editorHoverWidget.background": "#004052",

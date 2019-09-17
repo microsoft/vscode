@@ -43,20 +43,20 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 	private static readonly sashYHeightSettingsKey = 'workbench.panel.height';
 	private static readonly panelSizeBeforeMaximizedKey = 'workbench.panel.sizeBeforeMaximized';
 
-	private workbenchSize: Dimension;
+	private workbenchSize!: Dimension;
 
 	private sashXOne: Sash;
 	private sashXTwo: Sash;
 	private sashY: Sash;
 
-	private _sidebarWidth: number;
-	private sidebarHeight: number;
-	private titlebarHeight: number;
-	private statusbarHeight: number;
-	private panelSizeBeforeMaximized: number;
-	private panelMaximized: boolean;
-	private _panelHeight: number;
-	private _panelWidth: number;
+	private _sidebarWidth!: number;
+	private sidebarHeight!: number;
+	private titlebarHeight!: number;
+	private statusbarHeight!: number;
+	private panelSizeBeforeMaximized!: number;
+	private panelMaximized!: boolean;
+	private _panelHeight!: number;
+	private _panelWidth!: number;
 
 	constructor(
 		private parent: HTMLElement,
@@ -413,7 +413,7 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 		this.titlebarHeight = isTitlebarHidden ? 0 : this.partLayoutInfo.titlebar.height / (isMacintosh || !menubarVisibility || menubarVisibility === 'hidden' ? getZoomFactor() : 1); // adjust for zoom prevention
 
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
-		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
+		let sidebarSize = { width: this.sidebarWidth, height: this.sidebarHeight };
 
 		// Activity Bar
 		let activityBarSize = new Dimension(this.activitybarWidth, sidebarSize.height);
@@ -463,7 +463,7 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 
 		this.storageService.store(WorkbenchLegacyLayout.panelSizeBeforeMaximizedKey, this.panelSizeBeforeMaximized, StorageScope.GLOBAL);
 
-		const panelDimension = new Dimension(panelWidth, panelHeight);
+		const panelDimension = { width: panelWidth, height: panelHeight };
 
 		// Editor
 		let editorSize = {
