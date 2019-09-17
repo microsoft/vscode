@@ -15,8 +15,12 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class DialogService implements IDialogService {
+
 	_serviceBrand: undefined;
 
 	private allowableCommands = ['copy', 'cut'];
@@ -25,7 +29,9 @@ export class DialogService implements IDialogService {
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IProductService private readonly productService: IProductService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) { }
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -113,4 +119,22 @@ export class DialogService implements IDialogService {
 			checkboxChecked: result.checkboxChecked
 		};
 	}
+
+	async about(): Promise<void> {
+		const detail = nls.localize('aboutDetail',
+			"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
+			this.productService.version || 'Unknown',
+			this.productService.commit || 'Unknown',
+			this.productService.date || 'Unknown',
+			navigator.userAgent
+		);
+
+		const { choice } = await this.show(Severity.Info, this.productService.nameLong, [nls.localize('copy', "Copy"), nls.localize('ok', "OK")], { detail });
+
+		if (choice === 0) {
+			this.clipboardService.writeText(detail);
+		}
+	}
 }
+
+registerSingleton(IDialogService, DialogService, true);

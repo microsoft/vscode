@@ -172,6 +172,11 @@ export interface IDialogService {
 	 * option then promise with index `0` is returned.
 	 */
 	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+
+	/**
+	 * Present the about dialog to the user.
+	 */
+	about(): Promise<void>;
 }
 
 export const IFileDialogService = createDecorator<IFileDialogService>('fileDialogService');
@@ -235,7 +240,6 @@ export interface IFileDialogService {
 	 * Shows a open file dialog and returns the chosen file URI.
 	 */
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
-
 }
 
 const MAX_CONFIRM_FILES = 10;

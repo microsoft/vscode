@@ -24,7 +24,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { DialogChannel } from 'vs/platform/dialogs/electron-browser/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer as ipc } from 'electron';

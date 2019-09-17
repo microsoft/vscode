@@ -68,6 +68,8 @@ import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IssueService } from 'vs/platform/issue/electron-browser/issueService';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-browser/menubarService';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { ElectronService } from 'vs/platform/electron/electron-browser/electronService';
 
 registerSingleton(IClipboardService, ClipboardService, true);
 registerSingleton(IRequestService, RequestService, true);
@@ -78,6 +80,7 @@ registerSingleton(IWindowsService, WindowsService);
 registerSingleton(IUpdateService, UpdateService);
 registerSingleton(IIssueService, IssueService);
 registerSingleton(IMenubarService, MenubarService);
+registerSingleton(IElectronService, ElectronService, true);
 
 //#endregion
 

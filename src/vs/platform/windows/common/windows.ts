@@ -167,7 +167,6 @@ export interface IWindowsService {
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): Promise<void>;
 
-	openAboutDialog(): Promise<void>;
 	resolveProxy(windowId: number, url: string): Promise<string | undefined>;
 }
 

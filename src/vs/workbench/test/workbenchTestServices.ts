@@ -402,6 +402,10 @@ export class TestDialogService implements IDialogService {
 	public show(_severity: Severity, _message: string, _buttons: string[], _options?: IDialogOptions): Promise<IShowResult> {
 		return Promise.resolve({ choice: 0 });
 	}
+
+	public about(): Promise<void> {
+		return Promise.resolve();
+	}
 }
 
 export class TestFileDialogService implements IFileDialogService {
@@ -1551,10 +1555,6 @@ export class TestWindowsService implements IWindowsService {
 
 	showOpenDialog(_windowId: number, _options: Electron.OpenDialogOptions): Promise<string[]> {
 		throw new Error('not implemented');
-	}
-
-	openAboutDialog(): Promise<void> {
-		return Promise.resolve();
 	}
 
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
