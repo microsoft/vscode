@@ -11,7 +11,7 @@ import { OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { LogLevelSetterChannelClient } from 'vs/platform/log/common/logIpc';
+import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/contrib/output/common/output';
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
@@ -79,9 +79,9 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 		super();
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-			const logLevelClient = new LogLevelSetterChannelClient(connection.getChannel('loglevel'));
-			logLevelClient.setLevel(logService.getLevel());
-			this._register(logService.onDidChangeLogLevel(level => logLevelClient.setLevel(level)));
+			const loggerClient = new LoggerChannelClient(connection.getChannel('logger'));
+			loggerClient.setLevel(logService.getLevel());
+			this._register(logService.onDidChangeLogLevel(level => loggerClient.setLevel(level)));
 		}
 	}
 }

@@ -26,7 +26,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogChannel } from 'vs/platform/dialogs/electron-browser/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
-import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer as ipc } from 'electron';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -229,7 +229,7 @@ class RemoteChannelsContribution implements IWorkbenchContribution {
 		if (connection) {
 			connection.registerChannel('dialog', new DialogChannel(dialogService));
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
+			connection.registerChannel('logger', new LoggerChannel(logService));
 		}
 	}
 }

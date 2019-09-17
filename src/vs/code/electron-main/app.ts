@@ -47,7 +47,7 @@ import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateServ
 import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IssueChannel } from 'vs/platform/issue/electron-main/issueIpc';
 import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
-import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
@@ -567,9 +567,9 @@ export class CodeApplication extends Disposable {
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));
 		electronIpcServer.registerChannel('storage', storageChannel);
 
-		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
-		electronIpcServer.registerChannel('loglevel', logLevelChannel);
-		sharedProcessClient.then(client => client.registerChannel('loglevel', logLevelChannel));
+		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
+		electronIpcServer.registerChannel('logger', loggerChannel);
+		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		// ExtensionHost Debug broadcast service
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ExtensionHostDebugBroadcastChannel());

@@ -336,24 +336,6 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		return this.windowsMainService.getWindows().length;
 	}
 
-	async log(severity: string, args: string[]): Promise<void> {
-		let consoleFn = console.log;
-
-		switch (severity) {
-			case 'error':
-				consoleFn = console.error;
-				break;
-			case 'warn':
-				consoleFn = console.warn;
-				break;
-			case 'info':
-				consoleFn = console.info;
-				break;
-		}
-
-		consoleFn.call(console, ...args);
-	}
-
 	async showItemInFolder(resource: URI): Promise<void> {
 		this.logService.trace('windowsService#showItemInFolder');
 
