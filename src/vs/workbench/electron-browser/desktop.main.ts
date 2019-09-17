@@ -51,8 +51,8 @@ import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { basename } from 'vs/base/common/resources';
-import { IProductService } from 'vs/platform/product/common/product';
-import product from 'vs/platform/product/node/product';
+import { IProductService } from 'vs/platform/product/common/productService';
+import product from 'vs/platform/product/common/product';
 
 class CodeRendererMain extends Disposable {
 

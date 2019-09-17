@@ -84,8 +84,8 @@ import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/n
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { NodeTextFileService } from 'vs/workbench/services/textfile/node/textFileService';
 import { Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/product';
-import product from 'vs/platform/product/node/product';
+import { IProductService } from 'vs/platform/product/common/productService';
+import product from 'vs/platform/product/common/product';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -401,6 +401,10 @@ export class TestDialogService implements IDialogService {
 
 	public show(_severity: Severity, _message: string, _buttons: string[], _options?: IDialogOptions): Promise<IShowResult> {
 		return Promise.resolve({ choice: 0 });
+	}
+
+	public about(): Promise<void> {
+		return Promise.resolve();
 	}
 }
 
@@ -1551,10 +1555,6 @@ export class TestWindowsService implements IWindowsService {
 
 	showOpenDialog(_windowId: number, _options: Electron.OpenDialogOptions): Promise<string[]> {
 		throw new Error('not implemented');
-	}
-
-	openAboutDialog(): Promise<void> {
-		return Promise.resolve();
 	}
 
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {

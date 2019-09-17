@@ -13,7 +13,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import pkg from 'vs/platform/product/node/package';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/common/console';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
@@ -24,7 +23,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
@@ -388,7 +387,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				const workspace = this._contextService.getWorkspace();
 				const r: IInitData = {
 					commit: product.commit,
-					version: pkg.version,
+					version: product.version,
 					parentPid: process.pid,
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,

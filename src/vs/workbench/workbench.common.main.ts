@@ -15,11 +15,15 @@ import 'vs/workbench/browser/workbench.contribution';
 
 //#region --- workbench actions
 
-import 'vs/workbench/browser/actions/layoutActions';
-import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/developerActions';
+import 'vs/workbench/browser/actions/helpActions';
+import 'vs/workbench/browser/actions/layoutActions';
 import 'vs/workbench/browser/actions/listCommands';
 import 'vs/workbench/browser/actions/navigationActions';
+import 'vs/workbench/browser/actions/windowActions';
+import 'vs/workbench/browser/actions/workspaceActions';
+import 'vs/workbench/browser/actions/workspaceCommands';
+
 import 'vs/workbench/browser/parts/quickopen/quickOpenActions';
 import 'vs/workbench/browser/parts/quickinput/quickInputActions';
 
@@ -75,8 +79,7 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
-import 'vs/workbench/services/userData/common/userDataSyncStoreService';
-import 'vs/workbench/services/userData/common/userDataSyncService';
+import 'vs/workbench/services/userData/common/settingsMergeService';
 import 'vs/workbench/services/workspace/browser/workspaceEditingService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -103,6 +106,9 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IUserDataSyncStoreService, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
@@ -116,6 +122,8 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
+registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
+registerSingleton(IUserDataSyncService, UserDataSyncService);
 
 //#endregion
 
@@ -229,8 +237,15 @@ import 'vs/workbench/contrib/update/browser/update.contribution';
 // Watermark
 import 'vs/workbench/contrib/watermark/browser/watermark';
 
+// Surveys
+import 'vs/workbench/contrib/surveys/browser/nps.contribution';
+import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
+
 // Welcome
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
+import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
+import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
+import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
 
 // Call Hierarchy
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';

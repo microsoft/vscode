@@ -17,8 +17,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import pkg from 'vs/platform/product/node/package';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
@@ -68,7 +67,7 @@ export class CachedExtensionScanner {
 	public async scanSingleExtension(path: string, isBuiltin: boolean, log: ILog): Promise<IExtensionDescription | null> {
 		const translations = await this.translationConfig;
 
-		const version = pkg.version;
+		const version = product.version;
 		const commit = product.commit;
 		const devMode = !!process.env['VSCODE_DEV'];
 		const locale = platform.language;
@@ -243,7 +242,7 @@ export class CachedExtensionScanner {
 		translations: Translations
 	): Promise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 
-		const version = pkg.version;
+		const version = product.version;
 		const commit = product.commit;
 		const devMode = !!process.env['VSCODE_DEV'];
 		const locale = platform.language;

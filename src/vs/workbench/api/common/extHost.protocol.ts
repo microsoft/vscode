@@ -46,7 +46,7 @@ import { ExtensionActivationError } from 'vs/workbench/services/extensions/commo
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUserData } from 'vs/workbench/services/userData/common/userData';
+import { IUserData } from 'vs/platform/userDataSync/common/userDataSync';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -147,7 +147,7 @@ export interface MainThreadConfigurationShape extends IDisposable {
 }
 
 export interface MainThreadUserDataShape extends IDisposable {
-	$registerUserDataProvider(name: string): void;
+	$registerUserDataProvider(id: string, name: string): void;
 	$deregisterUserDataProvider(): void;
 }
 
@@ -1204,6 +1204,7 @@ export interface ExtHostTaskShape {
 	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }, variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
 	$getDefaultShellAndArgs(): Thenable<{ shell: string, args: string[] | string | undefined }>;
+	$jsonTasksSupported(): Thenable<boolean>;
 }
 
 export interface IBreakpointDto {

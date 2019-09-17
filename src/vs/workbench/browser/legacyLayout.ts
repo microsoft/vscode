@@ -43,20 +43,20 @@ export class WorkbenchLegacyLayout extends Disposable implements IVerticalSashLa
 	private static readonly sashYHeightSettingsKey = 'workbench.panel.height';
 	private static readonly panelSizeBeforeMaximizedKey = 'workbench.panel.sizeBeforeMaximized';
 
-	private workbenchSize: Dimension;
+	private workbenchSize!: Dimension;
 
 	private sashXOne: Sash;
 	private sashXTwo: Sash;
 	private sashY: Sash;
 
-	private _sidebarWidth: number;
-	private sidebarHeight: number;
-	private titlebarHeight: number;
-	private statusbarHeight: number;
-	private panelSizeBeforeMaximized: number;
-	private panelMaximized: boolean;
-	private _panelHeight: number;
-	private _panelWidth: number;
+	private _sidebarWidth!: number;
+	private sidebarHeight!: number;
+	private titlebarHeight!: number;
+	private statusbarHeight!: number;
+	private panelSizeBeforeMaximized!: number;
+	private panelMaximized!: boolean;
+	private _panelHeight!: number;
+	private _panelWidth!: number;
 
 	constructor(
 		private parent: HTMLElement,

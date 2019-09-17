@@ -768,6 +768,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 
 		templateData.icon.style.backgroundImage = iconUrl ? DOM.asCSSUrl(iconUrl) : '';
+		templateData.icon.title = title ? title : '';
 		DOM.toggleClass(templateData.icon, 'custom-view-tree-node-item-icon', !!iconUrl);
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });

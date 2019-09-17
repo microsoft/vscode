@@ -18,7 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';

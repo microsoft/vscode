@@ -12,13 +12,14 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -26,7 +27,6 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { endsWith } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
-import pkg from 'vs/platform/product/node/package';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -310,7 +310,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private handleMarketplaceRequests(): void {
 
 		// Resolve marketplace headers
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(pkg.version, this.environmentService, this.fileService);
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentService, this.fileService);
 
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
@@ -561,7 +561,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			autoDetectHighContrast = false;
 		}
 		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
-		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
+		windowConfiguration.accessibilitySupport = app.accessibilitySupportEnabled;
 
 		// Title style related
 		windowConfiguration.maximized = this._win.isMaximized();

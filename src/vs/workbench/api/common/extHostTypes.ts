@@ -14,7 +14,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { UserDataSyncStoreErrorCode, markAsUserDataSyncStoreError } from 'vs/workbench/services/userData/common/userData';
+import { UserDataSyncStoreErrorCode, markAsUserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore

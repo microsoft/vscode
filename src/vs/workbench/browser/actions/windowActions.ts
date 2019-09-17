@@ -7,7 +7,8 @@ import 'vs/css!./media/actions';
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService, IURIToOpen, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -162,7 +163,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 	}
 }
 
-export class QuickOpenRecentAction extends BaseOpenRecentAction {
+class QuickOpenRecentAction extends BaseOpenRecentAction {
 
 	static readonly ID = 'workbench.action.quickOpenRecent';
 	static readonly LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
@@ -186,7 +187,7 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 	}
 }
 
-export class ToggleFullScreenAction extends Action {
+class ToggleFullScreenAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleFullScreen';
 	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
@@ -226,7 +227,7 @@ export class ReloadWindowAction extends Action {
 	}
 }
 
-export class ShowAboutDialogAction extends Action {
+class ShowAboutDialogAction extends Action {
 
 	static readonly ID = 'workbench.action.showAboutDialog';
 	static readonly LABEL = nls.localize('about', "About");
@@ -234,13 +235,13 @@ export class ShowAboutDialogAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		return this.windowsService.openAboutDialog();
+		return this.dialogService.about();
 	}
 }
 

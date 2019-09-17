@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { FeedbackDropdown, IFeedback, IFeedbackDelegate } from 'vs/workbench/contrib/feedback/browser/feedback';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarService, StatusbarAlignment, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/platform/statusbar/common/statusbar';
 import { localize } from 'vs/nls';

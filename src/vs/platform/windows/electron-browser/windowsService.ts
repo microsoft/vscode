@@ -250,10 +250,6 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('updateTouchBar', [windowId, items]);
 	}
 
-	openAboutDialog(): Promise<void> {
-		return this.channel.call('openAboutDialog');
-	}
-
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
 		return Promise.resolve(this.channel.call('resolveProxy', [windowId, url]));
 	}

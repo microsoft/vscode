@@ -14,7 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IURLService } from 'vs/platform/url/common/url';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { configureTrustedDomainSettingsCommand, toggleLinkProtection } from 'vs/workbench/contrib/url/common/trustedDomains';
+import { configureTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/common/trustedDomains';
 import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/common/trustedDomainsValidator';
 import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/common/trustedDomainsFileSystemProvider';
 
@@ -56,14 +56,6 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: configureTrustedDomainSettingsCommand.description.description
 	}
 });
-CommandsRegistry.registerCommand(toggleLinkProtection);
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: toggleLinkProtection.id,
-		title: toggleLinkProtection.description.description
-	}
-});
-
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	OpenerValidatorContributions,

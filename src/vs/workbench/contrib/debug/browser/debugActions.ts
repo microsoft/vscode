@@ -181,12 +181,12 @@ export class SelectAndStartAction extends AbstractDebugAction {
 	}
 }
 
-export class RemoveBreakpointAction extends AbstractDebugAction {
+export class RemoveBreakpointAction extends Action {
 	static readonly ID = 'workbench.debug.viewlet.action.removeBreakpoint';
 	static LABEL = nls.localize('removeBreakpoint', "Remove Breakpoint");
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action remove', debugService, keybindingService);
+	constructor(id: string, label: string, @IDebugService private readonly debugService: IDebugService) {
+		super(id, label, 'debug-action remove');
 	}
 
 	public run(breakpoint: IBreakpoint): Promise<any> {

@@ -8,24 +8,26 @@ import { basename, normalize, join, dirname } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
-import { IBackupMainService, IEmptyWindowBackupInfo } from 'vs/platform/backup/common/backup';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
+import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/common/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, FileFilter } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
-import { ILifecycleService, UnloadReason, LifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen, isFileToOpen, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { IHistoryMainService, IRecent } from 'vs/platform/history/common/history';
+import { IRecent } from 'vs/platform/history/common/history';
+import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
@@ -36,7 +38,7 @@ import { exists, dirExists } from 'vs/base/node/pfs';
 import { getComparisonKey, isEqual, normalizePath, basename as resourcesBasename, originalFSPath, hasTrailingPathSeparator, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/code/electron-main/windowsStateStorage';
-import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -186,7 +188,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		@ILogService private readonly logService: ILogService,
 		@IStateService private readonly stateService: IStateService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1362,7 +1364,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			window.win.on('closed', () => this.onWindowClosed(window!));
 
 			// Lifecycle
-			(this.lifecycleService as LifecycleService).registerWindow(window);
+			(this.lifecycleService as LifecycleMainService).registerWindow(window);
 		}
 
 		// Existing window

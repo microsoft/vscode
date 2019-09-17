@@ -6,7 +6,7 @@
 import { URI as uri } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { CompletionItem } from 'vs/editor/common/modes';
@@ -132,6 +132,11 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+
+	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]> {
+		throw new Error('Method not implemented.');
+	}
+
 	dataBreakpointInfo(name: string, variablesReference?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined; }> {
 		throw new Error('Method not implemented.');
 	}

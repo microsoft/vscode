@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';

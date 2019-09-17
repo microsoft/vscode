@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join, dirname } from 'vs/base/common/path';
 import { mkdirp, writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
@@ -18,10 +18,36 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { originalFSPath, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
 	remoteAuthority?: string;
+}
+
+export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
+
+export interface IWorkspacesMainService {
+
+	_serviceBrand: undefined;
+
+	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
+
+	createUntitledWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
+
+	resolveLocalWorkspaceSync(path: URI): IResolvedWorkspace | null;
+
+	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
+
+	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
+
+	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[];
+
+	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
+
+	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
+
+	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 }
 
 export class WorkspacesMainService extends Disposable implements IWorkspacesMainService {

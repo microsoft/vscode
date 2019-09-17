@@ -6,15 +6,17 @@
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { IFileSystemProvider } from 'vs/platform/files/common/files';
-import { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
+import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, FileChangeType } from 'vs/platform/files/common/files';
+import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
+import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
-export interface IWorkbenchConstructionOptions {
+interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Experimental: the remote authority is the IP:PORT from where the workbench is served
@@ -36,12 +38,12 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * Experimental: An optional folder that is set as workspace context for the workbench.
 	 */
-	folderUri?: UriComponents;
+	folderUri?: URI;
 
 	/**
 	 * Experimental: An optional workspace that is set as workspace context for the workbench.
 	 */
-	workspaceUri?: UriComponents;
+	workspaceUri?: URI;
 
 	/**
 	 * Experimental: The userDataProvider is used to handle user specific application
@@ -57,7 +59,7 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * A provider for resource URIs.
 	 */
-	resourceUriProvider?: (uri: URI) => UriComponents;
+	resourceUriProvider?: (uri: URI) => URI;
 
 	/**
 	 * Experimental: Whether to enable the smoke test driver.
@@ -72,7 +74,7 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * Experimental: Add static extensions that cannot be uninstalled but only be disabled.
 	 */
-	staticExtensions?: { packageJSON: IExtensionManifest, extensionLocation: UriComponents }[];
+	staticExtensions?: { packageJSON: IExtensionManifest, extensionLocation: URI }[];
 
 	/**
 	 * Experimental: Support for URL callbacks.
@@ -101,5 +103,42 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 }
 
 export {
-	create
+
+	// Factory
+	create,
+	IWorkbenchConstructionOptions,
+
+	// Basic Types
+	URI,
+	UriComponents,
+	Event,
+	Emitter,
+	IDisposable,
+	Disposable,
+
+	// FileSystem
+	IFileSystemProvider,
+	FileSystemProviderCapabilities,
+	IFileChange,
+	FileChangeType,
+
+	// WebSockets
+	IWebSocketFactory,
+	IWebSocket,
+
+	// Credentials
+	ICredentialsProvider,
+
+	// Static Extensions
+	IExtensionManifest,
+
+	// Callbacks
+	IURLCallbackProvider,
+
+	// LogLevel
+	LogLevel,
+
+	// Updates
+	IUpdateProvider,
+	IUpdate
 };
