@@ -30,6 +30,6 @@ exports.collectModules = function () {
 
 		createModuleDescription('vs/workbench/services/extensions/node/extensionHostProcess', []),
 
-		createModuleDescription('vs/workbench/contrib/terminal/node/ptyHostProcess', [])
+		createModuleDescription('vs/workbench/contrib/terminal/node/terminalPtyHostProcess', [])
 	];
 };

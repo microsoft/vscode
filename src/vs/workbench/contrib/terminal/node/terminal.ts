@@ -172,3 +172,9 @@ async function getShellPathFromRegistry(shellName: string): Promise<string> {
 		return '';
 	}
 }
+
+export interface IPtyInitData {
+	cwd: string;
+	executable: string;
+	parentPid: number;
+}

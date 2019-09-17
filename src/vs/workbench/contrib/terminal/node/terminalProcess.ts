@@ -19,6 +19,8 @@ import { findExecutable } from 'vs/workbench/contrib/terminal/node/terminalEnvir
 import { URI } from 'vs/base/common/uri';
 import { ForkOptions } from 'vs/base/node/processes';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { TerminalPty } from 'vs/workbench/contrib/terminal/node/terminalPty';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	private _exitCode: number | undefined;
@@ -115,11 +117,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
 
+
+		// OLD WAY:
+
 		const o: ForkOptions = {
 			cwd: URI.parse(__dirname).fsPath,
 			env: {
 				...options.env, ...{
-					AMD_ENTRYPOINT: 'vs/workbench/contrib/terminal/node/ptyHostProcess',
+					AMD_ENTRYPOINT: 'vs/workbench/contrib/terminal/node/terminalPtyHostProcess',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: 'true'
 				}
@@ -133,8 +138,33 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		});
 		p.on('exit', e => console.log('exit', e));
 		p.on('error', e => console.log('error', e));
+		// p.on(
+		console.log('isconnected?', p.connected);
+		// setTimeout(() => {
+		p.send({
+			type: 'start',
+			executable: 'b',
+			cwd: 'a'
+		});
+		// }, 1000);
 		console.log(p, p.pid);
 
+
+
+		// EXT HOST WAY:
+
+		const tpty = new TerminalPty();
+		tpty.start()!.then(protocol => {
+			console.log('protocol', protocol);
+			protocol.onMessage(e => console.log('message from host process: ' + e.toString()));
+			const msg = VSBuffer.wrap(Buffer.from('hello world', 'base64'));
+			console.log('sending message: ', msg);
+			protocol.send(msg);
+		});
+
+
+
+		// CURRENT:
 
 		const args = shellLaunchConfig.args || [];
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
