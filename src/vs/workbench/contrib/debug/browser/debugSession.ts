@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromString } from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
@@ -34,6 +34,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { distinct } from 'vs/base/common/arrays';
 
 export class DebugSession implements IDebugSession {
 
@@ -284,15 +285,7 @@ export class DebugSession implements IDebugSession {
 			return Promise.resolve(undefined);
 		}
 
-		const source = this.getSourceForUri(modelUri);
-		let rawSource: DebugProtocol.Source;
-		if (source) {
-			rawSource = source.raw;
-		} else {
-			const data = Source.getEncodedDebugData(modelUri);
-			rawSource = { name: data.name, path: data.path, sourceReference: data.sourceReference };
-		}
-
+		const rawSource = this.getRawSource(modelUri);
 		if (breakpointsToSend.length && !rawSource.adapterData) {
 			rawSource.adapterData = breakpointsToSend[0].adapterData;
 		}
@@ -372,6 +365,17 @@ export class DebugSession implements IDebugSession {
 				});
 			}
 			return Promise.resolve(undefined);
+		}
+		return Promise.reject(new Error('no debug adapter'));
+	}
+
+	async breakpointsLocations(uri: URI, lineNumber: number): Promise<IPosition[]> {
+		if (this.raw) {
+			const source = this.getRawSource(uri);
+			const response = await this.raw.breakpointLocations({ source, line: lineNumber });
+			const positions = response.body.breakpoints.map(bp => ({ lineNumber: bp.line, column: bp.column || 1 }));
+
+			return distinct(positions, p => p.toString());
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}
@@ -912,6 +916,16 @@ export class DebugSession implements IDebugSession {
 		}
 
 		return source;
+	}
+
+	private getRawSource(uri: URI): DebugProtocol.Source {
+		const source = this.getSourceForUri(uri);
+		if (source) {
+			return source.raw;
+		} else {
+			const data = Source.getEncodedDebugData(uri);
+			return { name: data.name, path: data.path, sourceReference: data.sourceReference };
+		}
 	}
 
 	private getNewCancellationToken(threadId: number): CancellationToken {
