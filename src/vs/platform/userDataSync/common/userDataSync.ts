@@ -58,6 +58,7 @@ export class UserDataSyncStoreError extends Error {
 }
 
 export interface IUserDataSyncStore {
+	readonly id: string;
 	readonly name: string;
 	read(key: string): Promise<IUserData | null>;
 	write(key: string, content: string, ref: string | null): Promise<string>;
