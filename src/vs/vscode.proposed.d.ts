@@ -820,12 +820,6 @@ declare module 'vscode' {
 	//#region Tree View
 
 	export interface TreeView<T> {
-
-		/**
-		 * An optional human-readable message that will be rendered in the view.
-		 */
-		message?: string;
-
 		/**
 		 * The name of the tree view. It is set from the extension package.json and can be changed later.
 		 */
