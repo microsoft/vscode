@@ -557,7 +557,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.textFileService.read(workspaceConfig)
 				.then(content => {
 					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
-						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(undefined, () => { });
+						return this.jsonEditingService.write(resource, [{ key: 'settings', value: {} }], true).then(undefined, () => { });
 					}
 					return undefined;
 				});

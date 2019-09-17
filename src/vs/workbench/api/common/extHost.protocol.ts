@@ -46,6 +46,7 @@ import { ExtensionActivationError } from 'vs/workbench/services/extensions/commo
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUserData } from 'vs/platform/userDataSync/common/userDataSync';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -87,6 +88,7 @@ export interface IInitData {
 	logsLocation: URI;
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; };
+	uiKind: UIKind;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -103,6 +105,11 @@ export interface IExtHostContext extends IRPCProtocol {
 }
 
 export interface IMainContext extends IRPCProtocol {
+}
+
+export enum UIKind {
+	Desktop = 1,
+	Web = 2
 }
 
 // --- main thread
@@ -137,6 +144,11 @@ export interface MainThreadCommentsShape extends IDisposable {
 export interface MainThreadConfigurationShape extends IDisposable {
 	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, resource: UriComponents | undefined): Promise<void>;
 	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, resource: UriComponents | undefined): Promise<void>;
+}
+
+export interface MainThreadUserDataShape extends IDisposable {
+	$registerUserDataProvider(name: string): void;
+	$deregisterUserDataProvider(): void;
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
@@ -567,6 +579,7 @@ export interface ExtHostWebviewsShape {
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+	$save(handle: WebviewPanelHandle): Promise<boolean>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -743,6 +756,11 @@ export interface ExtHostCommandsShape {
 export interface ExtHostConfigurationShape {
 	$initializeConfiguration(data: IConfigurationInitData): void;
 	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData): void;
+}
+
+export interface ExtHostUserDataShape {
+	$read(key: string): Promise<IUserData | null>;
+	$write(key: string, content: string, ref: string): Promise<string>;
 }
 
 export interface ExtHostDiagnosticsShape {
@@ -1186,6 +1204,7 @@ export interface ExtHostTaskShape {
 	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }, variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
 	$getDefaultShellAndArgs(): Thenable<{ shell: string, args: string[] | string | undefined }>;
+	$jsonTasksSupported(): Thenable<boolean>;
 }
 
 export interface IBreakpointDto {
@@ -1317,6 +1336,7 @@ export const MainContext = {
 	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
+	MainThreadUserData: createMainId<MainThreadUserDataShape>('MainThreadUserData'),
 	MainThreadConsole: createMainId<MainThreadConsoleShape>('MainThreadConsole'),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
@@ -1356,6 +1376,7 @@ export const MainContext = {
 export const ExtHostContext = {
 	ExtHostCommands: createExtId<ExtHostCommandsShape>('ExtHostCommands'),
 	ExtHostConfiguration: createExtId<ExtHostConfigurationShape>('ExtHostConfiguration'),
+	ExtHostUserData: createExtId<ExtHostUserDataShape>('ExtHostUserData'),
 	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
 	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService'),
 	ExtHostDecorations: createExtId<ExtHostDecorationsShape>('ExtHostDecorations'),

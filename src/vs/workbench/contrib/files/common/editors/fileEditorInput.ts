@@ -111,7 +111,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
-		this.forceOpenAs = ForceOpenAs.Text; // encoding is a good hint to open the file as text
+		this.setForceOpenAsText(); // encoding is a good hint to open the file as text
 	}
 
 	getPreferredMode(): string | undefined {
@@ -129,7 +129,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	setPreferredMode(mode: string): void {
 		this.preferredMode = mode;
-		this.forceOpenAs = ForceOpenAs.Text; // mode is a good hint to open the file as text
+		this.setForceOpenAsText(); // mode is a good hint to open the file as text
 	}
 
 	setForceOpenAsText(): void {
@@ -165,21 +165,15 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
-		let description: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				description = this.shortDescription;
-				break;
+				return this.shortDescription;
 			case Verbosity.LONG:
-				description = this.longDescription;
-				break;
+				return this.longDescription;
 			case Verbosity.MEDIUM:
 			default:
-				description = this.mediumDescription;
-				break;
+				return this.mediumDescription;
 		}
-
-		return description;
 	}
 
 	@memoize
@@ -198,24 +192,16 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	getTitle(verbosity: Verbosity): string {
-		let title: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				title = this.shortTitle;
 				// already decorated by getName()
-				break;
+				return this.shortTitle;
 			default:
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle;
-				title = this.decorateLabel(title);
-				break;
+				return this.decorateLabel(this.mediumTitle);
 			case Verbosity.LONG:
-				title = this.longTitle;
-				title = this.decorateLabel(title);
-				break;
+				return this.decorateLabel(this.longTitle);
 		}
-
-		return title;
 	}
 
 	private decorateLabel(label: string): string {

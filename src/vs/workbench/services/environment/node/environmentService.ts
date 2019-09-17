@@ -12,10 +12,16 @@ import { Schemas } from 'vs/base/common/network';
 import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
 import { join } from 'vs/base/common/path';
 import { IDebugParams } from 'vs/platform/environment/common/environment';
+import product from 'vs/platform/product/common/product';
 
 export class WorkbenchEnvironmentService extends EnvironmentService implements IWorkbenchEnvironmentService {
 
 	_serviceBrand: undefined;
+
+	get webviewExternalEndpoint(): string {
+		const baseEndpoint = 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
+		return baseEndpoint.replace('{{commit}}', product.commit || '211fa02efe8c041fd7baa8ec3dce199d5185aa44');
+	}
 
 	readonly webviewResourceRoot = 'vscode-resource:{{resource}}';
 	readonly webviewCspSource = 'vscode-resource:';

@@ -41,8 +41,7 @@ export class ExtHostWebview implements vscode.Webview {
 
 	public get cspSource(): string {
 		return this._initData.webviewCspSource
-			.replace('{{uuid}}', this._handle)
-			.replace('{{commit}}', this._initData.commit || '211fa02efe8c041fd7baa8ec3dce199d5185aa44');
+			.replace('{{uuid}}', this._handle);
 	}
 
 	public get html(): string {
@@ -222,6 +221,18 @@ export class ExtHostWebviewEditor implements vscode.WebviewEditor {
 	public set state(newState: vscode.WebviewEditorState) {
 		this._state = newState;
 		this._proxy.$setState(this._handle, typeConverters.WebviewEditorState.from(newState));
+	}
+
+	private readonly _onWillSave = new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>();
+	public readonly onWillSave = this._onWillSave.event;
+
+	async _save(): Promise<boolean> {
+		const waitingOn: Thenable<boolean>[] = [];
+		this._onWillSave.fire({
+			waitUntil: (thenable: Thenable<boolean>): void => { waitingOn.push(thenable); },
+		});
+		const result = await Promise.all(waitingOn);
+		return result.every(x => x);
 	}
 
 	public postMessage(message: any): Promise<boolean> {
@@ -422,6 +433,13 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return Promise.resolve(provider.resolveWebviewEditor(URI.revive(resource), revivedPanel));
 	}
 
+	async $save(handle: WebviewPanelHandle): Promise<boolean> {
+		const panel = this.getWebviewPanel(handle);
+		if (panel) {
+			return panel._save();
+		}
+		return false;
+	}
 }
 
 function convertWebviewOptions(

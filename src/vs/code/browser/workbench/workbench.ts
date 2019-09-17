@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create } from 'vs/workbench/workbench.web.api';
-import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { IWorkbenchConstructionOptions, create, URI, Event, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider } from 'vs/workbench/workbench.web.api';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { request } from 'vs/base/parts/request/browser/request';
-import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 
 interface ICredential {
 	service: string;
@@ -24,7 +20,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
 
-	private _credentials: ICredential[];
+	private _credentials!: ICredential[];
 	private get credentials(): ICredential[] {
 		if (!this._credentials) {
 			try {
@@ -204,5 +200,13 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 const options: IWorkbenchConstructionOptions = JSON.parse(document.getElementById('vscode-workbench-web-configuration')!.getAttribute('data-settings')!);
 options.urlCallbackProvider = new PollingURLCallbackProvider();
 options.credentialsProvider = new LocalStorageCredentialsProvider();
+
+if (options.folderUri) {
+	options.folderUri = URI.revive(options.folderUri);
+}
+
+if (options.workspaceUri) {
+	options.workspaceUri = URI.revive(options.workspaceUri);
+}
 
 create(document.body, options);

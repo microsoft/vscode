@@ -71,7 +71,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		}
 	}
 
-	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void {
+	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): number {
 		const request: any = {
 			command: command
 		};
@@ -101,6 +101,8 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 			// store callback for this request
 			this.pendingRequests.set(request.seq, clb);
 		}
+
+		return request.seq;
 	}
 
 	acceptMessage(message: DebugProtocol.ProtocolMessage): void {
@@ -137,7 +139,11 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		this.sendMessage(message);
 	}
 
-	async cancelPendingRequests(): Promise<void> {
+	protected async cancelPendingRequests(): Promise<void> {
+		if (this.pendingRequests.size === 0) {
+			return Promise.resolve();
+		}
+
 		const pending = new Map<number, (e: DebugProtocol.Response) => void>();
 		this.pendingRequests.forEach((value, key) => pending.set(key, value));
 		await timeout(500);

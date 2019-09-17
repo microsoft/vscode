@@ -33,15 +33,14 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
+import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { URI } from 'vs/base/common/uri';
-import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
-import { IWorkspacesMainService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { WorkspacesChannel } from 'vs/platform/workspaces/electron-main/workspacesIpc';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
@@ -70,7 +69,7 @@ import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainSe
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { URLService } from 'vs/platform/url/node/urlService';
-import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { statSync } from 'fs';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
@@ -258,7 +257,7 @@ export class CodeApplication extends Disposable {
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', async (event: Event) => {
+		ipc.on('vscode:fetchShellEnv', async (event: Electron.IpcMainEvent) => {
 			const webContents = event.sender;
 
 			try {
@@ -275,10 +274,10 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:toggleDevTools', (event: Event) => event.sender.toggleDevTools());
-		ipc.on('vscode:openDevTools', (event: Event) => event.sender.openDevTools());
+		ipc.on('vscode:toggleDevTools', (event: Electron.IpcMainEvent) => event.sender.toggleDevTools());
+		ipc.on('vscode:openDevTools', (event: Electron.IpcMainEvent) => event.sender.openDevTools());
 
-		ipc.on('vscode:reloadWindow', (event: Event) => event.sender.reload());
+		ipc.on('vscode:reloadWindow', (event: Electron.IpcMainEvent) => event.sender.reload());
 
 		// Some listeners after window opened
 		(async () => {
@@ -474,7 +473,7 @@ export class CodeApplication extends Disposable {
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('telemetryAppender')));
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
-			const commonProperties = resolveCommonProperties(product.commit, pkg.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
+			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
 			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, trueMachineId };
 

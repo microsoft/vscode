@@ -448,7 +448,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			}
 		}
 
-		return this.jsonEditingService.write(toWorkspace.configPath, { key: 'settings', value: targetWorkspaceConfiguration }, true);
+		return this.jsonEditingService.write(toWorkspace.configPath, [{ key: 'settings', value: targetWorkspaceConfiguration }], true);
 	}
 
 	private getCurrentWorkspaceIdentifier(): IWorkspaceIdentifier | undefined {

@@ -1011,16 +1011,68 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// #region Ben - UIKind
+
+	/**
+	 * Possible kinds of UI that can use extensions.
+	 */
+	export enum UIKind {
+
+		/**
+		 * Extensions are accessed from a desktop application.
+		 */
+		Desktop = 1,
+
+		/**
+		 * Extensions are accessed from a web browser.
+		 */
+		Web = 2
+	}
+
+	export namespace env {
+
+		/**
+		 * The UI kind property indicates from which UI extensions
+		 * are accessed from. For example, extensions could be accessed
+		 * from a desktop application or a web browser.
+		 */
+		export const uiKind: UIKind;
+	}
+
+	//#endregion
+
 	//#region Custom editors, mjbvz
 
 	export enum WebviewEditorState {
+		/**
+		 * The webview editor's content cannot be modified.
+		 *
+		 * This disables save
+		 */
 		Readonly = 1,
+
+		/**
+		 * The webview editor's content has not been changed but they can be modified and saved.
+		 */
 		Unchanged = 2,
+
+		/**
+		 * The webview editor's content has been changed and can be saved.
+		 */
 		Dirty = 3,
 	}
 
 	export interface WebviewEditor extends WebviewPanel {
 		state: WebviewEditorState;
+
+		/**
+		 * Fired when the webview editor is saved.
+		 *
+		 * Both `Unchanged` and `Dirty` editors can be saved.
+		 *
+		 * Extensions should call `waitUntil` to signal when the save operation complete
+		 */
+		readonly onWillSave: Event<{ waitUntil: (thenable: Thenable<boolean>) => void }>;
 	}
 
 	export interface WebviewEditorProvider {
@@ -1040,6 +1092,61 @@ declare module 'vscode' {
 			viewType: string,
 			provider: WebviewEditorProvider,
 		): Disposable;
+	}
+
+	//#endregion
+
+	// #region Sandy - User data synchronization
+
+	export namespace window {
+
+		/**
+		 * Register an [UserDataSyncProvider](#UserDataSyncProvider) to read and write user data.
+		 * @param name Name of the user data sync provider
+		 * @param userDataSyncProvider [UserDataSyncProvider](#UserDataSyncProvider) to read and write user data
+		 */
+		export function registerUserDataSyncProvider(name: string, userDataSyncProvider: UserDataSyncProvider): Disposable;
+
+	}
+
+	export class UserDataError extends Error {
+
+		/**
+		 * Create an error to signal that writing user data with given ref is rejected, becase of new ref.
+		 */
+		static Rejected(): FileSystemError;
+
+		/**
+		 * Creates a new userData error.
+		 */
+		constructor();
+	}
+
+	/**
+	 * User data sync provider to read and write user data.
+	 */
+	export interface UserDataSyncProvider {
+
+		/**
+		 * Reads the content and its ref for the given key.
+		 * Return <code>null</code> if key does not exists.
+		 *
+		 * @param key key of the content to read
+		 * @returns the content and its ref for the given key. Return <code>null</code> if key does not exists.
+		 */
+		read(key: string): Promise<{ content: string, ref: string } | null>;
+
+		/**
+		 * Writes the new content based on the given ref for the given key.
+		 *
+		 * @param key key of the content to write
+		 * @param content new content to write
+		 * @param ref ref of the content on which the content to write is based on
+		 * @throws [Rejected](#UserDataError.Rejected) if the ref is not the latest.
+		 * @returns the latest ref of the content.
+		 */
+		write(key: string, content: string, ref: string | null): Promise<string>;
+
 	}
 
 	//#endregion

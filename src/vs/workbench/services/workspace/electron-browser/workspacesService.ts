@@ -7,6 +7,7 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { URI } from 'vs/base/common/uri';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class WorkspacesService implements IWorkspacesService {
 
@@ -30,3 +31,5 @@ export class WorkspacesService implements IWorkspacesService {
 		return this.channel.call('getWorkspaceIdentifier', configPath).then(reviveWorkspaceIdentifier);
 	}
 }
+
+registerSingleton(IWorkspacesService, WorkspacesService, true);
