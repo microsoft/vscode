@@ -6,15 +6,15 @@
 import 'vs/css!./media/style';
 
 import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { iconDefault, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	// Icon defaults
-	const iconDefaultColor = theme.getColor(iconDefault);
-	if (iconDefaultColor) {
-		collector.addRule(`.monaco-workbench .codicon { color: ${iconDefaultColor}; }`);
+	const iconForegroundColor = theme.getColor(iconForeground);
+	if (iconForegroundColor) {
+		collector.addRule(`.monaco-workbench .codicon { color: ${iconForegroundColor}; }`);
 	}
 
 	// Foreground

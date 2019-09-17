@@ -43,7 +43,7 @@ export class ClearAllNotificationsAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'clear-all-notifications-action');
+		super(id, label, 'codicon-clear-all');
 	}
 
 	run(notification: INotificationViewItem): Promise<any> {
@@ -63,7 +63,7 @@ export class HideNotificationsCenterAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'hide-all-notifications-action');
+		super(id, label, 'codicon-chevron-down');
 	}
 
 	run(notification: INotificationViewItem): Promise<any> {
