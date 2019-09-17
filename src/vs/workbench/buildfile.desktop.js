@@ -29,5 +29,7 @@ exports.collectModules = function () {
 		createModuleDescription('vs/platform/files/node/watcher/nsfw/watcherApp', []),
 
 		createModuleDescription('vs/workbench/services/extensions/node/extensionHostProcess', []),
+
+		createModuleDescription('vs/workbench/contrib/terminal/node/ptyHostProcess', [])
 	];
 };

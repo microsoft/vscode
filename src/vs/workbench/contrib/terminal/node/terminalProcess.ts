@@ -12,11 +12,13 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IShellLaunchConfig, ITerminalChildProcess, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE } from 'vs/workbench/contrib/terminal/common/terminal';
-import { exec } from 'child_process';
+import { exec, fork } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { stat } from 'vs/base/node/pfs';
 import { findExecutable } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
+import { ForkOptions } from 'vs/base/node/processes';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	private _exitCode: number | undefined;
@@ -112,6 +114,28 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
+
+		const o: ForkOptions = {
+			cwd: URI.parse(__dirname).fsPath,
+			env: {
+				...options.env, ...{
+					AMD_ENTRYPOINT: 'vs/workbench/contrib/terminal/node/ptyHostProcess',
+					PIPE_LOGGING: 'true',
+					VERBOSE_LOGGING: 'true'
+				}
+			}
+		};
+
+		console.log('creating terminal process', URI.parse(require.toUrl('bootstrap')).fsPath, o);
+		const p = fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=terminal'], o);
+		p.on('message', e => {
+			console.log('message: ', e);
+		});
+		p.on('exit', e => console.log('exit', e));
+		p.on('error', e => console.log('error', e));
+		console.log(p, p.pid);
+
+
 		const args = shellLaunchConfig.args || [];
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = pty.spawn(shellLaunchConfig.executable!, args, options);
