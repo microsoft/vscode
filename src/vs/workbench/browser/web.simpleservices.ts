@@ -454,49 +454,6 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
-
-		// we pass the "ParsedArgs" as query parameters of the URL
-
-		let newAddress = `${document.location.origin}/?`;
-		let gotFolder = false;
-
-		const addQueryParameter = (key: string, value: string) => {
-			const lastChar = newAddress.charAt(newAddress.length - 1);
-			if (lastChar !== '?' && lastChar !== '&') {
-				newAddress += '&';
-			}
-			newAddress += `${key}=${encodeURIComponent(value)}`;
-		};
-
-		const f = args['folder-uri'];
-		if (f) {
-			const u = URI.parse(f[0]);
-			gotFolder = true;
-			addQueryParameter('folder', u.path);
-		}
-		if (!gotFolder) {
-			// request empty window
-			addQueryParameter('ew', 'true');
-		}
-
-		const ep = args['extensionDevelopmentPath'];
-		if (ep) {
-			let u = ep[0];
-			addQueryParameter('edp', u);
-		}
-
-		const di = args['debugId'];
-		if (di) {
-			addQueryParameter('di', di);
-		}
-
-		const ibe = args['inspect-brk-extensions'];
-		if (ibe) {
-			addQueryParameter('ibe', ibe);
-		}
-
-		window.open(newAddress);
-
 		return Promise.resolve();
 	}
 

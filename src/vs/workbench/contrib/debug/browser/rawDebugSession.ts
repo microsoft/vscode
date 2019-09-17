@@ -13,7 +13,7 @@ import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { env as processEnv } from 'vs/base/common/process';
@@ -79,7 +79,7 @@ export class RawDebugSession implements IDisposable {
 		dbgr: IDebugger,
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
-		private readonly windowsService: IWindowsService,
+		private readonly extensionHostDebugService: IExtensionHostDebugService,
 		private readonly openerService: IOpenerService
 
 	) {
@@ -632,7 +632,7 @@ export class RawDebugSession implements IDisposable {
 			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
 		}
 
-		return this.windowsService.openExtensionDevelopmentHostWindow(args, env);
+		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, env);
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R> {
