@@ -156,6 +156,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
 
 	constructor(
+		private viewModelProvider: () => ViewModel,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
 		private getSelectedResources: () => ISCMResource[],
@@ -192,9 +193,11 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 
 		const uri = ResourceTree.isBranchNode(resource) ? URI.file(resource.path) : resource.sourceUri;
 		const fileKind = ResourceTree.isBranchNode(resource) ? FileKind.FOLDER : FileKind.FILE;
+		const viewModel = this.viewModelProvider();
+
 		template.fileLabel.setFile(uri, {
 			fileDecorations: { colors: false, badges: !icon },
-			hidePath: true,
+			hidePath: viewModel.mode === ViewModelMode.Tree,
 			fileKind,
 			matches: createMatches(node.filterData)
 		});
@@ -630,7 +633,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const renderers = [
 			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
-			new ResourceRenderer(this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
+			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
 		];
 
 		const filter = new SCMTreeFilter();
