@@ -339,7 +339,6 @@ interface IGroupItem {
 	readonly group: ISCMResourceGroup;
 	readonly resources: ISCMResource[];
 	readonly tree: ResourceTree<ISCMResource>;
-	// visible: boolean;
 	readonly disposable: IDisposable;
 }
 
@@ -622,10 +621,10 @@ export class RepositoryPanel extends ViewletPanel {
 			.filter(e => !!e && !isBranchNode(e) && isSCMResource(e))
 			.on(this.open, this));
 
-		// this._register(Event.chain(this.tree.onPin)
-		// 	.map(e => e.elements[0])
-		// 	.filter(e => !!e && isSCMResource(e))
-		// 	.on(this.pin, this));
+		this._register(Event.chain(this.tree.onDidPin)
+			.map(e => e.elements[0])
+			.filter(e => !!e && !isBranchNode(e) && isSCMResource(e))
+			.on(this.pin, this));
 
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
@@ -706,12 +705,13 @@ export class RepositoryPanel extends ViewletPanel {
 		e.open();
 	}
 
-	// private pin(): void {
-	// 	const activeControl = this.editorService.activeControl;
-	// 	if (activeControl) {
-	// 		activeControl.group.pinEditor(activeControl.input);
-	// 	}
-	// }
+	private pin(): void {
+		const activeControl = this.editorService.activeControl;
+
+		if (activeControl) {
+			activeControl.group.pinEditor(activeControl.input);
+		}
+	}
 
 	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
 		if (!e.element) {
