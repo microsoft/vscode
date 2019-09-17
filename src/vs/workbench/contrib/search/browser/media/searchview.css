@@ -33,6 +33,7 @@
 .search-view .search-widget .monaco-inputbox > .wrapper > textarea.input {
 	padding: 3px;
 	padding-left: 4px;
+	padding-right: 22px;
 }
 
 .search-view .search-widget .monaco-inputbox > .wrapper > .mirror {
