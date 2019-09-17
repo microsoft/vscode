@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, USER_DATA_PREVIEW_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -16,7 +16,6 @@ import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/acti
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
-import { timeout } from 'vs/base/common/async';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { URI } from 'vs/base/common/uri';
 import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
@@ -25,8 +24,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IFileService } from 'vs/platform/files/common/files';
-import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isEqual } from 'vs/base/common/resources';
 
 const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 
@@ -46,39 +45,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		}
 	});
 
-class UserDataSyncContribution extends Disposable implements IWorkbenchContribution {
-
-	constructor(
-		@IFileService fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-	) {
-		super();
-		this._register(fileService.registerProvider(USER_DATA_PREVIEW_SCHEME, new InMemoryFileSystemProvider()));
-		this.sync(true);
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('userConfiguration.enableSync') && this.configurationService.getValue<boolean>('userConfiguration.enableSync'))
-			(() => this.sync(true)));
-
-		// Sync immediately if there is a local change.
-		this._register(Event.debounce(this.userDataSyncService.onDidChangeLocal, () => undefined, 500)(() => this.sync(false)));
-	}
-
-	private async sync(loop: boolean): Promise<void> {
-		if (this.configurationService.getValue<boolean>('userConfiguration.enableSync')) {
-			try {
-				await this.userDataSyncService.sync();
-			} catch (e) {
-				// Ignore errors
-			}
-			if (loop) {
-				await timeout(1000 * 5); // Loop sync for every 5s.
-				this.sync(loop);
-			}
-		}
-	}
-
-}
-
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userData/browser/media/sync-push-light.svg`));
 const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userData/browser/media/sync-push-dark.svg`));
 class SyncActionsContribution extends Disposable implements IWorkbenchContribution {
@@ -96,6 +62,7 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IHistoryService private readonly historyService: IHistoryService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
@@ -142,17 +109,14 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 
 	private async continueSync(): Promise<void> {
 		// Get the preview editor
-		const editorInput = this.editorService.editors.filter(input => {
-			const resource = input.getResource();
-			return resource && resource.scheme === USER_DATA_PREVIEW_SCHEME;
-		})[0];
+		const editorInput = this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource))[0];
 		// Save the preview
 		if (editorInput && editorInput.isDirty()) {
 			await this.textFileService.save(editorInput.getResource()!);
 		}
 		try {
 			// Continue Sync
-			await this.userDataSyncService.continueSync();
+			await this.userDataSyncService.sync(true);
 		} catch (error) {
 			this.notificationService.error(error);
 			return;
@@ -164,10 +128,9 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 	}
 
 	private async handleConflicts(): Promise<void> {
-		const resource = this.userDataSyncService.conflicts;
-		if (resource) {
+		if (this.userDataSyncService.conflictsSource === SyncSource.Settings ) {
 			const resourceInput = {
-				resource,
+				resource: this.workbenchEnvironmentService.settingsSyncPreviewResource,
 				options: {
 					preserveFocus: false,
 					pinned: false,
@@ -237,11 +200,10 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			},
 			group: 'navigation',
 			order: 1,
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Scheme.isEqualTo(USER_DATA_PREVIEW_SCHEME)),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Resource.isEqualTo(this.workbenchEnvironmentService.settingsSyncPreviewResource.toString())),
 		});
 	}
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(SyncActionsContribution, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncContribution, LifecyclePhase.Eventually);

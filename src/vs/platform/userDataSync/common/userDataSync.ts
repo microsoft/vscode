@@ -5,7 +5,6 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
 
 export interface IUserData {
 	ref: string;
@@ -41,6 +40,10 @@ export interface IUserDataSyncStoreService {
 	write(key: string, content: string, ref: string | null): Promise<string>;
 }
 
+export enum SyncSource {
+	Settings = 1,
+	Extensions
+}
 
 export enum SyncStatus {
 	Uninitialized = 'uninitialized',
@@ -49,24 +52,20 @@ export enum SyncStatus {
 	HasConflicts = 'hasConflicts',
 }
 
-export const USER_DATA_PREVIEW_SCHEME = 'vscode-userdata-preview';
-export const SETTINGS_CONFLICTS_RESOURCE = URI.file('Settings-Preview').with({ scheme: USER_DATA_PREVIEW_SCHEME });
-
 export interface ISynchroniser {
 
-	readonly conflicts: URI | null;
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	readonly onDidChangeLocal: Event<void>;
 
-	sync(): Promise<boolean>;
-	continueSync(): Promise<boolean>;
+	sync(_continue?: boolean): Promise<boolean>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 
 export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
+	readonly conflictsSource: SyncSource | null;
 }
 
 export const ISettingsMergeService = createDecorator<ISettingsMergeService>('ISettingsMergeService');
