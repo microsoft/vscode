@@ -23,7 +23,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { equalsIgnoreCase, format, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { OpenLocalFileCommand, OpenLocalFileFolderCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenLocalFileCommand, OpenLocalFileFolderCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { isValidBasename } from 'vs/base/common/extpath';
