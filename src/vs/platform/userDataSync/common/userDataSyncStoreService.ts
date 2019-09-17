@@ -7,6 +7,10 @@ import { Disposable, } from 'vs/base/common/lifecycle';
 import { IUserData, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IRequestService, asJson, asText } from 'vs/platform/request/common/request';
+import { URI } from 'vs/base/common/uri';
+import { joinPath } from 'vs/base/common/resources';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -21,6 +25,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
+		@IRequestService private readonly requestService: IRequestService,
 	) {
 		super();
 	}
@@ -35,14 +40,23 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		if (!this.enabled) {
 			return Promise.reject(new Error('No settings sync store url configured.'));
 		}
-		return null;
+		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
+		const context = await this.requestService.request({ type: 'GET', url }, CancellationToken.None);
+		return asJson<IUserData>(context);
 	}
 
 	async write(key: string, content: string, ref: string | null): Promise<string> {
 		if (!this.enabled) {
 			return Promise.reject(new Error('No settings sync store url configured.'));
 		}
-		return '';
+		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
+		const data = JSON.stringify({ content, ref });
+		const context = await this.requestService.request({ type: 'POST', url, data }, CancellationToken.None);
+		const newRef = await asText(context);
+		if (!newRef) {
+			throw new Error('Server did not return the ref');
+		}
+		return newRef;
 	}
 
 }
