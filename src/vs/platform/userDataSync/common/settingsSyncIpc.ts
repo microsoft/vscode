@@ -30,7 +30,7 @@ export class SettingsMergeChannelClient implements ISettingsMergeService {
 	constructor(private readonly channel: IChannel) {
 	}
 
-	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<string> {
+	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
 		return this.channel.call('merge', [localContent, remoteContent, baseContent]);
 	}
 

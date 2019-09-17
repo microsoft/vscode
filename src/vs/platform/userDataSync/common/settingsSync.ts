@@ -199,13 +199,13 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 				|| lastSyncData.content !== remoteContent // Remote has moved forwarded
 			) {
 				this.logService.trace('Settings Sync: Merging remote contents with settings file.');
-				const mergeContent = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null);
-				hasLocalChanged = mergeContent !== localContent;
-				hasRemoteChanged = mergeContent !== remoteContent;
-				if (hasLocalChanged || hasRemoteChanged) {
-					// Sync only if there are changes
-					hasConflicts = this.hasErrors(mergeContent);
-					await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(mergeContent));
+				const result = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null);
+				// Sync only if there are changes
+				if (result.hasChanges) {
+					hasLocalChanged = result.mergeContent !== localContent;
+					hasRemoteChanged = result.mergeContent !== remoteContent;
+					hasConflicts = result.hasConflicts;
+					await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(result.mergeContent));
 					return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 				}
 			}

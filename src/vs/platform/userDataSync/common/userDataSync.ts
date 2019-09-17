@@ -74,6 +74,6 @@ export interface ISettingsMergeService {
 
 	_serviceBrand: undefined;
 
-	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<string>;
+	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<{mergeContent: string, hasChanges: boolean, hasConflicts: boolean}>;
 
 }
