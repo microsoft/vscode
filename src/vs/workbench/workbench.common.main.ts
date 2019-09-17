@@ -79,7 +79,6 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
-import 'vs/workbench/services/userData/common/userDataSyncService';
 import 'vs/workbench/services/userData/common/settingsMergeService';
 import 'vs/workbench/services/workspace/browser/workspaceEditingService';
 
