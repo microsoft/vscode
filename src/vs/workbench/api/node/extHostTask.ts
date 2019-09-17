@@ -57,7 +57,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 			// in the provided custom execution map that is cleaned up after the
 			// task is executed.
 			if (CustomExecution2DTO.is(dto.execution)) {
-				await this.addCustomExecution2(dto, <vscode.Task2>task);
+				await this.addCustomExecution2(dto, <vscode.Task2>task, false);
 			}
 
 			return this._proxy.$executeTask(dto).then(value => this.getTaskExecution(value, task));
@@ -80,7 +80,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 						// The ID is calculated on the main thread task side, so, let's call into it here.
 						// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 						// is invoked, we have to be able to map it back to our data.
-						taskIdPromises.push(this.addCustomExecution2(taskDTO, <vscode.Task2>task));
+						taskIdPromises.push(this.addCustomExecution2(taskDTO, <vscode.Task2>task, true));
 					}
 				}
 			}
