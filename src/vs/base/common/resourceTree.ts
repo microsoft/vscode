@@ -6,6 +6,8 @@
 import { memoize } from 'vs/base/common/decorators';
 import * as paths from 'vs/base/common/path';
 import { Iterator } from 'vs/base/common/iterator';
+import { relativePath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 
 export interface ILeafNode<T> {
 	readonly path: string;
@@ -22,10 +24,6 @@ export interface IBranchNode<T> {
 }
 
 export type INode<T> = IBranchNode<T> | ILeafNode<T>;
-
-export function isBranchNode<T>(obj: any): obj is IBranchNode<T> {
-	return obj instanceof BranchNode;
-}
 
 // Internals
 
@@ -73,7 +71,14 @@ export class ResourceTree<T extends NonNullable<any>> {
 
 	readonly root = new BranchNode<T>('');
 
-	add(key: string, element: T): void {
+	static isBranchNode<T>(obj: any): obj is IBranchNode<T> {
+		return obj instanceof BranchNode;
+	}
+
+	constructor(private rootURI: URI = URI.file('/')) { }
+
+	add(uri: URI, element: T): void {
+		const key = relativePath(this.rootURI, uri) || uri.fsPath;
 		const parts = key.split(/[\\\/]/).filter(p => !!p);
 		let node = this.root;
 		let path = this.root.path;
@@ -111,7 +116,8 @@ export class ResourceTree<T extends NonNullable<any>> {
 		}
 	}
 
-	delete(key: string): T | undefined {
+	delete(uri: URI): T | undefined {
+		const key = relativePath(this.rootURI, uri) || uri.fsPath;
 		const parts = key.split(/[\\\/]/).filter(p => !!p);
 		return this._delete(this.root, parts, 0);
 	}

@@ -6,7 +6,7 @@
 import 'vs/css!./media/scmViewlet';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { basename, relativePath } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
@@ -37,7 +37,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import * as platform from 'vs/base/common/platform';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ISequence, ISplice } from 'vs/base/common/sequence';
-import { ResourceTree, IBranchNode, isBranchNode, INode } from 'vs/base/common/resourceTree';
+import { ResourceTree, IBranchNode, INode } from 'vs/base/common/resourceTree';
 import { ObjectTree, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
@@ -187,10 +187,10 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 
 		const resource = node.element;
 		const theme = this.themeService.getTheme();
-		const icon = isBranchNode(resource) ? undefined : (theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark);
+		const icon = ResourceTree.isBranchNode(resource) ? undefined : (theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark);
 
-		const uri = isBranchNode(resource) ? URI.file(resource.path) : resource.sourceUri;
-		const fileKind = isBranchNode(resource) ? FileKind.FOLDER : FileKind.FILE;
+		const uri = ResourceTree.isBranchNode(resource) ? URI.file(resource.path) : resource.sourceUri;
+		const fileKind = ResourceTree.isBranchNode(resource) ? FileKind.FOLDER : FileKind.FILE;
 		template.fileLabel.setFile(uri, {
 			fileDecorations: { colors: false, badges: !icon },
 			hidePath: true,
@@ -202,13 +202,13 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 
 		const disposables = new DisposableStore();
 
-		if (!isBranchNode(resource)) {
+		if (!ResourceTree.isBranchNode(resource)) {
 			disposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resource.resourceGroup), template.actionBar));
 			toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 			toggleClass(template.element, 'faded', resource.decorations.faded);
 		}
 
-		const tooltip = (isBranchNode(resource) ? resource.path : resource.decorations.tooltip) || '';
+		const tooltip = (ResourceTree.isBranchNode(resource) ? resource.path : resource.decorations.tooltip) || '';
 
 		if (icon) {
 			template.decorationIcon.style.display = '';
@@ -265,7 +265,7 @@ class ProviderListDelegate implements IListVirtualDelegate<TreeElement> {
 	getHeight() { return 22; }
 
 	getTemplateId(element: TreeElement) {
-		if (isBranchNode(element) || isSCMResource(element)) {
+		if (ResourceTree.isBranchNode(element) || isSCMResource(element)) {
 			return ResourceRenderer.TEMPLATE_ID;
 		} else {
 			return ResourceGroupRenderer.TEMPLATE_ID;
@@ -276,7 +276,7 @@ class ProviderListDelegate implements IListVirtualDelegate<TreeElement> {
 class SCMTreeFilter implements ITreeFilter<TreeElement> {
 
 	filter(element: TreeElement): boolean {
-		if (isBranchNode(element)) {
+		if (ResourceTree.isBranchNode(element)) {
 			return true;
 		} else if (isSCMResourceGroup(element)) {
 			return element.elements.length > 0 || !element.hideWhenEmpty;
@@ -293,15 +293,15 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			return 0;
 		}
 
-		const oneIsDirectory = isBranchNode(one);
-		const otherIsDirectory = isBranchNode(other);
+		const oneIsDirectory = ResourceTree.isBranchNode(one);
+		const otherIsDirectory = ResourceTree.isBranchNode(other);
 
 		if (oneIsDirectory !== otherIsDirectory) {
 			return oneIsDirectory ? -1 : 1;
 		}
 
-		const oneName = isBranchNode(one) ? one.name : basename((one as ISCMResource).sourceUri);
-		const otherName = isBranchNode(other) ? other.name : basename((other as ISCMResource).sourceUri);
+		const oneName = ResourceTree.isBranchNode(one) ? one.name : basename((one as ISCMResource).sourceUri);
+		const otherName = ResourceTree.isBranchNode(other) ? other.name : basename((other as ISCMResource).sourceUri);
 
 		return compareFileNames(oneName, otherName);
 	}
@@ -324,7 +324,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements IKeyboardNavigati
 
 const scmResourceIdentityProvider = new class implements IIdentityProvider<TreeElement> {
 	getId(e: TreeElement): string {
-		if (isBranchNode(e)) {
+		if (ResourceTree.isBranchNode(e)) {
 			return e.path;
 		} else if (isSCMResource(e)) {
 			const group = e.resourceGroup;
@@ -353,7 +353,7 @@ function groupItemAsTreeElement(item: IGroupItem, flat: boolean): ICompressedTre
 }
 
 function asTreeElement(node: INode<ISCMResource>, incompressible: boolean): ICompressedTreeElement<TreeElement> {
-	if (isBranchNode(node)) {
+	if (ResourceTree.isBranchNode(node)) {
 		return {
 			element: node,
 			children: Iterator.map(node.children, node => asTreeElement(node, false)),
@@ -382,7 +382,7 @@ class ViewModel {
 		const itemsToInsert: IGroupItem[] = [];
 
 		for (const group of toInsert) {
-			const tree = new ResourceTree<ISCMResource>();
+			const tree = new ResourceTree<ISCMResource>(group.provider.rootUri || URI.file('/'));
 			const resources: ISCMResource[] = [...group.elements];
 			const disposable = combinedDisposable(
 				group.onDidChange(() => this.tree.refilter()),
@@ -390,10 +390,9 @@ class ViewModel {
 			);
 
 			const item = { group, resources, tree, disposable };
-			const root = item.group.provider.rootUri || URI.file('/');
 
 			for (const resource of resources) {
-				item.tree.add(relativePath(root, resource.sourceUri) || resource.sourceUri.fsPath, resource);
+				item.tree.add(resource.sourceUri, resource);
 			}
 
 			itemsToInsert.push(item);
@@ -409,16 +408,14 @@ class ViewModel {
 	}
 
 	private onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
-		const root = item.group.provider.rootUri || URI.file('/');
-
 		for (const resource of toInsert) {
-			item.tree.add(relativePath(root, resource.sourceUri) || resource.sourceUri.fsPath, resource);
+			item.tree.add(resource.sourceUri, resource);
 		}
 
 		const deleted = item.resources.splice(start, deleteCount, ...toInsert);
 
 		for (const resource of deleted) {
-			item.tree.delete(relativePath(root, resource.sourceUri) || resource.sourceUri.fsPath);
+			item.tree.delete(resource.sourceUri);
 		}
 
 		this.refresh(item);
@@ -618,12 +615,12 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this._register(Event.chain(this.tree.onDidOpen)
 			.map(e => e.elements[0])
-			.filter(e => !!e && !isBranchNode(e) && isSCMResource(e))
+			.filter(e => !!e && !ResourceTree.isBranchNode(e) && isSCMResource(e))
 			.on(this.open, this));
 
 		this._register(Event.chain(this.tree.onDidPin)
 			.map(e => e.elements[0])
-			.filter(e => !!e && !isBranchNode(e) && isSCMResource(e))
+			.filter(e => !!e && !ResourceTree.isBranchNode(e) && isSCMResource(e))
 			.on(this.pin, this));
 
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
@@ -717,7 +714,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const element = e.element;
 		let actions: IAction[];
 
-		if (isBranchNode(element)) {
+		if (ResourceTree.isBranchNode(element)) {
 			actions = [];
 		} else if (isSCMResource(element)) {
 			actions = this.menus.getResourceContextActions(element);
@@ -735,7 +732,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	private getSelectedResources(): ISCMResource[] {
 		return this.tree.getSelection()
-			.filter(r => !!r && !isBranchNode(r) && isSCMResource(r)) as ISCMResource[];
+			.filter(r => !!r && !ResourceTree.isBranchNode(r) && isSCMResource(r)) as ISCMResource[];
 	}
 
 	private updateInputBox(): void {
