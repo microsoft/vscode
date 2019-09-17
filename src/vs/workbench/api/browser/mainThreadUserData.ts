@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { MainContext, ExtHostContext, IExtHostContext, MainThreadUserDataShape, ExtHostUserDataShape } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IUserData, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData } from 'vs/platform/userDataSync/common/userDataSync';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IUserDataSyncStoresRegistry, Extensions } from 'vs/workbench/services/userDataSync/common/userDataSyncStores';
 
 @extHostNamedCustomer(MainContext.MainThreadUserData)
 export class MainThreadUserData extends Disposable implements MainThreadUserDataShape {
@@ -15,16 +17,14 @@ export class MainThreadUserData extends Disposable implements MainThreadUserData
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService
 	) {
 		super();
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostUserData);
-		this._register(toDisposable(() => this.userDataSyncStoreService.deregisterUserDataSyncStore()));
 	}
 
 	$registerUserDataProvider(id: string, name: string): void {
 		const proxy = this.proxy;
-		this.userDataSyncStoreService.registerUserDataSyncStore({
+		Registry.as<IUserDataSyncStoresRegistry>(Extensions.UserDataSyncStoresRegistry).registerUserDataSyncStore({
 			id,
 			name,
 			read(key: string): Promise<IUserData | null> {
@@ -36,8 +36,13 @@ export class MainThreadUserData extends Disposable implements MainThreadUserData
 		});
 	}
 
-	$deregisterUserDataProvider(): void {
-		this.userDataSyncStoreService.deregisterUserDataSyncStore();
+	$deregisterUserDataProvider(id: string): void {
+		Registry.as<IUserDataSyncStoresRegistry>(Extensions.UserDataSyncStoresRegistry).deregisterUserDataSyncStore(id);
+	}
+
+	dispose(): void {
+		const registry = Registry.as<IUserDataSyncStoresRegistry>(Extensions.UserDataSyncStoresRegistry);
+		registry.all.forEach(store => registry.deregisterUserDataSyncStore(store.id));
 	}
 
 }

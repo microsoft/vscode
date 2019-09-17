@@ -4,11 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 
+export interface IUserDataSyncStore {
+	readonly id: string;
+	readonly name: string;
+	read(key: string): Promise<IUserData | null>;
+	write(key: string, content: string, ref: string | null): Promise<string>;
+}
 
 export namespace Extensions {
 	export const UserDataSyncStoresRegistry = 'workbench.registry.userData.syncStores';

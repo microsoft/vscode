@@ -28,7 +28,7 @@ export class ExtHostUserData implements ExtHostUserDataShape {
 		this.userDataProvider = userDataProvider;
 		this.name = name;
 		this.proxy.$registerUserDataProvider(id, name);
-		return toDisposable(() => this.proxy.$deregisterUserDataProvider());
+		return toDisposable(() => this.proxy.$deregisterUserDataProvider(id));
 	}
 
 	$read(key: string): Promise<IUserData | null> {
