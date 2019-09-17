@@ -11,7 +11,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/contrib/scm/common/scm';
-import { isSCMResource } from './scmUtil';
+import { isSCMResource } from './util';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { equals } from 'vs/base/common/arrays';
 import { ISplice } from 'vs/base/common/sequence';
