@@ -1110,10 +1110,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private _onDidOpen = new Emitter<IListEvent<T>>();
 	readonly onDidOpen: Event<IListEvent<T>> = this._onDidOpen.event;
 
-	private _onPin = new Emitter<number[]>();
-	@memoize get onPin(): Event<IListEvent<T>> {
-		return Event.map(this._onPin.event, indexes => this.toListEvent({ indexes }));
-	}
+	private _onDidPin = new Emitter<IListEvent<T>>();
+	readonly onDidPin: Event<IListEvent<T>> = this._onDidPin.event;
 
 	get domId(): string { return this.view.domId; }
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
@@ -1582,14 +1580,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this._onDidOpen.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
 	}
 
-	pin(indexes: number[]): void {
+	pin(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
 				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
-		this._onPin.fire(indexes);
+		this._onDidPin.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
 	}
 
 	style(styles: IListStyles): void {
@@ -1626,7 +1624,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.disposables.dispose();
 
 		this._onDidOpen.dispose();
-		this._onPin.dispose();
+		this._onDidPin.dispose();
 		this._onDidDispose.dispose();
 	}
 }

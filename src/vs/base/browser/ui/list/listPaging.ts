@@ -127,7 +127,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	get onPin(): Event<IListEvent<T>> {
-		return Event.map(this.list.onPin, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+		return Event.map(this.list.onDidPin, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
 	get onContextMenu(): Event<IListContextMenuEvent<T>> {
