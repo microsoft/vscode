@@ -49,7 +49,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.lastSyncSettingsResource = joinPath(this.environmentService.appSettingsHome, '.lastSyncSettings.json');
+		this.lastSyncSettingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncSettings.json');
 		this.throttledDelayer = this._register(new ThrottledDelayer<void>(500));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.settingsResource))(() => this.throttledDelayer.trigger(() => this.onDidChangeSettings())));
 	}
