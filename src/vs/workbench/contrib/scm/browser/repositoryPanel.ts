@@ -604,7 +604,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleObjectTree,
-			`SCM Tree Repo`,
+			'SCM Tree Repo',
 			this.listContainer,
 			delegate,
 			renderers,
@@ -629,10 +629,6 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
-		// this.tree.setInput(this.repository);
-
-		// this._register(this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this));
-		// this.onDidChangeVisibility(this.viewModel.isVisible());
 		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree);
 		this._register(this.viewModel);
 
