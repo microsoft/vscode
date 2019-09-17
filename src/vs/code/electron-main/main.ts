@@ -12,7 +12,7 @@ import { parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
-import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,7 +27,7 @@ import { EnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestService } from 'vs/platform/request/electron-main/requestService';
+import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
 import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { localize } from 'vs/nls';
@@ -116,7 +116,7 @@ class CodeMain {
 			await instantiationService.invokeFunction(async accessor => {
 				const environmentService = accessor.get(IEnvironmentService);
 				const logService = accessor.get(ILogService);
-				const lifecycleService = accessor.get(ILifecycleService);
+				const lifecycleService = accessor.get(ILifecycleMainService);
 				const configurationService = accessor.get(IConfigurationService);
 
 				const mainIpcServer = await this.doStartup(logService, environmentService, lifecycleService, instantiationService, true);
@@ -143,9 +143,9 @@ class CodeMain {
 		services.set(ILogService, logService);
 
 		services.set(IConfigurationService, new ConfigurationService(environmentService.settingsResource));
-		services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
+		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 		services.set(IStateService, new SyncDescriptor(StateService));
-		services.set(IRequestService, new SyncDescriptor(RequestService));
+		services.set(IRequestService, new SyncDescriptor(RequestMainService));
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 		services.set(ISignService, new SyncDescriptor(SignService));
 
@@ -189,7 +189,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async doStartup(logService: ILogService, environmentService: IEnvironmentService, lifecycleService: ILifecycleService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
+	private async doStartup(logService: ILogService, environmentService: IEnvironmentService, lifecycleService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -374,7 +374,7 @@ class CodeMain {
 
 	private quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
 		const logService = accessor.get(ILogService);
-		const lifecycleService = accessor.get(ILifecycleService);
+		const lifecycleService = accessor.get(ILifecycleMainService);
 
 		let exitCode = 0;
 

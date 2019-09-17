@@ -11,7 +11,7 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { shell, crashReporter, app, Menu } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
@@ -45,7 +45,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
 		@IHistoryMainService private readonly historyService: IHistoryMainService,
 		@ILogService private readonly logService: ILogService
 	) {

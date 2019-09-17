@@ -13,7 +13,7 @@ function getRawRequest(options: IRequestOptions): IRawRequestFunction {
 	return net.request as any as IRawRequestFunction;
 }
 
-export class RequestService extends NodeRequestService {
+export class RequestMainService extends NodeRequestService {
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		return super.request(assign({}, options || {}, { getRawRequest }), token);

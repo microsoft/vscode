@@ -39,4 +39,3 @@ export function isRecentFolder(curr: IRecent): curr is IRecentFolder {
 export function isRecentFile(curr: IRecent): curr is IRecentFile {
 	return curr.hasOwnProperty('fileUri');
 }
-

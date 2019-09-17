@@ -14,7 +14,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Barrier } from 'vs/base/common/async';
 
-export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
+export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
 export const enum UnloadReason {
 	CLOSE = 1,
@@ -38,7 +38,7 @@ export interface ShutdownEvent {
 	join(promise: Promise<void>): void;
 }
 
-export interface ILifecycleService {
+export interface ILifecycleMainService {
 
 	_serviceBrand: undefined;
 
@@ -129,7 +129,7 @@ export const enum LifecycleMainPhase {
 	AfterWindowOpen = 3
 }
 
-export class LifecycleService extends Disposable implements ILifecycleService {
+export class LifecycleMainService extends Disposable implements ILifecycleMainService {
 
 	_serviceBrand: undefined;
 
@@ -178,10 +178,10 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 	}
 
 	private handleRestarted(): void {
-		this._wasRestarted = !!this.stateService.getItem(LifecycleService.QUIT_FROM_RESTART_MARKER);
+		this._wasRestarted = !!this.stateService.getItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER);
 
 		if (this._wasRestarted) {
-			this.stateService.removeItem(LifecycleService.QUIT_FROM_RESTART_MARKER); // remove the marker right after if found
+			this.stateService.removeItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER); // remove the marker right after if found
 		}
 	}
 
@@ -468,7 +468,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 
 		// Remember the reason for quit was to restart
 		if (fromUpdate) {
-			this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+			this.stateService.setItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER, true);
 		}
 
 		this.pendingQuitPromise = new Promise(resolve => {
@@ -507,7 +507,7 @@ export class LifecycleService extends Disposable implements ILifecycleService {
 			if (!quitVetoed) {
 
 				// Remember the reason for quit was to restart
-				this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+				this.stateService.setItem(LifecycleMainService.QUIT_FROM_RESTART_MARKER, true);
 
 				// Windows: we are about to restart and as such we need to restore the original
 				// current working directory we had on startup to get the exact same startup

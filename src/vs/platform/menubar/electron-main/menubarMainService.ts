@@ -8,7 +8,8 @@ import { Menubar } from 'vs/platform/menubar/electron-main/menubar';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export class MenubarService implements IMenubarService {
+export class MenubarMainService implements IMenubarService {
+
 	_serviceBrand: undefined;
 
 	private _menubar: Menubar;
