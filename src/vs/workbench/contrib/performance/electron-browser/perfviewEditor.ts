@@ -177,11 +177,10 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			if (!times) {
 				continue;
 			}
-			const event = 'activationEvent' in times.activationReason ? times.activationReason.activationEvent : 'api';
 			if (times.activationReason.startup) {
-				eager.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, event, times.activationReason.extensionId.value]);
+				eager.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationReason.activationEvent, times.activationReason.extensionId.value]);
 			} else {
-				normal.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, event, times.activationReason.extensionId.value]);
+				normal.push([id, times.activationReason.startup, times.codeLoadingTime, times.activateCallTime, times.activateResolvedTime, times.activationReason.activationEvent, times.activationReason.extensionId.value]);
 			}
 		}
 

@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostExtensionServiceShape, IInitData, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape, IResolveAuthorityResult } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ActivatedExtension, EmptyExtension, ExtensionActivatedByEvent, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ActivatedExtension, EmptyExtension, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
@@ -465,7 +465,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 			if (await this._hostUtils.exists(path.join(URI.revive(uri).fsPath, fileName))) {
 				// the file was found
 				return (
-					this._activateById(extensionId, new ExtensionActivatedByEvent(true, extensionId, `workspaceContains:${fileName}`))
+					this._activateById(extensionId, { startup: true, extensionId, activationEvent: `workspaceContains:${fileName}` })
 						.then(undefined, err => console.error(err))
 				);
 			}
@@ -486,7 +486,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 
 		const timer = setTimeout(async () => {
 			tokenSource.cancel();
-			this._activateById(extensionId, new ExtensionActivatedByEvent(true, extensionId, `workspaceContainsTimeout:${globPatterns.join(',')}`))
+			this._activateById(extensionId, { startup: true, extensionId, activationEvent: `workspaceContainsTimeout:${globPatterns.join(',')}` })
 				.then(undefined, err => console.error(err));
 		}, AbstractExtHostExtensionService.WORKSPACE_CONTAINS_TIMEOUT);
 
@@ -505,7 +505,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		if (exists) {
 			// a file was found matching one of the glob patterns
 			return (
-				this._activateById(extensionId, new ExtensionActivatedByEvent(true, extensionId, `workspaceContains:${globPatterns.join(',')}`))
+				this._activateById(extensionId, { startup: true, extensionId, activationEvent: `workspaceContains:${globPatterns.join(',')}` })
 					.then(undefined, err => console.error(err))
 			);
 		}
@@ -745,7 +745,6 @@ type TelemetryActivationEvent = {
 };
 
 function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TelemetryActivationEvent {
-	const reasonStr = 'activationEvent' in reason ? reason.activationEvent : 'api';
 	const event = {
 		id: extensionDescription.identifier.value,
 		name: extensionDescription.name,
@@ -753,7 +752,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		publisherDisplayName: extensionDescription.publisher,
 		activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null,
 		isBuiltin: extensionDescription.isBuiltin,
-		reason: reasonStr,
+		reason: reason.activationEvent,
 		reasonId: reason.extensionId.value,
 	};
 
