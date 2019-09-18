@@ -6,7 +6,7 @@
 import 'vs/css!./media/style';
 
 import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { iconForeground, iconRedForeground, iconYellowForeground, iconBlueForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { iconForeground, notificationErrorIconForeground, notificationWarningIconForeground, notificationInfoForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
@@ -17,22 +17,34 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-workbench .codicon { color: ${iconForegroundColor}; }`);
 	}
 
-	// Icon Red
-	const iconRedForegroundColor = theme.getColor(iconRedForeground);
-	if (iconRedForegroundColor) {
-		collector.addRule(`.monaco-workbench .codicon-error { color: ${iconRedForegroundColor}; }`);
+	// Notification Error Icon
+	const notificationErrorIconForegroundColor = theme.getColor(notificationErrorIconForeground);
+	if (notificationErrorIconForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .notifications-center .codicon-error,
+		.monaco-workbench .notifications-toasts .codicon-error {
+			color: ${notificationErrorIconForegroundColor};
+		}`);
 	}
 
-	// Icon Yellow
-	const iconYellowForegroundColor = theme.getColor(iconYellowForeground);
-	if (iconYellowForegroundColor) {
-		collector.addRule(`.monaco-workbench .codicon-warning { color: ${iconYellowForegroundColor}; }`);
+	// Notification Warning Icon
+	const notificationWarningIconForegroundColor = theme.getColor(notificationWarningIconForeground);
+	if (notificationWarningIconForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .notifications-center .codicon-warning,
+		.monaco-workbench .notifications-toasts .codicon-warning {
+			color: ${notificationWarningIconForegroundColor};
+		}`);
 	}
 
-	// Icon Blue
-	const iconBlueForegroundColor = theme.getColor(iconBlueForeground);
-	if (iconBlueForegroundColor) {
-		collector.addRule(`.monaco-workbench .codicon-info { color: ${iconBlueForegroundColor}; }`);
+	// Notification Info Icon
+	const notificationInfoIconForegroundColor = theme.getColor(notificationInfoForeground);
+	if (notificationInfoIconForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .notifications-center .codicon-info,
+		.monaco-workbench .notifications-toasts .codicon-info {
+			color: ${notificationInfoIconForegroundColor};
+		}`);
 	}
 
 	// Foreground
