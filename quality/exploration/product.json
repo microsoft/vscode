@@ -115,10 +115,6 @@
 		"octref.vetur": {
 			"name": "Vetur",
 			"pattern": "{**/*.vue}"
-		},
-		"vsciot-vscode.vscode-arduino": {
-			"name": "Arduino",
-			"pattern": "{**/*.ino}"
 		}
 	},
 	"keymapExtensionTips": [
