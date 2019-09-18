@@ -161,22 +161,11 @@ export interface IExtensionsActivatorHost {
 	actualActivateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension>;
 }
 
-export class ExtensionActivatedByEvent {
-	constructor(
-		public readonly startup: boolean,
-		public readonly extensionId: ExtensionIdentifier,
-		public readonly activationEvent: string
-	) { }
+export interface ExtensionActivationReason {
+	readonly startup: boolean;
+	readonly extensionId: ExtensionIdentifier;
+	readonly activationEvent: string;
 }
-
-export class ExtensionActivatedByAPI {
-	constructor(
-		public readonly startup: boolean,
-		public readonly extensionId: ExtensionIdentifier
-	) { }
-}
-
-export type ExtensionActivationReason = ExtensionActivatedByEvent | ExtensionActivatedByAPI;
 
 type ActivationIdAndReason = { id: ExtensionIdentifier, reason: ExtensionActivationReason };
 
@@ -228,7 +217,7 @@ export class ExtensionsActivator {
 		const activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
 		return this._activateExtensions(activateExtensions.map(e => ({
 			id: e.identifier,
-			reason: new ExtensionActivatedByEvent(startup, e.identifier, activationEvent)
+			reason: { startup, extensionId: e.identifier, activationEvent }
 		}))).then(() => {
 			this._alreadyActivatedEvents[activationEvent] = true;
 		});

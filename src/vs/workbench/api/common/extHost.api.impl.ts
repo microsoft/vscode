@@ -27,7 +27,6 @@ import { ExtHostDocumentContentProvider } from 'vs/workbench/api/common/extHostD
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtensionActivatedByAPI } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
 import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
@@ -944,6 +943,6 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	activate(): Thenable<T> {
-		return this._extensionService.activateByIdWithErrors(this._identifier, new ExtensionActivatedByAPI(false, this._originExtensionId)).then(() => this.exports);
+		return this._extensionService.activateByIdWithErrors(this._identifier, { startup: false, extensionId: this._originExtensionId, activationEvent: 'api' }).then(() => this.exports);
 	}
 }

@@ -320,7 +320,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				let title: string;
 				const activationId = activationTimes.activationReason.extensionId.value;
-				const activationEvent = 'activationEvent' in activationTimes.activationReason ? activationTimes.activationReason.activationEvent : 'api';
+				const activationEvent = activationTimes.activationReason.activationEvent;
 				if (activationEvent === '*') {
 					title = nls.localize('starActivation', "Activated by {0} on start-up", activationId);
 				} else if (/^workspaceContains:/.test(activationEvent)) {
