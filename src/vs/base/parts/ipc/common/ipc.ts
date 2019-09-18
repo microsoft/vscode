@@ -32,7 +32,6 @@ export interface IServerChannel<TContext = string> {
 	listen<T>(ctx: TContext, event: string, arg?: any): Event<T>;
 }
 
-
 export const enum RequestType {
 	Promise = 100,
 	PromiseCancel = 101,
@@ -831,5 +830,31 @@ export class StaticRouter<TContext = string> implements IClientRouter<TContext> 
 
 		await Event.toPromise(hub.onDidChangeConnections);
 		return await this.route(hub);
+	}
+}
+
+export class SimpleServiceProxyChannel implements IServerChannel {
+
+	private service: { [key: string]: unknown };
+
+	constructor(service: unknown) {
+		this.service = service as { [key: string]: unknown };
+	}
+
+	listen<T>(_: unknown, event: string): Event<T> {
+		throw new Error(`Events are currently unsupported by SimpleServiceProxyChannel: ${event}`);
+	}
+
+	call(_: unknown, command: string, arg?: any): Promise<any> {
+		const target = this.service[command];
+		if (typeof target === 'function') {
+			if (Array.isArray(arg)) {
+				return target.apply(this.service, arg);
+			}
+
+			return target.call(this.service, arg);
+		}
+
+		throw new Error(`Call Not Found: ${command}`);
 	}
 }

@@ -32,7 +32,7 @@ import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, StaticRouter, SimpleServiceProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -45,7 +45,6 @@ import { Win32UpdateService } from 'vs/platform/update/electron-main/updateServi
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
 import { IIssueService } from 'vs/platform/issue/node/issue';
-import { IssueChannel } from 'vs/platform/issue/electron-main/issueIpc';
 import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
 import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
@@ -77,7 +76,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { ElectronMainService, ElectronChannel } from 'vs/platform/electron/electron-main/electronMainService';
+import { ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 
 export class CodeApplication extends Disposable {
 
@@ -539,11 +538,11 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('update', updateChannel);
 
 		const issueService = accessor.get(IIssueService);
-		const issueChannel = new IssueChannel(issueService);
+		const issueChannel = new SimpleServiceProxyChannel(issueService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
 		const electronService = accessor.get(IElectronService);
-		const electronChannel = new ElectronChannel(electronService);
+		const electronChannel = new SimpleServiceProxyChannel(electronService);
 		electronIpcServer.registerChannel('electron', electronChannel);
 
 		const workspacesMainService = accessor.get(IWorkspacesMainService);
