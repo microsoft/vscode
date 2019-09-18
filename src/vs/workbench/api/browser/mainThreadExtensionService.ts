@@ -18,6 +18,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -46,14 +47,14 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	public dispose(): void {
 	}
 
-	$activateExtension(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
-		return this._extensionService._activateById(extensionId, activationEvent);
+	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
+		return this._extensionService._activateById(extensionId, reason);
 	}
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): void {
 		this._extensionService._onWillActivateExtension(extensionId);
 	}
-	$onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
-		this._extensionService._onDidActivateExtension(extensionId, startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
+	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
+		this._extensionService._onDidActivateExtension(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime, activationReason);
 	}
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, data: SerializedError): void {
 		const error = new Error();

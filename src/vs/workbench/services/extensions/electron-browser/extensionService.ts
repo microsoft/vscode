@@ -36,6 +36,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { flatten } from 'vs/base/common/arrays';
 import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
+import { ExtensionActivatedByEvent } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -321,7 +322,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		if (shouldActivate) {
 			await Promise.all(
-				this._extensionHostProcessManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, shouldActivateReason!))
+				this._extensionHostProcessManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, new ExtensionActivatedByEvent(false, extensionDescription.identifier, shouldActivateReason!)))
 			).then(() => { });
 		}
 	}
