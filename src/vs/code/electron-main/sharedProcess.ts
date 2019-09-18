@@ -24,7 +24,7 @@ export class SharedProcess implements ISharedProcess {
 		private readonly machineId: string,
 		private userEnv: NodeJS.ProcessEnv,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) { }
@@ -68,7 +68,7 @@ export class SharedProcess implements ISharedProcess {
 
 		const disposables = new DisposableStore();
 
-		this.lifecycleService.onWillShutdown(() => {
+		this.lifecycleMainService.onWillShutdown(() => {
 			disposables.dispose();
 
 			// Shut the shared process down when we are quitting

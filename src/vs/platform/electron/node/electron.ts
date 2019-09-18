@@ -14,4 +14,7 @@ export interface IElectronService {
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
+
+	// OS
+	showItemInFolder(path: string): Promise<void>;
 }

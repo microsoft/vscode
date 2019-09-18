@@ -5,7 +5,7 @@
 
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell } from 'electron';
 
 export class ElectronMainService implements IElectronService {
 
@@ -27,5 +27,9 @@ export class ElectronMainService implements IElectronService {
 			response: result.button,
 			checkboxChecked: !!result.checkboxChecked
 		};
+	}
+
+	async showItemInFolder(path: string): Promise<void> {
+		shell.showItemInFolder(path);
 	}
 }

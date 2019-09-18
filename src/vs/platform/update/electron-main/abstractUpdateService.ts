@@ -44,7 +44,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IRequestService protected requestService: IRequestService,
@@ -152,7 +152,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
-		this.lifecycleService.quit(true /* from update */).then(vetod => {
+		this.lifecycleMainService.quit(true /* from update */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;

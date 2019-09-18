@@ -20,14 +20,14 @@ export class ExtHostUserData implements ExtHostUserDataShape {
 	) {
 	}
 
-	registerUserDataProvider(name: string, userDataProvider: vscode.UserDataSyncProvider): vscode.Disposable {
+	registerUserDataProvider(id: string, name: string, userDataProvider: vscode.UserDataSyncProvider): vscode.Disposable {
 		if (this.userDataProvider) {
 			this.logService.warn(`A user data provider '${this.name}' already exists hence ignoring the remote user data provider '${name}'.`);
 			return Disposable.None;
 		}
 		this.userDataProvider = userDataProvider;
 		this.name = name;
-		this.proxy.$registerUserDataProvider(name);
+		this.proxy.$registerUserDataProvider(id, name);
 		return toDisposable(() => this.proxy.$deregisterUserDataProvider());
 	}
 

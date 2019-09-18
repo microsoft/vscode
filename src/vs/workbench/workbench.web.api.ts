@@ -90,6 +90,11 @@ interface IWorkbenchConstructionOptions {
 	 * Experimental: Support for update reporting.
 	 */
 	updateProvider?: IUpdateProvider;
+
+	/**
+	 * Experimental: Resolves an external uri before it is opened.
+	 */
+	readonly resolveExternalUri?: (uri: URI) => Promise<URI>;
 }
 
 /**

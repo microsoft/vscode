@@ -8,6 +8,8 @@ import { IReloadSessionEvent, ICloseSessionEvent, IAttachSessionEvent, ILogToSes
 import { Event, Emitter } from 'vs/base/common/event';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChannel<TContext> {
 
@@ -98,5 +100,11 @@ export class ExtensionHostDebugChannelClient extends Disposable implements IExte
 
 	get onTerminateSession(): Event<ITerminateSessionEvent> {
 		return this.channel.listen('terminate');
+	}
+
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+		// TODO@Isidor
+		//return this.channel.call('openExtensionDevelopmentHostWindow', [args, env]);
+		return Promise.resolve();
 	}
 }

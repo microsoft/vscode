@@ -188,7 +188,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		@ILogService private readonly logService: ILogService,
 		@IStateService private readonly stateService: IStateService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -207,8 +207,8 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		this.dialogs = new Dialogs(stateService, this);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, this);
 
-		this.lifecycleService.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
-		this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.installWindowsMutex());
+		this.lifecycleMainService.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
+		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.installWindowsMutex());
 	}
 
 	private installWindowsMutex(): void {
@@ -217,7 +217,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			try {
 				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
 				const mutex = new WindowsMutex(win32MutexName);
-				once(this.lifecycleService.onWillShutdown)(() => mutex.release());
+				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
 			} catch (e) {
 				this.logService.error(e);
 			}
@@ -251,8 +251,8 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 
 		// Handle various lifecycle events around windows
-		this.lifecycleService.onBeforeWindowClose(window => this.onBeforeWindowClose(window));
-		this.lifecycleService.onBeforeShutdown(() => this.onBeforeShutdown());
+		this.lifecycleMainService.onBeforeWindowClose(window => this.onBeforeWindowClose(window));
+		this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown());
 		this.onWindowsCountChanged(e => {
 			if (e.newCount - e.oldCount > 0) {
 				// clear last closed window state when a new window opens. this helps on macOS where
@@ -340,7 +340,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
 	private onBeforeWindowClose(win: ICodeWindow): void {
-		if (this.lifecycleService.quitRequested) {
+		if (this.lifecycleMainService.quitRequested) {
 			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
 		}
 
@@ -985,7 +985,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 	private getRestoreWindowsSetting(): RestoreWindowsSetting {
 		let restoreWindows: RestoreWindowsSetting;
-		if (this.lifecycleService.wasRestarted) {
+		if (this.lifecycleMainService.wasRestarted) {
 			restoreWindows = 'all'; // always reopen all windows when an update was applied
 		} else {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
@@ -1328,7 +1328,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
 			else {
-				allowFullscreen = this.lifecycleService.wasRestarted || (windowConfig && windowConfig.restoreFullscreen);
+				allowFullscreen = this.lifecycleMainService.wasRestarted || (windowConfig && windowConfig.restoreFullscreen);
 			}
 
 			if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {
@@ -1364,7 +1364,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			window.win.on('closed', () => this.onWindowClosed(window!));
 
 			// Lifecycle
-			(this.lifecycleService as LifecycleMainService).registerWindow(window);
+			(this.lifecycleMainService as LifecycleMainService).registerWindow(window);
 		}
 
 		// Existing window
@@ -1387,7 +1387,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		// first and only load the new configuration if that was
 		// not vetoed
 		if (window.isReady) {
-			this.lifecycleService.unload(window, UnloadReason.LOAD).then(veto => {
+			this.lifecycleMainService.unload(window, UnloadReason.LOAD).then(veto => {
 				if (!veto) {
 					this.doOpenInBrowserWindow(window!, configuration, options);
 				}
@@ -1554,7 +1554,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	async reload(win: ICodeWindow, cli?: ParsedArgs): Promise<void> {
 
 		// Only reload when the window has not vetoed this
-		const veto = await this.lifecycleService.unload(win, UnloadReason.RELOAD);
+		const veto = await this.lifecycleMainService.unload(win, UnloadReason.RELOAD);
 		if (!veto) {
 			win.reload(undefined, cli);
 		}
@@ -1866,7 +1866,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		// Otherwise: normal quit
 		else {
 			setTimeout(() => {
-				this.lifecycleService.quit();
+				this.lifecycleMainService.quit();
 			}, 10 /* delay to unwind callback stack (IPC) */);
 		}
 	}

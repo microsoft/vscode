@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor, ITextEditor } from 'vs/workbench/common/editor';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { CompletionItem } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -208,6 +208,7 @@ export interface IDebugSession extends ITreeElement {
 	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean }>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
+	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;
 
 	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;

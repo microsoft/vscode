@@ -105,7 +105,7 @@ export class KillTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private readonly terminalService: ITerminalService
 	) {
-		super(id, label, 'terminal-action kill');
+		super(id, label, 'terminal-action codicon-trash');
 	}
 
 	public run(event?: any): Promise<any> {
@@ -336,7 +336,7 @@ export class CreateNewTerminalAction extends Action {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action new');
+		super(id, label, 'terminal-action codicon-add');
 	}
 
 	public run(event?: any): Promise<any> {
@@ -412,7 +412,7 @@ export class SplitTerminalAction extends Action {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label, 'terminal-action split');
+		super(id, label, 'terminal-action codicon-split-horizontal');
 	}
 
 	public run(event?: any): Promise<any> {

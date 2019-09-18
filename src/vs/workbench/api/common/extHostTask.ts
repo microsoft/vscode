@@ -374,8 +374,9 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 	protected _handlers: Map<number, HandlerData>;
 	protected _taskExecutions: Map<string, TaskExecutionImpl>;
 	protected _providedCustomExecutions2: Map<string, vscode.CustomExecution2>;
+	private _notProvidedCustomExecutions: Set<string>; // Used for custom executions tasks that are created and run through executeTask.
 	protected _activeCustomExecutions2: Map<string, vscode.CustomExecution2>;
-
+	private _lastStartedTask: string | undefined;
 	protected readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	protected readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
 
@@ -399,6 +400,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		this._handlers = new Map<number, HandlerData>();
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
 		this._providedCustomExecutions2 = new Map<string, vscode.CustomExecution2>();
+		this._notProvidedCustomExecutions = new Set<string>();
 		this._activeCustomExecutions2 = new Map<string, vscode.CustomExecution2>();
 	}
 
@@ -462,6 +464,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 			this._activeCustomExecutions2.set(execution.id, execution2);
 			this._terminalService.attachPtyToTerminal(terminalId, await execution2.callback());
 		}
+		this._lastStartedTask = execution.id;
 
 		this._onDidExecuteTask.fire({
 			execution: await this.getTaskExecution(execution)
@@ -571,7 +574,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		}
 
 		if (CustomExecution2DTO.is(resolvedTaskDTO.execution)) {
-			await this.addCustomExecution2(resolvedTaskDTO, <vscode.Task2>resolvedTask);
+			await this.addCustomExecution2(resolvedTaskDTO, <vscode.Task2>resolvedTask, true);
 		}
 
 		return await this.resolveTaskInternal(resolvedTaskDTO);
@@ -585,8 +588,11 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		return this._handleCounter++;
 	}
 
-	protected async addCustomExecution2(taskDTO: tasks.TaskDTO, task: vscode.Task2): Promise<void> {
+	protected async addCustomExecution2(taskDTO: tasks.TaskDTO, task: vscode.Task2, isProvided: boolean): Promise<void> {
 		const taskId = await this._proxy.$createTaskId(taskDTO);
+		if (!isProvided && !this._providedCustomExecutions2.has(taskId)) {
+			this._notProvidedCustomExecutions.add(taskId);
+		}
 		this._providedCustomExecutions2.set(taskId, <vscode.CustomExecution2>(<vscode.Task2>task).execution2);
 	}
 
@@ -618,16 +624,22 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 			this._activeCustomExecutions2.delete(execution.id);
 		}
 
-		const lastCustomExecution = this._providedCustomExecutions2.get(execution.id);
 		// Technically we don't really need to do this, however, if an extension
 		// is executing a task through "executeTask" over and over again
-		// with different properties in the task definition, then this list
+		// with different properties in the task definition, then the map of executions
 		// could grow indefinitely, something we don't want.
-		this._providedCustomExecutions2.clear();
-		// We do still need to hang on to the last custom execution so that the
-		// Rerun Task command doesn't choke when it tries to rerun a custom execution
-		if (lastCustomExecution) {
-			this._providedCustomExecutions2.set(execution.id, lastCustomExecution);
+		if (this._notProvidedCustomExecutions.has(execution.id) && (this._lastStartedTask !== execution.id)) {
+			this._providedCustomExecutions2.delete(execution.id);
+			this._notProvidedCustomExecutions.delete(execution.id);
+		}
+		let iterator = this._notProvidedCustomExecutions.values();
+		let iteratorResult = iterator.next();
+		while (!iteratorResult.done) {
+			if (!this._activeCustomExecutions2.has(iteratorResult.value) && (this._lastStartedTask !== iteratorResult.value)) {
+				this._providedCustomExecutions2.delete(iteratorResult.value);
+				this._notProvidedCustomExecutions.delete(iteratorResult.value);
+			}
+			iteratorResult = iterator.next();
 		}
 	}
 
@@ -663,7 +675,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		// in the provided custom execution map that is cleaned up after the
 		// task is executed.
 		if (CustomExecution2DTO.is(dto.execution)) {
-			await this.addCustomExecution2(dto, <vscode.Task2>task);
+			await this.addCustomExecution2(dto, <vscode.Task2>task, false);
 		} else {
 			throw new Error('Not implemented');
 		}
@@ -685,7 +697,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 					// The ID is calculated on the main thread task side, so, let's call into it here.
 					// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 					// is invoked, we have to be able to map it back to our data.
-					taskIdPromises.push(this.addCustomExecution2(taskDTO, <vscode.Task2>task));
+					taskIdPromises.push(this.addCustomExecution2(taskDTO, <vscode.Task2>task, true));
 				} else {
 					console.warn('Only custom execution tasks supported.');
 				}

@@ -60,7 +60,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	constructor(
-		@ILifecycleMainService lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -68,7 +68,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@ILogService logService: ILogService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super(lifecycleService, configurationService, environmentService, requestService, logService);
+		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
 
 		if (getUpdateType() === UpdateType.Setup) {
 			/* __GDPR__

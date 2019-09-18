@@ -22,9 +22,10 @@ export class MainThreadUserData extends Disposable implements MainThreadUserData
 		this._register(toDisposable(() => this.userDataSyncStoreService.deregisterUserDataSyncStore()));
 	}
 
-	$registerUserDataProvider(name: string): void {
+	$registerUserDataProvider(id: string, name: string): void {
 		const proxy = this.proxy;
 		this.userDataSyncStoreService.registerUserDataSyncStore({
+			id,
 			name,
 			read(key: string): Promise<IUserData | null> {
 				return proxy.$read(key);

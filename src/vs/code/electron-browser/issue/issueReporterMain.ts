@@ -32,7 +32,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-browser/issue/issueReporterModel';
 import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/node/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
@@ -300,8 +300,8 @@ export class IssueReporter extends Disposable {
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
 		const logService = new SpdLogService(`issuereporter${configuration.windowId}`, this.environmentService.logsPath, getLogLevel(this.environmentService));
-		const logLevelClient = new LogLevelSetterChannelClient(mainProcessService.getChannel('loglevel'));
-		this.logService = new FollowerLogService(logLevelClient, logService);
+		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
+		this.logService = new FollowerLogService(loggerClient, logService);
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));

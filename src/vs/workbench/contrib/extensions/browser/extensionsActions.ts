@@ -25,7 +25,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IFileService, IFileContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -44,7 +44,6 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
@@ -2774,41 +2773,6 @@ export class EnableAllWorkpsaceAction extends Action {
 
 	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local, EnablementState.EnabledWorkspace);
-	}
-}
-
-export class OpenExtensionsFolderAction extends Action {
-
-	static readonly ID = 'workbench.extensions.action.openExtensionsFolder';
-	static LABEL = localize('openExtensionsFolder', "Open Extensions Folder");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowsService private readonly windowsService: IWindowsService,
-		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
-	) {
-		super(id, label, undefined, true);
-	}
-
-	run(): Promise<void> {
-		if (this.environmentService.extensionsPath) {
-
-			const extensionsHome = URI.file(this.environmentService.extensionsPath);
-
-			return Promise.resolve(this.fileService.resolve(extensionsHome)).then(file => {
-				let itemToShow: URI;
-				if (file.children && file.children.length > 0) {
-					itemToShow = file.children[0].resource;
-				} else {
-					itemToShow = extensionsHome;
-				}
-
-				return this.windowsService.showItemInFolder(itemToShow);
-			});
-		}
-		return Promise.resolve();
 	}
 }
 

@@ -1494,14 +1494,6 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve(this.windowCount);
 	}
 
-	log(_severity: string, _args: string[]): Promise<void> {
-		return Promise.resolve();
-	}
-
-	showItemInFolder(_path: URI): Promise<void> {
-		return Promise.resolve();
-	}
-
 	newWindowTab(): Promise<void> {
 		return Promise.resolve();
 	}

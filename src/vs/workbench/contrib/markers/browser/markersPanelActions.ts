@@ -213,7 +213,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private createFilesExcludeCheckbox(container: HTMLElement): void {
 		const filesExcludeFilter = this._register(new Checkbox({
-			actionClassName: 'markers-panel-filter-filesExclude',
+			actionClassName: 'codicon codicon-exclude',
 			title: this.action.useFilesExclude ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE,
 			isChecked: this.action.useFilesExclude
 		}));

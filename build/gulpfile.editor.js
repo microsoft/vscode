@@ -45,6 +45,7 @@ var editorResources = [
 	'!out-build/vs/base/browser/ui/splitview/**/*',
 	'!out-build/vs/base/browser/ui/toolbar/**/*',
 	'!out-build/vs/base/browser/ui/octiconLabel/**/*',
+	'!out-build/vs/base/browser/ui/codiconLabel/**/*',
 	'!out-build/vs/workbench/**',
 	'!**/test/**'
 ];
@@ -91,6 +92,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		],
 		redirects: {
 			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
+			'vs/base/browser/ui/codiconLabel/codiconLabel': 'vs/base/browser/ui/codiconLabel/codiconLabel.mock',
 		},
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /(^vs\/css!)|(promise-polyfill\/polyfill)/,

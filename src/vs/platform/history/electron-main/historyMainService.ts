@@ -29,6 +29,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
 
 export interface IHistoryMainService {
+
 	_serviceBrand: undefined;
 
 	onRecentlyOpenedChange: CommonEvent<void>;
@@ -68,11 +69,11 @@ export class HistoryMainService implements IHistoryMainService {
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleMainService lifecycleService: ILifecycleMainService
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService
 	) {
 		this.macOSRecentDocumentsUpdater = new ThrottledDelayer<void>(800);
 
-		lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
+		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
 	}
 
 	private handleWindowsJumpList(): void {

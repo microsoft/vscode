@@ -27,15 +27,15 @@ if grep -qi Microsoft /proc/version; then
 		WSL_EXT_ID="ms-vscode-remote.remote-wsl"
 
 		if [ $WSL_BUILD -ge 41955 -a $WSL_BUILD -lt 41959 ]; then
-			# WSL2 in workaround for https://github.com/microsoft/WSL/issues/4337
+			# WSL2 workaround for https://github.com/microsoft/WSL/issues/4337
 			CWD="$(pwd)"
 			cd "$VSCODE_PATH"
-			cmd.exe /C ".\\bin\\$APP_NAME.cmd --locate-extension $WSL_EXT_ID >remote-wsl-loc.txt"
-			WSL_EXT_WLOC="$(cat ./remote-wsl-loc.txt)"
-			rm remote-wsl-loc.txt
+			cmd.exe /C ".\\bin\\$APP_NAME.cmd --locate-extension $WSL_EXT_ID >%TEMP%\\remote-wsl-loc.txt"
+			WSL_EXT_WLOC=$(cmd.exe /C type %TEMP%\\remote-wsl-loc.txt)
 			cd "$CWD"
 		else
-			WSL_EXT_WLOC=$(ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" --locate-extension $WSL_EXT_ID)
+			ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" --locate-extension $WSL_EXT_ID >/tmp/remote-wsl-loc.txt
+			WSL_EXT_WLOC=$(cat /tmp/remote-wsl-loc.txt)
 		fi
 		if [ -n "$WSL_EXT_WLOC" ]; then
 			# replace \r\n with \n in WSL_EXT_WLOC

@@ -147,7 +147,7 @@ export interface MainThreadConfigurationShape extends IDisposable {
 }
 
 export interface MainThreadUserDataShape extends IDisposable {
-	$registerUserDataProvider(name: string): void;
+	$registerUserDataProvider(id: string, name: string): void;
 	$deregisterUserDataProvider(): void;
 }
 
