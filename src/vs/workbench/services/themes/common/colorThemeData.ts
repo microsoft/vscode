@@ -57,7 +57,7 @@ export class ColorThemeData implements IColorTheme {
 	private colorMap: IColorMap = {};
 	private customColorMap: IColorMap = {};
 
-	private tokenStyleMap: ITokenStyleMap | undefined;
+	private tokenStyleMap: ITokenStyleMap = {};
 
 	private themeTokenScopeMatchers: Matcher<ProbeScope>[] | undefined;
 	private customTokenScopeMatchers: Matcher<ProbeScope>[] | undefined;
@@ -116,22 +116,15 @@ export class ColorThemeData implements IColorTheme {
 		return color;
 	}
 
-	public getTokenStyle(tokenStyleId: TokenStyleIdentifier): TokenStyle | undefined {
-		if (!this.tokenStyleMap) {
-			this.tokenStyleMap = this.initTokenStyleMap();
-		}
+	public getTokenStyle(tokenStyleId: TokenStyleIdentifier, useDefault?: boolean): TokenStyle | undefined {
 		let style: TokenStyle | undefined = this.tokenStyleMap[tokenStyleId];
 		if (style) {
 			return style;
 		}
-		if (types.isUndefined(style)) {
-			style = this.getDefaultTokenStyle(style);
+		if (useDefault !== false && types.isUndefined(style)) {
+			style = this.getDefaultTokenStyle(tokenStyleId);
 		}
 		return style;
-	}
-
-	private initTokenStyleMap(): ITokenStyleMap {
-		return {};
 	}
 
 	public getDefault(colorId: ColorIdentifier): Color | undefined {

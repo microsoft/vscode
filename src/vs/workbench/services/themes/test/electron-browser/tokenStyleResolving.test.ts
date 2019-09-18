@@ -6,9 +6,15 @@
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import * as assert from 'assert';
 import { ITokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { TokenStyle, TokenStyleBits } from 'vs/platform/theme/common/tokenStyleRegistry';
+import { TokenStyle, TokenStyleBits, comments, variables, types, functions, keywords, numbers, strings } from 'vs/platform/theme/common/tokenStyleRegistry';
 import { Color } from 'vs/base/common/color';
 import { isString } from 'vs/base/common/types';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 function ts(foreground: string | undefined, styleFlags: number | undefined): TokenStyle {
 	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
@@ -24,14 +30,45 @@ function assertTokenStyle(expected: TokenStyle | undefined | null, actual: Token
 }
 
 
+
 suite('Themes - TokenStyleResolving', () => {
-
-	// const fileService = new FileService(new NullLogService());
-	// const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
-	// fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-
+	const fileService = new FileService(new NullLogService());
+	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 
+	test('color defaults - monokai', async () => {
+		const themeData = ColorThemeData.createUnloadedTheme('foo');
+		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-monokai/themes/monokai-color-theme.json');
+		themeData.location = URI.file(themeLocation);
+		await themeData.ensureLoaded(fileService);
+
+		assert.equal(themeData.isLoaded, true);
+
+		let tokenStyle;
+
+		tokenStyle = themeData.getTokenStyle(comments);
+		assertTokenStyle(tokenStyle, ts('#75715E', 0));
+
+		tokenStyle = themeData.getTokenStyle(variables);
+		assertTokenStyle(tokenStyle, ts('#F8F8F2', 0));
+
+		tokenStyle = themeData.getTokenStyle(types);
+		assertTokenStyle(tokenStyle, ts('#A6E22E', TokenStyleBits.UNDERLINE));
+
+		tokenStyle = themeData.getTokenStyle(functions);
+		assertTokenStyle(tokenStyle, ts('#A6E22E', 0));
+
+		tokenStyle = themeData.getTokenStyle(strings);
+		assertTokenStyle(tokenStyle, ts('#E6DB74', 0));
+
+		tokenStyle = themeData.getTokenStyle(numbers);
+		assertTokenStyle(tokenStyle, ts('#AE81FF', 0));
+
+		tokenStyle = themeData.getTokenStyle(keywords);
+		assertTokenStyle(tokenStyle, ts('#F92672', 0));
+
+	});
 
 	test('resolve resource', async () => {
 		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');

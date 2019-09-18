@@ -243,7 +243,7 @@ export function getTokenStyleRegistry(): ITokenStyleRegistry {
 
 
 export const comments = registerTokenStyle('comments', { scopesToProbe: ['comment'], dark: null, light: null, hc: null }, nls.localize('comments', "Token style for comments."));
-export const strings = registerTokenStyle('strings', { scopesToProbe: ['strings'], dark: null, light: null, hc: null }, nls.localize('strings', "Token style for strings."));
+export const strings = registerTokenStyle('strings', { scopesToProbe: ['string'], dark: null, light: null, hc: null }, nls.localize('strings', "Token style for strings."));
 export const keywords = registerTokenStyle('keywords', { scopesToProbe: ['keyword.control', 'storage', 'storage.type'], dark: null, light: null, hc: null }, nls.localize('keywords', "Token style for keywords."));
 export const numbers = registerTokenStyle('numbers', { scopesToProbe: ['constant.numeric'], dark: null, light: null, hc: null }, nls.localize('numbers', "Token style for numbers."));
 export const types = registerTokenStyle('types', { scopesToProbe: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'], dark: null, light: null, hc: null }, nls.localize('types', "Token style for types."));
