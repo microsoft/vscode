@@ -48,6 +48,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IViewDescriptor } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { flatten } from 'vs/base/common/arrays';
+import { memoize } from 'vs/base/common/decorators';
 
 type TreeElement = ISCMResourceGroup | IBranchNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -294,7 +295,16 @@ class SCMTreeFilter implements ITreeFilter<TreeElement> {
 
 export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
+	@memoize
+	private get viewModel(): ViewModel { return this.viewModelProvider(); }
+
+	constructor(private viewModelProvider: () => ViewModel) { }
+
 	compare(one: TreeElement, other: TreeElement): number {
+		if (this.viewModel.mode === ViewModelMode.List) {
+			return 0;
+		}
+
 		if (isSCMResourceGroup(one) && isSCMResourceGroup(other)) {
 			return 0;
 		}
@@ -641,7 +651,7 @@ export class RepositoryPanel extends ViewletPanel {
 		];
 
 		const filter = new SCMTreeFilter();
-		const sorter = new SCMTreeSorter();
+		const sorter = new SCMTreeSorter(() => this.viewModel);
 		const keyboardNavigationLabelProvider = new SCMTreeKeyboardNavigationLabelProvider();
 		const identityProvider = new SCMResourceIdentityProvider();
 
