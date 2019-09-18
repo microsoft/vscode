@@ -56,10 +56,6 @@
 	margin: 0;
 }
 
-.monaco-editor .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
-	background: url('close-light.svg') center center no-repeat;
-}
-
 .monaco-editor .peekview-widget > .body {
 	border-top: 1px solid;
 	position: relative;
@@ -67,11 +63,6 @@
 
 /* Dark Theme */
 /* High Contrast Theme */
-
-.monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
-.monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
-	background: url('close-dark.svg') center center no-repeat;
-}
 
 .monaco-editor .peekview-widget .peekview-actions .icon.chevron-up {
 	background: url('chevron-previous-light.svg') center center no-repeat;
