@@ -25,6 +25,10 @@
 	background: url('breakpoint-hint.svg') center center no-repeat;
 }
 
+.monaco-editor .inline-breakpoint-widget.line-start {
+	left: -0.45em !important;
+}
+
 .debug-breakpoint-unverified,
 .monaco-editor .inline-breakpoint-widget.debug-breakpoint-unverified {
 	background: url('breakpoint-unverified.svg') center center no-repeat;
