@@ -36,7 +36,7 @@ export interface IUserDataSyncStoreService {
 	login(): Promise<void>;
 	logout(): Promise<void>;
 
-	read(key: string): Promise<IUserData | null>;
+	read(key: string, oldValue: IUserData | null): Promise<IUserData | null>;
 	write(key: string, content: string, ref: string | null): Promise<string>;
 }
 

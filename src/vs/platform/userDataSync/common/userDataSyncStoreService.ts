@@ -11,7 +11,7 @@ import { IRequestService, asJson, asText } from 'vs/platform/request/common/requ
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { IHeaders } from 'vs/base/parts/request/common/request';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -37,12 +37,16 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	async logout(): Promise<void> {
 	}
 
-	async read(key: string): Promise<IUserData | null> {
+	async read(key: string, oldValue: IUserData | null): Promise<IUserData | null> {
 		if (!this.enabled) {
 			return Promise.reject(new Error('No settings sync store url configured.'));
 		}
 		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
-		const context = await this.requestService.request({ type: 'GET', url }, CancellationToken.None);
+		const headers: IHeaders = {};
+		if (oldValue) {
+			headers['If-None-Match'] = oldValue.ref;
+		}
+		const context = await this.requestService.request({ type: 'GET', url, headers }, CancellationToken.None);
 		return asJson<IUserData>(context);
 	}
 
@@ -52,7 +56,10 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		}
 		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
 		const data = JSON.stringify({ content, ref });
-		const headers: IStringDictionary<string> = { 'Content-Type': 'application/json' };
+		const headers: IHeaders = { 'Content-Type': 'application/json' };
+		if (ref) {
+			headers['If-Match'] = ref;
+		}
 		const context = await this.requestService.request({ type: 'POST', url, data, headers }, CancellationToken.None);
 		const newRef = await asText(context);
 		if (!newRef) {
