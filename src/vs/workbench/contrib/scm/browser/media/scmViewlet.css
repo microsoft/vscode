@@ -91,6 +91,7 @@
 .scm-viewlet .monaco-list-row .resource-group {
 	display: flex;
 	height: 100%;
+	align-items: center;
 }
 
 .scm-viewlet .monaco-list-row .resource-group > .name {
@@ -99,6 +100,7 @@
 	font-weight: bold;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	text-decoration: underline;
 }
 
 .scm-viewlet .monaco-list-row .resource {
@@ -125,6 +127,7 @@
 
 .scm-viewlet .monaco-list-row .resource-group > .count {
 	padding: 0 8px;
+	display: flex;
 }
 
 .scm-viewlet .monaco-list-row .resource > .decoration-icon {
