@@ -34,7 +34,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	constructor(
 		private windowServer: IPCServer,
 		private options: IDriverOptions,
-		@IWindowsMainService private readonly windowsService: IWindowsMainService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
 	) { }
 
 	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
@@ -49,7 +49,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	async getWindowIds(): Promise<number[]> {
-		return this.windowsService.getWindows()
+		return this.windowsMainService.getWindows()
 			.map(w => w.id)
 			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id));
 	}
@@ -57,7 +57,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async capturePage(windowId: number): Promise<string> {
 		await this.whenUnfrozen(windowId);
 
-		const window = this.windowsService.getWindowById(windowId);
+		const window = this.windowsMainService.getWindowById(windowId);
 		if (!window) {
 			throw new Error('Invalid window');
 		}
@@ -69,16 +69,16 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async reloadWindow(windowId: number): Promise<void> {
 		await this.whenUnfrozen(windowId);
 
-		const window = this.windowsService.getWindowById(windowId);
+		const window = this.windowsMainService.getWindowById(windowId);
 		if (!window) {
 			throw new Error('Invalid window');
 		}
 		this.reloadingWindowIds.add(windowId);
-		this.windowsService.reload(window);
+		this.windowsMainService.reload(window);
 	}
 
 	async exitApplication(): Promise<void> {
-		return this.windowsService.quit();
+		return this.windowsMainService.quit();
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
@@ -96,7 +96,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 			throw new Error('ScanCodeBindings not supported');
 		}
 
-		const window = this.windowsService.getWindowById(windowId);
+		const window = this.windowsMainService.getWindowById(windowId);
 		if (!window) {
 			throw new Error('Invalid window');
 		}

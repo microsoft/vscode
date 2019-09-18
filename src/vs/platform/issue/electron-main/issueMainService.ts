@@ -31,7 +31,7 @@ export class IssueMainService implements IIssueService {
 		private machineId: string,
 		private userEnv: IProcessEnvironment,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILaunchMainService private readonly launchService: ILaunchMainService,
+		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
 		@IWindowsService private readonly windowsService: IWindowsService
@@ -41,7 +41,7 @@ export class IssueMainService implements IIssueService {
 
 	private registerListeners(): void {
 		ipcMain.on('vscode:issueSystemInfoRequest', async (event: Electron.IpcMainEvent) => {
-			Promise.all([this.launchService.getMainProcessInfo(), this.launchService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })])
+			Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })])
 				.then(result => {
 					const [info, remoteData] = result;
 					this.diagnosticsService.getSystemInfo(info, remoteData).then(msg => {
@@ -54,9 +54,9 @@ export class IssueMainService implements IIssueService {
 			const processes = [];
 
 			try {
-				const mainPid = await this.launchService.getMainProcessId();
+				const mainPid = await this.launchMainService.getMainProcessId();
 				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(mainPid) });
-				(await this.launchService.getRemoteDiagnostics({ includeProcesses: true }))
+				(await this.launchMainService.getRemoteDiagnostics({ includeProcesses: true }))
 					.forEach(data => {
 						if (isRemoteDiagnosticError(data)) {
 							processes.push({
@@ -157,7 +157,7 @@ export class IssueMainService implements IIssueService {
 		});
 
 		ipcMain.on('windowsInfoRequest', (event: Electron.IpcMainEvent) => {
-			this.launchService.getMainProcessInfo().then(info => {
+			this.launchMainService.getMainProcessInfo().then(info => {
 				event.sender.send('vscode:windowsInfoResponse', info.windows);
 			});
 		});
@@ -268,7 +268,7 @@ export class IssueMainService implements IIssueService {
 	}
 
 	public async getSystemStatus(): Promise<string> {
-		return Promise.all([this.launchService.getMainProcessInfo(), this.launchService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })])
+		return Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })])
 			.then(result => {
 				const [info, remoteData] = result;
 				return this.diagnosticsService.getDiagnostics(info, remoteData);
@@ -345,7 +345,7 @@ export class IssueMainService implements IIssueService {
 
 	private getPerformanceInfo(): Promise<PerformanceInfo> {
 		return new Promise(async (resolve, reject) => {
-			Promise.all([this.launchService.getMainProcessInfo(), this.launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })])
+			Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })])
 				.then(result => {
 					const [info, remoteData] = result;
 					this.diagnosticsService.getPerformanceInfo(info, remoteData)

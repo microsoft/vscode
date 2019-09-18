@@ -22,7 +22,8 @@ import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspac
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Range } from 'vs/editor/common/core/range';
@@ -74,7 +75,7 @@ export class DebugSession implements IDebugSession {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
-		@IWindowsService private readonly windowsService: IWindowsService,
+		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		this.id = generateUuid();
@@ -186,7 +187,7 @@ export class DebugSession implements IDebugSession {
 
 			return dbgr.createDebugAdapter(this).then(debugAdapter => {
 
-				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.windowsService, this.openerService);
+				this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService);
 
 				return this.raw.start().then(() => {
 

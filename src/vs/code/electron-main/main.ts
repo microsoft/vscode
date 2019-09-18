@@ -116,13 +116,13 @@ class CodeMain {
 			await instantiationService.invokeFunction(async accessor => {
 				const environmentService = accessor.get(IEnvironmentService);
 				const logService = accessor.get(ILogService);
-				const lifecycleService = accessor.get(ILifecycleMainService);
+				const lifecycleMainService = accessor.get(ILifecycleMainService);
 				const configurationService = accessor.get(IConfigurationService);
 
-				const mainIpcServer = await this.doStartup(logService, environmentService, lifecycleService, instantiationService, true);
+				const mainIpcServer = await this.doStartup(logService, environmentService, lifecycleMainService, instantiationService, true);
 
 				bufferLogService.logger = new SpdLogService('main', environmentService.logsPath, bufferLogService.getLevel());
-				once(lifecycleService.onWillShutdown)(() => (configurationService as ConfigurationService).dispose());
+				once(lifecycleMainService.onWillShutdown)(() => (configurationService as ConfigurationService).dispose());
 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 			});
@@ -189,7 +189,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async doStartup(logService: ILogService, environmentService: IEnvironmentService, lifecycleService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
+	private async doStartup(logService: ILogService, environmentService: IEnvironmentService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -197,7 +197,7 @@ class CodeMain {
 		let server: Server;
 		try {
 			server = await serve(environmentService.mainIPCHandle);
-			once(lifecycleService.onWillShutdown)(() => server.dispose());
+			once(lifecycleMainService.onWillShutdown)(() => server.dispose());
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
@@ -245,7 +245,7 @@ class CodeMain {
 					throw error;
 				}
 
-				return this.doStartup(logService, environmentService, lifecycleService, instantiationService, false);
+				return this.doStartup(logService, environmentService, lifecycleMainService, instantiationService, false);
 			}
 
 			// Tests from CLI require to be the only instance currently
@@ -374,7 +374,7 @@ class CodeMain {
 
 	private quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
 		const logService = accessor.get(ILogService);
-		const lifecycleService = accessor.get(ILifecycleMainService);
+		const lifecycleMainService = accessor.get(ILifecycleMainService);
 
 		let exitCode = 0;
 
@@ -394,7 +394,7 @@ class CodeMain {
 			}
 		}
 
-		lifecycleService.kill(exitCode);
+		lifecycleMainService.kill(exitCode);
 	}
 }
 

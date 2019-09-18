@@ -92,7 +92,7 @@ export class CodeApplication extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateService private readonly stateService: IStateService
 	) {
@@ -109,7 +109,7 @@ export class CodeApplication extends Disposable {
 		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 
 		// Dispose on shutdown
-		this.lifecycleService.onWillShutdown(() => this.dispose());
+		this.lifecycleMainService.onWillShutdown(() => this.dispose());
 
 		// Contextmenu via IPC support
 		registerContextMenuListener();
@@ -255,7 +255,7 @@ export class CodeApplication extends Disposable {
 			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
-			this.lifecycleService.kill(code);
+			this.lifecycleMainService.kill(code);
 		});
 
 		ipc.on('vscode:fetchShellEnv', async (event: Electron.IpcMainEvent) => {
@@ -282,7 +282,7 @@ export class CodeApplication extends Disposable {
 
 		// Some listeners after window opened
 		(async () => {
-			await this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen);
+			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
 
 			// After waking up from sleep  (after window opened)
 			powerMonitor.on('resume', () => {
@@ -361,7 +361,7 @@ export class CodeApplication extends Disposable {
 		// Spawn shared process after the first window has opened and 3s have passed
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
 		const sharedProcessClient = sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
-		this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
+		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
 				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
 
@@ -461,7 +461,7 @@ export class CodeApplication extends Disposable {
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
 		services.set(IStorageMainService, storageMainService);
-		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
+		this.lifecycleMainService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		const backupMainService = new BackupMainService(this.environmentService, this.configurationService, this.logService);
 		services.set(IBackupMainService, backupMainService);
@@ -529,8 +529,8 @@ export class CodeApplication extends Disposable {
 	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>): ICodeWindow[] {
 
 		// Register more Main IPC services
-		const launchService = accessor.get(ILaunchMainService);
-		const launchChannel = new LaunchChannel(launchService);
+		const launchMainService = accessor.get(ILaunchMainService);
+		const launchChannel = new LaunchChannel(launchMainService);
 		this.mainIpcServer.registerChannel('launch', launchChannel);
 
 		// Register more Electron IPC services
@@ -546,8 +546,8 @@ export class CodeApplication extends Disposable {
 		const electronChannel = new ElectronChannel(electronService);
 		electronIpcServer.registerChannel('electron', electronChannel);
 
-		const workspacesService = accessor.get(IWorkspacesMainService);
-		const workspacesChannel = new WorkspacesChannel(workspacesService);
+		const workspacesMainService = accessor.get(IWorkspacesMainService);
+		const workspacesChannel = new WorkspacesChannel(workspacesMainService);
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
 		const windowsService = accessor.get(IWindowsService);
@@ -575,7 +575,7 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ExtensionHostDebugBroadcastChannel());
 
 		// Signal phase: ready (services set)
-		this.lifecycleService.phase = LifecycleMainPhase.Ready;
+		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Propagate to clients
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
@@ -685,7 +685,7 @@ export class CodeApplication extends Disposable {
 	private afterWindowOpen(): void {
 
 		// Signal phase: after window open
-		this.lifecycleService.phase = LifecycleMainPhase.AfterWindowOpen;
+		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Remote Authorities
 		this.handleRemoteAuthorities();
