@@ -41,19 +41,3 @@ export class MainProcessService extends Disposable implements IMainProcessServic
 		this.mainProcessConnection.registerChannel(channelName, channel);
 	}
 }
-
-export function createSimpleMainChannelProxy<T>(channelName: string, mainProcessService: IMainProcessService): T {
-	const channel = mainProcessService.getChannel(channelName);
-
-	return new Proxy({}, {
-		get(_target, propKey, _receiver) {
-			if (typeof propKey === 'string') {
-				return function (...args: any[]) {
-					return channel.call(propKey, ...args);
-				};
-			}
-
-			throw new Error(`Unable to provide main channel proxy implementation for: ${String(propKey)} in ${channelName}`);
-		}
-	}) as T;
-}

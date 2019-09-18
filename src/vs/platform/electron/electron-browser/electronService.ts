@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { IMainProcessService, createSimpleMainChannelProxy } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { createSimpleChannelProxy } from 'vs/platform/ipc/node/simpleIpcProxy';
 
 export class ElectronService {
 
 	_serviceBrand: undefined;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		return createSimpleMainChannelProxy<IElectronService>('electron', mainProcessService);
+		return createSimpleChannelProxy<IElectronService>(mainProcessService.getChannel('electron'));
 	}
 }
