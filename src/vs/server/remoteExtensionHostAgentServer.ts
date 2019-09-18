@@ -269,7 +269,6 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 						|| isEqualOrParent(filePath, this._environmentService.extensionsPath, !platform.isLinux)
 					) {
 						responseHeaders['Cache-Control'] = 'public, max-age=31536000';
-						responseHeaders['X-VSCode-Extension'] = 'true';
 					}
 				}
 				return serveFile(this._logService, req, res, filePath, responseHeaders);
