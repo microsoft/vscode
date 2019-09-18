@@ -100,7 +100,6 @@
 	font-weight: bold;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	text-decoration: underline;
 }
 
 .scm-viewlet .monaco-list-row .resource {
