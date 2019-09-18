@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MessageBoxOptions, MessageBoxReturnValue } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IElectronService = createDecorator<IElectronService>('electronService');
+export const IHostService = createDecorator<IHostService>('hostService');
 
-export interface IElectronService {
+export interface IHostService {
 
 	_serviceBrand: undefined;
 
-	// Window
-	windowCount(): Promise<number>;
+	//#region Window
 
-	// Dialogs
-	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
+	/**
+	 * The number of windows that belong to the current client session.
+	 */
+	readonly windowCount: Promise<number>;
 
-	// OS
-	showItemInFolder(path: string): Promise<void>;
+	//#endregion
 }

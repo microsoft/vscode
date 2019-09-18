@@ -16,9 +16,19 @@ export class ElectronMainService implements IElectronService {
 	) {
 	}
 
+	//#region Window
+
 	private get window(): ICodeWindow | undefined {
 		return this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 	}
+
+	async windowCount(): Promise<number> {
+		return this.windowsMainService.getWindowCount();
+	}
+
+	//#endregion
+
+	//#region Other
 
 	async showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
 		const result = await this.windowsMainService.showMessageBox(options, this.window);
@@ -32,4 +42,6 @@ export class ElectronMainService implements IElectronService {
 	async showItemInFolder(path: string): Promise<void> {
 		shell.showItemInFolder(path);
 	}
+
+	//#endregion
 }

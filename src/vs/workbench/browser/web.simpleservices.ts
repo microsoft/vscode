@@ -318,8 +318,6 @@ registerSingleton(IWindowService, SimpleWindowService);
 export class SimpleWindowsService implements IWindowsService {
 	_serviceBrand: undefined;
 
-	windowCount = 1;
-
 	readonly onWindowOpen: Event<number> = Event.None;
 	readonly onWindowFocus: Event<number> = Event.None;
 	readonly onWindowBlur: Event<number> = Event.None;
@@ -459,10 +457,6 @@ export class SimpleWindowsService implements IWindowsService {
 
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		return Promise.resolve([]);
-	}
-
-	getWindowCount(): Promise<number> {
-		return Promise.resolve(this.windowCount);
 	}
 
 	newWindowTab(): Promise<void> {
