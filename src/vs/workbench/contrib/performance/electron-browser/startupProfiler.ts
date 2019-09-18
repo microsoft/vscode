@@ -18,6 +18,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
@@ -29,7 +30,8 @@ export class StartupProfiler implements IWorkbenchContribution {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService extensionService: IExtensionService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IElectronService private readonly _electronService: IElectronService
 	) {
 		// wait for everything to be ready
 		Promise.all([
@@ -81,7 +83,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 			}).then(res => {
 				if (res.confirmed) {
 					Promise.all<any>([
-						this._windowsService.showItemInFolder(URI.file(join(dir, files[0]))),
+						this._electronService.showItemInFolder(URI.file(join(dir, files[0])).fsPath),
 						this._createPerfIssue(files)
 					]).then(() => {
 						// keep window stable until restart is selected

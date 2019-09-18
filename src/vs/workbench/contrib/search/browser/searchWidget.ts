@@ -364,11 +364,12 @@ export class SearchWidget extends Widget {
 			}
 		}));
 
-		let controls = document.createElement('div');
+		const controls = document.createElement('div');
 		controls.className = 'controls';
 		controls.style.display = 'block';
 		controls.appendChild(this._preserveCase.domNode);
 		replaceBox.appendChild(controls);
+		this.replaceInput.paddingRight = this._preserveCase.width();
 
 		this._register(attachInputBoxStyler(this.replaceInput, this.themeService));
 		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));

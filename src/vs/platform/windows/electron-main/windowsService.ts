@@ -336,14 +336,6 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		return this.windowsMainService.getWindows().length;
 	}
 
-	async showItemInFolder(resource: URI): Promise<void> {
-		this.logService.trace('windowsService#showItemInFolder');
-
-		if (resource.scheme === Schemas.file) {
-			shell.showItemInFolder(resource.fsPath);
-		}
-	}
-
 	async getActiveWindowId(): Promise<number | undefined> {
 		return this._activeWindowId;
 	}

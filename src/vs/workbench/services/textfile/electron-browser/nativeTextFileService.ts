@@ -5,7 +5,7 @@
 
 import { tmpdir } from 'os';
 import { localize } from 'vs/nls';
-import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
+import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IResourceEncoding, IReadTextFileOptions, IWriteTextFileOptions, stringToSnapshot, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
@@ -28,7 +28,7 @@ import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textMo
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { nodeReadableToString, streamToNodeReadable, nodeStreamToVSBufferReadable } from 'vs/base/node/stream';
 
-export class NodeTextFileService extends TextFileService {
+export class NativeTextFileService extends AbstractTextFileService {
 
 	private _encoding!: EncodingOracle;
 	get encoding(): EncodingOracle {
@@ -404,4 +404,4 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 	}
 }
 
-registerSingleton(ITextFileService, NodeTextFileService);
+registerSingleton(ITextFileService, NativeTextFileService);

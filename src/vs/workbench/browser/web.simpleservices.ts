@@ -241,7 +241,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		for (let i = 0; i < _uris.length; i++) {
 			const uri = _uris[i];
 			if ('folderUri' in uri) {
-				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
+				const newAddress = `${document.location.origin}${document.location.pathname}?folder=${uri.folderUri.path}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {
@@ -249,7 +249,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 				}
 			}
 			if ('workspaceUri' in uri) {
-				const newAddress = `${document.location.origin}/?workspace=${uri.workspaceUri.path}`;
+				const newAddress = `${document.location.origin}${document.location.pathname}?workspace=${uri.workspaceUri.path}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {
@@ -317,8 +317,6 @@ registerSingleton(IWindowService, SimpleWindowService);
 
 export class SimpleWindowsService implements IWindowsService {
 	_serviceBrand: undefined;
-
-	windowCount = 1;
 
 	readonly onWindowOpen: Event<number> = Event.None;
 	readonly onWindowFocus: Event<number> = Event.None;
@@ -459,14 +457,6 @@ export class SimpleWindowsService implements IWindowsService {
 
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		return Promise.resolve([]);
-	}
-
-	getWindowCount(): Promise<number> {
-		return Promise.resolve(this.windowCount);
-	}
-
-	showItemInFolder(_path: URI): Promise<void> {
-		return Promise.resolve();
 	}
 
 	newWindowTab(): Promise<void> {
