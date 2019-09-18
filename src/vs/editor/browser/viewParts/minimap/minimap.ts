@@ -29,6 +29,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Color } from 'vs/base/common/color';
+import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap): number {
 	if (renderMinimap === RenderMinimap.Large) {
@@ -206,6 +207,10 @@ class MinimapLayout {
 	public getDesiredScrollTopFromDelta(delta: number): number {
 		const desiredSliderPosition = this.sliderTop + delta;
 		return Math.round(desiredSliderPosition / this._computedSliderRatio);
+	}
+
+	public getDesiredScrollTopFromTouchLocation(pageY: number): number {
+		return Math.round((pageY - this.sliderHeight/2) / this._computedSliderRatio);
 	}
 
 	public static create(
@@ -454,13 +459,13 @@ export class Minimap extends ViewPart {
 	private readonly _sliderTouchStartListener: IDisposable;
 	private readonly _sliderTouchMoveListener: IDisposable;
 	private readonly _sliderTouchEndListener: IDisposable;
-	private readonly _sliderTouchCancelListener: IDisposable;
 
 	private _options: MinimapOptions;
 	private _lastRenderData: RenderData | null;
 	private _selections: Selection[] = [];
 	private _selectionColor: Color | undefined;
 	private _renderDecorations: boolean = false;
+	private _gestureInProgress: boolean = false;
 	private _buffers: MinimapBuffers | null;
 
 	constructor(context: ViewContext) {
@@ -571,46 +576,38 @@ export class Minimap extends ViewPart {
 			}
 		});
 
-		//let initialTouchSpotPageX: number;
-		let initialTouchSpotPageY: number;
-		let pretouchSliderState: MinimapLayout;
-
-		this._sliderTouchStartListener = dom.addStandardDisposableListener(this._slider.domNode, 'touchstart', (e: TouchEvent) => {
+		Gesture.addTarget(this._domNode.domNode);
+		this._sliderTouchStartListener = dom.addDisposableListener(this._domNode.domNode, EventType.Start, (e: GestureEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
 			if (this._lastRenderData) {
-				//initialTouchSpotPageX = e.changedTouches[0].pageX;
-				initialTouchSpotPageY = e.changedTouches[0].pageY;
-				pretouchSliderState = this._lastRenderData.renderedLayout;
 				this._slider.toggleClassName('active', true);
+				this._gestureInProgress = true;
+				this.scrollDueToTouchEvent(e);
 			}
 		});
 
-		this._sliderTouchMoveListener = dom.addStandardDisposableListener(this._slider.domNode, 'touchmove', (e: TouchEvent) => {
+		this._sliderTouchMoveListener = dom.addStandardDisposableListener(this._domNode.domNode, EventType.Change, (e: GestureEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
-			if (this._lastRenderData) {
-				const touch = e.changedTouches[0];
-				const touchDelta = touch.pageY - initialTouchSpotPageY;
-				this._context.viewLayout.setScrollPositionNow({
-					scrollTop: pretouchSliderState.getDesiredScrollTopFromDelta(touchDelta)
-				});
+			if (this._lastRenderData && this._gestureInProgress) {
+				this.scrollDueToTouchEvent(e);
 			}
 		});
 
-		this._sliderTouchEndListener = dom.addStandardDisposableListener(this._slider.domNode, 'touchend', (e: TouchEvent) => {
+		this._sliderTouchEndListener = dom.addStandardDisposableListener(this._domNode.domNode, EventType.End, (e: GestureEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
+			this._gestureInProgress = false;
 			this._slider.toggleClassName('active', false);
 		});
+	}
 
-		this._sliderTouchCancelListener = dom.addStandardDisposableListener(this._slider.domNode, 'touchcancel', (e: TouchEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this._slider.toggleClassName('active', false);
-			this._context.viewLayout.setScrollPositionNow({
-				scrollTop: pretouchSliderState.scrollTop
-			});
+	private scrollDueToTouchEvent(touch: GestureEvent) {
+		const startY = this._domNode.domNode.getBoundingClientRect().top;
+		const scrollTop = this._lastRenderData!.renderedLayout.getDesiredScrollTopFromTouchLocation(touch.pageY - startY);
+		this._context.viewLayout.setScrollPositionNow({
+			scrollTop: scrollTop
 		});
 	}
 
@@ -621,7 +618,6 @@ export class Minimap extends ViewPart {
 		this._sliderTouchStartListener.dispose();
 		this._sliderTouchMoveListener.dispose();
 		this._sliderTouchEndListener.dispose();
-		this._sliderTouchCancelListener.dispose();
 		super.dispose();
 	}
 
