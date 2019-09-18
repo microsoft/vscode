@@ -93,6 +93,7 @@ export const enum MenuId {
 	SearchContext,
 	StatusBarWindowIndicatorMenu,
 	TouchBarContext,
+	TitleBarContext,
 	ViewItemContext,
 	ViewTitle,
 	CommentThreadTitle,
