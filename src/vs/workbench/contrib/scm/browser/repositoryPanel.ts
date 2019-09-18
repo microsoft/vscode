@@ -47,6 +47,7 @@ import { compareFileNames } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IViewDescriptor } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
+import { flatten } from 'vs/base/common/arrays';
 
 type TreeElement = ISCMResourceGroup | IBranchNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -126,7 +127,7 @@ interface ResourceTemplate {
 
 class MultipleSelectionActionRunner extends ActionRunner {
 
-	constructor(private getSelectedResources: () => ISCMResource[]) {
+	constructor(private getSelectedResources: () => (ISCMResource | IBranchNode<ISCMResource, ISCMResourceGroup>)[]) {
 		super();
 	}
 
@@ -135,27 +136,11 @@ class MultipleSelectionActionRunner extends ActionRunner {
 			return super.runAction(action, context);
 		}
 
-		// TODO
-		// const resources = ResourceTree.isBranchNode(context)
-		// 	? ResourceTree.collect(context)
-		// 	: [context];
-
 		const selection = this.getSelectedResources();
-
-		if (ResourceTree.isBranchNode(context)) {
-			const selection = this.getSelectedResources();
-			const resources = ResourceTree.collect(context);
-
-			return action.run(...resources, ...selection);
-		}
-
-		const filteredSelection = selection.filter(s => s !== context);
-
-		if (selection.length === filteredSelection.length || selection.length === 1) {
-			return action.run(context);
-		}
-
-		return action.run(context, ...filteredSelection);
+		const contextIsSelected = selection.some(s => s === context);
+		const actualContext = contextIsSelected ? selection : [context];
+		const args = flatten(actualContext.map(e => ResourceTree.isBranchNode(e) ? ResourceTree.collect(e) : [e]));
+		return action.run(...args);
 	}
 }
 
@@ -168,7 +153,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 		private viewModelProvider: () => ViewModel,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
-		private getSelectedResources: () => ISCMResource[],
+		private getSelectedResources: () => (ISCMResource | IBranchNode<ISCMResource, ISCMResourceGroup>)[],
 		private themeService: IThemeService,
 		private menus: SCMMenus
 	) { }
@@ -804,9 +789,9 @@ export class RepositoryPanel extends ViewletPanel {
 		});
 	}
 
-	private getSelectedResources(): ISCMResource[] {
+	private getSelectedResources(): (ISCMResource | IBranchNode<ISCMResource, ISCMResourceGroup>)[] {
 		return this.tree.getSelection()
-			.filter(r => !!r && !ResourceTree.isBranchNode(r) && isSCMResource(r)) as ISCMResource[];
+			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
 	}
 
 	private updateInputBox(): void {
