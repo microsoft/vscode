@@ -22,6 +22,7 @@ export class UserDataSyncChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'sync': return this.service.sync(args[0]);
+			case '_getInitialStatus': return Promise.resolve(this.service.status);
 			case 'getConflictsSource': return Promise.resolve(this.service.conflictsSource);
 		}
 		throw new Error('Invalid call');
