@@ -12,6 +12,7 @@ import * as nls from 'vs/nls';
 
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 //  ------ API types
 
@@ -200,6 +201,9 @@ class TokenStyleRegistry implements ITokenStyleRegistry {
 				}
 			}
 			const tokenStyleValue = tokenStyleDesc.defaults[theme.type];
+			if (tokenStyleValue === null) {
+				return new TokenStyle(theme.getColor(editorForeground));
+			}
 			return resolveTokenStyleValue(tokenStyleValue, theme);
 		}
 		return undefined;

@@ -25,8 +25,15 @@ function tokenStyleAsString(ts: TokenStyle | undefined | null) {
 	return ts ? `${ts.foreground ? ts.foreground.toString() : 'no-foreground'}-${ts.styles ? ts.styles : 'no-styles'}` : 'tokenstyle-undefined';
 }
 
-function assertTokenStyle(expected: TokenStyle | undefined | null, actual: TokenStyle | undefined | null, message?: string) {
-	assert.equal(tokenStyleAsString(expected), tokenStyleAsString(actual), message);
+function assertTokenStyle(actual: TokenStyle | undefined | null, expected: TokenStyle | undefined | null, message?: string) {
+	assert.equal(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
+}
+
+function assertTokenStyles(themeData: ColorThemeData, expected: { [tokenStyleId: string]: TokenStyle }) {
+	for (let tokenStyleId in expected) {
+		const tokenStyle = themeData.getTokenStyle(tokenStyleId);
+		assertTokenStyle(tokenStyle, expected[tokenStyleId], tokenStyleId);
+	}
 }
 
 
@@ -45,28 +52,115 @@ suite('Themes - TokenStyleResolving', () => {
 
 		assert.equal(themeData.isLoaded, true);
 
-		let tokenStyle;
+		assertTokenStyles(themeData, {
+			[comments]: ts('#75715E', 0),
+			[variables]: ts('#F8F8F2', 0),
+			[types]: ts('#A6E22E', TokenStyleBits.UNDERLINE),
+			[functions]: ts('#A6E22E', 0),
+			[strings]: ts('#E6DB74', 0),
+			[numbers]: ts('#AE81FF', 0),
+			[keywords]: ts('#F92672', 0)
+		});
 
-		tokenStyle = themeData.getTokenStyle(comments);
-		assertTokenStyle(tokenStyle, ts('#75715E', 0));
+	});
 
-		tokenStyle = themeData.getTokenStyle(variables);
-		assertTokenStyle(tokenStyle, ts('#F8F8F2', 0));
+	test('color defaults - dark+', async () => {
+		const themeData = ColorThemeData.createUnloadedTheme('foo');
+		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-defaults/themes/dark_plus.json');
+		themeData.location = URI.file(themeLocation);
+		await themeData.ensureLoaded(fileService);
 
-		tokenStyle = themeData.getTokenStyle(types);
-		assertTokenStyle(tokenStyle, ts('#A6E22E', TokenStyleBits.UNDERLINE));
+		assert.equal(themeData.isLoaded, true);
 
-		tokenStyle = themeData.getTokenStyle(functions);
-		assertTokenStyle(tokenStyle, ts('#A6E22E', 0));
+		assertTokenStyles(themeData, {
+			[comments]: ts('#6A9955', 0),
+			[variables]: ts('#9CDCFE', 0),
+			[types]: ts('#4EC9B0', 0),
+			[functions]: ts('#DCDCAA', 0),
+			[strings]: ts('#CE9178', 0),
+			[numbers]: ts('#B5CEA8', 0),
+			[keywords]: ts('#C586C0', 0)
+		});
 
-		tokenStyle = themeData.getTokenStyle(strings);
-		assertTokenStyle(tokenStyle, ts('#E6DB74', 0));
+	});
 
-		tokenStyle = themeData.getTokenStyle(numbers);
-		assertTokenStyle(tokenStyle, ts('#AE81FF', 0));
+	test('color defaults - light vs', async () => {
+		const themeData = ColorThemeData.createUnloadedTheme('foo');
+		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-defaults/themes/light_vs.json');
+		themeData.location = URI.file(themeLocation);
+		await themeData.ensureLoaded(fileService);
 
-		tokenStyle = themeData.getTokenStyle(keywords);
-		assertTokenStyle(tokenStyle, ts('#F92672', 0));
+		assert.equal(themeData.isLoaded, true);
+
+		assertTokenStyles(themeData, {
+			[comments]: ts('#008000', 0),
+			[variables]: ts('#000000', 0),
+			[types]: ts('#000000', 0),
+			[functions]: ts('#000000', 0),
+			[strings]: ts('#a31515', 0),
+			[numbers]: ts('#09885a', 0),
+			[keywords]: ts('#0000ff', 0)
+		});
+
+	});
+
+	test('color defaults - hc', async () => {
+		const themeData = ColorThemeData.createUnloadedTheme('foo');
+		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-defaults/themes/hc_black.json');
+		themeData.location = URI.file(themeLocation);
+		await themeData.ensureLoaded(fileService);
+
+		assert.equal(themeData.isLoaded, true);
+
+		assertTokenStyles(themeData, {
+			[comments]: ts('#7ca668', 0),
+			[variables]: ts('#9CDCFE', 0),
+			[types]: ts('#4EC9B0', 0),
+			[functions]: ts('#DCDCAA', 0),
+			[strings]: ts('#ce9178', 0),
+			[numbers]: ts('#b5cea8', 0),
+			[keywords]: ts('#C586C0', 0)
+		});
+
+	});
+
+	test('color defaults - kimbie dark', async () => {
+		const themeData = ColorThemeData.createUnloadedTheme('foo');
+		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-kimbie-dark/themes/kimbie-dark-color-theme.json');
+		themeData.location = URI.file(themeLocation);
+		await themeData.ensureLoaded(fileService);
+
+		assert.equal(themeData.isLoaded, true);
+
+		assertTokenStyles(themeData, {
+			[comments]: ts('#a57a4c', 0),
+			[variables]: ts('#dc3958', 0),
+			[types]: ts('#f06431', 0),
+			[functions]: ts('#8ab1b0', 0),
+			[strings]: ts('#889b4a', 0),
+			[numbers]: ts('#f79a32', 0),
+			[keywords]: ts('#98676a', 0)
+		});
+
+	});
+
+	test('color defaults - abyss', async () => {
+		const themeData = ColorThemeData.createUnloadedTheme('foo');
+		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-abyss/themes/abyss-color-theme.json');
+		themeData.location = URI.file(themeLocation);
+		await themeData.ensureLoaded(fileService);
+
+		assert.equal(themeData.isLoaded, true);
+
+		assertTokenStyles(themeData, {
+			[comments]: ts('#384887', 0),
+			[variables]: ts('#9966b8', 0),
+			[types]: ts('#f06431', 0),
+			[functions]: ts('#8ab1b0', 0),
+			[strings]: ts('#22aa44', 0),
+			[numbers]: ts('#f280d0', 0),
+			[keywords]: ts('#98676a', 0)
+		});
 
 	});
 
@@ -83,7 +177,7 @@ suite('Themes - TokenStyleResolving', () => {
 					}
 				},
 				{
-					scope: 'keyword',
+					scope: 'keyword.operator',
 					settings: {
 						fontStyle: 'italic bold underline',
 						foreground: '#F92672'
@@ -119,8 +213,17 @@ suite('Themes - TokenStyleResolving', () => {
 		tokenStyle = themeData.findTokenStyleForScope(['variable']);
 		assertTokenStyle(tokenStyle, ts('#F8F8F2', 0), 'variable');
 
-		tokenStyle = themeData.findTokenStyleForScope(['keyword']);
+		tokenStyle = themeData.findTokenStyleForScope(['keyword.operator']);
 		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC | TokenStyleBits.BOLD | TokenStyleBits.UNDERLINE), 'keyword');
+
+		tokenStyle = themeData.findTokenStyleForScope(['keyword']);
+		assertTokenStyle(tokenStyle, undefined, 'keyword');
+
+		tokenStyle = themeData.findTokenStyleForScope(['keyword.operator']);
+		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC | TokenStyleBits.BOLD | TokenStyleBits.UNDERLINE), 'keyword.operator');
+
+		tokenStyle = themeData.findTokenStyleForScope(['keyword.operators']);
+		assertTokenStyle(tokenStyle, undefined, 'keyword.operators');
 
 		tokenStyle = themeData.findTokenStyleForScope(['storage']);
 		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC), 'storage');
