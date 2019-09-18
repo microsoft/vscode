@@ -29,6 +29,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { distinct } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const $ = dom.$;
 
@@ -68,7 +69,7 @@ async function createCandidateDecorations(model: ITextModel, lineNumbers: number
 	const result: { range: Range; options: IModelDecorationOptions; }[] = [];
 	const session = debugService.getViewModel().focusedSession;
 	if (session && session.capabilities.supportsBreakpointLocationsRequest) {
-		lineNumbers.forEach(async lineNumber => {
+		await Promise.all(lineNumbers.map(async lineNumber => {
 			const positions = await session.breakpointsLocations(model.uri, lineNumber);
 			positions.forEach(p => {
 				result.push({
@@ -79,7 +80,7 @@ async function createCandidateDecorations(model: ITextModel, lineNumbers: number
 					}
 				});
 			});
-		});
+		}));
 	}
 
 	return result;
@@ -114,9 +115,10 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private toDispose: IDisposable[] = [];
 	private ignoreDecorationsChangedEvent = false;
-	private ignoreFirstBreakpointsChangeEvent = false;
+	private ignoreBreakpointsChangeEvent = false;
 	private breakpointDecorations: IBreakpointDecoration[] = [];
 	private candidateDecoraions: { decorationId: string, inlineWidget: InlineBreakpointWidget }[] = [];
+	private setDecorationsScheduler: RunOnceScheduler;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -128,6 +130,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.registerListeners();
+		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
 	}
 
 	getId(): string {
@@ -222,11 +225,9 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			await this.setDecorations();
 		}));
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(async () => {
-			if (this.ignoreFirstBreakpointsChangeEvent) {
-				this.ignoreFirstBreakpointsChangeEvent = false;
-				return;
+			if (!this.ignoreBreakpointsChangeEvent && !this.setDecorationsScheduler.isScheduled()) {
+				this.setDecorationsScheduler.schedule();
 			}
-			await this.setDecorations();
 		}));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.onModelDecorationsChanged()));
 	}
@@ -298,7 +299,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 				nls.localize('addLogPoint', "Add Logpoint..."),
 				undefined,
 				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, BreakpointWidgetContext.LOG_MESSAGE))
+				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE))
 			));
 		}
 
@@ -378,7 +379,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		const lineNumbers = distinct(this.breakpointDecorations.map(bpd => bpd.range.startLineNumber));
 		let desiredCandidateDecorations = await createCandidateDecorations(this.editor.getModel(), lineNumbers, this.debugService);
 		desiredCandidateDecorations = desiredCandidateDecorations.filter(dbd => {
-			const breakpointDecorationAlreadyAtCandidateLocation = this.breakpointDecorations.filter(bd => bd.range.equalsRange(dbd.range)).length >= 0;
+			const breakpointDecorationAlreadyAtCandidateLocation = this.breakpointDecorations.filter(bd => bd.range.equalsRange(dbd.range)).length > 0;
 			return !breakpointDecorationAlreadyAtCandidateLocation;
 		});
 		const candidateDecorationids = this.editor.deltaDecorations(this.candidateDecoraions.map(c => c.decorationId), desiredCandidateDecorations);
@@ -436,10 +437,10 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		}
 
 		try {
-			this.ignoreFirstBreakpointsChangeEvent = true;
+			this.ignoreBreakpointsChangeEvent = true;
 			await this.debugService.updateBreakpoints(model.uri, data, true);
 		} finally {
-			this.ignoreFirstBreakpointsChangeEvent = false;
+			this.ignoreBreakpointsChangeEvent = false;
 		}
 	}
 

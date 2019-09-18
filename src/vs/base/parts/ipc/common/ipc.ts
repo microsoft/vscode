@@ -32,7 +32,6 @@ export interface IServerChannel<TContext = string> {
 	listen<T>(ctx: TContext, event: string, arg?: any): Event<T>;
 }
 
-
 export const enum RequestType {
 	Promise = 100,
 	PromiseCancel = 101,
