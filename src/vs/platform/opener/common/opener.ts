@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
@@ -16,6 +16,10 @@ export interface IOpener {
 
 export interface IValidator {
 	shouldOpen(resource: URI): Promise<boolean>;
+}
+
+export interface IExternalUriResolver {
+	resolveExternalUri(resource: URI): Promise<URI>;
 }
 
 export interface IOpenerService {
@@ -29,9 +33,14 @@ export interface IOpenerService {
 
 	/**
 	 * Register a participant that can validate if the URI resource be opened.
-	 * validators are run before openers.
+	 * Validators are run before openers.
 	 */
 	registerValidator(validator: IValidator): IDisposable;
+
+	/**
+	 * Register a participant that can resolve an external URI resource to be opened.
+	 */
+	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable;
 
 	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.
@@ -45,7 +54,8 @@ export interface IOpenerService {
 
 export const NullOpenerService: IOpenerService = Object.freeze({
 	_serviceBrand: undefined,
-	registerOpener() { return { dispose() { } }; },
-	registerValidator() { return { dispose() { } }; },
+	registerOpener() { return Disposable.None; },
+	registerValidator() { return Disposable.None; },
+	registerExternalUriResolver() { return Disposable.None; },
 	open() { return Promise.resolve(false); },
 });

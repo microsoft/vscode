@@ -170,7 +170,55 @@
 			"settings": {
 				"foreground": "#ff0000"
 			}
+		},
+		// Scopes that are potentially C++ only follow
+		{
+			"scope": "source.cpp entity.name",
+			"settings": {
+				"foreground": "#000000"
+			}
+		},
+		{
+			"scope": "source.cpp keyword.control.directive",
+			"settings": {
+				"foreground": "#808080"
+			}
+		},
+		{
+			"scope": "source.cpp entity.name.function.operator",
+			"settings": {
+				"foreground": "#008080"
+			}
+		},
+		{
+			"scope": "source.cpp entity.name.function.preprocessor",
+			"settings": {
+				"foreground": "#AF00DB"
+			}
+		},
+		{
+			"scope": "source.cpp entity.name.label",
+			"settings": {
+				"foreground": "#000000"
+			}
+		},
+		{
+			"scope": "source.cpp entity.name.operator.custom-literal.string",
+			"settings": {
+				"foreground": "#0451a5"
+			}
+		},
+		{
+			"scope": "source.cpp variable.other.enummember",
+			"settings": {
+				"foreground": "#2F4F4F"
+			}
+		},
+		{
+			"scope": "source.cpp variable.parameter",
+			"settings": {
+				"foreground": "#808080"
+			}
 		}
-
 	]
 }

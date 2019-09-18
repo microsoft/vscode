@@ -84,6 +84,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		this.configuration.machineId = generateUuid();
 		this.userRoamingDataHome = URI.file('/User').with({ scheme: Schemas.userData });
 		this.settingsResource = joinPath(this.userRoamingDataHome, 'settings.json');
+		this.settingsSyncPreviewResource = joinPath(this.userRoamingDataHome, '.settings.json');
 		this.keybindingsResource = joinPath(this.userRoamingDataHome, 'keybindings.json');
 		this.keyboardLayoutResource = joinPath(this.userRoamingDataHome, 'keyboardLayout.json');
 		this.localeResource = joinPath(this.userRoamingDataHome, 'locale.json');
@@ -141,6 +142,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	appSettingsHome: URI;
 	userRoamingDataHome: URI;
 	settingsResource: URI;
+	settingsSyncPreviewResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	localeResource: URI;
@@ -181,16 +183,17 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	get webviewExternalEndpoint(): string {
 		// TODO: get fallback from product.json
-		return this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com';
-	}
-
-	get webviewResourceRoot(): string {
-		return `${this.webviewExternalEndpoint}/{{commit}}/vscode-resource{{resource}}`
+		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}')
 			.replace('{{commit}}', product.commit || '211fa02efe8c041fd7baa8ec3dce199d5185aa44');
 	}
 
+	get webviewResourceRoot(): string {
+		return `${this.webviewExternalEndpoint}/vscode-resource{{resource}}`;
+	}
+
 	get webviewCspSource(): string {
-		return this.options.webviewEndpoint || `https://*.vscode-webview-test.com`;
+		return this.webviewExternalEndpoint
+			.replace('{{uuid}}', '*');
 	}
 }
 

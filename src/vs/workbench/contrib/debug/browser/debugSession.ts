@@ -376,7 +376,7 @@ export class DebugSession implements IDebugSession {
 			const response = await this.raw.breakpointLocations({ source, line: lineNumber });
 			const positions = response.body.breakpoints.map(bp => ({ lineNumber: bp.line, column: bp.column || 1 }));
 
-			return distinct(positions, p => p.toString());
+			return distinct(positions, p => `${p.lineNumber}:${p.column}`);
 		}
 		return Promise.reject(new Error('no debug adapter'));
 	}

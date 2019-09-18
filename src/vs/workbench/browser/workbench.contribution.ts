@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 
 // Configuration
 (function registerConfiguration(): void {
@@ -263,6 +263,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 		nls.localize('rootName', "`\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace)."),
 		nls.localize('rootPath', "`\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace)."),
 		nls.localize('appName', "`\${appName}`: e.g. VS Code."),
+		nls.localize('remoteName', "`\${remoteName}`: e.g. SSH"),
 		nls.localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is dirty."),
 		nls.localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
@@ -275,7 +276,18 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 		'properties': {
 			'window.title': {
 				'type': 'string',
-				'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
+				'default': (() => {
+					if (isMacintosh && isNative) {
+						return '${activeEditorShort}${separator}${rootName}'; // macOS has native dirty indicator
+					}
+
+					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}';
+					if (isWeb) {
+						return base + '${separator}${remoteName}'; // Web: always show remote indicator
+					}
+
+					return base;
+				})(),
 				'markdownDescription': windowTitleDescription
 			},
 			'window.menuBarVisibility': {

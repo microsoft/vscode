@@ -12,6 +12,12 @@ export interface IElectronService {
 
 	_serviceBrand: undefined;
 
+	// Window
+	windowCount(): Promise<number>;
+
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
+
+	// OS
+	showItemInFolder(path: string): Promise<void>;
 }

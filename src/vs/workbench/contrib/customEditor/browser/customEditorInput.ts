@@ -17,7 +17,7 @@ import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webvi
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { promptSave } from 'vs/workbench/services/textfile/common/textFileService';
+import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
 
 export class CustomFileEditorInput extends WebviewInput {
 

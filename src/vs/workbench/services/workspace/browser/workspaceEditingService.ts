@@ -31,6 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -54,7 +55,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILifecycleService readonly lifecycleService: ILifecycleService,
-		@ILabelService readonly labelService: ILabelService
+		@ILabelService readonly labelService: ILabelService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		this.registerListeners();
 	}
@@ -82,7 +84,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return false; // only care about untitled workspaces to ask for saving
 		}
 
-		const windowCount = await this.windowsService.getWindowCount();
+		const windowCount = await this.hostService.windowCount;
 
 		if (reason === ShutdownReason.CLOSE && !isMacintosh && windowCount === 1) {
 			return false; // Windows/Linux: quits when last window is closed, so do not ask then
