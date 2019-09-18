@@ -29,6 +29,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { distinct } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const $ = dom.$;
 
@@ -117,6 +118,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 	private ignoreBreakpointsChangeEvent = false;
 	private breakpointDecorations: IBreakpointDecoration[] = [];
 	private candidateDecoraions: { decorationId: string, inlineWidget: InlineBreakpointWidget }[] = [];
+	private setDecorationsScheduler: RunOnceScheduler;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -128,6 +130,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.registerListeners();
+		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
 	}
 
 	getId(): string {
@@ -222,8 +225,8 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			await this.setDecorations();
 		}));
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(async () => {
-			if (!this.ignoreBreakpointsChangeEvent) {
-				await this.setDecorations();
+			if (!this.ignoreBreakpointsChangeEvent && !this.setDecorationsScheduler.isScheduled()) {
+				this.setDecorationsScheduler.schedule();
 			}
 		}));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.onModelDecorationsChanged()));
