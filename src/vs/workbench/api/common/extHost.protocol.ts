@@ -46,7 +46,6 @@ import { ExtensionActivationError } from 'vs/workbench/services/extensions/commo
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUserData } from 'vs/platform/userDataSync/common/userDataSync';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -144,11 +143,6 @@ export interface MainThreadCommentsShape extends IDisposable {
 export interface MainThreadConfigurationShape extends IDisposable {
 	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, resource: UriComponents | undefined): Promise<void>;
 	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, resource: UriComponents | undefined): Promise<void>;
-}
-
-export interface MainThreadUserDataShape extends IDisposable {
-	$registerUserDataProvider(id: string, name: string): void;
-	$deregisterUserDataProvider(id: string): void;
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
@@ -758,11 +752,6 @@ export interface ExtHostConfigurationShape {
 	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData): void;
 }
 
-export interface ExtHostUserDataShape {
-	$read(key: string): Promise<IUserData | null>;
-	$write(key: string, content: string, ref: string): Promise<string>;
-}
-
 export interface ExtHostDiagnosticsShape {
 	$acceptMarkersChange(data: [UriComponents, IMarkerData[]][]): void;
 }
@@ -1336,7 +1325,6 @@ export const MainContext = {
 	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
-	MainThreadUserData: createMainId<MainThreadUserDataShape>('MainThreadUserData'),
 	MainThreadConsole: createMainId<MainThreadConsoleShape>('MainThreadConsole'),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
@@ -1376,7 +1364,6 @@ export const MainContext = {
 export const ExtHostContext = {
 	ExtHostCommands: createExtId<ExtHostCommandsShape>('ExtHostCommands'),
 	ExtHostConfiguration: createExtId<ExtHostConfigurationShape>('ExtHostConfiguration'),
-	ExtHostUserData: createExtId<ExtHostUserDataShape>('ExtHostUserData'),
 	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
 	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService'),
 	ExtHostDecorations: createExtId<ExtHostDecorationsShape>('ExtHostDecorations'),
