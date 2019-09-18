@@ -92,13 +92,10 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		template.name.textContent = group.label;
 		template.actionBar.clear();
 		template.actionBar.context = group;
+		template.count.setCount(group.elements.length);
 
 		const disposables = new DisposableStore();
 		disposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceGroupMenu(group), template.actionBar));
-
-		const updateCount = () => template.count.setCount(group.elements.length);
-		disposables.add(group.onDidSplice(updateCount, null));
-		updateCount();
 
 		template.elementDisposables = disposables;
 	}
@@ -112,6 +109,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
+		template.elementDisposables.dispose();
 		template.disposables.dispose();
 	}
 }
