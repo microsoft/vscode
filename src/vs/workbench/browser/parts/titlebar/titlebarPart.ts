@@ -257,6 +257,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	 * {folderName}: e.g. myFolder
 	 * {folderPath}: e.g. /Users/Development/myFolder
 	 * {appName}: e.g. VS Code
+	 * {remoteName}: e.g. SSH
 	 * {dirty}: indicator
 	 * {separator}: conditional separator
 	 */
@@ -297,6 +298,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor && editor.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
+		const remoteName = this.environmentService.configuration.remoteAuthority;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
 
@@ -313,6 +315,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			folderPath,
 			dirty,
 			appName,
+			remoteName,
 			separator: { label: separator }
 		});
 	}
