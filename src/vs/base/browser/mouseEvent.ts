@@ -152,34 +152,48 @@ export class StandardWheelEvent {
 		this.deltaX = deltaX;
 
 		if (e) {
-			let e1 = <IWebKitMouseWheelEvent><any>e;
-			let e2 = <IGeckoMouseWheelEvent><any>e;
+			if (e.type === 'wheel') {
 
-			// vertical delta scroll
-			if (typeof e1.wheelDeltaY !== 'undefined') {
-				this.deltaY = e1.wheelDeltaY / 120;
-			} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
-				this.deltaY = -e2.detail / 3;
-			} else {
-				this.deltaY = -e.deltaY / 40;
-			}
+				// Modern wheel event
+				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+				const ev = <WheelEvent><unknown>e;
 
-			// horizontal delta scroll
-			if (typeof e1.wheelDeltaX !== 'undefined') {
-				if (browser.isSafari && platform.isWindows) {
-					this.deltaX = - (e1.wheelDeltaX / 120);
+				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
+					// the deltas are expressed in lines
+					this.deltaY = -e.deltaY;
+					this.deltaX = -e.deltaX;
 				} else {
-					this.deltaX = e1.wheelDeltaX / 120;
+					this.deltaY = -e.deltaY / 40;
+					this.deltaX = -e.deltaX / 40;
 				}
-			} else if (typeof e2.HORIZONTAL_AXIS !== 'undefined' && e2.axis === e2.HORIZONTAL_AXIS) {
-				this.deltaX = -e.detail / 3;
-			} else {
-				this.deltaX = -e.deltaX / 40;
-			}
 
-			// Assume a vertical scroll if nothing else worked
-			if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
-				this.deltaY = e.wheelDelta / 120;
+			} else {
+				// Old (deprecated) wheel events
+				let e1 = <IWebKitMouseWheelEvent><any>e;
+				let e2 = <IGeckoMouseWheelEvent><any>e;
+
+				// vertical delta scroll
+				if (typeof e1.wheelDeltaY !== 'undefined') {
+					this.deltaY = e1.wheelDeltaY / 120;
+				} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
+					this.deltaY = -e2.detail / 3;
+				}
+
+				// horizontal delta scroll
+				if (typeof e1.wheelDeltaX !== 'undefined') {
+					if (browser.isSafari && platform.isWindows) {
+						this.deltaX = - (e1.wheelDeltaX / 120);
+					} else {
+						this.deltaX = e1.wheelDeltaX / 120;
+					}
+				} else if (typeof e2.HORIZONTAL_AXIS !== 'undefined' && e2.axis === e2.HORIZONTAL_AXIS) {
+					this.deltaX = -e.detail / 3;
+				}
+
+				// Assume a vertical scroll if nothing else worked
+				if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
+					this.deltaY = e.wheelDelta / 120;
+				}
 			}
 		}
 	}
