@@ -55,6 +55,7 @@ import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenub
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -102,7 +103,8 @@ export class ElectronWindow extends Disposable {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IElectronService private readonly electronService: IElectronService
 	) {
 		super();
 
@@ -371,7 +373,7 @@ export class ElectronWindow extends Disposable {
 					const success = await $this.windowsService.openExternal(encodeURI(resource.toString(true)));
 					if (!success && resource.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
-						await $this.windowsService.showItemInFolder(resource);
+						await $this.electronService.showItemInFolder(resource.fsPath);
 					}
 
 					return true;

@@ -90,12 +90,18 @@ registerSingleton(IElectronService, ElectronService, true);
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
+// Logs
+import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
+
 // Stats
 import 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
 import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
 
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
+
+// Explorer
+import 'vs/workbench/contrib/files/electron-browser/fileActions.contribution';
 
 // Debug
 import 'vs/workbench/contrib/debug/node/debugHelperService';

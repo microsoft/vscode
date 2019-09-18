@@ -226,10 +226,6 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('getWindowCount');
 	}
 
-	showItemInFolder(path: URI): Promise<void> {
-		return this.channel.call('showItemInFolder', path);
-	}
-
 	getActiveWindowId(): Promise<number | undefined> {
 		return this.channel.call('getActiveWindowId');
 	}

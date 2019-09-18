@@ -376,7 +376,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (!isMacintosh && !isWeb) {
 			this.windowControls = append(this.element, $('div.window-controls-container'));
 
-
 			// Minimize
 			const minimizeIconContainer = append(this.windowControls, $('div.window-icon-bg'));
 			const minimizeIcon = append(minimizeIconContainer, $('div.window-icon'));
@@ -612,7 +611,9 @@ class ShowItemInFolderAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.windowsService.showItemInFolder(URI.file(this.path));
+		if (this.path && this.windowsService) { }
+		return Promise.resolve();
+		// return this.windowsService.showItemInFolder(URI.file(this.path));
 	}
 }
 
