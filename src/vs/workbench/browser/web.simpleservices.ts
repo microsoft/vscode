@@ -241,7 +241,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		for (let i = 0; i < _uris.length; i++) {
 			const uri = _uris[i];
 			if ('folderUri' in uri) {
-				const newAddress = `${document.location.origin}/?folder=${uri.folderUri.path}`;
+				const newAddress = `${document.location.origin}${document.location.pathname}?folder=${uri.folderUri.path}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {
@@ -249,7 +249,7 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 				}
 			}
 			if ('workspaceUri' in uri) {
-				const newAddress = `${document.location.origin}/?workspace=${uri.workspaceUri.path}`;
+				const newAddress = `${document.location.origin}${document.location.pathname}?workspace=${uri.workspaceUri.path}`;
 				if (openFolderInNewWindow) {
 					window.open(newAddress);
 				} else {
