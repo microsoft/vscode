@@ -20,6 +20,7 @@ export interface IBranchNode<T> {
 	readonly name: string;
 	readonly size: number;
 	readonly children: Iterator<INode<T>>;
+	readonly parent: IBranchNode<T> | undefined;
 	get(childName: string): INode<T> | undefined;
 }
 
@@ -45,6 +46,10 @@ class BranchNode<T> extends Node implements IBranchNode<T> {
 
 	get children(): Iterator<BranchNode<T> | LeafNode<T>> {
 		return Iterator.fromIterableIterator(this._children.values());
+	}
+
+	constructor(path: string, readonly parent: IBranchNode<T> | undefined = undefined) {
+		super(path);
 	}
 
 	get(path: string): BranchNode<T> | LeafNode<T> | undefined {
@@ -75,6 +80,14 @@ export class ResourceTree<T extends NonNullable<any>> {
 		return obj instanceof BranchNode;
 	}
 
+	static getRoot<T>(node: IBranchNode<T>): IBranchNode<T> {
+		while (node.parent) {
+			node = node.parent;
+		}
+
+		return node;
+	}
+
 	constructor(private rootURI: URI = URI.file('/')) { }
 
 	add(uri: URI, element: T): void {
@@ -91,7 +104,7 @@ export class ResourceTree<T extends NonNullable<any>> {
 
 			if (!child) {
 				if (i < parts.length - 1) {
-					child = new BranchNode(path);
+					child = new BranchNode(path, node);
 					node.set(name, child);
 				} else {
 					child = new LeafNode(path, element);

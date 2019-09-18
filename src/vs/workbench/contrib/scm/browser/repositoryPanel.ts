@@ -54,8 +54,8 @@ interface ResourceGroupTemplate {
 	name: HTMLElement;
 	count: CountBadge;
 	actionBar: ActionBar;
-	elementDisposable: IDisposable;
-	dispose: () => void;
+	elementDisposables: IDisposable;
+	disposables: IDisposable;
 }
 
 class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGroup, FuzzyScore, ResourceGroupTemplate> {
@@ -77,18 +77,14 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
 		const styler = attachBadgeStyler(count, this.themeService);
-		const elementDisposable = Disposable.None;
+		const elementDisposables = Disposable.None;
+		const disposables = combinedDisposable(actionBar, styler);
 
-		return {
-			name, count, actionBar, elementDisposable, dispose: () => {
-				actionBar.dispose();
-				styler.dispose();
-			}
-		};
+		return { name, count, actionBar, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<ISCMResourceGroup, FuzzyScore>, index: number, template: ResourceGroupTemplate): void {
-		template.elementDisposable.dispose();
+		template.elementDisposables.dispose();
 
 		const group = node.element;
 		template.name.textContent = group.label;
@@ -102,7 +98,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		disposables.add(group.onDidSplice(updateCount, null));
 		updateCount();
 
-		template.elementDisposable = disposables;
+		template.elementDisposables = disposables;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceGroup>, FuzzyScore>, index: number, templateData: ResourceGroupTemplate, height: number | undefined): void {
@@ -110,11 +106,11 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 	}
 
 	disposeElement(group: ITreeNode<ISCMResourceGroup, FuzzyScore>, index: number, template: ResourceGroupTemplate): void {
-		template.elementDisposable.dispose();
+		template.elementDisposables.dispose();
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
-		template.dispose();
+		template.disposables.dispose();
 	}
 }
 
@@ -124,8 +120,8 @@ interface ResourceTemplate {
 	fileLabel: IResourceLabel;
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
-	elementDisposable: IDisposable;
-	dispose: () => void;
+	elementDisposables: IDisposable;
+	disposables: IDisposable;
 }
 
 class MultipleSelectionActionRunner extends ActionRunner {
@@ -175,18 +171,15 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 		});
 
 		const decorationIcon = append(element, $('.decoration-icon'));
+		const disposables = combinedDisposable(actionBar, fileLabel);
 
-		return {
-			element, name, fileLabel, decorationIcon, actionBar, elementDisposable: Disposable.None, dispose: () => {
-				actionBar.dispose();
-				fileLabel.dispose();
-			}
-		};
+		return { element, name, fileLabel, decorationIcon, actionBar, elementDisposables: Disposable.None, disposables };
 	}
 
 	renderElement(node: ITreeNode<ISCMResource, FuzzyScore> | ITreeNode<IBranchNode<ISCMResource>, FuzzyScore>, index: number, template: ResourceTemplate): void {
-		template.elementDisposable.dispose();
+		template.elementDisposables.dispose();
 
+		const elementDisposables = new DisposableStore();
 		const resource = node.element;
 		const theme = this.themeService.getTheme();
 		const icon = ResourceTree.isBranchNode(resource) ? undefined : (theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark);
@@ -201,13 +194,18 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 			fileKind,
 			matches: createMatches(node.filterData)
 		});
+
 		template.actionBar.clear();
 		template.actionBar.context = resource;
 
-		const disposables = new DisposableStore();
+		if (ResourceTree.isBranchNode(resource)) {
+			const group = viewModel.getResourceGroupOf(resource);
 
-		if (!ResourceTree.isBranchNode(resource)) {
-			disposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resource.resourceGroup), template.actionBar));
+			if (group) {
+				elementDisposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceFolderMenu(group), template.actionBar));
+			}
+		} else {
+			elementDisposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceMenu(resource.resourceGroup), template.actionBar));
 			toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 			toggleClass(template.element, 'faded', resource.decorations.faded);
 		}
@@ -224,43 +222,50 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IBran
 		}
 
 		template.element.setAttribute('data-tooltip', tooltip);
-		template.elementDisposable = disposables;
+		template.elementDisposables = elementDisposables;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IBranchNode<ISCMResource>>, FuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
-		template.elementDisposable.dispose();
+		template.elementDisposables.dispose();
 
+		const disposables = new DisposableStore();
 		const compressed = node.element as ICompressedTreeNode<IBranchNode<ISCMResource>>;
-		const resource = compressed.elements[compressed.elements.length - 1];
+		const branchNode = compressed.elements[compressed.elements.length - 1];
 
 		const label = compressed.elements.map(e => e.name).join('/');
-		const uri = URI.file(resource.path);
+		const uri = URI.file(branchNode.path);
 		const fileKind = FileKind.FOLDER;
+
 		template.fileLabel.setResource({ resource: uri, name: label }, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind,
 			matches: createMatches(node.filterData)
 		});
-		template.actionBar.clear();
-		template.actionBar.context = resource;
 
-		const disposables = new DisposableStore();
+		template.actionBar.clear();
+		template.actionBar.context = 'what'; // TODO
+
+		const viewModel = this.viewModelProvider();
+		const group = viewModel.getResourceGroupOf(branchNode);
+
+		if (group) {
+			disposables.add(connectPrimaryMenuToInlineActionBar(this.menus.getResourceFolderMenu(group), template.actionBar));
+		}
 
 		template.decorationIcon.style.display = 'none';
 		template.decorationIcon.style.backgroundImage = '';
 
-		template.element.setAttribute('data-tooltip', resource.path);
-		template.elementDisposable = disposables;
-
+		template.element.setAttribute('data-tooltip', branchNode.path);
+		template.elementDisposables = disposables;
 	}
 
 	disposeElement(resource: ITreeNode<ISCMResource, FuzzyScore> | ITreeNode<IBranchNode<ISCMResource>, FuzzyScore>, index: number, template: ResourceTemplate): void {
-		template.elementDisposable.dispose();
+		template.elementDisposables.dispose();
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {
-		template.elementDisposable.dispose();
-		template.dispose();
+		template.elementDisposables.dispose();
+		template.disposables.dispose();
 	}
 }
 
@@ -457,6 +462,18 @@ class ViewModel {
 		} else {
 			this.tree.setChildren(null, this.items.map(item => groupItemAsTreeElement(item, this.mode)));
 		}
+	}
+
+	getResourceGroupOf(node: IBranchNode<ISCMResource>): ISCMResourceGroup | undefined {
+		const root = ResourceTree.getRoot(node);
+
+		for (const item of this.items) {
+			if (item.tree.root === root) {
+				return item.group;
+			}
+		}
+
+		return undefined;
 	}
 
 	dispose(): void {
@@ -766,10 +783,14 @@ export class RepositoryPanel extends ViewletPanel {
 		}
 
 		const element = e.element;
-		let actions: IAction[];
+		let actions: IAction[] = [];
 
 		if (ResourceTree.isBranchNode(element)) {
-			actions = [];
+			const group = this.viewModel.getResourceGroupOf(element);
+
+			if (group) {
+				actions = this.menus.getResourceFolderContextActions(group);
+			}
 		} else if (isSCMResource(element)) {
 			actions = this.menus.getResourceContextActions(element);
 		} else {

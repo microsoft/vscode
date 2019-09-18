@@ -87,6 +87,7 @@ export const enum MenuId {
 	ProblemsPanelContext,
 	SCMChangeContext,
 	SCMResourceContext,
+	SCMResourceFolderContext,
 	SCMResourceGroupContext,
 	SCMSourceControl,
 	SCMTitle,
