@@ -274,12 +274,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getExtension(extensionId: string): Extension<any> | undefined {
 				const desc = extensionRegistry.getExtensionDescription(extensionId);
 				if (desc) {
-					return new Extension(extensionService, desc, extensionKind);
+					return new Extension(extensionService, extension.identifier, desc, extensionKind);
 				}
 				return undefined;
 			},
 			get all(): Extension<any>[] {
-				return extensionRegistry.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, desc, extensionKind));
+				return extensionRegistry.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, extension.identifier, desc, extensionKind));
 			},
 			get onDidChange() {
 				return extensionRegistry.onDidChange;
@@ -914,6 +914,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 class Extension<T> implements vscode.Extension<T> {
 
 	private _extensionService: IExtHostExtensionService;
+	private _originExtensionId: ExtensionIdentifier;
 	private _identifier: ExtensionIdentifier;
 
 	readonly id: string;
@@ -921,8 +922,9 @@ class Extension<T> implements vscode.Extension<T> {
 	readonly packageJSON: IExtensionDescription;
 	readonly extensionKind: vscode.ExtensionKind;
 
-	constructor(extensionService: IExtHostExtensionService, description: IExtensionDescription, kind: extHostTypes.ExtensionKind) {
+	constructor(extensionService: IExtHostExtensionService, originExtensionId: ExtensionIdentifier, description: IExtensionDescription, kind: extHostTypes.ExtensionKind) {
 		this._extensionService = extensionService;
+		this._originExtensionId = originExtensionId;
 		this._identifier = description.identifier;
 		this.id = description.identifier.value;
 		this.extensionPath = path.normalize(originalFSPath(description.extensionLocation));
@@ -942,6 +944,6 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	activate(): Thenable<T> {
-		return this._extensionService.activateByIdWithErrors(this._identifier, new ExtensionActivatedByAPI(false)).then(() => this.exports);
+		return this._extensionService.activateByIdWithErrors(this._identifier, new ExtensionActivatedByAPI(false, this._originExtensionId)).then(() => this.exports);
 	}
 }

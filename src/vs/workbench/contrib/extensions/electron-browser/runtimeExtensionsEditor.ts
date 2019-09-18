@@ -308,7 +308,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				const activationTimes = element.status.activationTimes!;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-				data.activationTime.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
+				data.activationTime.textContent = activationTimes.activationReason.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 
 				data.actionbar.clear();
 				if (element.unresponsiveProfile) {
@@ -319,43 +319,45 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				}
 
 				let title: string;
-				if (activationTimes.activationEvent === '*') {
-					title = nls.localize('starActivation', "Activated on start-up");
-				} else if (/^workspaceContains:/.test(activationTimes.activationEvent)) {
-					let fileNameOrGlob = activationTimes.activationEvent.substr('workspaceContains:'.length);
+				const activationId = activationTimes.activationReason.extensionId.value;
+				const activationEvent = 'activationEvent' in activationTimes.activationReason ? activationTimes.activationReason.activationEvent : 'api';
+				if (activationEvent === '*') {
+					title = nls.localize('starActivation', "Activated by {0} on start-up", activationId);
+				} else if (/^workspaceContains:/.test(activationEvent)) {
+					let fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
 					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
 						title = nls.localize({
 							key: 'workspaceContainsGlobActivation',
 							comment: [
 								'{0} will be a glob pattern'
 							]
-						}, "Activated because a file matching {0} exists in your workspace", fileNameOrGlob);
+						}, "Activated by {1} because a file matching {1} exists in your workspace", fileNameOrGlob, activationId);
 					} else {
 						title = nls.localize({
 							key: 'workspaceContainsFileActivation',
 							comment: [
 								'{0} will be a file name'
 							]
-						}, "Activated because file {0} exists in your workspace", fileNameOrGlob);
+						}, "Activated by {1} because file {0} exists in your workspace", fileNameOrGlob, activationId);
 					}
-				} else if (/^workspaceContainsTimeout:/.test(activationTimes.activationEvent)) {
-					const glob = activationTimes.activationEvent.substr('workspaceContainsTimeout:'.length);
+				} else if (/^workspaceContainsTimeout:/.test(activationEvent)) {
+					const glob = activationEvent.substr('workspaceContainsTimeout:'.length);
 					title = nls.localize({
 						key: 'workspaceContainsTimeout',
 						comment: [
 							'{0} will be a glob pattern'
 						]
-					}, "Activated because searching for {0} took too long", glob);
-				} else if (/^onLanguage:/.test(activationTimes.activationEvent)) {
-					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
-					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);
+					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
+				} else if (/^onLanguage:/.test(activationEvent)) {
+					let language = activationEvent.substr('onLanguage:'.length);
+					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
 				} else {
 					title = nls.localize({
 						key: 'workspaceGenericActivation',
 						comment: [
 							'The {0} placeholder will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.'
 						]
-					}, "Activated on {0}", activationTimes.activationEvent);
+					}, "Activated by {1} on {0}", activationEvent, activationId);
 				}
 				data.activationTime.title = title;
 
