@@ -183,16 +183,17 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	get webviewExternalEndpoint(): string {
 		// TODO: get fallback from product.json
-		return this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com';
-	}
-
-	get webviewResourceRoot(): string {
-		return `${this.webviewExternalEndpoint}/{{commit}}/vscode-resource{{resource}}`
+		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}')
 			.replace('{{commit}}', product.commit || '211fa02efe8c041fd7baa8ec3dce199d5185aa44');
 	}
 
+	get webviewResourceRoot(): string {
+		return `${this.webviewExternalEndpoint}/vscode-resource{{resource}}`;
+	}
+
 	get webviewCspSource(): string {
-		return this.options.webviewEndpoint || `https://*.vscode-webview-test.com`;
+		return this.webviewExternalEndpoint
+			.replace('{{uuid}}', '*');
 	}
 }
 

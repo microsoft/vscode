@@ -3,8 +3,8 @@
 		"c": "#",
 		"t": "source.cpp keyword.control.directive.conditional.ifndef.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
+			"light_plus": "source.cpp keyword.control.directive: #808080",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
@@ -14,8 +14,8 @@
 		"c": "ifndef",
 		"t": "source.cpp keyword.control.directive.conditional.ifndef.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
+			"light_plus": "source.cpp keyword.control.directive: #808080",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
@@ -36,8 +36,8 @@
 		"c": "_UCRT",
 		"t": "source.cpp meta.preprocessor.conditional.cpp entity.name.function.preprocessor.cpp",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
+			"dark_plus": "source.cpp entity.name.function.preprocessor: #C586C0",
+			"light_plus": "source.cpp entity.name.function.preprocessor: #AF00DB",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "entity.name.function: #DCDCAA"
@@ -47,8 +47,8 @@
 		"c": "#",
 		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
+			"light_plus": "source.cpp keyword.control.directive: #808080",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
@@ -58,8 +58,8 @@
 		"c": "define",
 		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
+			"light_plus": "source.cpp keyword.control.directive: #808080",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
@@ -80,8 +80,8 @@
 		"c": "_UCRT",
 		"t": "source.cpp meta.preprocessor.macro.cpp entity.name.function.preprocessor.cpp",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
+			"dark_plus": "source.cpp entity.name.function.preprocessor: #C586C0",
+			"light_plus": "source.cpp entity.name.function.preprocessor: #AF00DB",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "entity.name.function: #DCDCAA"
@@ -91,8 +91,8 @@
 		"c": "#",
 		"t": "source.cpp keyword.control.directive.endif.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
+			"light_plus": "source.cpp keyword.control.directive: #808080",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
@@ -102,8 +102,8 @@
 		"c": "endif",
 		"t": "source.cpp keyword.control.directive.endif.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
+			"light_plus": "source.cpp keyword.control.directive: #808080",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"

@@ -18,6 +18,7 @@ import { language, locale } from 'vs/base/common/platform';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class TelemetryOptOut implements IWorkbenchContribution {
 
@@ -30,6 +31,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWindowService windowService: IWindowService,
 		@IWindowsService windowsService: IWindowsService,
+		@IHostService hostService: IHostService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExperimentService private readonly experimentService: IExperimentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -42,7 +44,7 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		const experimentId = 'telemetryOptOut';
 		Promise.all([
 			windowService.isFocused(),
-			windowsService.getWindowCount(),
+			hostService.windowCount,
 			experimentService.getExperimentById(experimentId)
 		]).then(([focused, count, experimentState]) => {
 			if (!focused && count > 1) {

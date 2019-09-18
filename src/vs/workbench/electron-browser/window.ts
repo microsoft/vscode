@@ -19,12 +19,12 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { ipcRenderer as ipc, webFrame, crashReporter, Event } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -55,6 +55,9 @@ import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenub
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { posix, dirname } from 'vs/base/common/path';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -72,6 +75,8 @@ export class ElectronWindow extends Disposable {
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
 	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
+
+	private customTitleContextMenuDisposable = this._register(new DisposableStore());
 
 	private previousConfiguredZoomLevel: number | undefined;
 
@@ -102,7 +107,8 @@ export class ElectronWindow extends Disposable {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IElectronService private readonly electronService: IElectronService
 	) {
 		super();
 
@@ -243,6 +249,11 @@ export class ElectronWindow extends Disposable {
 
 			this._register(this.trackClosedWaitFiles(waitMarkerFile, resourcesToWaitFor));
 		}
+
+		// macOS custom title menu
+		if (isMacintosh) {
+			this._register(this.editorService.onDidActiveEditorChange(() => this.provideCustomTitleContextMenu()));
+		}
 	}
 
 	private onDidVisibleEditorsChange(): void {
@@ -303,6 +314,43 @@ export class ElectronWindow extends Disposable {
 			// Cannot be trusted because the webFrame might take some time
 			// until it really applies the new zoom level
 			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
+		}
+	}
+
+	private provideCustomTitleContextMenu(): void {
+
+		// Clear old menu
+		this.customTitleContextMenuDisposable.clear();
+
+		// Provide new menu if a file is opened and we are on a custom title
+		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
+		if (!fileResource || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+			return;
+		}
+
+		// Split up filepath into segments
+		const filePath = fileResource.fsPath;
+		const segments = filePath.split(posix.sep);
+		for (let i = segments.length; i > 0; i--) {
+			const isFile = (i === segments.length);
+
+			let pathOffset = i;
+			if (!isFile) {
+				pathOffset++; // for segments which are not the file name we want to open the folder
+			}
+
+			const path = segments.slice(0, pathOffset).join(posix.sep);
+
+			let label: string;
+			if (!isFile) {
+				label = getBaseLabel(dirname(path));
+			} else {
+				label = getBaseLabel(path);
+			}
+
+			const commandId = `workbench.action.revealPathInFinder${i}`;
+			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.electronService.showItemInFolder(path)));
+			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
 		}
 	}
 
@@ -371,7 +419,7 @@ export class ElectronWindow extends Disposable {
 					const success = await $this.windowsService.openExternal(encodeURI(resource.toString(true)));
 					if (!success && resource.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
-						await $this.windowsService.showItemInFolder(resource);
+						await $this.electronService.showItemInFolder(resource.fsPath);
 					}
 
 					return true;

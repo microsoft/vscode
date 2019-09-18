@@ -3,8 +3,8 @@
 		"c": "#",
 		"t": "source.cpp keyword.control.directive.conditional.if.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
+			"light_plus": "source.cpp keyword.control.directive: #808080",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
@@ -14,8 +14,8 @@
 		"c": "if",
 		"t": "source.cpp keyword.control.directive.conditional.if.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
+			"light_plus": "source.cpp keyword.control.directive: #808080",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
@@ -36,8 +36,8 @@
 		"c": "B4G_DEBUG_CHECK",
 		"t": "source.cpp meta.preprocessor.conditional.cpp entity.name.function.preprocessor.cpp",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
+			"dark_plus": "source.cpp entity.name.function.preprocessor: #C586C0",
+			"light_plus": "source.cpp entity.name.function.preprocessor: #AF00DB",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "entity.name.function: #DCDCAA"
@@ -652,8 +652,8 @@
 		"c": "#",
 		"t": "source.cpp keyword.control.directive.endif.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
+			"light_plus": "source.cpp keyword.control.directive: #808080",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
@@ -663,8 +663,8 @@
 		"c": "endif",
 		"t": "source.cpp keyword.control.directive.endif.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
+			"light_plus": "source.cpp keyword.control.directive: #808080",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
@@ -751,8 +751,8 @@
 		"c": "obj",
 		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp variable.parameter.cpp",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
+			"dark_plus": "source.cpp variable.parameter: #7F7F7F",
+			"light_plus": "source.cpp variable.parameter: #808080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE"
@@ -1037,7 +1037,7 @@
 		"c": "x",
 		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp variable.other.property.cpp",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
+			"dark_plus": "source.cpp variable.other.property: #DADADA",
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",

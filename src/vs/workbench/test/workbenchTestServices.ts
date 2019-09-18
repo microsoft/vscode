@@ -82,10 +82,11 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { NodeTextFileService } from 'vs/workbench/services/textfile/node/textFileService';
+import { NativeTextFileService } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -180,7 +181,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 }
 
-export class TestTextFileService extends NodeTextFileService {
+export class TestTextFileService extends NativeTextFileService {
 	public cleanupBackupsBeforeShutdownCalled: boolean;
 
 	private promptPath: URI;
@@ -199,7 +200,7 @@ export class TestTextFileService extends NodeTextFileService {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IWindowsService windowsService: IWindowsService,
+		@IHostService hostService: IHostService,
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService dialogService: IDialogService,
@@ -219,7 +220,7 @@ export class TestTextFileService extends NodeTextFileService {
 			environmentService,
 			notificationService,
 			backupFileService,
-			windowsService,
+			hostService,
 			historyService,
 			contextKeyService,
 			dialogService,
@@ -311,6 +312,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IDecorationsService, new TestDecorationsService());
 	instantiationService.stub(IExtensionService, new TestExtensionService());
 	instantiationService.stub(IWindowsService, new TestWindowsService());
+	instantiationService.stub(IHostService, <IHostService>instantiationService.createInstance(TestHostService));
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IThemeService, new TestThemeService());
@@ -1349,8 +1351,6 @@ export class TestWindowsService implements IWindowsService {
 
 	_serviceBrand: undefined;
 
-	public windowCount = 1;
-
 	readonly onWindowOpen: Event<number> = Event.None;
 	readonly onWindowFocus: Event<number> = Event.None;
 	readonly onWindowBlur: Event<number> = Event.None;
@@ -1488,18 +1488,6 @@ export class TestWindowsService implements IWindowsService {
 
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		throw new Error('not implemented');
-	}
-
-	getWindowCount(): Promise<number> {
-		return Promise.resolve(this.windowCount);
-	}
-
-	log(_severity: string, _args: string[]): Promise<void> {
-		return Promise.resolve();
-	}
-
-	showItemInFolder(_path: URI): Promise<void> {
-		return Promise.resolve();
 	}
 
 	newWindowTab(): Promise<void> {
@@ -1642,3 +1630,10 @@ export class RemoteFileSystemProvider implements IFileSystemProvider {
 }
 
 export const productService: IProductService = { _serviceBrand: undefined, ...product };
+
+export class TestHostService implements IHostService {
+
+	_serviceBrand: undefined;
+
+	windowCount = Promise.resolve(1);
+}

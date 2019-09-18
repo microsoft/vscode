@@ -31,7 +31,7 @@ import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/search/node/searchService';
 import 'vs/workbench/services/output/node/outputChannelModelService';
-import 'vs/workbench/services/textfile/node/textFileService';
+import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import 'vs/workbench/services/keybinding/electron-browser/keybinding.contribution';
@@ -50,6 +50,7 @@ import 'vs/workbench/services/credentials/node/credentialsService';
 import 'vs/workbench/services/url/electron-browser/urlService';
 import 'vs/workbench/services/workspace/electron-browser/workspacesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
+import 'vs/workbench/services/host/electron-browser/desktopHostService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -91,12 +92,18 @@ registerSingleton(IElectronService, ElectronService, true);
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
+// Logs
+import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
+
 // Stats
 import 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
 import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
 
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
+
+// Explorer
+import 'vs/workbench/contrib/files/electron-browser/fileActions.contribution';
 
 // Debug
 import 'vs/workbench/contrib/debug/node/debugHelperService';

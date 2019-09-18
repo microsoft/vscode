@@ -33,6 +33,7 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { SimpleServiceProxyChannel } from 'vs/platform/ipc/node/simpleIpcProxy';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -45,9 +46,8 @@ import { Win32UpdateService } from 'vs/platform/update/electron-main/updateServi
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
 import { IIssueService } from 'vs/platform/issue/node/issue';
-import { IssueChannel } from 'vs/platform/issue/electron-main/issueIpc';
 import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
-import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
@@ -77,7 +77,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { ElectronMainService, ElectronChannel } from 'vs/platform/electron/electron-main/electronMainService';
+import { ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 
 export class CodeApplication extends Disposable {
 
@@ -92,7 +92,7 @@ export class CodeApplication extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateService private readonly stateService: IStateService
 	) {
@@ -109,7 +109,7 @@ export class CodeApplication extends Disposable {
 		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 
 		// Dispose on shutdown
-		this.lifecycleService.onWillShutdown(() => this.dispose());
+		this.lifecycleMainService.onWillShutdown(() => this.dispose());
 
 		// Contextmenu via IPC support
 		registerContextMenuListener();
@@ -255,7 +255,7 @@ export class CodeApplication extends Disposable {
 			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
-			this.lifecycleService.kill(code);
+			this.lifecycleMainService.kill(code);
 		});
 
 		ipc.on('vscode:fetchShellEnv', async (event: Electron.IpcMainEvent) => {
@@ -282,7 +282,7 @@ export class CodeApplication extends Disposable {
 
 		// Some listeners after window opened
 		(async () => {
-			await this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen);
+			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
 
 			// After waking up from sleep  (after window opened)
 			powerMonitor.on('resume', () => {
@@ -361,7 +361,7 @@ export class CodeApplication extends Disposable {
 		// Spawn shared process after the first window has opened and 3s have passed
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
 		const sharedProcessClient = sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
-		this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
+		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
 				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
 
@@ -461,7 +461,7 @@ export class CodeApplication extends Disposable {
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
 		services.set(IStorageMainService, storageMainService);
-		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
+		this.lifecycleMainService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		const backupMainService = new BackupMainService(this.environmentService, this.configurationService, this.logService);
 		services.set(IBackupMainService, backupMainService);
@@ -529,8 +529,8 @@ export class CodeApplication extends Disposable {
 	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>): ICodeWindow[] {
 
 		// Register more Main IPC services
-		const launchService = accessor.get(ILaunchMainService);
-		const launchChannel = new LaunchChannel(launchService);
+		const launchMainService = accessor.get(ILaunchMainService);
+		const launchChannel = new LaunchChannel(launchMainService);
 		this.mainIpcServer.registerChannel('launch', launchChannel);
 
 		// Register more Electron IPC services
@@ -539,15 +539,15 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('update', updateChannel);
 
 		const issueService = accessor.get(IIssueService);
-		const issueChannel = new IssueChannel(issueService);
+		const issueChannel = new SimpleServiceProxyChannel(issueService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
 		const electronService = accessor.get(IElectronService);
-		const electronChannel = new ElectronChannel(electronService);
+		const electronChannel = new SimpleServiceProxyChannel(electronService);
 		electronIpcServer.registerChannel('electron', electronChannel);
 
-		const workspacesService = accessor.get(IWorkspacesMainService);
-		const workspacesChannel = new WorkspacesChannel(workspacesService);
+		const workspacesMainService = accessor.get(IWorkspacesMainService);
+		const workspacesChannel = new WorkspacesChannel(workspacesMainService);
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
 		const windowsService = accessor.get(IWindowsService);
@@ -567,15 +567,15 @@ export class CodeApplication extends Disposable {
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));
 		electronIpcServer.registerChannel('storage', storageChannel);
 
-		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
-		electronIpcServer.registerChannel('loglevel', logLevelChannel);
-		sharedProcessClient.then(client => client.registerChannel('loglevel', logLevelChannel));
+		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
+		electronIpcServer.registerChannel('logger', loggerChannel);
+		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		// ExtensionHost Debug broadcast service
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ExtensionHostDebugBroadcastChannel());
 
 		// Signal phase: ready (services set)
-		this.lifecycleService.phase = LifecycleMainPhase.Ready;
+		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Propagate to clients
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
@@ -685,7 +685,7 @@ export class CodeApplication extends Disposable {
 	private afterWindowOpen(): void {
 
 		// Signal phase: after window open
-		this.lifecycleService.phase = LifecycleMainPhase.AfterWindowOpen;
+		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Remote Authorities
 		this.handleRemoteAuthorities();

@@ -318,8 +318,6 @@ registerSingleton(IWindowService, SimpleWindowService);
 export class SimpleWindowsService implements IWindowsService {
 	_serviceBrand: undefined;
 
-	windowCount = 1;
-
 	readonly onWindowOpen: Event<number> = Event.None;
 	readonly onWindowFocus: Event<number> = Event.None;
 	readonly onWindowBlur: Event<number> = Event.None;
@@ -454,66 +452,11 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
-
-		// we pass the "ParsedArgs" as query parameters of the URL
-
-		let newAddress = `${document.location.origin}/?`;
-		let gotFolder = false;
-
-		const addQueryParameter = (key: string, value: string) => {
-			const lastChar = newAddress.charAt(newAddress.length - 1);
-			if (lastChar !== '?' && lastChar !== '&') {
-				newAddress += '&';
-			}
-			newAddress += `${key}=${encodeURIComponent(value)}`;
-		};
-
-		const f = args['folder-uri'];
-		if (f) {
-			const u = URI.parse(f[0]);
-			gotFolder = true;
-			addQueryParameter('folder', u.path);
-		}
-		if (!gotFolder) {
-			// request empty window
-			addQueryParameter('ew', 'true');
-		}
-
-		const ep = args['extensionDevelopmentPath'];
-		if (ep) {
-			let u = ep[0];
-			addQueryParameter('edp', u);
-		}
-
-		const di = args['debugId'];
-		if (di) {
-			addQueryParameter('di', di);
-		}
-
-		const ibe = args['inspect-brk-extensions'];
-		if (ibe) {
-			addQueryParameter('ibe', ibe);
-		}
-
-		window.open(newAddress);
-
 		return Promise.resolve();
 	}
 
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		return Promise.resolve([]);
-	}
-
-	getWindowCount(): Promise<number> {
-		return Promise.resolve(this.windowCount);
-	}
-
-	log(_severity: string, _args: string[]): Promise<void> {
-		return Promise.resolve();
-	}
-
-	showItemInFolder(_path: URI): Promise<void> {
-		return Promise.resolve();
 	}
 
 	newWindowTab(): Promise<void> {

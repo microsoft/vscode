@@ -110,15 +110,3 @@
 .hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children.loading > .content:before {
 	background-image: url('loading-hc.svg');
 }
-
-.monaco-tree-action.collapse-all {
-	background: url('collapse-all-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-tree-action.collapse-all {
-	background: url('collapse-all-dark.svg') center center no-repeat;
-}
-
-.hc-black .monaco-tree-action.collapse-all {
-	background: url('collapse-all-hc.svg') center center no-repeat;
-}

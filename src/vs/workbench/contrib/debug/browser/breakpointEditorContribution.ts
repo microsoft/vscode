@@ -28,12 +28,14 @@ import { getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/bro
 import { generateUuid } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { distinct } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const $ = dom.$;
 
 interface IBreakpointDecoration {
 	decorationId: string;
-	breakpointId: string;
+	breakpoint: IBreakpoint;
 	range: Range;
 	inlineWidget?: InlineBreakpointWidget;
 }
@@ -84,6 +86,39 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 	};
 }
 
+async function createCandidateDecorations(model: ITextModel, breakpointDecorations: IBreakpointDecoration[], debugService: IDebugService): Promise<{ range: Range; options: IModelDecorationOptions; breakpoint: IBreakpoint | undefined }[]> {
+	const lineNumbers = distinct(breakpointDecorations.map(bpd => bpd.range.startLineNumber));
+	const result: { range: Range; options: IModelDecorationOptions; breakpoint: IBreakpoint | undefined }[] = [];
+	const session = debugService.getViewModel().focusedSession;
+	if (session && session.capabilities.supportsBreakpointLocationsRequest) {
+		await Promise.all(lineNumbers.map(async lineNumber => {
+			const positions = await session.breakpointsLocations(model.uri, lineNumber);
+			if (positions.length > 1) {
+				// Do not render candidates if there is only one, since it is already covered by the line breakpoint
+				positions.forEach(p => {
+					const range = new Range(p.lineNumber, p.column, p.lineNumber, p.column + 1);
+					const breakpointAtPosition = breakpointDecorations.filter(bpd => bpd.range.equalsRange(range)).pop();
+					if (breakpointAtPosition && breakpointAtPosition.inlineWidget) {
+						// Space already occupied, do not render candidate.
+						return;
+					}
+					result.push({
+						range,
+						options: {
+							stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+							beforeContentClassName: `debug-breakpoint-placeholder`
+						},
+						breakpoint: breakpointAtPosition ? breakpointAtPosition.breakpoint : undefined
+					});
+				});
+			}
+		}));
+	}
+
+	return result;
+}
+
+
 class BreakpointEditorContribution implements IBreakpointEditorContribution {
 
 	private breakpointHintDecoration: string[] = [];
@@ -91,8 +126,10 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 	private breakpointWidgetVisible: IContextKey<boolean>;
 	private toDispose: IDisposable[] = [];
 	private ignoreDecorationsChangedEvent = false;
-	private ignoreFirstBreakpointsChangeEvent = false;
+	private ignoreBreakpointsChangeEvent = false;
 	private breakpointDecorations: IBreakpointDecoration[] = [];
+	private candidateDecorations: { decorationId: string, inlineWidget: InlineBreakpointWidget }[] = [];
+	private setDecorationsScheduler: RunOnceScheduler;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -104,6 +141,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.registerListeners();
+		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
 	}
 
 	getId(): string {
@@ -193,16 +231,14 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			this.ensureBreakpointHintDecoration(-1);
 		}));
 
-		this.toDispose.push(this.editor.onDidChangeModel(() => {
+		this.toDispose.push(this.editor.onDidChangeModel(async () => {
 			this.closeBreakpointWidget();
-			this.setDecorations();
+			await this.setDecorations();
 		}));
-		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => {
-			if (this.ignoreFirstBreakpointsChangeEvent) {
-				this.ignoreFirstBreakpointsChangeEvent = false;
-				return;
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(async () => {
+			if (!this.ignoreBreakpointsChangeEvent && !this.setDecorationsScheduler.isScheduled()) {
+				this.setDecorationsScheduler.schedule();
 			}
-			this.setDecorations();
 		}));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.onModelDecorationsChanged()));
 	}
@@ -274,7 +310,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 				nls.localize('addLogPoint', "Add Logpoint..."),
 				undefined,
 				true,
-				() => Promise.resolve(this.showBreakpointWidget(lineNumber, BreakpointWidgetContext.LOG_MESSAGE))
+				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE))
 			));
 		}
 
@@ -311,7 +347,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		this.breakpointHintDecoration = this.editor.deltaDecorations(this.breakpointHintDecoration, newDecoration);
 	}
 
-	private setDecorations(): void {
+	private async setDecorations(): Promise<void> {
 		if (!this.editor.hasModel()) {
 			return;
 		}
@@ -319,11 +355,13 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		const activeCodeEditor = this.editor;
 		const model = activeCodeEditor.getModel();
 		const breakpoints = this.debugService.getModel().getBreakpoints({ uri: model.uri });
-		const desiredDecorations = createBreakpointDecorations(model, breakpoints, this.debugService);
+		const desiredBreakpointDecorations = createBreakpointDecorations(model, breakpoints, this.debugService);
 
 		try {
 			this.ignoreDecorationsChangedEvent = true;
-			const decorationIds = activeCodeEditor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), desiredDecorations);
+
+			// Set breakpoint decorations
+			const decorationIds = activeCodeEditor.deltaDecorations(this.breakpointDecorations.map(bpd => bpd.decorationId), desiredBreakpointDecorations);
 			this.breakpointDecorations.forEach(bpd => {
 				if (bpd.inlineWidget) {
 					bpd.inlineWidget.dispose();
@@ -333,19 +371,37 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 				let inlineWidget: InlineBreakpointWidget | undefined = undefined;
 				const breakpoint = breakpoints[index];
 				if (breakpoint.column) {
-					inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, desiredDecorations[index].options.glyphMarginClassName, breakpoint, this.debugService, this.contextMenuService, () => this.getContextMenuActions([breakpoint], activeCodeEditor.getModel().uri, breakpoint.lineNumber, breakpoint.column));
+					inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, desiredBreakpointDecorations[index].options.glyphMarginClassName, breakpoint, this.debugService, this.contextMenuService, () => this.getContextMenuActions([breakpoint], activeCodeEditor.getModel().uri, breakpoint.lineNumber, breakpoint.column));
 				}
 
 				return {
 					decorationId,
-					breakpointId: breakpoint.getId(),
-					range: desiredDecorations[index].range,
+					breakpoint,
+					range: desiredBreakpointDecorations[index].range,
 					inlineWidget
 				};
 			});
+
 		} finally {
 			this.ignoreDecorationsChangedEvent = false;
 		}
+
+		// Set breakpoint candidate decorations
+		const desiredCandidateDecorations = await createCandidateDecorations(this.editor.getModel(), this.breakpointDecorations, this.debugService);
+		const candidateDecorationIds = this.editor.deltaDecorations(this.candidateDecorations.map(c => c.decorationId), desiredCandidateDecorations);
+		this.candidateDecorations.forEach(candidate => {
+			candidate.inlineWidget.dispose();
+		});
+		this.candidateDecorations = candidateDecorationIds.map((decorationId, index) => {
+			const candidate = desiredCandidateDecorations[index];
+			const cssClass = candidate.breakpoint ? undefined : 'debug-breakpoint-disabled';
+			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, cssClass, candidate.breakpoint, this.debugService, this.contextMenuService, () => this.getContextMenuActions([], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn));
+
+			return {
+				decorationId,
+				inlineWidget
+			};
+		});
 	}
 
 	private async onModelDecorationsChanged(): Promise<void> {
@@ -370,28 +426,26 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		}
 
 		const data = new Map<string, IBreakpointUpdateData>();
-		const breakpoints = this.debugService.getModel().getBreakpoints();
 		for (let i = 0, len = this.breakpointDecorations.length; i < len; i++) {
 			const breakpointDecoration = this.breakpointDecorations[i];
 			const decorationRange = model.getDecorationRange(breakpointDecoration.decorationId);
 			// check if the line got deleted.
 			if (decorationRange) {
-				const breakpoint = breakpoints.filter(bp => bp.getId() === breakpointDecoration.breakpointId).pop();
 				// since we know it is collapsed, it cannot grow to multiple lines
-				if (breakpoint) {
-					data.set(breakpoint.getId(), {
+				if (breakpointDecoration.breakpoint) {
+					data.set(breakpointDecoration.breakpoint.getId(), {
 						lineNumber: decorationRange.startLineNumber,
-						column: breakpoint.column ? decorationRange.startColumn : undefined,
+						column: breakpointDecoration.breakpoint.column ? decorationRange.startColumn : undefined,
 					});
 				}
 			}
 		}
 
 		try {
-			this.ignoreFirstBreakpointsChangeEvent = true;
+			this.ignoreBreakpointsChangeEvent = true;
 			await this.debugService.updateBreakpoints(model.uri, data, true);
 		} finally {
-			this.ignoreFirstBreakpointsChangeEvent = false;
+			this.ignoreBreakpointsChangeEvent = false;
 		}
 	}
 
@@ -495,6 +549,8 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 		if (!this.range) {
 			return null;
 		}
+		// Workaround: since the content widget can not be placed before the first column we need to force the left position
+		dom.toggleClass(this.domNode, 'line-start', this.range.startColumn === 1);
 
 		return {
 			position: { lineNumber: this.range.startLineNumber, column: this.range.startColumn - 1 },

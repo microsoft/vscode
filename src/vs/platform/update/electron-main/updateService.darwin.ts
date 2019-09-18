@@ -28,14 +28,14 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, date) => ({ releaseNotes, version, productVersion: version, date })); }
 
 	constructor(
-		@ILifecycleMainService lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {
-		super(lifecycleService, configurationService, environmentService, requestService, logService);
+		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
 		this.onRawError(this.onError, this, this.disposables);
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
 		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this.disposables);

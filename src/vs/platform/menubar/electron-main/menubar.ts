@@ -68,7 +68,7 @@ export class Menubar {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHistoryMainService private readonly historyMainService: IHistoryMainService,
 		@IStateService private readonly stateService: IStateService,
-		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
@@ -160,7 +160,7 @@ export class Menubar {
 
 	private registerListeners(): void {
 		// Keep flag when app quits
-		this.lifecycleService.onWillShutdown(() => this.willShutdown = true);
+		this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true);
 
 		// // Listen to some events from window service to update menu
 		this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
