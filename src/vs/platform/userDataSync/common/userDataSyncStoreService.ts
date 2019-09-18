@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IRequestService, asJson, asText } from 'vs/platform/request/common/request';
+import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -37,31 +37,51 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	async logout(): Promise<void> {
 	}
 
-	async read(key: string, oldValue: IUserData | null): Promise<IUserData | null> {
+	async read(key: string, oldValue: IUserData | null): Promise<IUserData> {
 		if (!this.enabled) {
 			return Promise.reject(new Error('No settings sync store url configured.'));
 		}
+
 		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
 		const headers: IHeaders = {};
 		if (oldValue) {
 			headers['If-None-Match'] = oldValue.ref;
 		}
+
 		const context = await this.requestService.request({ type: 'GET', url, headers }, CancellationToken.None);
-		return asJson<IUserData>(context);
+
+		if (context.res.statusCode === 304) {
+			// There is no new value. Hence return the old value.
+			return oldValue!;
+		}
+
+		const ref = context.res.headers['etag'];
+		if (!ref) {
+			throw new Error('Server did not return the ref');
+		}
+		const content = await asText(context);
+		return { ref, content };
 	}
 
-	async write(key: string, content: string, ref: string | null): Promise<string> {
+	async write(key: string, data: string, ref: string | null): Promise<string> {
 		if (!this.enabled) {
 			return Promise.reject(new Error('No settings sync store url configured.'));
 		}
+
 		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
-		const data = JSON.stringify({ content, ref });
-		const headers: IHeaders = { 'Content-Type': 'application/json' };
+		const headers: IHeaders = { 'Content-Type': 'text/plain' };
 		if (ref) {
 			headers['If-Match'] = ref;
 		}
+
 		const context = await this.requestService.request({ type: 'POST', url, data, headers }, CancellationToken.None);
-		const newRef = await asText(context);
+
+		if (context.res.statusCode === 412) {
+			// There is a new value. Throw Rejected Error
+			throw new UserDataSyncStoreError('New data exists', UserDataSyncStoreErrorCode.Rejected);
+		}
+
+		const newRef = context.res.headers['etag'];
 		if (!newRef) {
 			throw new Error('Server did not return the ref');
 		}

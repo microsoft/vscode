@@ -18,7 +18,7 @@ import { joinPath } from 'vs/base/common/resources';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
-	readonly remoteUserData: IUserData | null;
+	readonly remoteUserData: IUserData;
 	readonly hasLocalChanged: boolean;
 	readonly hasRemoteChanged: boolean;
 	readonly hasConflicts: boolean;
@@ -135,13 +135,13 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 			let { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged } = await this.syncPreviewResultPromise;
 			if (hasRemoteChanged) {
-				const ref = await this.writeToRemote(content, remoteUserData ? remoteUserData.ref : null);
+				const ref = await this.writeToRemote(content, remoteUserData.ref);
 				remoteUserData = { ref, content };
 			}
 			if (hasLocalChanged) {
 				await this.writeToLocal(content, fileContent);
 			}
-			if (remoteUserData) {
+			if (remoteUserData.content) {
 				await this.updateLastSyncValue(remoteUserData);
 			}
 
@@ -167,7 +167,9 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	private async generatePreview(): Promise<ISyncPreviewResult> {
-		const remoteUserData = await this.userDataSyncStoreService.read(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY);
+		const lastSyncData = await this.getLastSyncUserData();
+		const remoteUserData = await this.userDataSyncStoreService.read(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY, lastSyncData);
+		const remoteContent: string | null = remoteUserData.content;
 		// Get file content last to get the latest
 		const fileContent = await this.getLocalFileContent();
 		let hasLocalChanged: boolean = false;
@@ -175,7 +177,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		let hasConflicts: boolean = false;
 
 		// First time sync to remote
-		if (fileContent && !remoteUserData) {
+		if (fileContent && !remoteContent) {
 			this.logService.trace('Settings Sync: Remote contents does not exist. So sync with settings file.');
 			hasRemoteChanged = true;
 			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(fileContent.value.toString()));
@@ -183,17 +185,15 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		}
 
 		// Settings file does not exist, so sync with remote contents.
-		if (remoteUserData && !fileContent) {
+		if (remoteContent && !fileContent) {
 			this.logService.trace('Settings Sync: Settings file does not exist. So sync with remote contents');
 			hasLocalChanged = true;
-			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(remoteUserData.content));
+			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
 			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 		}
 
-		if (fileContent && remoteUserData) {
+		if (fileContent && remoteContent) {
 			const localContent: string = fileContent.value.toString();
-			const remoteContent: string = remoteUserData.content;
-			const lastSyncData = await this.getLastSyncUserData();
 			if (!lastSyncData // First time sync
 				|| lastSyncData.content !== localContent // Local has moved forwarded
 				|| lastSyncData.content !== remoteContent // Remote has moved forwarded

@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 
 export interface IUserData {
 	ref: string;
-	content: string;
+	content: string | null;
 }
 
 export enum UserDataSyncStoreErrorCode {
@@ -36,7 +36,7 @@ export interface IUserDataSyncStoreService {
 	login(): Promise<void>;
 	logout(): Promise<void>;
 
-	read(key: string, oldValue: IUserData | null): Promise<IUserData | null>;
+	read(key: string, oldValue: IUserData | null): Promise<IUserData>;
 	write(key: string, content: string, ref: string | null): Promise<string>;
 }
 
@@ -74,6 +74,6 @@ export interface ISettingsMergeService {
 
 	_serviceBrand: undefined;
 
-	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<{mergeContent: string, hasChanges: boolean, hasConflicts: boolean}>;
+	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
 
 }
