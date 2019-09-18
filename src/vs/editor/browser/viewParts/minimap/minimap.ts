@@ -210,7 +210,7 @@ class MinimapLayout {
 	}
 
 	public getDesiredScrollTopFromTouchLocation(pageY: number): number {
-		return Math.round((pageY - this.sliderHeight/2) / this._computedSliderRatio);
+		return Math.round((pageY - this.sliderHeight / 2) / this._computedSliderRatio);
 	}
 
 	public static create(
