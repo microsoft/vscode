@@ -153,7 +153,17 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 				},
 				mode: 'jsonc'
 			};
-			this.editorService.openEditor(resourceInput).then(() => this.historyService.remove(resourceInput));
+			this.editorService.openEditor(resourceInput)
+				.then(editor => {
+					this.historyService.remove(resourceInput);
+					if (editor && editor.input) {
+						// Trigger sync after closing the conflicts editor.
+						const disposable = editor.input.onDispose(() => {
+							disposable.dispose();
+							this.userDataSyncService.sync(true);
+						});
+					}
+				});
 		}
 	}
 
