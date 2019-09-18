@@ -9,7 +9,7 @@ import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
-import { ILifecycleService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/electron-main/updateIpc';
@@ -17,7 +17,7 @@ import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
-import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
+import { LaunchMainService, LaunchChannel, ILaunchMainService } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -33,11 +33,11 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { SimpleServiceProxyChannel } from 'vs/platform/ipc/node/simpleIpcProxy';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { URI } from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/electron-main/workspacesIpc';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
@@ -46,14 +46,13 @@ import { Win32UpdateService } from 'vs/platform/update/electron-main/updateServi
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
 import { IIssueService } from 'vs/platform/issue/node/issue';
-import { IssueChannel } from 'vs/platform/issue/node/issueIpc';
-import { IssueService } from 'vs/platform/issue/electron-main/issueService';
-import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
+import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
-import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
+import { MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
@@ -66,8 +65,8 @@ import { IStorageMainService, StorageMainService } from 'vs/platform/storage/nod
 import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIpc';
 import { startsWith } from 'vs/base/common/strings';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
-import { IBackupMainService } from 'vs/platform/backup/common/backup';
-import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
+import { HistoryMainService, IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { URLService } from 'vs/platform/url/node/urlService';
 import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { statSync } from 'fs';
@@ -77,6 +76,8 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 
 export class CodeApplication extends Disposable {
 
@@ -91,7 +92,7 @@ export class CodeApplication extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateService private readonly stateService: IStateService
 	) {
@@ -108,7 +109,7 @@ export class CodeApplication extends Disposable {
 		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 
 		// Dispose on shutdown
-		this.lifecycleService.onWillShutdown(() => this.dispose());
+		this.lifecycleMainService.onWillShutdown(() => this.dispose());
 
 		// Contextmenu via IPC support
 		registerContextMenuListener();
@@ -254,7 +255,7 @@ export class CodeApplication extends Disposable {
 			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
-			this.lifecycleService.kill(code);
+			this.lifecycleMainService.kill(code);
 		});
 
 		ipc.on('vscode:fetchShellEnv', async (event: Electron.IpcMainEvent) => {
@@ -281,7 +282,7 @@ export class CodeApplication extends Disposable {
 
 		// Some listeners after window opened
 		(async () => {
-			await this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen);
+			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
 
 			// After waking up from sleep  (after window opened)
 			powerMonitor.on('resume', () => {
@@ -360,7 +361,7 @@ export class CodeApplication extends Disposable {
 		// Spawn shared process after the first window has opened and 3s have passed
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
 		const sharedProcessClient = sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
-		this.lifecycleService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
+		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
 				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
 
@@ -423,7 +424,6 @@ export class CodeApplication extends Disposable {
 	private async createServices(machineId: string, trueMachineId: string | undefined, sharedProcess: SharedProcess, sharedProcessClient: Promise<Client<string>>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
-		// Files
 		const fileService = this._register(new FileService(this.logService));
 		services.set(IFileService, fileService);
 
@@ -450,17 +450,18 @@ export class CodeApplication extends Disposable {
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, [sharedProcess]));
-		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
 		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
 
-		services.set(IIssueService, new SyncDescriptor(IssueService, [machineId, this.userEnv]));
-		services.set(IMenubarService, new SyncDescriptor(MenubarService));
+		services.set(IIssueService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
+		services.set(IElectronService, new SyncDescriptor(ElectronMainService));
+		services.set(IMenubarService, new SyncDescriptor(MenubarMainService));
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
 		services.set(IStorageMainService, storageMainService);
-		this.lifecycleService.onWillShutdown(e => e.join(storageMainService.close()));
+		this.lifecycleMainService.onWillShutdown(e => e.join(storageMainService.close()));
 
 		const backupMainService = new BackupMainService(this.environmentService, this.configurationService, this.logService);
 		services.set(IBackupMainService, backupMainService);
@@ -528,8 +529,8 @@ export class CodeApplication extends Disposable {
 	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>): ICodeWindow[] {
 
 		// Register more Main IPC services
-		const launchService = accessor.get(ILaunchService);
-		const launchChannel = new LaunchChannel(launchService);
+		const launchMainService = accessor.get(ILaunchMainService);
+		const launchChannel = new LaunchChannel(launchMainService);
 		this.mainIpcServer.registerChannel('launch', launchChannel);
 
 		// Register more Electron IPC services
@@ -538,11 +539,15 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('update', updateChannel);
 
 		const issueService = accessor.get(IIssueService);
-		const issueChannel = new IssueChannel(issueService);
+		const issueChannel = new SimpleServiceProxyChannel(issueService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
-		const workspacesService = accessor.get(IWorkspacesMainService);
-		const workspacesChannel = new WorkspacesChannel(workspacesService);
+		const electronService = accessor.get(IElectronService);
+		const electronChannel = new SimpleServiceProxyChannel(electronService);
+		electronIpcServer.registerChannel('electron', electronChannel);
+
+		const workspacesMainService = accessor.get(IWorkspacesMainService);
+		const workspacesChannel = new WorkspacesChannel(workspacesMainService);
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
 		const windowsService = accessor.get(IWindowsService);
@@ -562,16 +567,15 @@ export class CodeApplication extends Disposable {
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));
 		electronIpcServer.registerChannel('storage', storageChannel);
 
-		// Log level management
-		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
-		electronIpcServer.registerChannel('loglevel', logLevelChannel);
-		sharedProcessClient.then(client => client.registerChannel('loglevel', logLevelChannel));
+		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
+		electronIpcServer.registerChannel('logger', loggerChannel);
+		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		// ExtensionHost Debug broadcast service
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ExtensionHostDebugBroadcastChannel());
 
 		// Signal phase: ready (services set)
-		this.lifecycleService.phase = LifecycleMainPhase.Ready;
+		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Propagate to clients
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
@@ -681,7 +685,7 @@ export class CodeApplication extends Disposable {
 	private afterWindowOpen(): void {
 
 		// Signal phase: after window open
-		this.lifecycleService.phase = LifecycleMainPhase.AfterWindowOpen;
+		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Remote Authorities
 		this.handleRemoteAuthorities();

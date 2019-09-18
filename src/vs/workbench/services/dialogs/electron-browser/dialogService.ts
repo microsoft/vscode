@@ -4,21 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as os from 'os';
 import product from 'vs/platform/product/common/product';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
-import { DialogService as HTMLDialogService } from 'vs/platform/dialogs/browser/dialogService';
+import { DialogService as HTMLDialogService } from 'vs/workbench/services/dialogs/browser/dialogService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { DialogChannel } from 'vs/platform/dialogs/electron-browser/dialogIpc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 interface IMassagedMessageBoxOptions {
 
@@ -36,6 +40,7 @@ interface IMassagedMessageBoxOptions {
 }
 
 export class DialogService implements IDialogService {
+
 	_serviceBrand: undefined;
 
 	private impl: IDialogService;
@@ -47,24 +52,32 @@ export class DialogService implements IDialogService {
 		@IThemeService themeService: IThemeService,
 		@IWindowService windowService: IWindowService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IProductService productService: IProductService,
+		@IClipboardService clipboardService: IClipboardService,
+		@IElectronService electronService: IElectronService
 	) {
 
 		// Use HTML based dialogs
 		if (configurationService.getValue('workbench.dialogs.customEnabled') === true) {
-			this.impl = new HTMLDialogService(logService, layoutService, themeService, keybindingService);
+			this.impl = new HTMLDialogService(logService, layoutService, themeService, keybindingService, productService, clipboardService);
 		}
 		// Electron dialog service
 		else {
-			this.impl = new NativeDialogService(windowService, logService, sharedProcessService);
+			this.impl = new NativeDialogService(windowService, logService, sharedProcessService, electronService, clipboardService);
 		}
 	}
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return this.impl.confirm(confirmation);
 	}
+
 	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<IShowResult> {
 		return this.impl.show(severity, message, buttons, options);
+	}
+
+	about(): Promise<void> {
+		return this.impl.about();
 	}
 }
 
@@ -75,7 +88,9 @@ class NativeDialogService implements IDialogService {
 	constructor(
 		@IWindowService private readonly windowService: IWindowService,
 		@ILogService private readonly logService: ILogService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
+		@IElectronService private readonly electronService: IElectronService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		sharedProcessService.registerChannel('dialog', new DialogChannel(this));
 	}
@@ -188,6 +203,50 @@ class NativeDialogService implements IDialogService {
 		options.title = options.title || product.nameLong;
 
 		return { options, buttonIndexMap };
+	}
+
+	async about(): Promise<void> {
+		let version = product.version;
+		if (product.target) {
+			version = `${version} (${product.target} setup)`;
+		}
+
+		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
+		const detail = nls.localize('aboutDetail',
+			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
+			version,
+			product.commit || 'Unknown',
+			product.date || 'Unknown',
+			process.versions['electron'],
+			process.versions['chrome'],
+			process.versions['node'],
+			process.versions['v8'],
+			`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
+		);
+
+		const ok = nls.localize('okButton', "OK");
+		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
+		let buttons: string[];
+		if (isLinux) {
+			buttons = [copy, ok];
+		} else {
+			buttons = [ok, copy];
+		}
+
+		const result = await this.electronService.showMessageBox({
+			title: product.nameLong,
+			type: 'info',
+			message: product.nameLong,
+			detail: `\n${detail}`,
+			buttons,
+			noLink: true,
+			defaultId: buttons.indexOf(ok),
+			cancelId: buttons.indexOf(ok)
+		});
+
+		if (buttons[result.response] === copy) {
+			this.clipboardService.writeText(detail);
+		}
 	}
 }
 

@@ -3,25 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as os from 'os';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import product from 'vs/platform/product/common/product';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, INewWindowOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { shell, crashReporter, app, Menu, clipboard } from 'electron';
+import { shell, crashReporter, app, Menu } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { IHistoryMainService, IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
+import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isMacintosh, isLinux, IProcessEnvironment } from 'vs/base/common/platform';
+import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class WindowsService extends Disposable implements IWindowsService, IURLHandler {
@@ -41,15 +38,15 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id))
 	);
 
-	readonly onRecentlyOpenedChange: Event<void> = this.historyService.onRecentlyOpenedChange;
+	readonly onRecentlyOpenedChange: Event<void> = this.historyMainService.onRecentlyOpenedChange;
 
 	constructor(
 		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IHistoryMainService private readonly historyService: IHistoryMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IHistoryMainService private readonly historyMainService: IHistoryMainService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -160,25 +157,25 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 
 	async addRecentlyOpened(recents: IRecent[]): Promise<void> {
 		this.logService.trace('windowsService#addRecentlyOpened');
-		this.historyService.addRecentlyOpened(recents);
+		this.historyMainService.addRecentlyOpened(recents);
 	}
 
 	async removeFromRecentlyOpened(paths: URI[]): Promise<void> {
 		this.logService.trace('windowsService#removeFromRecentlyOpened');
 
-		this.historyService.removeFromRecentlyOpened(paths);
+		this.historyMainService.removeFromRecentlyOpened(paths);
 	}
 
 	async clearRecentlyOpened(): Promise<void> {
 		this.logService.trace('windowsService#clearRecentlyOpened');
 
-		this.historyService.clearRecentlyOpened();
+		this.historyMainService.clearRecentlyOpened();
 	}
 
 	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
 		this.logService.trace('windowsService#getRecentlyOpened', windowId);
 
-		return this.withWindow(windowId, codeWindow => this.historyService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpenOrCreate), () => this.historyService.getRecentlyOpened())!;
+		return this.withWindow(windowId, codeWindow => this.historyMainService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpenOrCreate), () => this.historyMainService.getRecentlyOpened())!;
 	}
 
 	async newWindowTab(): Promise<void> {
@@ -339,32 +336,6 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		return this.windowsMainService.getWindows().length;
 	}
 
-	async log(severity: string, args: string[]): Promise<void> {
-		let consoleFn = console.log;
-
-		switch (severity) {
-			case 'error':
-				consoleFn = console.error;
-				break;
-			case 'warn':
-				consoleFn = console.warn;
-				break;
-			case 'info':
-				consoleFn = console.info;
-				break;
-		}
-
-		consoleFn.call(console, ...args);
-	}
-
-	async showItemInFolder(resource: URI): Promise<void> {
-		this.logService.trace('windowsService#showItemInFolder');
-
-		if (resource.scheme === Schemas.file) {
-			shell.showItemInFolder(resource.fsPath);
-		}
-	}
-
 	async getActiveWindowId(): Promise<number | undefined> {
 		return this._activeWindowId;
 	}
@@ -391,7 +362,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	async relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
 		this.logService.trace('windowsService#relaunch');
 
-		this.lifecycleService.relaunch(options);
+		this.lifecycleMainService.relaunch(options);
 	}
 
 	async whenSharedProcessReady(): Promise<void> {
@@ -405,52 +376,6 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 
 		this.sharedProcess.toggle();
 
-	}
-
-	async openAboutDialog(): Promise<void> {
-		this.logService.trace('windowsService#openAboutDialog');
-
-		let version = app.getVersion();
-		if (product.target) {
-			version = `${version} (${product.target} setup)`;
-		}
-
-		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
-		const detail = nls.localize('aboutDetail',
-			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
-			version,
-			product.commit || 'Unknown',
-			product.date || 'Unknown',
-			process.versions['electron'],
-			process.versions['chrome'],
-			process.versions['node'],
-			process.versions['v8'],
-			`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
-		);
-
-		const ok = nls.localize('okButton', "OK");
-		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
-		let buttons: string[];
-		if (isLinux) {
-			buttons = [copy, ok];
-		} else {
-			buttons = [ok, copy];
-		}
-
-		const result = await this.windowsMainService.showMessageBox({
-			title: product.nameLong,
-			type: 'info',
-			message: product.nameLong,
-			detail: `\n${detail}`,
-			buttons,
-			noLink: true,
-			defaultId: buttons.indexOf(ok),
-			cancelId: buttons.indexOf(ok)
-		}, this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow());
-
-		if (buttons[result.button] === copy) {
-			clipboard.writeText(detail);
-		}
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {

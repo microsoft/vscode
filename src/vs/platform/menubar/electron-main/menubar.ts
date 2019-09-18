@@ -16,11 +16,11 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { mnemonicMenuLabel as baseMnemonicLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
-import { IHistoryMainService } from 'vs/platform/history/common/history';
+import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/node/menubar';
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 
 const telemetryFrom = 'menu';
@@ -68,7 +68,7 @@ export class Menubar {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHistoryMainService private readonly historyMainService: IHistoryMainService,
 		@IStateService private readonly stateService: IStateService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
@@ -160,7 +160,7 @@ export class Menubar {
 
 	private registerListeners(): void {
 		// Keep flag when app quits
-		this.lifecycleService.onWillShutdown(() => this.willShutdown = true);
+		this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true);
 
 		// // Listen to some events from window service to update menu
 		this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));

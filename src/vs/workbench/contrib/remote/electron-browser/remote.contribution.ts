@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
@@ -24,21 +24,20 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
+import { DialogChannel } from 'vs/platform/dialogs/electron-browser/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
-import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer as ipc } from 'electron';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { OpenFileFolderAction, OpenLocalFileFolderCommand, OpenFileAction, OpenFolderAction, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/browser/actions/workspaceActions';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { RemoteConnectionState, Deprecated_RemoteAuthorityContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
+import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/remoteFileDialog';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
 const CLOSE_REMOTE_COMMAND_ID = 'remote.closeRemote';
@@ -228,7 +227,7 @@ class RemoteChannelsContribution implements IWorkbenchContribution {
 		if (connection) {
 			connection.registerChannel('dialog', new DialogChannel(dialogService));
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('loglevel', new LogLevelSetterChannel(logService));
+			connection.registerChannel('logger', new LoggerChannel(logService));
 		}
 	}
 }
@@ -376,11 +375,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		}
 	});
 
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-const fileCategory = nls.localize('file', "File");
-
 if (isMacintosh) {
-	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open...', fileCategory);
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OpenLocalFileFolderCommand.ID,
 		weight: KeybindingWeight.WorkbenchContrib,
@@ -390,8 +385,6 @@ if (isMacintosh) {
 		handler: OpenLocalFileFolderCommand.handler()
 	});
 } else {
-	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open File...', fileCategory);
-	registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'File: Open Folder...', fileCategory);
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OpenLocalFileCommand.ID,
 		weight: KeybindingWeight.WorkbenchContrib,

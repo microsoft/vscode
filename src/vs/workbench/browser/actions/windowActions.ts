@@ -7,7 +7,8 @@ import 'vs/css!./media/actions';
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService, IURIToOpen, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -234,13 +235,13 @@ class ShowAboutDialogAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		return this.windowsService.openAboutDialog();
+		return this.dialogService.about();
 	}
 }
 

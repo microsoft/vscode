@@ -266,12 +266,12 @@ class CodeRendererMain extends Disposable {
 
 		// Multi-root workspace
 		if (this.configuration.workspaceUri) {
-			return { id: hash(URI.revive(this.configuration.workspaceUri).toString()).toString(16), configPath: URI.revive(this.configuration.workspaceUri) };
+			return { id: hash(this.configuration.workspaceUri.toString()).toString(16), configPath: this.configuration.workspaceUri };
 		}
 
 		// Single-folder workspace
 		if (this.configuration.folderUri) {
-			return { id: hash(URI.revive(this.configuration.folderUri).toString()).toString(16), folder: URI.revive(this.configuration.folderUri) };
+			return { id: hash(this.configuration.folderUri.toString()).toString(16), folder: this.configuration.folderUri };
 		}
 
 		return { id: 'empty-window' };

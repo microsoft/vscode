@@ -38,12 +38,12 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * Experimental: An optional folder that is set as workspace context for the workbench.
 	 */
-	folderUri?: UriComponents;
+	folderUri?: URI;
 
 	/**
 	 * Experimental: An optional workspace that is set as workspace context for the workbench.
 	 */
-	workspaceUri?: UriComponents;
+	workspaceUri?: URI;
 
 	/**
 	 * Experimental: The userDataProvider is used to handle user specific application
@@ -59,7 +59,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * A provider for resource URIs.
 	 */
-	resourceUriProvider?: (uri: URI) => UriComponents;
+	resourceUriProvider?: (uri: URI) => URI;
 
 	/**
 	 * Experimental: Whether to enable the smoke test driver.
@@ -74,7 +74,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * Experimental: Add static extensions that cannot be uninstalled but only be disabled.
 	 */
-	staticExtensions?: { packageJSON: IExtensionManifest, extensionLocation: UriComponents }[];
+	staticExtensions?: { packageJSON: IExtensionManifest, extensionLocation: URI }[];
 
 	/**
 	 * Experimental: Support for URL callbacks.
@@ -90,6 +90,11 @@ interface IWorkbenchConstructionOptions {
 	 * Experimental: Support for update reporting.
 	 */
 	updateProvider?: IUpdateProvider;
+
+	/**
+	 * Experimental: Resolves an external uri before it is opened.
+	 */
+	readonly resolveExternalUri?: (uri: URI) => Promise<URI>;
 }
 
 /**
@@ -109,8 +114,8 @@ export {
 	IWorkbenchConstructionOptions,
 
 	// Basic Types
-	UriComponents,
 	URI,
+	UriComponents,
 	Event,
 	Emitter,
 	IDisposable,

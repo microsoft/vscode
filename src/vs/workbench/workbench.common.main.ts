@@ -79,9 +79,9 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
-import 'vs/workbench/services/userData/common/userDataSyncService';
-import 'vs/workbench/services/userData/common/settingsMergeService';
+import 'vs/workbench/services/userDataSync/common/settingsMergeService';
 import 'vs/workbench/services/workspace/browser/workspaceEditingService';
+import 'vs/workbench/services/host/browser/browserHostService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -107,9 +107,6 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IUserDataSyncStoreService, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
@@ -123,8 +120,6 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
-registerSingleton(IUserDataSyncService, UserDataSyncService);
 
 //#endregion
 
@@ -260,7 +255,7 @@ import 'vs/workbench/contrib/experiments/browser/experiments.contribution';
 // Send a Smile
 import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
-// User Data
-import 'vs/workbench/contrib/userData/browser/userData.contribution';
+// User Data Sync
+import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
 //#endregion

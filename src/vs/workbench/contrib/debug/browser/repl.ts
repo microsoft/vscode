@@ -1008,7 +1008,7 @@ export class ClearReplAction extends Action {
 	constructor(id: string, label: string,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'debug-action clear-repl');
+		super(id, label, 'debug-action codicon-clear-all');
 	}
 
 	run(): Promise<any> {

@@ -820,12 +820,6 @@ declare module 'vscode' {
 	//#region Tree View
 
 	export interface TreeView<T> {
-
-		/**
-		 * An optional human-readable message that will be rendered in the view.
-		 */
-		message?: string;
-
 		/**
 		 * The name of the tree view. It is set from the extension package.json and can be changed later.
 		 */
@@ -1092,61 +1086,6 @@ declare module 'vscode' {
 			viewType: string,
 			provider: WebviewEditorProvider,
 		): Disposable;
-	}
-
-	//#endregion
-
-	// #region Sandy - User data synchronization
-
-	export namespace window {
-
-		/**
-		 * Register an [UserDataSyncProvider](#UserDataSyncProvider) to read and write user data.
-		 * @param name Name of the user data sync provider
-		 * @param userDataSyncProvider [UserDataSyncProvider](#UserDataSyncProvider) to read and write user data
-		 */
-		export function registerUserDataSyncProvider(name: string, userDataSyncProvider: UserDataSyncProvider): Disposable;
-
-	}
-
-	export class UserDataError extends Error {
-
-		/**
-		 * Create an error to signal that writing user data with given ref is rejected, becase of new ref.
-		 */
-		static Rejected(): FileSystemError;
-
-		/**
-		 * Creates a new userData error.
-		 */
-		constructor();
-	}
-
-	/**
-	 * User data sync provider to read and write user data.
-	 */
-	export interface UserDataSyncProvider {
-
-		/**
-		 * Reads the content and its ref for the given key.
-		 * Return <code>null</code> if key does not exists.
-		 *
-		 * @param key key of the content to read
-		 * @returns the content and its ref for the given key. Return <code>null</code> if key does not exists.
-		 */
-		read(key: string): Promise<{ content: string, ref: string } | null>;
-
-		/**
-		 * Writes the new content based on the given ref for the given key.
-		 *
-		 * @param key key of the content to write
-		 * @param content new content to write
-		 * @param ref ref of the content on which the content to write is based on
-		 * @throws [Rejected](#UserDataError.Rejected) if the ref is not the latest.
-		 * @returns the latest ref of the content.
-		 */
-		write(key: string, content: string, ref: string | null): Promise<string>;
-
 	}
 
 	//#endregion

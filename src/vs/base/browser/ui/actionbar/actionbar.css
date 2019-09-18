@@ -40,7 +40,8 @@
 	transform: scale(1.272019649, 1.272019649); /* 1.272019649 = √φ */
 }
 
-.monaco-action-bar .action-item .icon {
+.monaco-action-bar .action-item .icon,
+.monaco-action-bar .action-item .codicon {
 	display: inline-block;
 }
 
