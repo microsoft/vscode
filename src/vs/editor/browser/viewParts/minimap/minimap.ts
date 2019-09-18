@@ -451,6 +451,10 @@ export class Minimap extends ViewPart {
 	private readonly _mouseDownListener: IDisposable;
 	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 	private readonly _sliderMouseDownListener: IDisposable;
+	private readonly _sliderTouchStartListener: IDisposable;
+	private readonly _sliderTouchMoveListener: IDisposable;
+	private readonly _sliderTouchEndListener: IDisposable;
+	private readonly _sliderTouchCancelListener: IDisposable;
 
 	private _options: MinimapOptions;
 	private _lastRenderData: RenderData | null;
@@ -566,12 +570,58 @@ export class Minimap extends ViewPart {
 				);
 			}
 		});
+
+		//let initialTouchSpotPageX: number;
+		let initialTouchSpotPageY: number;
+		let pretouchSliderState: MinimapLayout;
+
+		this._sliderTouchStartListener = dom.addStandardDisposableListener(this._slider.domNode, 'touchstart', (e: TouchEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (this._lastRenderData) {
+				//initialTouchSpotPageX = e.changedTouches[0].pageX;
+				initialTouchSpotPageY = e.changedTouches[0].pageY;
+				pretouchSliderState = this._lastRenderData.renderedLayout;
+				this._slider.toggleClassName('active', true);
+			}
+		});
+
+		this._sliderTouchMoveListener = dom.addStandardDisposableListener(this._slider.domNode, 'touchmove', (e: TouchEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (this._lastRenderData) {
+				const touch = e.changedTouches[0];
+				const touchDelta = touch.pageY - initialTouchSpotPageY;
+				this._context.viewLayout.setScrollPositionNow({
+					scrollTop: pretouchSliderState.getDesiredScrollTopFromDelta(touchDelta)
+				});
+			}
+		});
+
+		this._sliderTouchEndListener = dom.addStandardDisposableListener(this._slider.domNode, 'touchend', (e: TouchEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._slider.toggleClassName('active', false);
+		});
+
+		this._sliderTouchCancelListener = dom.addStandardDisposableListener(this._slider.domNode, 'touchcancel', (e: TouchEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._slider.toggleClassName('active', false);
+			this._context.viewLayout.setScrollPositionNow({
+				scrollTop: pretouchSliderState.scrollTop
+			});
+		});
 	}
 
 	public dispose(): void {
 		this._mouseDownListener.dispose();
 		this._sliderMouseMoveMonitor.dispose();
 		this._sliderMouseDownListener.dispose();
+		this._sliderTouchStartListener.dispose();
+		this._sliderTouchMoveListener.dispose();
+		this._sliderTouchEndListener.dispose();
+		this._sliderTouchCancelListener.dispose();
 		super.dispose();
 	}
 
