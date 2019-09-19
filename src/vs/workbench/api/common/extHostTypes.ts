@@ -2352,6 +2352,22 @@ export enum CommentMode {
 
 //#endregion
 
+//#region debug
+export enum DebugConsoleMode {
+	/**
+	 * Debug session should have a separate debug console.
+	 */
+	Separate = 0,
+
+	/**
+	 * Debug session should share debug console with its parent session.
+	 * This value has no effect for sessions which do not have a parent session.
+	 */
+	MergeWithParent = 1
+}
+
+//#endregion
+
 @es5ClassCompat
 export class QuickInputButtons {
 

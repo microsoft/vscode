@@ -356,7 +356,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	getActions(): IAction[] {
 		const result: IAction[] = [];
-		if (this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s)).length > 1) {
+		if (this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s)).length > 1) {
 			result.push(this.selectReplAction);
 		}
 		result.push(this.clearReplAction);
@@ -969,12 +969,15 @@ registerEditorAction(FilterReplAction);
 
 class SelectReplActionViewItem extends FocusSessionActionViewItem {
 
-	protected getActionContext(_: string, index: number): any {
-		return this.debugService.getModel().getSessions(true)[index];
+	protected getSessions(): ReadonlyArray<IDebugSession> {
+		return this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s));
 	}
 
-	protected getSessions(): ReadonlyArray<IDebugSession> {
-		return this.debugService.getModel().getSessions(true).filter(s => !sessionsToIgnore.has(s));
+	protected mapFocusedSessionToSelected(focusedSession: IDebugSession): IDebugSession {
+		while (focusedSession.parentSession && !focusedSession.hasSeparateRepl()) {
+			focusedSession = focusedSession.parentSession;
+		}
+		return focusedSession;
 	}
 }
 

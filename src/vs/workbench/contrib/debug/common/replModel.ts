@@ -108,16 +108,14 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 export class ReplModel {
 	private replElements: IReplElement[] = [];
 
-	constructor(private session: IDebugSession) { }
-
 	getReplElements(): IReplElement[] {
 		return this.replElements;
 	}
 
-	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
+	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, name: string): Promise<void> {
 		this.addReplElement(new ReplEvaluationInput(name));
 		const result = new ReplEvaluationResult();
-		await result.evaluateExpression(name, this.session, stackFrame, 'repl');
+		await result.evaluateExpression(name, session, stackFrame, 'repl');
 		this.addReplElement(result);
 	}
 
@@ -153,14 +151,14 @@ export class ReplModel {
 		}
 	}
 
-	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
+	logToRepl(session: IDebugSession, sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
 
 		let source: IReplElementSource | undefined;
 		if (frame) {
 			source = {
 				column: frame.column,
 				lineNumber: frame.line,
-				source: this.session.getSource({
+				source: session.getSource({
 					name: basenameOrAuthority(frame.uri),
 					path: frame.uri.fsPath
 				})

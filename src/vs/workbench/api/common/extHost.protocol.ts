@@ -39,7 +39,7 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
-import { IAdapterDescriptor, IConfig } from 'vs/workbench/contrib/debug/common/debug';
+import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ITerminalDimensions, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
@@ -713,6 +713,13 @@ export interface IDebugConfiguration {
 	[key: string]: any;
 }
 
+export interface IStartDebuggingOptions {
+	folder: UriComponents | undefined;
+	nameOrConfig: string | IDebugConfiguration;
+	parentSessionID?: DebugSessionUUID;
+	repl?: IDebugSessionReplMode;
+}
+
 export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugTypes(debugTypes: string[]): void;
 	$sessionCached(sessionID: string): void;
@@ -723,7 +730,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
 	$unregisterDebugConfigurationProvider(handle: number): void;
 	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
-	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, parentSessionID: string | undefined): Promise<boolean>;
+	$startDebugging(options: IStartDebuggingOptions): Promise<boolean>;
 	$setDebugSessionName(id: DebugSessionUUID, name: string): void;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$appendDebugConsole(value: string): void;

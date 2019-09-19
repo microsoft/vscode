@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromString } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -43,6 +43,7 @@ export class DebugSession implements IDebugSession {
 	private _subId: string | undefined;
 	private raw: RawDebugSession | undefined;
 	private initialized = false;
+	private _options: IDebugSessionOptions;
 
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
@@ -66,7 +67,7 @@ export class DebugSession implements IDebugSession {
 		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
 		public root: IWorkspaceFolder,
 		private model: DebugModel,
-		private _parentSession: IDebugSession | undefined,
+		options: IDebugSessionOptions | undefined,
 		@IDebugService private readonly debugService: IDebugService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWindowService private readonly windowService: IWindowService,
@@ -79,7 +80,12 @@ export class DebugSession implements IDebugSession {
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		this.id = generateUuid();
-		this.repl = new ReplModel(this);
+		this._options = options || {};
+		if (this.hasSeparateRepl()) {
+			this.repl = new ReplModel();
+		} else {
+			this.repl = (this.parentSession as DebugSession).repl;
+		}
 	}
 
 	getId(): string {
@@ -103,7 +109,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	get parentSession(): IDebugSession | undefined {
-		return this._parentSession;
+		return this._options.parentSession;
 	}
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
@@ -954,13 +960,17 @@ export class DebugSession implements IDebugSession {
 		return this.repl.getReplElements();
 	}
 
+	hasSeparateRepl(): boolean {
+		return !this.parentSession || this._options.repl !== 'mergeWithParent';
+	}
+
 	removeReplExpressions(): void {
 		this.repl.removeReplExpressions();
 		this._onDidChangeREPLElements.fire();
 	}
 
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		const expressionEvaluated = this.repl.addReplExpression(stackFrame, name);
+		const expressionEvaluated = this.repl.addReplExpression(this, stackFrame, name);
 		this._onDidChangeREPLElements.fire();
 		await expressionEvaluated;
 		this._onDidChangeREPLElements.fire();
@@ -974,7 +984,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
-		this.repl.logToRepl(sev, args, frame);
+		this.repl.logToRepl(this, sev, args, frame);
 		this._onDidChangeREPLElements.fire();
 	}
 }
