@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
-import * as marked from 'vs/base/common/marked/marked';
 import { createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
@@ -56,6 +55,10 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { renderMarkdownDocument } from 'vs/workbench/common/markdownDocumentRenderer';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
@@ -187,7 +190,8 @@ export class ExtensionEditor extends BaseEditor {
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
-		@IWebviewService private readonly webviewService: IWebviewService
+		@IWebviewService private readonly webviewService: IWebviewService,
+		@IModeService private readonly modeService: IModeService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -572,7 +576,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	private openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate): Promise<IActiveElement> {
 		return this.loadContents(() => cacheResult, template)
-			.then(marked.parse)
+			.then(contents => renderMarkdownDocument(contents, this.extensionService, this.modeService))
 			.then(content => this.renderBody(content))
 			.then(removeEmbeddedSVGs)
 			.then(body => {
@@ -615,6 +619,8 @@ export class ExtensionEditor extends BaseEditor {
 
 	private async renderBody(body: string): Promise<string> {
 		const nonce = generateUuid();
+		const colorMap = TokenizationRegistry.getColorMap();
+		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		return `<!DOCTYPE html>
 		<html>
 			<head>
@@ -692,15 +698,19 @@ export class ExtensionEditor extends BaseEditor {
 					}
 
 					code {
-						font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
-						font-size: 14px;
-						line-height: 19px;
+						font-family: var(--vscode-editor-font-family);
+						font-weight: var(--vscode-editor-font-weight);
+						font-size: var(--vscode-editor-font-size);
 					}
 
 					code > div {
 						padding: 16px;
 						border-radius: 3px;
 						overflow: auto;
+					}
+
+					.monaco-tokenized-source {
+							white-space: pre;
 					}
 
 					#scroll-to-top {
@@ -787,6 +797,7 @@ export class ExtensionEditor extends BaseEditor {
 						border-color: rgba(255, 255, 255, 0.18);
 					}
 
+					${css}
 				</style>
 			</head>
 			<body>
