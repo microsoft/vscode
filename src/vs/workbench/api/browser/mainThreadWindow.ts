@@ -54,10 +54,19 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	async $resolveExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
 		const uri = URI.revive(uriComponents);
+		const embedderResolver = this.getEmbedderResolver();
+		if (embedderResolver) {
+			return embedderResolver(uri);
+		}
 		return this.resolveExternalUri(uri, options);
 	}
 
 	async $releaseResolvedExternalUri(uriComponents: UriComponents): Promise<boolean> {
+		if (this.getEmbedderResolver()) {
+			// Embedder handled forwarding so there's nothing for us to clean up
+			return true;
+		}
+
 		const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(URI.from(uriComponents));
 		if (portMappingRequest) {
 			const existing = this._tunnels.get(portMappingRequest.port);
@@ -69,6 +78,10 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			}
 		}
 		return true;
+	}
+
+	private getEmbedderResolver(): undefined | ((uri: URI) => Promise<URI>) {
+		return this.environmentService.options && this.environmentService.options.resolveExternalUri;
 	}
 
 	private async resolveExternalUri(uri: URI, options: IOpenUriOptions): Promise<URI> {
