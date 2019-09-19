@@ -550,10 +550,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+		// Clicking inside details
 		if (this.details.element.contains(mouseEvent.target.element)) {
 			this._isDetailsFocused = true;
 			this.details.element.focus();
-		} else {
+		}
+		// Clicking outside details and inside suggest
+		else {
 			this._isDetailsFocused = false;
 			if (this.element.contains(mouseEvent.target.element)) {
 				this.editor.focus();
