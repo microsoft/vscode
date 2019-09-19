@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen, IMessageBoxResult, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
+import { IWindowService, IEnterWorkspaceResult, IURIToOpen, IWindowsService, IOpenSettings, IWindowSettings, CrashReporterStartOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -91,33 +91,9 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFileAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickWorkspaceAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
 	reloadWindow(): Promise<void> {
 		window.location.reload();
 
-		return Promise.resolve();
-	}
-
-	openDevTools(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleDevTools(): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -288,24 +264,8 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve();
 	}
 
-	showMessageBox(_options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
-		return Promise.resolve({ button: 0 });
-	}
-
-	showSaveDialog(_options: Electron.SaveDialogOptions): Promise<string> {
-		throw new Error('not implemented');
-	}
-
-	showOpenDialog(_options: Electron.OpenDialogOptions): Promise<string[]> {
-		throw new Error('not implemented');
-	}
-
 	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
 		return Promise.resolve();
-	}
-
-	resolveProxy(url: string): Promise<string | undefined> {
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -329,31 +289,7 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve(true);
 	}
 
-	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFileAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickWorkspaceAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
 	reloadWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	openDevTools(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleDevTools(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -428,12 +364,6 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	relaunch(_options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
-		window.location.reload();
-
-		return Promise.resolve();
-	}
-
 	whenSharedProcessReady(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -444,10 +374,6 @@ export class SimpleWindowsService implements IWindowsService {
 
 	// Global methods
 	openWindow(_windowId: number, _uris: IURIToOpen[], _options: IOpenSettings): Promise<void> {
-		return Promise.resolve();
-	}
-
-	openNewWindow(): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -500,24 +426,8 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	// TODO: this is a bit backwards
-	startCrashReporter(_config: Electron.CrashReporterStartOptions): Promise<void> {
+	startCrashReporter(_config: CrashReporterStartOptions): Promise<void> {
 		return Promise.resolve();
-	}
-
-	showMessageBox(_windowId: number, _options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
-		throw new Error('not implemented');
-	}
-
-	showSaveDialog(_windowId: number, _options: Electron.SaveDialogOptions): Promise<string> {
-		throw new Error('not implemented');
-	}
-
-	showOpenDialog(_windowId: number, _options: Electron.OpenDialogOptions): Promise<string[]> {
-		throw new Error('not implemented');
-	}
-
-	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return Promise.resolve(undefined);
 	}
 }
 

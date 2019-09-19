@@ -31,7 +31,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	) {
 		super();
 		this.channel = sharedProcessService.getChannel('userDataSync');
-		this._register(this.channel.listen<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
+		this.channel.call<SyncStatus>('_getInitialStatus').then(status => {
+			this.updateStatus(status);
+			this._register(this.channel.listen<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
+		});
 	}
 
 	sync(_continue?: boolean): Promise<boolean> {

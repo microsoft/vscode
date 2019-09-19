@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export interface IUserData {
 	ref: string;
@@ -38,6 +39,12 @@ export interface IUserDataSyncStoreService {
 
 	read(key: string, oldValue: IUserData | null): Promise<IUserData>;
 	write(key: string, content: string, ref: string | null): Promise<string>;
+}
+
+export interface ISyncExtension {
+	identifier: IExtensionIdentifier;
+	version?: string;
+	enabled: boolean;
 }
 
 export enum SyncSource {

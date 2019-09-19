@@ -25,7 +25,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -36,6 +37,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { flatten } from 'vs/base/common/arrays';
 import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -67,6 +69,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWindowService protected readonly _windowService: IWindowService,
 		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
+		@IElectronService private readonly _electronService: IElectronService
 	) {
 		super(
 			instantiationService,
@@ -321,7 +324,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		if (shouldActivate) {
 			await Promise.all(
-				this._extensionHostProcessManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, shouldActivateReason!))
+				this._extensionHostProcessManagers.map(extHostManager => extHostManager.activate(extensionDescription.identifier, { startup: false, extensionId: extensionDescription.identifier, activationEvent: shouldActivateReason! }))
 			).then(() => { });
 		}
 	}
@@ -379,8 +382,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 						label: nls.localize('relaunch', "Relaunch VS Code"),
 						run: () => {
 							this._instantiationService.invokeFunction((accessor) => {
-								const windowsService = accessor.get(IWindowsService);
-								windowsService.relaunch({});
+								const hostService = accessor.get(IHostService);
+								hostService.restart();
 							});
 						}
 					}]
@@ -391,7 +394,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly."),
 				[{
 					label: nls.localize('devTools', "Open Developer Tools"),
-					run: () => this._windowService.openDevTools()
+					run: () => this._electronService.openDevTools()
 				},
 				{
 					label: nls.localize('restart', "Restart Extension Host"),

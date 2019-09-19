@@ -20,7 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -39,7 +39,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@INotificationService private readonly notificationService: INotificationService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWindowsService private readonly windowsService: IWindowsService,
+		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
@@ -80,7 +80,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
 						run: () => {
 							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.localeResource, [{ key: 'locale', value: locale }], true) : Promise.resolve(undefined);
-							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
+							updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
 						}
 					}],
 					{
@@ -170,7 +170,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								label: translations['installAndRestart'],
 								run: () => {
 									logUserReaction('installAndRestart');
-									this.installExtension(extensionToInstall).then(() => this.windowsService.relaunch({}));
+									this.installExtension(extensionToInstall).then(() => this.hostService.restart());
 								}
 							};
 

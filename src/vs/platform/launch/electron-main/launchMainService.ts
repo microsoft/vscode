@@ -142,7 +142,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 			// Create a window if there is none
 			if (this.windowsMainService.getWindowCount() === 0) {
-				const window = this.windowsMainService.openNewWindow(OpenContext.DESKTOP)[0];
+				const window = this.windowsMainService.openEmptyWindow(OpenContext.DESKTOP)[0];
 				whenWindowReady = window.ready();
 			}
 

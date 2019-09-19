@@ -34,7 +34,7 @@ import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteA
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { RemoteConnectionState, Deprecated_RemoteAuthorityContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/remoteFileDialog';
@@ -61,7 +61,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		@IExtensionService extensionService: IExtensionService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IWindowsService windowService: IWindowsService
+		@IHostService hostService: IHostService
 	) {
 		super();
 
@@ -69,7 +69,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		this._register(this.windowCommandMenu);
 
 		this._register(CommandsRegistry.registerCommand(WINDOW_ACTIONS_COMMAND_ID, _ => this.showIndicatorActions(this.windowCommandMenu)));
-		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && windowService.openNewWindow({ reuseWindow: true })));
+		this._register(CommandsRegistry.registerCommand(CLOSE_REMOTE_COMMAND_ID, _ => this.remoteAuthority && hostService.openEmptyWindow({ reuse: true })));
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.remoteAuthority || '');

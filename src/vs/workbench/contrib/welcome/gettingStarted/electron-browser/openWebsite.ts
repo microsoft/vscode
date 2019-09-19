@@ -12,7 +12,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-export class GettingStarted implements IWorkbenchContribution {
+export class OpenWelcomePageInBrowser implements IWorkbenchContribution {
 
 	private static readonly hideWelcomeSettingskey = 'workbench.hide.welcome';
 
@@ -59,13 +59,13 @@ export class GettingStarted implements IWorkbenchContribution {
 			return;
 		}
 
-		let firstStartup = !this.storageService.get(GettingStarted.hideWelcomeSettingskey, StorageScope.GLOBAL);
+		let firstStartup = !this.storageService.get(OpenWelcomePageInBrowser.hideWelcomeSettingskey, StorageScope.GLOBAL);
 
 		if (firstStartup && this.welcomePageURL) {
 			this.telemetryService.getTelemetryInfo().then(info => {
 				let url = this.getUrl(info);
 				this.openExternal(url);
-				this.storageService.store(GettingStarted.hideWelcomeSettingskey, true, StorageScope.GLOBAL);
+				this.storageService.store(OpenWelcomePageInBrowser.hideWelcomeSettingskey, true, StorageScope.GLOBAL);
 			});
 		}
 	}

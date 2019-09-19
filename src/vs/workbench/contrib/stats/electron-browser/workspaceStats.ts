@@ -9,13 +9,13 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
 import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
 import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -142,7 +142,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IRequestService private readonly requestService: IRequestService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IWorkspaceStatsService private readonly workspaceStatsService: IWorkspaceStatsService
@@ -312,7 +312,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 	}
 
 	private reportProxyStats() {
-		this.windowService.resolveProxy('https://www.example.com/')
+		this.requestService.resolveProxy('https://www.example.com/')
 			.then(proxy => {
 				let type = proxy ? String(proxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
 				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {

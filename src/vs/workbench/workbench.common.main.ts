@@ -81,7 +81,6 @@ import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
 import 'vs/workbench/services/userDataSync/common/settingsMergeService';
 import 'vs/workbench/services/workspace/browser/workspaceEditingService';
-import 'vs/workbench/services/host/browser/browserHostService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -196,7 +195,7 @@ import 'vs/workbench/contrib/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/contrib/terminal/browser/terminalPanel';
 
 // Relauncher
-import 'vs/workbench/contrib/relauncher/common/relauncher.contribution';
+import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';
 
 // Tasks
 import 'vs/workbench/contrib/tasks/browser/task.contribution';

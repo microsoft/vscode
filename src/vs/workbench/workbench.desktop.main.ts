@@ -51,12 +51,11 @@ import 'vs/workbench/services/url/electron-browser/urlService';
 import 'vs/workbench/services/workspace/electron-browser/workspacesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
 import 'vs/workbench/services/host/electron-browser/desktopHostService';
+import 'vs/workbench/services/request/electron-browser/requestService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestService } from 'vs/platform/request/browser/requestService';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
@@ -74,7 +73,6 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ElectronService } from 'vs/platform/electron/electron-browser/electronService';
 
 registerSingleton(IClipboardService, ClipboardService, true);
-registerSingleton(IRequestService, RequestService, true);
 registerSingleton(ILifecycleService, LifecycleService);
 registerSingleton(ILocalizationsService, LocalizationsService);
 registerSingleton(ISharedProcessService, SharedProcessService, true);
@@ -103,6 +101,7 @@ import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
 
 // Explorer
+import 'vs/workbench/contrib/files/electron-browser/files.contribution';
 import 'vs/workbench/contrib/files/electron-browser/fileActions.contribution';
 
 // Debug
@@ -147,5 +146,8 @@ import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
+
+// Welcome
+import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/openWebsite.contribution';
 
 //#endregion

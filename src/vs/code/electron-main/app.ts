@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
-import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
+import { LegacyWindowsMainService } from 'vs/platform/windows/electron-main/legacyWindowsMainService';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -17,7 +17,7 @@ import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
-import { LaunchMainService, LaunchChannel, ILaunchMainService } from 'vs/platform/launch/electron-main/launchService';
+import { LaunchMainService, LaunchChannel, ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -53,7 +53,6 @@ import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlLi
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
-import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
@@ -125,7 +124,7 @@ export class CodeApplication extends Disposable {
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows && this.windowsMainService) {
-				this.windowsMainService.openNewWindow(OpenContext.DOCK);
+				this.windowsMainService.openEmptyWindow(OpenContext.DOCK);
 			}
 		});
 
@@ -165,8 +164,8 @@ export class CodeApplication extends Disposable {
 
 			event.preventDefault();
 		});
-		app.on('web-contents-created', (_event: Electron.Event, contents) => {
-			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
+		app.on('web-contents-created', (_event: Event, contents) => {
+			contents.on('will-attach-webview', (event: Event, webPreferences, params) => {
 
 				const isValidWebviewSource = (source: string): boolean => {
 					if (!source) {
@@ -247,7 +246,7 @@ export class CodeApplication extends Disposable {
 
 		app.on('new-window-for-tab', () => {
 			if (this.windowsMainService) {
-				this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
+				this.windowsMainService.openEmptyWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 			}
 		});
 
@@ -258,7 +257,7 @@ export class CodeApplication extends Disposable {
 			this.lifecycleMainService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', async (event: Electron.IpcMainEvent) => {
+		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
 			const webContents = event.sender;
 
 			try {
@@ -275,10 +274,10 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:toggleDevTools', (event: Electron.IpcMainEvent) => event.sender.toggleDevTools());
-		ipc.on('vscode:openDevTools', (event: Electron.IpcMainEvent) => event.sender.openDevTools());
+		ipc.on('vscode:toggleDevTools', (event: IpcMainEvent) => event.sender.toggleDevTools());
+		ipc.on('vscode:openDevTools', (event: IpcMainEvent) => event.sender.openDevTools());
 
-		ipc.on('vscode:reloadWindow', (event: Electron.IpcMainEvent) => event.sender.reload());
+		ipc.on('vscode:reloadWindow', (event: IpcMainEvent) => event.sender.reload());
 
 		// Some listeners after window opened
 		(async () => {
@@ -449,7 +448,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
-		services.set(IWindowsService, new SyncDescriptor(WindowsService, [sharedProcess]));
+		services.set(IWindowsService, new SyncDescriptor(LegacyWindowsMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
 		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
@@ -556,7 +555,7 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('windows', windowsChannel));
 
 		const menubarService = accessor.get(IMenubarService);
-		const menubarChannel = new MenubarChannel(menubarService);
+		const menubarChannel = new SimpleServiceProxyChannel(menubarService);
 		electronIpcServer.registerChannel('menubar', menubarChannel);
 
 		const urlService = accessor.get(IURLService);

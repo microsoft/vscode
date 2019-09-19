@@ -11,7 +11,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -23,7 +22,6 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 export class StartupProfiler implements IWorkbenchContribution {
 
 	constructor(
-		@IWindowsService private readonly _windowsService: IWindowsService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
@@ -95,13 +93,13 @@ export class StartupProfiler implements IWorkbenchContribution {
 							secondaryButton: undefined
 						}).then(() => {
 							// now we are ready to restart
-							this._windowsService.relaunch({ removeArgs });
+							this._electronService.relaunch({ removeArgs });
 						});
 					});
 
 				} else {
 					// simply restart
-					this._windowsService.relaunch({ removeArgs });
+					this._electronService.relaunch({ removeArgs });
 				}
 			});
 		});

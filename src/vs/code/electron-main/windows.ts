@@ -13,12 +13,12 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/common/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, FileFilter } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, FileFilter, shell, MessageBoxReturnValue, MessageBoxOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Display } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen, isFileToOpen, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IURIToOpen, isFileToOpen, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
@@ -227,7 +227,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 	private registerListeners(): void {
 
 		// React to workbench ready events from windows
-		ipc.on('vscode:workbenchReady', (event: Electron.Event, windowId: number) => {
+		ipc.on('vscode:workbenchReady', (event: Event, windowId: number) => {
 			this.logService.trace('IPC#vscode-workbenchReady');
 
 			const win = this.getWindowById(windowId);
@@ -379,6 +379,12 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			remoteAuthority: win.remoteAuthority,
 			uiState: win.serializeWindowState()
 		};
+	}
+
+	async openExternal(url: string): Promise<boolean> {
+		shell.openExternal(url);
+
+		return true;
 	}
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[] {
@@ -867,7 +873,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 					message = localize('uriInvalidTitle', "URI can not be opened");
 					detail = localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString());
 				}
-				const options: Electron.MessageBoxOptions = {
+				const options: MessageBoxOptions = {
 					title: product.nameLong,
 					type: 'info',
 					buttons: [localize('ok', "OK")],
@@ -1468,7 +1474,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		//
 
 		// We want the new window to open on the same display that the last active one is in
-		let displayToUse: Electron.Display | undefined;
+		let displayToUse: Display | undefined;
 		const displays = screen.getAllDisplays();
 
 		// Single Display
@@ -1605,13 +1611,13 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return getLastActiveWindow(WindowsManager.WINDOWS.filter(window => window.remoteAuthority === remoteAuthority));
 	}
 
-	openNewWindow(context: OpenContext, options?: INewWindowOptions): ICodeWindow[] {
+	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean }): ICodeWindow[] {
 		let cli = this.environmentService.args;
-		const remote = options && options.remoteAuthority || undefined;
+		const remote = undefined;
 		if (cli && (cli.remote !== remote)) {
 			cli = { ...cli, remote };
 		}
-		const forceReuseWindow = options && options.reuseWindow;
+		const forceReuseWindow = options && options.reuse;
 		const forceNewWindow = !forceReuseWindow;
 		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
 	}
@@ -1710,9 +1716,9 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 					return; // Return early if the window has been going down already
 				}
 
-				if (result.button === 0) {
+				if (result.response === 0) {
 					window.reload();
-				} else if (result.button === 2) {
+				} else if (result.response === 2) {
 					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
 					window.win.destroy(); // make sure to destroy the window as it is unresponsive
 				}
@@ -1733,9 +1739,9 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 					return; // Return early if the window has been going down already
 				}
 
-				if (result.button === 0) {
+				if (result.response === 0) {
 					window.reload();
-				} else if (result.button === 1) {
+				} else if (result.response === 1) {
 					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
 					window.win.destroy(); // make sure to destroy the window as it has crashed
 				}
@@ -1838,15 +1844,15 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		});
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Promise<IMessageBoxResult> {
+	showMessageBox(options: MessageBoxOptions, win?: ICodeWindow): Promise<MessageBoxReturnValue> {
 		return this.dialogs.showMessageBox(options, win);
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Promise<string> {
+	showSaveDialog(options: SaveDialogOptions, win?: ICodeWindow): Promise<SaveDialogReturnValue> {
 		return this.dialogs.showSaveDialog(options, win);
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Promise<string[]> {
+	showOpenDialog(options: OpenDialogOptions, win?: ICodeWindow): Promise<OpenDialogReturnValue> {
 		return this.dialogs.showOpenDialog(options, win);
 	}
 
@@ -1896,7 +1902,7 @@ class Dialogs {
 	async pick(options: IInternalNativeOpenDialogOptions): Promise<string[] | undefined> {
 
 		// Ensure dialog options
-		const dialogOptions: Electron.OpenDialogOptions = {
+		const dialogOptions: OpenDialogOptions = {
 			title: options.title,
 			buttonLabel: options.buttonLabel,
 			filters: options.filters
@@ -1926,13 +1932,13 @@ class Dialogs {
 		// Show Dialog
 		const focusedWindow = (typeof options.windowId === 'number' ? this.windowsMainService.getWindowById(options.windowId) : undefined) || this.windowsMainService.getFocusedWindow();
 
-		const paths = await this.showOpenDialog(dialogOptions, focusedWindow);
-		if (paths && paths.length > 0) {
+		const result = await this.showOpenDialog(dialogOptions, focusedWindow);
+		if (result && result.filePaths && result.filePaths.length > 0) {
 
 			// Remember path in storage for next time
-			this.stateService.setItem(Dialogs.workingDirPickerStorageKey, dirname(paths[0]));
+			this.stateService.setItem(Dialogs.workingDirPickerStorageKey, dirname(result.filePaths[0]));
 
-			return paths;
+			return result.filePaths;
 		}
 
 		return;
@@ -1952,20 +1958,17 @@ class Dialogs {
 		return windowDialogQueue;
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): Promise<IMessageBoxResult> {
+	showMessageBox(options: MessageBoxOptions, window?: ICodeWindow): Promise<MessageBoxReturnValue> {
 		return this.getDialogQueue(window).queue(async () => {
-			let result: Electron.MessageBoxReturnValue;
 			if (window) {
-				result = await dialog.showMessageBox(window.win, options);
-			} else {
-				result = await dialog.showMessageBox(options);
+				return dialog.showMessageBox(window.win, options);
 			}
 
-			return { button: result.response, checkboxChecked: result.checkboxChecked };
+			return dialog.showMessageBox(options);
 		});
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): Promise<string> {
+	showSaveDialog(options: SaveDialogOptions, window?: ICodeWindow): Promise<SaveDialogReturnValue> {
 
 		function normalizePath(path: string | undefined): string | undefined {
 			if (path && isMacintosh) {
@@ -1976,18 +1979,20 @@ class Dialogs {
 		}
 
 		return this.getDialogQueue(window).queue(async () => {
-			let result: Electron.SaveDialogReturnValue;
+			let result: SaveDialogReturnValue;
 			if (window) {
 				result = await dialog.showSaveDialog(window.win, options);
 			} else {
 				result = await dialog.showSaveDialog(options);
 			}
 
-			return normalizePath(result.filePath);
+			result.filePath = normalizePath(result.filePath);
+
+			return result;
 		});
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): Promise<string[]> {
+	showOpenDialog(options: OpenDialogOptions, window?: ICodeWindow): Promise<OpenDialogReturnValue> {
 
 		function normalizePaths(paths: string[] | undefined): string[] | undefined {
 			if (paths && paths.length > 0 && isMacintosh) {
@@ -2008,14 +2013,16 @@ class Dialogs {
 			}
 
 			// Show dialog
-			let result: Electron.OpenDialogReturnValue;
+			let result: OpenDialogReturnValue;
 			if (window) {
 				result = await dialog.showOpenDialog(window.win, options);
 			} else {
 				result = await dialog.showOpenDialog(options);
 			}
 
-			return normalizePaths(result.filePaths);
+			result.filePaths = normalizePaths(result.filePaths);
+
+			return result;
 		});
 	}
 }
@@ -2052,7 +2059,7 @@ class WorkspacesManager {
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (findWindowOnWorkspace(this.windowsMainService.getWindows(), getWorkspaceIdentifier(path))) {
-			const options: Electron.MessageBoxOptions = {
+			const options: MessageBoxOptions = {
 				title: product.nameLong,
 				type: 'info',
 				buttons: [localize('ok', "OK")],

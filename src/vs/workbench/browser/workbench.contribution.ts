@@ -234,12 +234,6 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 				'default': true,
 				'tags': ['usesOnlineServices']
 			},
-			'workbench.useExperimentalGridLayout': {
-				'type': 'boolean',
-				'description': nls.localize('workbench.useExperimentalGridLayout', "Enables the grid layout for the workbench. This setting may enable additional layout options for workbench components."),
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION
-			},
 			'workbench.octiconsUpdate.enabled': {
 				'type': 'boolean',
 				'default': true,

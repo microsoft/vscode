@@ -6,7 +6,8 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -23,7 +24,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
 	telemetry: { enableCrashReporter: boolean };
-	workbench: { list: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
+	workbench: { list: { horizontalScrolling: boolean } };
 	debug: { console: { wordWrap: boolean } };
 }
 
@@ -36,11 +37,10 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private updateMode: string | undefined;
 	private enableCrashReporter: boolean | undefined;
 	private treeHorizontalScrolling: boolean | undefined;
-	private useGridLayout: boolean | undefined;
 	private debugConsoleWordWrap: boolean | undefined;
 
 	constructor(
-		@IWindowsService private readonly windowsService: IWindowsService,
+		@IHostService private readonly hostService: IHostService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly envService: IEnvironmentService,
@@ -58,12 +58,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Tree horizontal scrolling support
 		if (config.workbench && config.workbench.list && typeof config.workbench.list.horizontalScrolling === 'boolean' && config.workbench.list.horizontalScrolling !== this.treeHorizontalScrolling) {
 			this.treeHorizontalScrolling = config.workbench.list.horizontalScrolling;
-			changed = true;
-		}
-
-		// Workbench Grid Layout
-		if (config.workbench && typeof config.workbench.useExperimentalGridLayout === 'boolean' && config.workbench.useExperimentalGridLayout !== this.useGridLayout) {
-			this.useGridLayout = config.workbench.useExperimentalGridLayout;
 			changed = true;
 		}
 
@@ -124,7 +118,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				isNative ?
 					localize('restart', "&&Restart") :
 					localize('restartWeb', "&&Reload"),
-				() => this.windowsService.relaunch(Object.create(null))
+				() => this.hostService.restart()
 			);
 		}
 	}

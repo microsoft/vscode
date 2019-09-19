@@ -42,11 +42,11 @@ import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/contrib/stats/browser/workspaceStatsService';
 import 'vs/workbench/services/workspace/browser/workspacesService';
 import 'vs/workbench/services/dialogs/browser/dialogService';
+import 'vs/workbench/services/host/browser/browserHostService';
+import 'vs/workbench/services/request/browser/requestService';
 import 'vs/workbench/browser/web.simpleservices';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestService } from 'vs/workbench/services/request/browser/requestService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -65,7 +65,6 @@ import { IUserDataSyncStoreService, IUserDataSyncService } from 'vs/platform/use
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 
-registerSingleton(IRequestService, RequestService, true);
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
 registerSingleton(IClipboardService, BrowserClipboardService, true);
@@ -80,6 +79,9 @@ registerSingleton(IUserDataSyncService, UserDataSyncService);
 
 
 //#region --- workbench contributions
+
+// Explorer
+import 'vs/workbench/contrib/files/browser/files.web.contribution';
 
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
