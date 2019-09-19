@@ -37,7 +37,11 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-const _sticky = false; // for development purposes only
+/**
+ * Stop suggest widget from disappearing when clicking into other areas
+ * For development purpose only
+ */
+const _sticky = false;
 
 class LineSuffix {
 
@@ -174,9 +178,27 @@ export class SuggestController implements IEditorContribution {
 			}
 		}));
 		this._toDispose.add(this._editor.onDidBlurEditorWidget(() => {
-			if (!_sticky) {
+			if (!_sticky && !this._widget.getValue().isDetailsFocused) {
 				this._model.cancel();
 				this._model.clear();
+			}
+		}));
+
+		this._toDispose.add(this._widget.getValue().onDetailsKeyDown(e => {
+			if (e.equals(KeyCode.Escape)) {
+				e.preventDefault();
+				e.stopPropagation();
+
+				this._widget.getValue().setDetailsFocusedState(false);
+				this.cancelSuggestWidget();
+				this._editor.focus();
+			} else if (e.equals(KeyCode.Tab)) {
+				e.preventDefault();
+				e.stopPropagation();
+
+				this._widget.getValue().setDetailsFocusedState(false);
+				this.acceptSelectedSuggestion();
+				this._editor.focus();
 			}
 		}));
 
