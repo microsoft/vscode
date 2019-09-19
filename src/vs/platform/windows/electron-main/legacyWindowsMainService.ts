@@ -337,19 +337,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
 	}
 
-	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return new Promise(resolve => {
-			const codeWindow = this.windowsMainService.getWindowById(windowId);
-			if (codeWindow) {
-				codeWindow.win.webContents.session.resolveProxy(url, proxy => {
-					resolve(proxy);
-				});
-			} else {
-				resolve();
-			}
-		});
-	}
-
 	private withWindow<T>(windowId: number, fn: (window: ICodeWindow) => T, fallback?: () => T): T | undefined {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 		if (codeWindow) {

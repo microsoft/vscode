@@ -34,4 +34,7 @@ export interface IElectronService {
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
 	toggleDevTools(): Promise<void>;
+
+	// Connectivity
+	resolveProxy(url: string): Promise<string | undefined>;
 }

@@ -94,4 +94,15 @@ export class ElectronMainService implements IElectronService {
 			}
 		}
 	}
+
+	async resolveProxy(url: string): Promise<string | undefined> {
+		return new Promise(resolve => {
+			const window = this.window;
+			if (window && window.win && window.win.webContents && window.win.webContents.session) {
+				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
+			} else {
+				resolve();
+			}
+		});
+	}
 }

@@ -141,8 +141,6 @@ export interface IWindowsService {
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): Promise<void>;
-
-	resolveProxy(windowId: number, url: string): Promise<string | undefined>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -220,7 +218,6 @@ export interface IWindowService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 	onWindowTitleDoubleClick(): Promise<void>;
-	resolveProxy(url: string): Promise<string | undefined>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';

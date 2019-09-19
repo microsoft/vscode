@@ -26,5 +26,9 @@ export interface IHostService {
 
 	//#endregion
 
+	//#region Lifecycle
+
 	restart(): Promise<void>;
+
+	//#endregion
 }

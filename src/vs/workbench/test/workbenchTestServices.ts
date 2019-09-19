@@ -1266,10 +1266,6 @@ export class TestWindowService implements IWindowService {
 	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
 		return Promise.resolve();
 	}
-
-	resolveProxy(url: string): Promise<string | undefined> {
-		return Promise.resolve(undefined);
-	}
 }
 
 export class TestLifecycleService implements ILifecycleService {
@@ -1463,10 +1459,6 @@ export class TestWindowsService implements IWindowsService {
 	// TODO: this is a bit backwards
 	startCrashReporter(_config: CrashReporterStartOptions): Promise<void> {
 		return Promise.resolve();
-	}
-
-	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return Promise.resolve(undefined);
 	}
 }
 
