@@ -22,13 +22,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
+import { MessageBoxOptions } from 'electron';
 
 interface IMassagedMessageBoxOptions {
 
 	/**
 	 * OS massaged message box options.
 	 */
-	options: Electron.MessageBoxOptions;
+	options: MessageBoxOptions;
 
 	/**
 	 * Since the massaged result of the message box options potentially
@@ -104,7 +105,7 @@ class NativeDialogService implements IDialogService {
 		};
 	}
 
-	private getConfirmOptions(confirmation: IConfirmation): Electron.MessageBoxOptions {
+	private getConfirmOptions(confirmation: IConfirmation): MessageBoxOptions {
 		const buttons: string[] = [];
 		if (confirmation.primaryButton) {
 			buttons.push(confirmation.primaryButton);
@@ -118,7 +119,7 @@ class NativeDialogService implements IDialogService {
 			buttons.push(nls.localize('cancelButton', "Cancel"));
 		}
 
-		const opts: Electron.MessageBoxOptions = {
+		const opts: MessageBoxOptions = {
 			title: confirmation.title,
 			message: confirmation.message,
 			buttons,
@@ -158,7 +159,7 @@ class NativeDialogService implements IDialogService {
 		return { choice: buttonIndexMap[result.response], checkboxChecked: result.checkboxChecked };
 	}
 
-	private massageMessageBoxOptions(options: Electron.MessageBoxOptions): IMassagedMessageBoxOptions {
+	private massageMessageBoxOptions(options: MessageBoxOptions): IMassagedMessageBoxOptions {
 		let buttonIndexMap = (options.buttons || []).map((button, index) => index);
 		let buttons = (options.buttons || []).map(button => mnemonicButtonLabel(button));
 		let cancelId = options.cancelId;

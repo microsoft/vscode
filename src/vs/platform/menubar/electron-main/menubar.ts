@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { app, shell, Menu, MenuItem, BrowserWindow } from 'electron';
+import { app, shell, Menu, MenuItem, BrowserWindow, MenuItemConstructorOptions, WebContents, Event, KeyboardEvent } from 'electron';
 import { OpenContext, IRunActionInWindowRequest, getTitleBarStyle, IRunKeybindingInWindowRequest, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,7 +26,7 @@ import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } f
 const telemetryFrom = 'menu';
 
 interface IMenuItemClickHandler {
-	inDevTools: (contents: Electron.WebContents) => void;
+	inDevTools: (contents: WebContents) => void;
 	inNoWindow: () => void;
 }
 
@@ -58,7 +58,7 @@ export class Menubar {
 
 	private keybindings: { [commandId: string]: IMenubarKeybinding };
 
-	private fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Electron.Event) => void } = {};
+	private fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Event) => void } = {};
 
 	constructor(
 		@IUpdateService private readonly updateService: IUpdateService,
@@ -249,7 +249,7 @@ export class Menubar {
 		const menubar = new Menu();
 
 		// Mac: Application
-		let macApplicationMenuItem: Electron.MenuItem;
+		let macApplicationMenuItem: MenuItem;
 		if (isMacintosh) {
 			const applicationMenu = new Menu();
 			macApplicationMenuItem = new MenuItem({ label: product.nameShort, submenu: applicationMenu });
@@ -317,7 +317,7 @@ export class Menubar {
 		menubar.append(terminalMenuItem);
 
 		// Mac: Window
-		let macWindowMenuItem: Electron.MenuItem | undefined;
+		let macWindowMenuItem: MenuItem | undefined;
 		if (this.shouldDrawMenu('Window')) {
 			const windowMenu = new Menu();
 			macWindowMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize('mWindow', "Window")), submenu: windowMenu, role: 'window' });
@@ -345,7 +345,7 @@ export class Menubar {
 		this.menuGC.schedule();
 	}
 
-	private setMacApplicationMenu(macApplicationMenu: Electron.Menu): void {
+	private setMacApplicationMenu(macApplicationMenu: Menu): void {
 		const about = this.createMenuItem(nls.localize('mAbout', "About {0}", product.nameLong), 'workbench.action.showAboutDialog');
 		const checkForUpdates = this.getUpdateMenuItems();
 
@@ -421,7 +421,7 @@ export class Menubar {
 	}
 
 
-	private setMenu(menu: Electron.Menu, items: Array<MenubarMenuItem>) {
+	private setMenu(menu: Menu, items: Array<MenubarMenuItem>) {
 		items.forEach((item: MenubarMenuItem) => {
 			if (isMenubarMenuItemSeparator(item)) {
 				menu.append(__separator__());
@@ -455,13 +455,13 @@ export class Menubar {
 		});
 	}
 
-	private setMenuById(menu: Electron.Menu, menuId: string): void {
+	private setMenuById(menu: Menu, menuId: string): void {
 		if (this.menubarMenus && this.menubarMenus[menuId]) {
 			this.setMenu(menu, this.menubarMenus[menuId].items);
 		}
 	}
 
-	private insertCheckForUpdatesItems(menu: Electron.Menu) {
+	private insertCheckForUpdatesItems(menu: Menu) {
 		const updateItems = this.getUpdateMenuItems();
 		if (updateItems.length) {
 			updateItems.forEach(i => menu.append(i));
@@ -469,7 +469,7 @@ export class Menubar {
 		}
 	}
 
-	private createOpenRecentMenuItem(uri: URI, label: string, commandId: string): Electron.MenuItem {
+	private createOpenRecentMenuItem(uri: URI, label: string, commandId: string): MenuItem {
 		const revivedUri = URI.revive(uri);
 		const uriToOpen: IURIToOpen =
 			(commandId === 'openRecentFile') ? { fileUri: revivedUri } :
@@ -494,12 +494,12 @@ export class Menubar {
 		}, false));
 	}
 
-	private isOptionClick(event: Electron.KeyboardEvent): boolean {
+	private isOptionClick(event: KeyboardEvent): boolean {
 		return !!(event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey))));
 	}
 
-	private createRoleMenuItem(label: string, commandId: string, role: any): Electron.MenuItem {
-		const options: Electron.MenuItemConstructorOptions = {
+	private createRoleMenuItem(label: string, commandId: string, role: any): MenuItem {
+		const options: MenuItemConstructorOptions = {
 			label: this.mnemonicLabel(label),
 			role,
 			enabled: true
@@ -508,13 +508,13 @@ export class Menubar {
 		return new MenuItem(this.withKeybinding(commandId, options));
 	}
 
-	private setMacWindowMenu(macWindowMenu: Electron.Menu): void {
+	private setMacWindowMenu(macWindowMenu: Menu): void {
 		const minimize = new MenuItem({ label: nls.localize('mMinimize', "Minimize"), role: 'minimize', accelerator: 'Command+M', enabled: this.windowsMainService.getWindowCount() > 0 });
 		const zoom = new MenuItem({ label: nls.localize('mZoom', "Zoom"), role: 'zoom', enabled: this.windowsMainService.getWindowCount() > 0 });
 		const bringAllToFront = new MenuItem({ label: nls.localize('mBringToFront', "Bring All to Front"), role: 'front', enabled: this.windowsMainService.getWindowCount() > 0 });
 		const switchWindow = this.createMenuItem(nls.localize({ key: 'miSwitchWindow', comment: ['&& denotes a mnemonic'] }, "Switch &&Window..."), 'workbench.action.switchWindow');
 
-		const nativeTabMenuItems: Electron.MenuItem[] = [];
+		const nativeTabMenuItems: MenuItem[] = [];
 		if (this.currentEnableNativeTabs) {
 			nativeTabMenuItems.push(__separator__());
 
@@ -536,7 +536,7 @@ export class Menubar {
 		].forEach(item => macWindowMenu.append(item));
 	}
 
-	private getUpdateMenuItems(): Electron.MenuItem[] {
+	private getUpdateMenuItems(): MenuItem[] {
 		const state = this.updateService.state;
 
 		switch (state.type) {
@@ -588,7 +588,7 @@ export class Menubar {
 		}
 	}
 
-	private static _menuItemIsTriggeredViaKeybinding(event: Electron.KeyboardEvent, userSettingsLabel: string): boolean {
+	private static _menuItemIsTriggeredViaKeybinding(event: KeyboardEvent, userSettingsLabel: string): boolean {
 		// The event coming in from Electron will inform us only about the modifier keys pressed.
 		// The strategy here is to check if the modifier keys match those of the keybinding,
 		// since it is highly unlikely to use modifier keys when clicking with the mouse
@@ -615,11 +615,11 @@ export class Menubar {
 		);
 	}
 
-	private createMenuItem(label: string, commandId: string | string[], enabled?: boolean, checked?: boolean): Electron.MenuItem;
-	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean): Electron.MenuItem;
-	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): Electron.MenuItem {
+	private createMenuItem(label: string, commandId: string | string[], enabled?: boolean, checked?: boolean): MenuItem;
+	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean): MenuItem;
+	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): MenuItem {
 		const label = this.mnemonicLabel(arg1);
-		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem: Electron.MenuItem & IMenuItemWithKeybinding, win: Electron.BrowserWindow, event: Electron.Event) => {
+		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem: MenuItem & IMenuItemWithKeybinding, win: BrowserWindow, event: Event) => {
 			const userSettingsLabel = menuItem ? menuItem.userSettingsLabel : null;
 			let commandId = arg2;
 			if (Array.isArray(arg2)) {
@@ -635,7 +635,7 @@ export class Menubar {
 		const enabled = typeof arg3 === 'boolean' ? arg3 : this.windowsMainService.getWindowCount() > 0;
 		const checked = typeof arg4 === 'boolean' ? arg4 : false;
 
-		const options: Electron.MenuItemConstructorOptions = {
+		const options: MenuItemConstructorOptions = {
 			label,
 			click,
 			enabled
@@ -740,7 +740,7 @@ export class Menubar {
 		}
 	}
 
-	private withKeybinding(commandId: string | undefined, options: Electron.MenuItemConstructorOptions & IMenuItemWithKeybinding): Electron.MenuItemConstructorOptions {
+	private withKeybinding(commandId: string | undefined, options: MenuItemConstructorOptions & IMenuItemWithKeybinding): MenuItemConstructorOptions {
 		const binding = typeof commandId === 'string' ? this.keybindings[commandId] : undefined;
 
 		// Apply binding if there is one
@@ -772,7 +772,7 @@ export class Menubar {
 		return options;
 	}
 
-	private likeAction(commandId: string, options: Electron.MenuItemConstructorOptions, setAccelerator = !options.accelerator): Electron.MenuItemConstructorOptions {
+	private likeAction(commandId: string, options: MenuItemConstructorOptions, setAccelerator = !options.accelerator): MenuItemConstructorOptions {
 		if (setAccelerator) {
 			options = this.withKeybinding(commandId, options);
 		}
@@ -802,6 +802,6 @@ export class Menubar {
 	}
 }
 
-function __separator__(): Electron.MenuItem {
+function __separator__(): MenuItem {
 	return new MenuItem({ type: 'separator' });
 }

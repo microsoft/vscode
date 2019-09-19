@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager, IURIToOpen } from 'vs/platform/windows/common/windows';
@@ -164,8 +164,8 @@ export class CodeApplication extends Disposable {
 
 			event.preventDefault();
 		});
-		app.on('web-contents-created', (_event: Electron.Event, contents) => {
-			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
+		app.on('web-contents-created', (_event: Event, contents) => {
+			contents.on('will-attach-webview', (event: Event, webPreferences, params) => {
 
 				const isValidWebviewSource = (source: string): boolean => {
 					if (!source) {
@@ -257,7 +257,7 @@ export class CodeApplication extends Disposable {
 			this.lifecycleMainService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', async (event: Electron.IpcMainEvent) => {
+		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
 			const webContents = event.sender;
 
 			try {
@@ -274,10 +274,10 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:toggleDevTools', (event: Electron.IpcMainEvent) => event.sender.toggleDevTools());
-		ipc.on('vscode:openDevTools', (event: Electron.IpcMainEvent) => event.sender.openDevTools());
+		ipc.on('vscode:toggleDevTools', (event: IpcMainEvent) => event.sender.toggleDevTools());
+		ipc.on('vscode:openDevTools', (event: IpcMainEvent) => event.sender.openDevTools());
 
-		ipc.on('vscode:reloadWindow', (event: Electron.IpcMainEvent) => event.sender.reload());
+		ipc.on('vscode:reloadWindow', (event: IpcMainEvent) => event.sender.reload());
 
 		// Some listeners after window opened
 		(async () => {

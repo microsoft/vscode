@@ -11,7 +11,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue } from 'electron';
+import { MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, Rectangle, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
 
 export interface IWindowState {
 	width?: number;
@@ -31,7 +31,7 @@ export const enum WindowMode {
 
 export interface ICodeWindow {
 	readonly id: number;
-	readonly win: Electron.BrowserWindow;
+	readonly win: BrowserWindow;
 	readonly config: IWindowConfiguration;
 
 	readonly openedFolderUri?: URI;
@@ -56,7 +56,7 @@ export interface ICodeWindow {
 	focus(): void;
 	close(): void;
 
-	getBounds(): Electron.Rectangle;
+	getBounds(): Rectangle;
 
 	send(channel: string, ...args: any[]): void;
 	sendWhenReady(channel: string, ...args: any[]): void;
@@ -102,9 +102,9 @@ export interface IWindowsMainService {
 	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Promise<MessageBoxReturnValue>;
-	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Promise<SaveDialogReturnValue>;
-	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Promise<OpenDialogReturnValue>;
+	showMessageBox(options: MessageBoxOptions, win?: ICodeWindow): Promise<MessageBoxReturnValue>;
+	showSaveDialog(options: SaveDialogOptions, win?: ICodeWindow): Promise<SaveDialogReturnValue>;
+	showOpenDialog(options: OpenDialogOptions, win?: ICodeWindow): Promise<OpenDialogReturnValue>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow | undefined;
 	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
