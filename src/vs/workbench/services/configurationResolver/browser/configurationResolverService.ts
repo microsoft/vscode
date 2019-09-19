@@ -26,15 +26,14 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 interface Variable {
 	command: string;
-	order: number;
-	type: string;
 	original: string;
 	content: string;
+	type: string;
 }
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
-	static INPUT_OR_COMMAND_VARIABLES_PATTERN = /(?<fullMatch>\${(?<content>(?<type>input|command)(?::(?<order>[\d\.\-]))?:(?<value>.*?))})/g;
+	static INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
 
 	constructor(
 		envVariables: IProcessEnvironment,
@@ -173,7 +172,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 		const variableValues: IStringDictionary<string> = Object.create(null);
 
-		const resolved = this.resolveAnyMap(folder, configuration);
+		const resolved = await this.resolveAnyMap(folder, configuration);
 		const allVariableMapping: Map<string, string> = resolved.resolvedVariables;
 		const intermediateVariableValues: IStringDictionary<string> = Object.create(null);
 
@@ -227,19 +226,16 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			if (typeof object === 'string') {
 				let matches;
 				while ((matches = BaseConfigurationResolverService.INPUT_OR_COMMAND_VARIABLES_PATTERN.exec(object)) !== null) {
-					if (matches.length === 6) {
-						let matchesAsAny: IStringDictionary<any> = matches;
-						const groups: any = matchesAsAny.groups;
+					if (matches.length === 4) {
 
 						const variable: Variable = {
-							command: groups.value,
-							order: groups.order === undefined ? 0 : parseFloat(groups.order),
-							type: groups.type,
-							original: groups.fullMatch,
-							content: groups.content
+							command: matches[3],
+							type: matches[2],
+							original: matches[0],
+							content: matches[1]
 						};
 
-						if (variables.filter(item => item.command === variable.command && item.order === variable.order && item.type === variable.type).length === 0) {
+						if (variables.filter(item => item.command === variable.command && item.type === variable.type).length === 0) {
 							variables.push(variable);
 						}
 					}
@@ -257,8 +253,6 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		}
 
 		findAndAdd(object);
-
-		variables.sort((item1, item2) => item1.order - item2.order);
 
 		return variables;
 	}
