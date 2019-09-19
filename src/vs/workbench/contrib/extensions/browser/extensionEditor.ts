@@ -576,14 +576,21 @@ export class ExtensionEditor extends BaseEditor {
 			.then(content => this.renderBody(content))
 			.then(removeEmbeddedSVGs)
 			.then(body => {
-				const webviewElement = this.webviewService.createWebview('extensionEditor',
+				const webviewElement = this.webviewService.createWebviewEditorOverlay('extensionEditor',
 					{
 						enableFindWidget: true,
 					},
 					{});
-				webviewElement.mountTo(template.content);
+				webviewElement.claim(this);
+				webviewElement.layoutWebviewOverElement(template.content);
+
 				this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webviewElement);
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
+					layout: () => {
+						webviewElement.layout();
+						webviewElement.layoutWebviewOverElement(template.content);
+					}
+				});
 				this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 				webviewElement.html = body;
 
