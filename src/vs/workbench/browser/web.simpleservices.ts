@@ -113,14 +113,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve();
 	}
 
-	openDevTools(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleDevTools(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	closeWorkspace(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -346,14 +338,6 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	reloadWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	openDevTools(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleDevTools(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 

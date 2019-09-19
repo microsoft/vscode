@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MessageBoxOptions, MessageBoxReturnValue } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
@@ -22,4 +22,8 @@ export interface IElectronService {
 	// OS
 	showItemInFolder(path: string): Promise<void>;
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
+
+	// Development
+	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
+	toggleDevTools(): Promise<void>;
 }

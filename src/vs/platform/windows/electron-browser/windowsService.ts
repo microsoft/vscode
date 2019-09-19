@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -61,14 +61,6 @@ export class WindowsService implements IWindowsService {
 
 	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void> {
 		return this.channel.call('reloadWindow', [windowId, args]);
-	}
-
-	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void> {
-		return this.channel.call('openDevTools', [windowId, options]);
-	}
-
-	toggleDevTools(windowId: number): Promise<void> {
-		return this.channel.call('toggleDevTools', windowId);
 	}
 
 	closeWorkspace(windowId: number): Promise<void> {

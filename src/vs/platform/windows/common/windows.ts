@@ -83,10 +83,6 @@ export interface SaveDialogOptions {
 	showsTagField?: boolean;
 }
 
-export interface IDevToolsOptions {
-	mode: 'right' | 'bottom' | 'undocked' | 'detach';
-}
-
 export interface IWindowsService {
 
 	_serviceBrand: undefined;
@@ -108,8 +104,6 @@ export interface IWindowsService {
 	showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<string[]>;
 
 	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void>;
-	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void>;
-	toggleDevTools(windowId: number): Promise<void>;
 	closeWorkspace(windowId: number): Promise<void>;
 	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	toggleFullScreen(windowId: number): Promise<void>;
@@ -224,8 +218,6 @@ export interface IWindowService {
 	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	reloadWindow(args?: ParsedArgs): Promise<void>;
-	openDevTools(options?: IDevToolsOptions): Promise<void>;
-	toggleDevTools(): Promise<void>;
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;

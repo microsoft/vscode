@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { crashReporter, app, Menu } from 'electron';
 import { Event } from 'vs/base/common/event';
@@ -103,25 +103,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#reloadWindow', windowId);
 
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.reload(codeWindow, args));
-	}
-
-	async openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void> {
-		this.logService.trace('windowsService#openDevTools', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.win.webContents.openDevTools(options));
-	}
-
-	async toggleDevTools(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#toggleDevTools', windowId);
-
-		return this.withWindow(windowId, codeWindow => {
-			const contents = codeWindow.win.webContents;
-			if (isMacintosh && codeWindow.hasHiddenTitleBarStyle() && !codeWindow.isFullScreen() && !contents.isDevToolsOpened()) {
-				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
-			} else {
-				contents.toggleDevTools();
-			}
-		});
 	}
 
 	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
