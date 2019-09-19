@@ -253,7 +253,43 @@ export const numbers = registerTokenStyle('numbers', { scopesToProbe: [['constan
 export const types = registerTokenStyle('types', { scopesToProbe: [['entity.name.type'], ['entity.name.class'], ['support.type'], ['support.class']], dark: null, light: null, hc: null }, nls.localize('types', "Token style for types."));
 export const functions = registerTokenStyle('functions', { scopesToProbe: [['entity.name.function'], ['support.function']], dark: null, light: null, hc: null }, nls.localize('functions', "Token style for functions."));
 export const variables = registerTokenStyle('variables', { scopesToProbe: [['variable'], ['entity.name.variable']], dark: null, light: null, hc: null }, nls.localize('variables', "Token style for variables."));
+/*
+Tags: local, param, reference, write, async, documentation, overloaded
 
+Struct
+
+Type
+Class : Type
+Interface : Type
+
+Field : Property
+Method : Property
+Property
+
+Variable
+Parameter
+Const
+
+Function
+
+Macro
+Operator
+
+Namespace
+Label
+Event
+
+(Emum)
+
+Operator
+Keyword
+
+literal
+string : literal
+number : literal
+regex: literal
+
+*/
 /**
  * @param colorValue Resolve a color value in the context of a theme
  */
