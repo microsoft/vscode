@@ -6,7 +6,6 @@
 import 'vs/css!./media/screencast';
 
 import { Action } from 'vs/base/common/actions';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { domEvent } from 'vs/base/browser/event';
@@ -35,8 +34,7 @@ class InspectContextKeysAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(id, label);
 	}
@@ -82,7 +80,6 @@ class InspectContextKeysAction extends Action {
 
 			const context = this.contextKeyService.getContext(e.target as HTMLElement) as Context;
 			console.log(context.collectAllValues());
-			this.windowService.openDevTools();
 
 			dispose(disposables);
 		}, null, disposables);
@@ -203,16 +200,13 @@ class LogStorageAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IStorageService private readonly storageService: IStorageService,
-		@IWindowService private readonly windowService: IWindowService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		this.storageService.logStorage();
-
-		return this.windowService.openDevTools();
 	}
 }
 

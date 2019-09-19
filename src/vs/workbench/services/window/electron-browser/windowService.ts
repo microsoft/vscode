@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -79,14 +79,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	reloadWindow(args?: ParsedArgs): Promise<void> {
 		return this.windowsService.reloadWindow(this.windowId, args);
-	}
-
-	openDevTools(options?: IDevToolsOptions): Promise<void> {
-		return this.windowsService.openDevTools(this.windowId, options);
-	}
-
-	toggleDevTools(): Promise<void> {
-		return this.windowsService.toggleDevTools(this.windowId);
 	}
 
 	closeWorkspace(): Promise<void> {

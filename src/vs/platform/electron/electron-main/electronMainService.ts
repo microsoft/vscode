@@ -5,9 +5,10 @@
 
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { OpenContext } from 'vs/platform/windows/common/windows';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class ElectronMainService implements IElectronService {
 
@@ -35,8 +36,6 @@ export class ElectronMainService implements IElectronService {
 
 	//#endregion
 
-	//#region Other
-
 	async showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
 		const result = await this.windowsMainService.showMessageBox(options, this.window);
 
@@ -54,5 +53,22 @@ export class ElectronMainService implements IElectronService {
 		return this.lifecycleMainService.relaunch(options);
 	}
 
-	//#endregion
+	async openDevTools(options?: OpenDevToolsOptions): Promise<void> {
+		const window = this.window;
+		if (window) {
+			window.win.webContents.openDevTools(options);
+		}
+	}
+
+	async toggleDevTools(): Promise<void> {
+		const window = this.window;
+		if (window) {
+			const contents = window.win.webContents;
+			if (isMacintosh && window.hasHiddenTitleBarStyle() && !window.isFullScreen() && !contents.isDevToolsOpened()) {
+				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
+			} else {
+				contents.toggleDevTools();
+			}
+		}
+	}
 }
