@@ -5,13 +5,14 @@
 
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
-import { IReplElement, IStackFrame, IExpression, IReplElementSource, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IReplElement, IExpression, IReplElementSource, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
 import { isString, isUndefinedOrNull, isObject } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { endsWith } from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
+import { Emitter } from 'vs/base/common/event';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
@@ -107,6 +108,8 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 
 export class ReplModel {
 	private replElements: IReplElement[] = [];
+	private readonly _onDidChangeElements = new Emitter<void>();
+	readonly onDidChangeElements = this._onDidChangeElements.event;
 
 	constructor(private session: IDebugSession) { }
 
@@ -114,10 +117,11 @@ export class ReplModel {
 		return this.replElements;
 	}
 
-	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		this.addReplElement(new ReplEvaluationInput(name));
-		const result = new ReplEvaluationResult();
-		await result.evaluateExpression(name, this.session, stackFrame, 'repl');
+	appendEvaluationInput(input: ReplEvaluationInput) {
+		this.addReplElement(input);
+	}
+
+	appendEvaluationResult(result: ReplEvaluationResult) {
 		this.addReplElement(result);
 	}
 
@@ -151,6 +155,7 @@ export class ReplModel {
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 		}
+		this._onDidChangeElements.fire();
 	}
 
 	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
@@ -229,6 +234,7 @@ export class ReplModel {
 	removeReplExpressions(): void {
 		if (this.replElements.length > 0) {
 			this.replElements = [];
+			this._onDidChangeElements.fire();
 		}
 	}
 }

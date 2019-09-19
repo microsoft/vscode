@@ -11,7 +11,7 @@ import * as sinon from 'sinon';
 import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
+import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel, ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 import { IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 
@@ -333,26 +333,29 @@ suite('Debug - Model', () => {
 		assert.equal(model.getWatchExpressions().length, 0);
 	});
 
-	test('repl expressions', () => {
+	test('repl expressions', async () => {
 		const session = createMockSession(model);
 		assert.equal(session.getReplElements().length, 0);
 		model.addSession(session);
 
 		session['raw'] = <any>rawSession;
-		const thread = new Thread(session, 'mockthread', 1);
-		const stackFrame = new StackFrame(thread, 1, <any>undefined, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-		const replModel = new ReplModel(session);
-		replModel.addReplExpression(stackFrame, 'myVariable').then();
-		replModel.addReplExpression(stackFrame, 'myVariable').then();
-		replModel.addReplExpression(stackFrame, 'myVariable').then();
 
-		assert.equal(replModel.getReplElements().length, 3);
-		replModel.getReplElements().forEach(re => {
-			assert.equal((<ReplEvaluationInput>re).value, 'myVariable');
-		});
+		const promise1 = session.addReplExpression(undefined, 'myVariable');
+		assert.equal(session.getReplElements().length, 1);
+		assert.equal((<ReplEvaluationInput>session.getReplElements()[0]).value, 'myVariable');
 
-		replModel.removeReplExpressions();
-		assert.equal(replModel.getReplElements().length, 0);
+		const promise2 = session.addReplExpression(undefined, 'myVariable2');
+		assert.equal(session.getReplElements().length, 2);
+		assert.equal((<ReplEvaluationInput>session.getReplElements()[1]).value, 'myVariable2');
+
+		await promise1;
+		await promise2;
+		assert.equal(session.getReplElements().length, 4);
+		assert.equal((<ReplEvaluationResult>session.getReplElements()[2]).value, '=myVariable');
+		assert.equal((<ReplEvaluationResult>session.getReplElements()[3]).value, '=myVariable2');
+
+		session.removeReplExpressions();
+		assert.equal(session.getReplElements().length, 0);
 	});
 
 	test('stack frame get specific source name', () => {

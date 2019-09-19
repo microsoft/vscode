@@ -29,7 +29,7 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
+import { ReplModel, ReplEvaluationInput, ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -62,6 +62,8 @@ export class DebugSession implements IDebugSession {
 	private name: string | undefined;
 	private readonly _onDidChangeName = new Emitter<string>();
 
+	private replAccess: Promise<void> = Promise.resolve();
+
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
 		public root: IWorkspaceFolder,
@@ -80,6 +82,7 @@ export class DebugSession implements IDebugSession {
 	) {
 		this.id = generateUuid();
 		this.repl = new ReplModel(this);
+		this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
 	}
 
 	getId(): string {
@@ -784,8 +787,7 @@ export class DebugSession implements IDebugSession {
 			this._onDidChangeState.fire();
 		}));
 
-		let outpuPromises: Promise<void>[] = [];
-		this.rawListeners.push(this.raw.onDidOutput(event => {
+		this.rawListeners.push(this.raw.onDidOutput(async event => {
 			if (!event.body || !this.raw) {
 				return;
 			}
@@ -803,7 +805,7 @@ export class DebugSession implements IDebugSession {
 			}
 
 			// Make sure to append output in the correct order by properly waiting on preivous promises #33822
-			const waitFor = outpuPromises.slice();
+			const slot = this.replAccessSlot();
 			const source = event.body.source && event.body.line ? {
 				lineNumber: event.body.line,
 				column: event.body.column ? event.body.column : 1,
@@ -811,17 +813,19 @@ export class DebugSession implements IDebugSession {
 			} : undefined;
 			if (event.body.variablesReference) {
 				const container = new ExpressionContainer(this, undefined, event.body.variablesReference, generateUuid());
-				outpuPromises.push(container.getChildren().then(children => {
-					return Promise.all(waitFor).then(() => children.forEach(child => {
+				const children = await container.getChildren();
+				slot(() => {
+					children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						(<any>child).name = null;
-						this.appendToRepl(child, outputSeverity, source);
-					}));
-				}));
+						this.repl.appendToRepl(child, outputSeverity, source);
+					});
+				});
 			} else if (typeof event.body.output === 'string') {
-				Promise.all(waitFor).then(() => this.appendToRepl(event.body.output, outputSeverity, source));
+				slot(() => {
+					this.repl.appendToRepl(event.body.output, outputSeverity, source);
+				});
 			}
-			Promise.all(outpuPromises).then(() => outpuPromises = []);
 		}));
 
 		this.rawListeners.push(this.raw.onDidBreakpoint(event => {
@@ -950,31 +954,54 @@ export class DebugSession implements IDebugSession {
 
 	// REPL
 
+	// Using this method to append to repl ensures that elements are appended in the
+	// correct order regardless of async processing before any element.
+	private replAccessSlot(): (accessor: () => void) => Promise<void> {
+		const slot = this.replAccess;
+		let callback: () => void;
+		const result = async (accessor: () => void) => {
+			await slot;
+			accessor();
+			callback();
+		};
+		const p = new Promise<void>(f => callback = f);
+		this.replAccess = slot.then(() => p);
+		// Timeout to avoid blocking future slots if this one does stall.
+		setTimeout(callback!, 10000);
+		return result;
+	}
+
 	getReplElements(): IReplElement[] {
 		return this.repl.getReplElements();
 	}
 
 	removeReplExpressions(): void {
 		this.repl.removeReplExpressions();
-		this._onDidChangeREPLElements.fire();
 	}
 
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		const expressionEvaluated = this.repl.addReplExpression(stackFrame, name);
-		this._onDidChangeREPLElements.fire();
-		await expressionEvaluated;
-		this._onDidChangeREPLElements.fire();
-		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-		variableSetEmitter.fire();
+		this.repl.appendEvaluationInput(new ReplEvaluationInput(name));
+		const result = new ReplEvaluationResult();
+		await result.evaluateExpression(name, this, stackFrame, 'repl');
+		const slot = this.replAccessSlot();
+		await slot(() => {
+			this.repl.appendEvaluationResult(result);
+			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
+			variableSetEmitter.fire();
+		});
 	}
 
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
-		this.repl.appendToRepl(data, severity, source);
-		this._onDidChangeREPLElements.fire();
+		const slot = this.replAccessSlot();
+		slot(() => {
+			this.repl.appendToRepl(data, severity, source);
+		});
 	}
 
 	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
-		this.repl.logToRepl(sev, args, frame);
-		this._onDidChangeREPLElements.fire();
+		const slot = this.replAccessSlot();
+		slot(() => {
+			this.repl.logToRepl(sev, args, frame);
+		});
 	}
 }

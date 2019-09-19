@@ -374,7 +374,17 @@ export class MockRawSession {
 	}
 
 	evaluate(args: DebugProtocol.EvaluateArguments): Promise<DebugProtocol.EvaluateResponse> {
-		return Promise.resolve(null!);
+		return Promise.resolve({
+			seq: 1,
+			type: 'response',
+			request_seq: 1,
+			success: true,
+			command: 'evaluate',
+			body: {
+				result: '=' + args.expression,
+				variablesReference: 0
+			}
+		});
 	}
 
 	public custom(request: string, args: any): Promise<DebugProtocol.Response> {
