@@ -17,6 +17,7 @@ interface SerializedIconPath {
 }
 
 interface SerializedWebview {
+	readonly id?: string;
 	readonly viewType: string;
 	readonly title: string;
 	readonly options: WebviewInputOptions;
@@ -53,7 +54,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		serializedEditorInput: string
 	): WebviewInput {
 		const data = this.fromJson(serializedEditorInput);
-		return this._webviewService.reviveWebview(generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation ? {
+		return this._webviewService.reviveWebview(data.id || generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation ? {
 			location: data.extensionLocation,
 			id: data.extensionId
 		} : undefined, data.group);
@@ -72,6 +73,7 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 
 	protected toJson(input: WebviewInput): SerializedWebview {
 		return {
+			id: input.id,
 			viewType: input.viewType,
 			title: input.getName(),
 			options: { ...input.webview.options, ...input.webview.contentOptions },
@@ -109,20 +111,6 @@ function reviveUri(data: string | UriComponents | undefined): URI | undefined {
 	}
 }
 
-
 function reviveState(state: unknown | undefined): undefined | string {
-	if (!state) {
-		return undefined;
-	}
-
-	if (typeof state === 'string') {
-		return state;
-	}
-
-	// Likely an old style state. Unwrap to a simple state object
-	// Remove after 1.37
-	if ('state' in (state as any) && typeof (state as any).state === 'string') {
-		return (state as any).state;
-	}
-	return undefined;
+	return typeof state === 'string' ? state : undefined;
 }

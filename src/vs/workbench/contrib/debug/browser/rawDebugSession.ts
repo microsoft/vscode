@@ -601,7 +601,7 @@ export class RawDebugSession implements IDisposable {
 						} else {
 							args[key] = [value];
 						}
-					} else if (key === 'extensionDevelopmentPath') {
+					} else if (key === 'extensionDevelopmentPath' || key === 'enable-proposed-api') {
 						const v = args[key];
 						if (v) {
 							v.push(value);

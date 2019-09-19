@@ -1665,11 +1665,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 
 	getWindowById(windowId: number): ICodeWindow | undefined {
 		const res = WindowsManager.WINDOWS.filter(window => window.id === windowId);
-		if (res && res.length === 1) {
-			return res[0];
-		}
-
-		return undefined;
+		return arrays.firstOrDefault(res);
 	}
 
 	getWindows(): ICodeWindow[] {

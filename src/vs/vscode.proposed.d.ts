@@ -1089,4 +1089,27 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	// #region resolveExternalUri — mjbvz
+
+	namespace env {
+		/**
+		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
+		 * uri to the same resource on the client machine.
+		 *
+		 * This is a no-oop if the extension is running locally. Currently only supports `https:` and `http:`.
+		 *
+		 * If the extension is running remotely, this function automatically establishes port forwarding from
+		 * the local machine to `target` on the remote and returns a local uri that can be used to for this connection.
+		 *
+		 * Note that uris passed through `openExternal` are automatically resolved.
+		 *
+		 * @return A uri that can be used on the client machine. Extensions should dispose of the returned value when
+		 * both the extension and the user are no longer using the value. For port forwarded uris, `dispose` will
+		 * close the connection.
+		 */
+		export function resolveExternalUri(target: Uri): Thenable<{ resolved: Uri, dispose(): void }>;
+	}
+
+	//#endregion
 }
