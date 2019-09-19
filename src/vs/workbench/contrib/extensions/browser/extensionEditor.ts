@@ -574,47 +574,48 @@ export class ExtensionEditor extends BaseEditor {
 		return Promise.resolve(null);
 	}
 
-	private openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate): Promise<IActiveElement> {
-		return this.loadContents(() => cacheResult, template)
-			.then(contents => renderMarkdownDocument(contents, this.extensionService, this.modeService))
-			.then(content => this.renderBody(content))
-			.then(removeEmbeddedSVGs)
-			.then(body => {
-				const webviewElement = this.webviewService.createWebviewEditorOverlay('extensionEditor',
-					{
-						enableFindWidget: true,
-					},
-					{});
-				webviewElement.claim(this);
-				webviewElement.layoutWebviewOverElement(template.content);
+	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate): Promise<IActiveElement> {
+		try {
+			const contents = await this.loadContents(() => cacheResult, template);
+			const content = await renderMarkdownDocument(contents, this.extensionService, this.modeService);
+			const documentContent = await this.renderBody(content);
+			const body = removeEmbeddedSVGs(documentContent);
 
-				this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
-					layout: () => {
-						webviewElement.layout();
-						webviewElement.layoutWebviewOverElement(template.content);
-					}
-				});
-				this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-				webviewElement.html = body;
+			const webviewElement = this.contentDisposables.add(this.webviewService.createWebviewEditorOverlay('extensionEditor', {
+				enableFindWidget: true,
+			}, {}));
 
-				this.contentDisposables.add(webviewElement.onDidClickLink(link => {
-					if (!link) {
-						return;
-					}
-					// Whitelist supported schemes for links
-					if ([Schemas.http, Schemas.https, Schemas.mailto].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesActionId)) {
-						this.openerService.open(link);
-					}
-				}, null, this.contentDisposables));
-				this.contentDisposables.add(webviewElement);
-				return webviewElement;
-			})
-			.then(undefined, () => {
-				const p = append(template.content, $('p.nocontent'));
-				p.textContent = noContentCopy;
-				return p;
+			webviewElement.claim(this);
+			webviewElement.layoutWebviewOverElement(template.content);
+
+			this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
+			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
+				layout: () => {
+					webviewElement.layout();
+					webviewElement.layoutWebviewOverElement(template.content);
+				}
 			});
+
+			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+			webviewElement.html = body;
+
+			this.contentDisposables.add(webviewElement.onDidClickLink(link => {
+				if (!link) {
+					return;
+				}
+
+				// Whitelist supported schemes for links
+				if ([Schemas.http, Schemas.https, Schemas.mailto].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesActionId)) {
+					this.openerService.open(link);
+				}
+			}, null, this.contentDisposables));
+
+			return webviewElement;
+		} catch (e) {
+			const p = append(template.content, $('p.nocontent'));
+			p.textContent = noContentCopy;
+			return p;
+		}
 	}
 
 	private async renderBody(body: string): Promise<string> {
