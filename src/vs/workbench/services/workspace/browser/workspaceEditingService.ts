@@ -7,7 +7,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWindowService, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -323,14 +323,14 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (windows.some(window => !!window.workspace && isEqual(window.workspace.configPath, path))) {
-			const options: MessageBoxOptions = {
-				type: 'info',
-				buttons: [nls.localize('ok', "OK")],
-				message: nls.localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
-				detail: nls.localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
-				noLink: true
-			};
-			await this.windowService.showMessageBox(options);
+			await this.dialogService.show(
+				Severity.Info,
+				nls.localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
+				[nls.localize('ok', "OK")],
+				{
+					detail: nls.localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
+				}
+			);
 
 			return false;
 		}

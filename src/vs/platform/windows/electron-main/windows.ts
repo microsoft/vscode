@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -11,6 +11,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
+import { MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue } from 'electron';
 
 export interface IWindowState {
 	width?: number;
@@ -101,9 +102,9 @@ export interface IWindowsMainService {
 	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Promise<IMessageBoxResult>;
-	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Promise<string>;
-	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Promise<string[]>;
+	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Promise<MessageBoxReturnValue>;
+	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Promise<SaveDialogReturnValue>;
+	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Promise<OpenDialogReturnValue>;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow | undefined;
 	waitForWindowCloseOrLoad(windowId: number): Promise<void>;

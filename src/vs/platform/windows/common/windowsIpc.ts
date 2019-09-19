@@ -47,9 +47,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
 			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
 			case 'pickWorkspaceAndOpen': return this.service.pickWorkspaceAndOpen(arg);
-			case 'showMessageBox': return this.service.showMessageBox(arg[0], arg[1]);
-			case 'showSaveDialog': return this.service.showSaveDialog(arg[0], arg[1]);
-			case 'showOpenDialog': return this.service.showOpenDialog(arg[0], arg[1]);
 			case 'reloadWindow': return this.service.reloadWindow(arg[0], arg[1]);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));

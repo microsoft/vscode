@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -45,18 +45,6 @@ export class WindowsService implements IWindowsService {
 
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
 		return this.channel.call('pickWorkspaceAndOpen', options);
-	}
-
-	showMessageBox(windowId: number, options: MessageBoxOptions): Promise<IMessageBoxResult> {
-		return this.channel.call('showMessageBox', [windowId, options]);
-	}
-
-	showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<string> {
-		return this.channel.call('showSaveDialog', [windowId, options]);
-	}
-
-	showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<string[]> {
-		return this.channel.call('showOpenDialog', [windowId, options]);
 	}
 
 	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void> {

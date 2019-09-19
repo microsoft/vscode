@@ -99,9 +99,6 @@ export interface IWindowsService {
 	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	showMessageBox(windowId: number, options: MessageBoxOptions): Promise<IMessageBoxResult>;
-	showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<string>;
-	showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<string[]>;
 
 	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void>;
 	closeWorkspace(windowId: number): Promise<void>;
@@ -155,11 +152,6 @@ export interface IWindowsService {
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
-
-export interface IMessageBoxResult {
-	button: number;
-	checkboxChecked?: boolean;
-}
 
 export interface IOpenSettings {
 	forceNewWindow?: boolean;
@@ -238,9 +230,6 @@ export interface IWindowService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 	onWindowTitleDoubleClick(): Promise<void>;
-	showMessageBox(options: MessageBoxOptions): Promise<IMessageBoxResult>;
-	showSaveDialog(options: SaveDialogOptions): Promise<string>;
-	showOpenDialog(options: OpenDialogOptions): Promise<string[]>;
 	resolveProxy(url: string): Promise<string | undefined>;
 }
 

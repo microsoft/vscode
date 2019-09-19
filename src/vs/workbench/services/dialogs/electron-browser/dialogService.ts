@@ -8,7 +8,6 @@ import * as os from 'os';
 import product from 'vs/platform/product/common/product';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService as HTMLDialogService } from 'vs/workbench/services/dialogs/browser/dialogService';
@@ -50,7 +49,6 @@ export class DialogService implements IDialogService {
 		@ILogService logService: ILogService,
 		@ILayoutService layoutService: ILayoutService,
 		@IThemeService themeService: IThemeService,
-		@IWindowService windowService: IWindowService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IProductService productService: IProductService,
@@ -64,7 +62,7 @@ export class DialogService implements IDialogService {
 		}
 		// Electron dialog service
 		else {
-			this.impl = new NativeDialogService(windowService, logService, sharedProcessService, electronService, clipboardService);
+			this.impl = new NativeDialogService(logService, sharedProcessService, electronService, clipboardService);
 		}
 	}
 
@@ -86,7 +84,6 @@ class NativeDialogService implements IDialogService {
 	_serviceBrand: undefined;
 
 	constructor(
-		@IWindowService private readonly windowService: IWindowService,
 		@ILogService private readonly logService: ILogService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IElectronService private readonly electronService: IElectronService,
@@ -100,9 +97,9 @@ class NativeDialogService implements IDialogService {
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
-		const result = await this.windowService.showMessageBox(options);
+		const result = await this.electronService.showMessageBox(options);
 		return {
-			confirmed: buttonIndexMap[result.button] === 0 ? true : false,
+			confirmed: buttonIndexMap[result.response] === 0 ? true : false,
 			checkboxChecked: result.checkboxChecked
 		};
 	}
@@ -157,8 +154,8 @@ class NativeDialogService implements IDialogService {
 			checkboxChecked: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.checked : undefined
 		});
 
-		const result = await this.windowService.showMessageBox(options);
-		return { choice: buttonIndexMap[result.button], checkboxChecked: result.checkboxChecked };
+		const result = await this.electronService.showMessageBox(options);
+		return { choice: buttonIndexMap[result.response], checkboxChecked: result.checkboxChecked };
 	}
 
 	private massageMessageBoxOptions(options: Electron.MessageBoxOptions): IMassagedMessageBoxOptions {

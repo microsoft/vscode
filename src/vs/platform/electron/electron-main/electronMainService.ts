@@ -5,7 +5,7 @@
 
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -36,14 +36,21 @@ export class ElectronMainService implements IElectronService {
 
 	//#endregion
 
-	async showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		const result = await this.windowsMainService.showMessageBox(options, this.window);
+	//#region Dialog
 
-		return {
-			response: result.button,
-			checkboxChecked: !!result.checkboxChecked
-		};
+	async showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
+		return this.windowsMainService.showMessageBox(options, this.window);
 	}
+
+	async showSaveDialog(options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
+		return this.windowsMainService.showSaveDialog(options, this.window);
+	}
+
+	async showOpenDialog(options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
+		return this.windowsMainService.showOpenDialog(options, this.window);
+	}
+
+	//#endregion
 
 	async showItemInFolder(path: string): Promise<void> {
 		shell.showItemInFolder(path);

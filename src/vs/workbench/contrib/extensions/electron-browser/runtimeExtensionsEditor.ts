@@ -24,7 +24,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -612,7 +611,7 @@ export class SaveExtensionHostProfileAction extends Action {
 
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
-		@IWindowService private readonly _windowService: IWindowService,
+		@IElectronService private readonly _electronService: IElectronService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 	) {
@@ -627,7 +626,7 @@ export class SaveExtensionHostProfileAction extends Action {
 	}
 
 	private async _asyncRun(): Promise<any> {
-		let picked = await this._windowService.showSaveDialog({
+		let picked = await this._electronService.showSaveDialog({
 			title: 'Save Extension Host Profile',
 			buttonLabel: 'Save',
 			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
@@ -637,12 +636,14 @@ export class SaveExtensionHostProfileAction extends Action {
 			}]
 		});
 
-		if (!picked) {
+		if (!picked || !picked.filePath) {
 			return;
 		}
 
 		const profileInfo = this._extensionHostProfileService.lastProfile;
 		let dataToWrite: object = profileInfo ? profileInfo.data : {};
+
+		let savePath = picked.filePath;
 
 		if (this._environmentService.isBuilt) {
 			const profiler = await import('v8-inspect-profiler');
@@ -654,9 +655,9 @@ export class SaveExtensionHostProfileAction extends Action {
 			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
 			dataToWrite = tmp.profile;
 
-			picked = picked + '.txt';
+			savePath = savePath + '.txt';
 		}
 
-		return writeFile(picked, JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t'));
+		return writeFile(savePath, JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t'));
 	}
 }

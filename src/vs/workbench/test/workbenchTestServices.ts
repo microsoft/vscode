@@ -35,7 +35,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -1279,18 +1279,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	showMessageBox(_options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
-		return Promise.resolve({ button: 0 });
-	}
-
-	showSaveDialog(_options: Electron.SaveDialogOptions): Promise<string> {
-		throw new Error('not implemented');
-	}
-
-	showOpenDialog(_options: Electron.OpenDialogOptions): Promise<string[]> {
-		throw new Error('not implemented');
-	}
-
 	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1507,18 +1495,6 @@ export class TestWindowsService implements IWindowsService {
 	// TODO: this is a bit backwards
 	startCrashReporter(_config: Electron.CrashReporterStartOptions): Promise<void> {
 		return Promise.resolve();
-	}
-
-	showMessageBox(_windowId: number, _options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
-		throw new Error('not implemented');
-	}
-
-	showSaveDialog(_windowId: number, _options: Electron.SaveDialogOptions): Promise<string> {
-		throw new Error('not implemented');
-	}
-
-	showOpenDialog(_windowId: number, _options: Electron.OpenDialogOptions): Promise<string[]> {
-		throw new Error('not implemented');
 	}
 
 	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
