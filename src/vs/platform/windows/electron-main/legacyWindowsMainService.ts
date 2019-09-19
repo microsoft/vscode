@@ -8,7 +8,7 @@ import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { shell, crashReporter, app, Menu } from 'electron';
+import { crashReporter, app, Menu } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -20,7 +20,8 @@ import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export class WindowsService extends Disposable implements IWindowsService, IURLHandler {
+// @deprecated this should eventually go away and be implemented by host & electron service
+export class LegacyWindowsMainService extends Disposable implements IWindowsService, IURLHandler {
 
 	_serviceBrand: undefined;
 
@@ -333,10 +334,7 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 	}
 
 	async openExternal(url: string): Promise<boolean> {
-		this.logService.trace('windowsService#openExternal');
-
-		shell.openExternal(url);
-		return true;
+		return this.windowsMainService.openExternal(url);
 	}
 
 	async startCrashReporter(config: Electron.CrashReporterStartOptions): Promise<void> {

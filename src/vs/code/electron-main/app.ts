@@ -8,7 +8,7 @@ import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/plat
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
-import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
+import { LegacyWindowsMainService } from 'vs/platform/windows/electron-main/legacyWindowsMainService';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -448,7 +448,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
-		services.set(IWindowsService, new SyncDescriptor(WindowsService, [sharedProcess]));
+		services.set(IWindowsService, new SyncDescriptor(LegacyWindowsMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
 		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));

@@ -109,6 +109,7 @@ export interface IWindowsMainService {
 	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
 	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean }): ICodeWindow[];
 	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
+	openExternal(url: string): Promise<boolean>;
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
 	getFocusedWindow(): ICodeWindow | undefined;

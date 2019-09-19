@@ -14,8 +14,7 @@ import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsSer
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IWindowState } from 'vs/platform/windows/electron-main/windows';
+import { IWindowState, IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
@@ -34,7 +33,7 @@ export class IssueMainService implements IIssueService {
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
 	) {
 		this.registerListeners();
 	}
@@ -147,7 +146,7 @@ export class IssueMainService implements IIssueService {
 		});
 
 		ipcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
-			this.windowsService.openExternal(arg);
+			this.windowsMainService.openExternal(arg);
 		});
 
 		ipcMain.on('vscode:closeIssueReporter', (event: Electron.IpcMainEvent) => {

@@ -13,7 +13,7 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/common/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, FileFilter } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, FileFilter, shell } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -379,6 +379,12 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			remoteAuthority: win.remoteAuthority,
 			uiState: win.serializeWindowState()
 		};
+	}
+
+	async openExternal(url: string): Promise<boolean> {
+		shell.openExternal(url);
+
+		return true;
 	}
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[] {
