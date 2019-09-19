@@ -212,7 +212,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.root = new Root();
 		this.menus = this._register(instantiationService.createInstance(TitleMenus, this.id));
 		this._register(this.menus.onDidChangeTitle(() => this._onDidChangeActions.fire()));
-		this._register(this.themeService.onDidFileIconThemeChange(() => this.refresh([this.root]) /** soft refresh **/));
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.themeService.onThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer.decorations')) {
@@ -608,7 +608,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	private refreshing: boolean = false;
 	private async doRefresh(elements: ITreeItem[]): Promise<void> {
 		const tree = this.tree;
-		if (tree) {
+		if (tree && this.visible) {
 			this.refreshing = true;
 			await Promise.all(elements.map(element => tree.updateChildren(element, true)));
 			elements.map(element => tree.rerender(element));
