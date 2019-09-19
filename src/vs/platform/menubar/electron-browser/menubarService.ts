@@ -3,21 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IMenubarService, IMenubarData } from 'vs/platform/menubar/node/menubar';
+import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { createSimpleChannelProxy } from 'vs/platform/ipc/node/simpleIpcProxy';
 
-export class MenubarService implements IMenubarService {
+export class MenubarService {
 
 	_serviceBrand: undefined;
 
-	private channel: IChannel;
-
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		this.channel = mainProcessService.getChannel('menubar');
-	}
-
-	updateMenubar(windowId: number, menuData: IMenubarData): Promise<void> {
-		return this.channel.call('updateMenubar', [windowId, menuData]);
+		return createSimpleChannelProxy<IMenubarService>(mainProcessService.getChannel('menubar'));
 	}
 }

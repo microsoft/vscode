@@ -53,7 +53,6 @@ import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlLi
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
-import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
@@ -556,7 +555,7 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('windows', windowsChannel));
 
 		const menubarService = accessor.get(IMenubarService);
-		const menubarChannel = new MenubarChannel(menubarService);
+		const menubarChannel = new SimpleServiceProxyChannel(menubarService);
 		electronIpcServer.registerChannel('menubar', menubarChannel);
 
 		const urlService = accessor.get(IURLService);
