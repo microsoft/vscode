@@ -1461,10 +1461,6 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	relaunch(_options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
-		return Promise.resolve();
-	}
-
 	whenSharedProcessReady(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1636,4 +1632,8 @@ export class TestHostService implements IHostService {
 	_serviceBrand: undefined;
 
 	windowCount = Promise.resolve(1);
+
+	restart(): Promise<void> {
+		return Promise.resolve();
+	}
 }

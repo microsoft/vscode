@@ -428,12 +428,6 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	relaunch(_options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
-		window.location.reload();
-
-		return Promise.resolve();
-	}
-
 	whenSharedProcessReady(): Promise<void> {
 		return Promise.resolve();
 	}

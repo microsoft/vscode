@@ -6,13 +6,15 @@
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell } from 'electron';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
 export class ElectronMainService implements IElectronService {
 
 	_serviceBrand: undefined;
 
 	constructor(
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 	}
 
@@ -41,6 +43,10 @@ export class ElectronMainService implements IElectronService {
 
 	async showItemInFolder(path: string): Promise<void> {
 		shell.showItemInFolder(path);
+	}
+
+	async relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
+		return this.lifecycleMainService.relaunch(options);
 	}
 
 	//#endregion

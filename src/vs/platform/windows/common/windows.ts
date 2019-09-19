@@ -133,7 +133,6 @@ export interface IWindowsService {
 	onWindowTitleDoubleClick(windowId: number): Promise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): Promise<void>;
 	quit(): Promise<void>;
-	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 
 	// macOS Native Tabs
 	newWindowTab(): Promise<void>;

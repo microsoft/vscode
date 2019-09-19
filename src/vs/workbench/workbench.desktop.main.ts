@@ -103,6 +103,7 @@ import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
 
 // Explorer
+import 'vs/workbench/contrib/files/electron-browser/files.contribution';
 import 'vs/workbench/contrib/files/electron-browser/fileActions.contribution';
 
 // Debug

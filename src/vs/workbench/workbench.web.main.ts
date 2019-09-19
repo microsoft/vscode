@@ -81,6 +81,9 @@ registerSingleton(IUserDataSyncService, UserDataSyncService);
 
 //#region --- workbench contributions
 
+// Explorer
+import 'vs/workbench/contrib/files/browser/files.web.contribution';
+
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 

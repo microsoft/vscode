@@ -18,6 +18,10 @@ export class DesktopHostService implements IHostService {
 	get windowCount() { return this.electronService.windowCount(); }
 
 	//#endregion
+
+	restart(): Promise<void> {
+		return this.electronService.relaunch();
+	}
 }
 
 registerSingleton(IHostService, DesktopHostService, true);

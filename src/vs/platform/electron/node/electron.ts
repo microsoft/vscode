@@ -20,4 +20,5 @@ export interface IElectronService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
+	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 }

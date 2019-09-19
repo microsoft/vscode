@@ -24,7 +24,8 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
@@ -536,7 +537,7 @@ export class DebugExtensionHostAction extends Action {
 
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
-		@IWindowsService private readonly _windowsService: IWindowsService,
+		@IElectronService private readonly _electronService: IElectronService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
@@ -555,7 +556,7 @@ export class DebugExtensionHostAction extends Action {
 				secondaryButton: nls.localize('cancel', "Cancel")
 			});
 			if (res.confirmed) {
-				this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+				this._electronService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
 			}
 		}
 

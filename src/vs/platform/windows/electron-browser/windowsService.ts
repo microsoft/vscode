@@ -176,10 +176,6 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('quit');
 	}
 
-	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
-		return this.channel.call('relaunch', [options]);
-	}
-
 	whenSharedProcessReady(): Promise<void> {
 		return this.channel.call('whenSharedProcessReady');
 	}

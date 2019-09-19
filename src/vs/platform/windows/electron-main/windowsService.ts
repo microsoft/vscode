@@ -11,7 +11,6 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { shell, crashReporter, app, Menu } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
@@ -45,7 +44,6 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IHistoryMainService private readonly historyMainService: IHistoryMainService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -357,12 +355,6 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 		this.logService.trace('windowsService#quit');
 
 		this.windowsMainService.quit();
-	}
-
-	async relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
-		this.logService.trace('windowsService#relaunch');
-
-		this.lifecycleMainService.relaunch(options);
 	}
 
 	async whenSharedProcessReady(): Promise<void> {

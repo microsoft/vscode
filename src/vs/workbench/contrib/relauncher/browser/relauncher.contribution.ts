@@ -6,7 +6,8 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -39,7 +40,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private debugConsoleWordWrap: boolean | undefined;
 
 	constructor(
-		@IWindowsService private readonly windowsService: IWindowsService,
+		@IHostService private readonly hostService: IHostService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentService private readonly envService: IEnvironmentService,
@@ -117,7 +118,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				isNative ?
 					localize('restart', "&&Restart") :
 					localize('restartWeb', "&&Reload"),
-				() => this.windowsService.relaunch(Object.create(null))
+				() => this.hostService.restart()
 			);
 		}
 	}

@@ -19,4 +19,6 @@ export interface IHostService {
 	readonly windowCount: Promise<number>;
 
 	//#endregion
+
+	restart(): Promise<void>;
 }

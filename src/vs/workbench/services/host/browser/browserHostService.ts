@@ -15,6 +15,10 @@ export class BrowserHostService implements IHostService {
 	readonly windowCount = Promise.resolve(1);
 
 	//#endregion
+
+	async restart(): Promise<void> {
+		window.location.reload();
+	}
 }
 
 registerSingleton(IHostService, BrowserHostService, true);

@@ -25,7 +25,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -379,8 +380,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 						label: nls.localize('relaunch', "Relaunch VS Code"),
 						run: () => {
 							this._instantiationService.invokeFunction((accessor) => {
-								const windowsService = accessor.get(IWindowsService);
-								windowsService.relaunch({});
+								const hostService = accessor.get(IHostService);
+								hostService.restart();
 							});
 						}
 					}]
