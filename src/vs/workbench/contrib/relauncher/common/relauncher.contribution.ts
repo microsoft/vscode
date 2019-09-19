@@ -23,7 +23,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
 	telemetry: { enableCrashReporter: boolean };
-	workbench: { list: { horizontalScrolling: boolean }, useExperimentalGridLayout: boolean };
+	workbench: { list: { horizontalScrolling: boolean } };
 	debug: { console: { wordWrap: boolean } };
 }
 
@@ -36,7 +36,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private updateMode: string | undefined;
 	private enableCrashReporter: boolean | undefined;
 	private treeHorizontalScrolling: boolean | undefined;
-	private useGridLayout: boolean | undefined;
 	private debugConsoleWordWrap: boolean | undefined;
 
 	constructor(
@@ -58,12 +57,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Tree horizontal scrolling support
 		if (config.workbench && config.workbench.list && typeof config.workbench.list.horizontalScrolling === 'boolean' && config.workbench.list.horizontalScrolling !== this.treeHorizontalScrolling) {
 			this.treeHorizontalScrolling = config.workbench.list.horizontalScrolling;
-			changed = true;
-		}
-
-		// Workbench Grid Layout
-		if (config.workbench && typeof config.workbench.useExperimentalGridLayout === 'boolean' && config.workbench.useExperimentalGridLayout !== this.useGridLayout) {
-			this.useGridLayout = config.workbench.useExperimentalGridLayout;
 			changed = true;
 		}
 
