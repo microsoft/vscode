@@ -339,6 +339,12 @@ export const editorHoverStatusBarBackground = registerColor('editorHoverWidget.s
 export const editorActiveLinkForeground = registerColor('editorLink.activeForeground', { dark: '#4E94CE', light: Color.blue, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links.'));
 
 /**
+ * Editor lighbulb icon colors
+ */
+export const editorLightbulbIconForeground = registerColor('editor.lightbulbIcon.foreground', { dark: '#FFCC00', light: '#DDB100', hc: '#FFCC00' }, nls.localize('editorLightbulbIconForeground', "The color used for the lightbulb actions icon."));
+export const editorLightbulbAutoFixIconForeground = registerColor('editor.lightbulbAutoFixIcon.foreground', { dark: '#75BEFF', light: '#007ACC', hc: '#75BEFF' }, nls.localize('editorLightbulbAutoFixIconForeground', "The color used for the lightbulb auto fix actions icon."));
+
+/**
  * Diff Editor Colors
  */
 export const defaultInsertColor = new Color(new RGBA(155, 185, 85, 0.2));
