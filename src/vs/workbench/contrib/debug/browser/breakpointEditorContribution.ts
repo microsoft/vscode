@@ -397,7 +397,10 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		});
 		this.candidateDecorations = candidateDecorationIds.map((decorationId, index) => {
 			const candidate = desiredCandidateDecorations[index];
-			const cssClass = candidate.breakpoint ? undefined : 'debug-breakpoint-disabled';
+			// Candidate decoration has a breakpoint attached when a breakpoint is already at that location and we did not yet set a decoration there
+			// In practice this happens for the first breakpoint that was set on a line
+			// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
+			const cssClass = candidate.breakpoint ? getBreakpointMessageAndClassName(this.debugService, candidate.breakpoint).className : 'debug-breakpoint-disabled';
 			const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
 			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, cssClass, candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 
