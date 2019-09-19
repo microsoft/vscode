@@ -170,8 +170,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private async backupBeforeShutdown(dirtyToBackup: URI[], reason: ShutdownReason): Promise<boolean> {
-		const windowCount = await this.hostService.windowCount;
-
 		// When quit is requested skip the confirm callback and attempt to backup all workspaces.
 		// When quit is not requested the confirm callback should be shown when the window being
 		// closed is the only VS Code window open, except for on Mac where hot exit is only
@@ -182,7 +180,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			case ShutdownReason.CLOSE:
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 					doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-				} else if (windowCount > 1 || platform.isMacintosh) {
+				} else if (await this.hostService.windowCount > 1 || platform.isMacintosh) {
 					doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
 				} else {
 					doBackup = true; // backup if last window is closed on win/linux where the application quits right after
