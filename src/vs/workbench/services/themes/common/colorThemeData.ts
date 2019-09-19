@@ -138,43 +138,40 @@ export class ColorThemeData implements IColorTheme {
 	/** Public for testing reasons */
 	public findTokenStyleForScope(scope: ProbeScope): TokenStyle | undefined {
 
+		let foreground: string | null = null;
+		let fontStyle: string | null = null;
+		let foregroundScore = -1;
+		let fontStyleScore = -1;
+
 		function findTokenStyleForScopeInScopes(scopeMatchers: Matcher<ProbeScope>[], tokenColors: ITokenColorizationRule[]) {
-			for (let i = scopeMatchers.length - 1; i >= 0; i--) {
+			for (let i = 0; i < scopeMatchers.length; i++) {
+				const settings = tokenColors[i].settings;
+				if (!settings) {
+					continue;
+				}
 				let matcher = scopeMatchers[i];
 				if (!matcher) {
 					scopeMatchers[i] = matcher = getScopeMatcher(tokenColors[i]);
 				}
-				if (matcher(scope)) {
-					const settings = tokenColors[i].settings;
-					if (settings) {
-						if (foreground === null && settings.foreground) {
-							foreground = settings.foreground;
-						}
-						if (fontStyle === null && types.isString(settings.fontStyle)) {
-							fontStyle = settings.fontStyle;
-						}
-						if (foreground !== null && fontStyle !== null) {
-							break;
-						}
-					}
+				const score = matcher(scope);
+				if (score > foregroundScore && settings.foreground) {
+					foreground = settings.foreground;
+				}
+				if (score > fontStyleScore && types.isString(settings.fontStyle)) {
+					fontStyle = settings.fontStyle;
 				}
 			}
 		}
 
-		let foreground: string | null = null;
-		let fontStyle: string | null = null;
+		if (!this.themeTokenScopeMatchers) {
+			this.themeTokenScopeMatchers = new Array(this.themeTokenColors.length);
+		}
+		findTokenStyleForScopeInScopes(this.themeTokenScopeMatchers, this.themeTokenColors);
 
 		if (!this.customTokenScopeMatchers) {
 			this.customTokenScopeMatchers = new Array(this.customTokenColors.length);
 		}
 		findTokenStyleForScopeInScopes(this.customTokenScopeMatchers, this.customTokenColors);
-
-		if (foreground === null || fontStyle === null) {
-			if (!this.themeTokenScopeMatchers) {
-				this.themeTokenScopeMatchers = new Array(this.themeTokenColors.length);
-			}
-			findTokenStyleForScopeInScopes(this.themeTokenScopeMatchers, this.themeTokenColors);
-		}
 
 		if (foreground !== null || fontStyle !== null) {
 			return getTokenStyle(foreground, fontStyle);
@@ -462,26 +459,42 @@ let defaultThemeColors: { [baseTheme: string]: ITokenColorizationRule[] } = {
 	],
 };
 
-const noMatch = (_scope: ProbeScope) => false;
+const noMatch = (_scope: ProbeScope) => -1;
 
-function nameMatcher(identifers: string[], scope: ProbeScope) {
-	if (!Array.isArray(scope)) {
-		scope = [scope];
-	}
-	if (scope.length < identifers.length) {
-		return false;
-	}
-	let lastIndex = 0;
-	return identifers.every(identifier => {
-		for (let i = lastIndex; i < scope.length; i++) {
-			if (scopesAreMatching(scope[i], identifier)) {
-				lastIndex = i + 1;
-				return true;
+function nameMatcher(identifers: string[], scope: ProbeScope): number {
+	function findInIdents(s: string, lastIndent: number): number {
+		for (let i = lastIndent - 1; i >= 0; i--) {
+			if (scopesAreMatching(identifers[i], s)) {
+				return i;
 			}
 		}
-		return false;
-	});
+		return -1;
+	}
+	if (!Array.isArray(scope)) {
+		const idx = findInIdents(scope, identifers.length);
+		if (idx >= 0) {
+			return idx * 0x10000 + scope.length;
+		}
+		return -1;
+	}
+	if (scope.length < identifers.length) {
+		return -1;
+	}
+	let lastScopeIndex = scope.length - 1;
+	let lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], identifers.length);
+	if (lastIdentifierIndex >= 0) {
+		const score = lastIdentifierIndex * 0x10000 + scope.length;
+		while (lastScopeIndex >= 0) {
+			lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], lastIdentifierIndex);
+			if (lastIdentifierIndex === -1) {
+				return -1;
+			}
+		}
+		return score;
+	}
+	return -1;
 }
+
 
 function scopesAreMatching(thisScopeName: string, scopeName: string): boolean {
 	if (!thisScopeName) {
@@ -507,7 +520,13 @@ function getScopeMatcher(rule: ITokenColorizationRule): Matcher<ProbeScope> {
 	} else {
 		matchers.push(...createMatchers(ruleScope, nameMatcher));
 	}
-	return (scope: ProbeScope) => matchers.some(m => m.matcher(scope));
+	return (scope: ProbeScope) => {
+		let max = 0;
+		for (const m of matchers) {
+			max = Math.max(max, m.matcher(scope));
+		}
+		return max;
+	};
 }
 
 function getTokenStyle(foreground: string | null, fontStyle: string | null): TokenStyle | undefined {

@@ -11,10 +11,10 @@ export interface MatcherWithPriority<T> {
 }
 
 export interface Matcher<T> {
-	(matcherInput: T): boolean;
+	(matcherInput: T): number;
 }
 
-export function createMatchers<T>(selector: string, matchesName: (names: string[], matcherInput: T) => boolean): MatcherWithPriority<T>[] {
+export function createMatchers<T>(selector: string, matchesName: (names: string[], matcherInput: T) => number): MatcherWithPriority<T>[] {
 	const results = <MatcherWithPriority<T>[]>[];
 	const tokenizer = newTokenizer(selector);
 	let token = tokenizer.next();
@@ -44,7 +44,13 @@ export function createMatchers<T>(selector: string, matchesName: (names: string[
 		if (token === '-') {
 			token = tokenizer.next();
 			const expressionToNegate = parseOperand();
-			return matcherInput => !!expressionToNegate && !expressionToNegate(matcherInput);
+			if (!expressionToNegate) {
+				return null;
+			}
+			return matcherInput => {
+				const score = expressionToNegate(matcherInput);
+				return score < 0 ? 0 : -1;
+			};
 		}
 		if (token === '(') {
 			token = tokenizer.next();
@@ -64,18 +70,31 @@ export function createMatchers<T>(selector: string, matchesName: (names: string[
 		}
 		return null;
 	}
-	function parseConjunction(): Matcher<T> {
-		const matchers: Matcher<T>[] = [];
+	function parseConjunction(): Matcher<T> | null {
 		let matcher = parseOperand();
+		if (!matcher) {
+			return null;
+		}
+
+		const matchers: Matcher<T>[] = [];
 		while (matcher) {
 			matchers.push(matcher);
 			matcher = parseOperand();
 		}
-		return matcherInput => matchers.every(matcher => matcher(matcherInput)); // and
+		return matcherInput => {  // and
+			let min = matchers[0](matcherInput);
+			for (let i = 1; min >= 0 && i < matchers.length; i++) {
+				min = Math.min(min, matchers[i](matcherInput));
+			}
+			return min;
+		};
 	}
-	function parseInnerExpression(): Matcher<T> {
-		const matchers: Matcher<T>[] = [];
+	function parseInnerExpression(): Matcher<T> | null {
 		let matcher = parseConjunction();
+		if (!matcher) {
+			return null;
+		}
+		const matchers: Matcher<T>[] = [];
 		while (matcher) {
 			matchers.push(matcher);
 			if (token === '|' || token === ',') {
@@ -87,7 +106,13 @@ export function createMatchers<T>(selector: string, matchesName: (names: string[
 			}
 			matcher = parseConjunction();
 		}
-		return matcherInput => matchers.some(matcher => matcher(matcherInput)); // or
+		return matcherInput => {  // or
+			let max = matchers[0](matcherInput);
+			for (let i = 1; i < matchers.length; i++) {
+				max = Math.max(max, matchers[i](matcherInput));
+			}
+			return max;
+		};
 	}
 }
 
