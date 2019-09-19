@@ -4,7 +4,10 @@
 	"include": "./light_defaults.json",
 	"tokenColors": [
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded"
+			],
 			"settings": {
 				"foreground": "#000000ff"
 			}
@@ -41,7 +44,9 @@
 		},
 		{
 			"scope": [
-				"constant.numeric"
+				"constant.numeric",
+				"entity.name.operator.custom-literal.number",
+				"variable.other.enummember"
 			],
 			"settings": {
 				"foreground": "#09885a"
@@ -161,7 +166,10 @@
 			}
 		},
 		{
-			"scope": "meta.preprocessor",
+			"scope": [
+				"meta.preprocessor",
+				"keyword.control.directive"
+			],
 			"settings": {
 				"foreground": "#0000ff"
 			}
@@ -203,7 +211,10 @@
 			}
 		},
 		{
-			"scope": "string",
+			"scope": [
+				"string",
+				"entity.name.operator.custom-literal.string",
+			],
 			"settings": {
 				"foreground": "#a31515"
 			}

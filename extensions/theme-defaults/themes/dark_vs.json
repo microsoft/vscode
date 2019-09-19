@@ -44,7 +44,9 @@
 		},
 		{
 			"scope": [
-				"constant.numeric"
+				"constant.numeric",
+				"entity.name.operator.custom-literal.number",
+				"variable.other.enummember"
 			],
 			"settings": {
 				"foreground": "#b5cea8"
@@ -166,7 +168,10 @@
 			}
 		},
 		{
-			"scope": "meta.preprocessor",
+			"scope": [
+				"meta.preprocessor",
+				"keyword.control.directive"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -214,7 +219,10 @@
 			}
 		},
 		{
-			"scope": "string",
+			"scope": [
+				"string",
+				"entity.name.operator.custom-literal.string",
+			],
 			"settings": {
 				"foreground": "#ce9178"
 			}

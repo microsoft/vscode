@@ -3,10 +3,10 @@
 		"c": "#",
 		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
-			"light_plus": "source.cpp keyword.control.directive: #808080",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
+			"dark_plus": "keyword.control.directive: #569CD6",
+			"light_plus": "keyword.control.directive: #0000FF",
+			"dark_vs": "keyword.control.directive: #569CD6",
+			"light_vs": "keyword.control.directive: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
 		}
 	},
@@ -14,10 +14,10 @@
 		"c": "define",
 		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp",
 		"r": {
-			"dark_plus": "source.cpp keyword.control.directive: #9B9B9B",
-			"light_plus": "source.cpp keyword.control.directive: #808080",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
+			"dark_plus": "keyword.control.directive: #569CD6",
+			"light_plus": "keyword.control.directive: #0000FF",
+			"dark_vs": "keyword.control.directive: #569CD6",
+			"light_vs": "keyword.control.directive: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
 		}
 	},
@@ -36,8 +36,8 @@
 		"c": "DOCTEST_IMPLEMENT_FIXTURE",
 		"t": "source.cpp meta.preprocessor.macro.cpp entity.name.function.preprocessor.cpp",
 		"r": {
-			"dark_plus": "source.cpp entity.name.function.preprocessor: #C586C0",
-			"light_plus": "source.cpp entity.name.function.preprocessor: #AF00DB",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "entity.name.function: #DCDCAA"
@@ -58,8 +58,8 @@
 		"c": "der",
 		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
 		"r": {
-			"dark_plus": "source.cpp variable.parameter: #7F7F7F",
-			"light_plus": "source.cpp variable.parameter: #808080",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "variable: #9CDCFE"
@@ -91,8 +91,8 @@
 		"c": "base",
 		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
 		"r": {
-			"dark_plus": "source.cpp variable.parameter: #7F7F7F",
-			"light_plus": "source.cpp variable.parameter: #808080",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "variable: #9CDCFE"
@@ -124,8 +124,8 @@
 		"c": "func",
 		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
 		"r": {
-			"dark_plus": "source.cpp variable.parameter: #7F7F7F",
-			"light_plus": "source.cpp variable.parameter: #808080",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "variable: #9CDCFE"
@@ -157,8 +157,8 @@
 		"c": "decorators",
 		"t": "source.cpp meta.preprocessor.macro.cpp variable.parameter.preprocessor.cpp",
 		"r": {
-			"dark_plus": "source.cpp variable.parameter: #7F7F7F",
-			"light_plus": "source.cpp variable.parameter: #808080",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "variable: #9CDCFE"
