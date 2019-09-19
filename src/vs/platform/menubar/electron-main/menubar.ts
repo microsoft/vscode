@@ -109,8 +109,8 @@ export class Menubar {
 	private addFallbackHandlers(): void {
 
 		// File Menu Items
-		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = () => this.windowsMainService.openNewWindow(OpenContext.MENU);
-		this.fallbackMenuHandlers['workbench.action.newWindow'] = () => this.windowsMainService.openNewWindow(OpenContext.MENU);
+		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = () => this.windowsMainService.openEmptyWindow(OpenContext.MENU);
+		this.fallbackMenuHandlers['workbench.action.newWindow'] = () => this.windowsMainService.openEmptyWindow(OpenContext.MENU);
 		this.fallbackMenuHandlers['workbench.action.files.openFileFolder'] = (menuItem, win, event) => this.windowsMainService.pickFileFolderAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
 		this.fallbackMenuHandlers['workbench.action.openWorkspace'] = (menuItem, win, event) => this.windowsMainService.pickWorkspaceAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
 
@@ -262,7 +262,7 @@ export class Menubar {
 			this.appMenuInstalled = true;
 
 			const dockMenu = new Menu();
-			dockMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsMainService.openNewWindow(OpenContext.DOCK) }));
+			dockMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsMainService.openEmptyWindow(OpenContext.DOCK) }));
 
 			app.dock.setMenu(dockMenu);
 		}

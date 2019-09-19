@@ -441,10 +441,6 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	openNewWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		return Promise.resolve();
 	}

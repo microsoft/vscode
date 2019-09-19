@@ -124,7 +124,7 @@ export class CodeApplication extends Disposable {
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows && this.windowsMainService) {
-				this.windowsMainService.openNewWindow(OpenContext.DOCK);
+				this.windowsMainService.openEmptyWindow(OpenContext.DOCK);
 			}
 		});
 
@@ -246,7 +246,7 @@ export class CodeApplication extends Disposable {
 
 		app.on('new-window-for-tab', () => {
 			if (this.windowsMainService) {
-				this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
+				this.windowsMainService.openEmptyWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 			}
 		});
 

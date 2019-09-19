@@ -101,7 +101,6 @@ export class WindowsChannel implements IServerChannel {
 				options.waitMarkerFileURI = options.waitMarkerFileURI && URI.revive(options.waitMarkerFileURI);
 				return this.service.openWindow(arg[0], urisToOpen, options);
 			}
-			case 'openNewWindow': return this.service.openNewWindow(arg);
 			case 'openExtensionDevelopmentHostWindow': return this.service.openExtensionDevelopmentHostWindow(arg[0], arg[1]);
 			case 'getWindows': return this.service.getWindows();
 			case 'whenSharedProcessReady': return this.service.whenSharedProcessReady();

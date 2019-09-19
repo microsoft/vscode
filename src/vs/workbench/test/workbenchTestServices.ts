@@ -1474,10 +1474,6 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	openNewWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1633,7 +1629,8 @@ export class TestHostService implements IHostService {
 
 	windowCount = Promise.resolve(1);
 
-	restart(): Promise<void> {
-		return Promise.resolve();
-	}
+	restart(): Promise<void> { return Promise.resolve(); }
+
+	openEmptyWindow(options?: { reuse?: boolean }): Promise<void> { return Promise.resolve(); }
+
 }

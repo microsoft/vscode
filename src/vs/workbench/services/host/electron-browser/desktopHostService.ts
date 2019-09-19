@@ -17,6 +17,10 @@ export class DesktopHostService implements IHostService {
 
 	get windowCount() { return this.electronService.windowCount(); }
 
+	openEmptyWindow(options?: { reuse?: boolean }): Promise<void> {
+		return this.electronService.openEmptyWindow(options);
+	}
+
 	//#endregion
 
 	restart(): Promise<void> {

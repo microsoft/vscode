@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -107,7 +107,7 @@ export interface IWindowsMainService {
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow | undefined;
 	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
-	openNewWindow(context: OpenContext, options?: INewWindowOptions): ICodeWindow[];
+	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean }): ICodeWindow[];
 	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;

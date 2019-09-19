@@ -35,24 +35,6 @@ export class CloseCurrentWindowAction extends Action {
 	}
 }
 
-export class NewWindowAction extends Action {
-
-	static readonly ID = 'workbench.action.newWindow';
-	static LABEL = nls.localize('newWindow', "New Window");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		return this.windowsService.openNewWindow();
-	}
-}
-
 export abstract class BaseZoomAction extends Action {
 
 	private static readonly SETTING_KEY = 'window.zoomLevel';

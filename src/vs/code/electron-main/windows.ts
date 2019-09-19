@@ -18,7 +18,7 @@ import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen, isFileToOpen, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult, IURIToOpen, isFileToOpen, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
@@ -1605,13 +1605,13 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return getLastActiveWindow(WindowsManager.WINDOWS.filter(window => window.remoteAuthority === remoteAuthority));
 	}
 
-	openNewWindow(context: OpenContext, options?: INewWindowOptions): ICodeWindow[] {
+	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean }): ICodeWindow[] {
 		let cli = this.environmentService.args;
-		const remote = options && options.remoteAuthority || undefined;
+		const remote = undefined;
 		if (cli && (cli.remote !== remote)) {
 			cli = { ...cli, remote };
 		}
-		const forceReuseWindow = options && options.reuseWindow;
+		const forceReuseWindow = options && options.reuse;
 		const forceNewWindow = !forceReuseWindow;
 		return this.open({ context, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
 	}

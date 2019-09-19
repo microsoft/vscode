@@ -7,6 +7,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { OpenContext } from 'vs/platform/windows/common/windows';
 
 export class ElectronMainService implements IElectronService {
 
@@ -26,6 +27,10 @@ export class ElectronMainService implements IElectronService {
 
 	async windowCount(): Promise<number> {
 		return this.windowsMainService.getWindowCount();
+	}
+
+	async openEmptyWindow(options?: { reuse?: boolean }): Promise<void> {
+		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
 
 	//#endregion

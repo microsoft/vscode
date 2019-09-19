@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, INewWindowOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app, Menu } from 'electron';
 import { Event } from 'vs/base/common/event';
@@ -293,12 +293,6 @@ export class WindowsService extends Disposable implements IWindowsService, IURLH
 			noRecentEntry: options.noRecentEntry,
 			waitMarkerFileURI: options.waitMarkerFileURI
 		});
-	}
-
-	async openNewWindow(options?: INewWindowOptions): Promise<void> {
-		this.logService.trace('windowsService#openNewWindow ' + JSON.stringify(options));
-
-		this.windowsMainService.openNewWindow(OpenContext.API, options);
 	}
 
 	async openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {

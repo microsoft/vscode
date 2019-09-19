@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -186,10 +186,6 @@ export class WindowsService implements IWindowsService {
 
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void> {
 		return this.channel.call('openWindow', [windowId, uris, options]);
-	}
-
-	openNewWindow(options?: INewWindowOptions): Promise<void> {
-		return this.channel.call('openNewWindow', options);
 	}
 
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
