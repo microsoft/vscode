@@ -41,8 +41,7 @@ export class ExtHostWebview implements vscode.Webview {
 
 	public get cspSource(): string {
 		return this._initData.webviewCspSource
-			.replace('{{uuid}}', this._handle)
-			.replace('{{commit}}', this._initData.commit || '211fa02efe8c041fd7baa8ec3dce199d5185aa44');
+			.replace('{{uuid}}', this._handle);
 	}
 
 	public get html(): string {

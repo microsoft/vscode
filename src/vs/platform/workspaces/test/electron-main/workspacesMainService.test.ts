@@ -11,7 +11,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { WORKSPACE_EXTENSION, IWorkspaceIdentifier, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -29,16 +29,6 @@ suite('WorkspacesMainService', () => {
 		}
 	}
 
-	class TestWorkspacesMainService extends WorkspacesMainService {
-		public deleteWorkspaceCall: IWorkspaceIdentifier;
-
-		public deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
-			this.deleteWorkspaceCall = workspace;
-
-			super.deleteUntitledWorkspaceSync(workspace);
-		}
-	}
-
 	function createWorkspace(folders: string[], names?: string[]) {
 		return service.createUntitledWorkspace(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
@@ -50,10 +40,10 @@ suite('WorkspacesMainService', () => {
 	const environmentService = new TestEnvironmentService(parseArgs(process.argv, OPTIONS), process.execPath);
 	const logService = new NullLogService();
 
-	let service: TestWorkspacesMainService;
+	let service: WorkspacesMainService;
 
 	setup(async () => {
-		service = new TestWorkspacesMainService(environmentService, logService);
+		service = new WorkspacesMainService(environmentService, logService);
 
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(untitledWorkspacesHomePath, pfs.RimRafMode.MOVE);

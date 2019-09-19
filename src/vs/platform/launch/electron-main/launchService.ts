@@ -12,17 +12,17 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { OpenContext, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
-import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launchService';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
 
-export const ID = 'launchService';
-export const ILaunchService = createDecorator<ILaunchService>(ID);
+export const ID = 'launchMainService';
+export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
 
 export interface IStartArguments {
 	args: ParsedArgs;
@@ -51,7 +51,7 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 	return [];
 }
 
-export interface ILaunchService {
+export interface ILaunchMainService {
 	_serviceBrand: undefined;
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 	getMainProcessId(): Promise<number>;
@@ -62,7 +62,7 @@ export interface ILaunchService {
 
 export class LaunchChannel implements IServerChannel {
 
-	constructor(private service: ILaunchService) { }
+	constructor(private service: ILaunchMainService) { }
 
 	listen<T>(_: unknown, event: string): Event<T> {
 		throw new Error(`Event not found: ${event}`);
@@ -91,7 +91,7 @@ export class LaunchChannel implements IServerChannel {
 	}
 }
 
-export class LaunchChannelClient implements ILaunchService {
+export class LaunchChannelClient implements ILaunchMainService {
 
 	_serviceBrand: undefined;
 
@@ -118,7 +118,7 @@ export class LaunchChannelClient implements ILaunchService {
 	}
 }
 
-export class LaunchService implements ILaunchService {
+export class LaunchMainService implements ILaunchMainService {
 
 	_serviceBrand: undefined;
 
@@ -268,7 +268,7 @@ export class LaunchService implements ILaunchService {
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows,
-			screenReader: app.isAccessibilitySupportEnabled(),
+			screenReader: !!app.accessibilitySupportEnabled,
 			gpuFeatureStatus: app.getGPUFeatureStatus()
 		});
 	}

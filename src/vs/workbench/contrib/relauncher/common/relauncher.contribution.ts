@@ -171,7 +171,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 			if (environmentService.configuration.remoteAuthority) {
 				windowService.reloadWindow(); // TODO@aeschli, workaround
-			} else {
+			} else if (isNative) {
 				extensionService.restartExtensionHost();
 			}
 		}, 10));

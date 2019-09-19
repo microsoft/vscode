@@ -107,7 +107,7 @@ function onReady() {
 				});
 			};
 
-			// We recevied a valid nlsConfig from a user defined locale
+			// We received a valid nlsConfig from a user defined locale
 			if (nlsConfig) {
 				startup(nlsConfig);
 			}

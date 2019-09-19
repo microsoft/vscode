@@ -8,6 +8,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
 
@@ -177,6 +178,54 @@ export class ConsoleLogService extends AbstractLogService implements ILogService
 	critical(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Critical) {
 			console.log('%cCRITI', 'background: #f33; color: white', message, ...args);
+		}
+	}
+
+	dispose(): void { }
+}
+
+export class ConsoleLogInMainService extends AbstractLogService implements ILogService {
+
+	_serviceBrand: undefined;
+
+	constructor(private readonly client: LoggerChannelClient, logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
+		super();
+		this.setLevel(logLevel);
+	}
+
+	trace(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Trace) {
+			this.client.consoleLog('trace', [message, ...args]);
+		}
+	}
+
+	debug(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Debug) {
+			this.client.consoleLog('debug', [message, ...args]);
+		}
+	}
+
+	info(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Info) {
+			this.client.consoleLog('info', [message, ...args]);
+		}
+	}
+
+	warn(message: string | Error, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Warning) {
+			this.client.consoleLog('warn', [message, ...args]);
+		}
+	}
+
+	error(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Error) {
+			this.client.consoleLog('error', [message, ...args]);
+		}
+	}
+
+	critical(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Critical) {
+			this.client.consoleLog('critical', [message, ...args]);
 		}
 	}
 

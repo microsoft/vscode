@@ -81,7 +81,7 @@ export class Preview extends Disposable {
 	private getWebiewContents(webviewEditor: vscode.WebviewEditor, resource: vscode.Uri): string {
 		const settings = {
 			isMac: process.platform === 'darwin',
-			src: encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true))
+			src: this.getResourcePath(webviewEditor, resource)
 		};
 
 		return /* html */`<!DOCTYPE html>
@@ -99,6 +99,14 @@ export class Preview extends Disposable {
 	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}"></script>
 </body>
 </html>`;
+	}
+
+	private getResourcePath(webviewEditor: vscode.WebviewEditor, resource: vscode.Uri) {
+		if (resource.scheme === 'data') {
+			return encodeURI(resource.toString(true));
+		}
+
+		return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true));
 	}
 
 	private extensionResource(path: string) {

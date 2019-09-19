@@ -150,7 +150,7 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
-		// TODO@ben implement storage migration in web
+		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 
 	close(): void {

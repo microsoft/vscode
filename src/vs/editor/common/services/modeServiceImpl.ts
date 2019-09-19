@@ -11,6 +11,7 @@ import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 class LanguageSelection extends Disposable implements ILanguageSelection {
 
@@ -96,22 +97,12 @@ export class ModeServiceImpl implements IModeService {
 
 	public getModeIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
 		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(resource, firstLine);
-
-		if (modeIds.length > 0) {
-			return modeIds[0];
-		}
-
-		return null;
+		return firstOrDefault(modeIds, null);
 	}
 
 	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string | null {
 		const modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
-
-		if (modeIds.length > 0) {
-			return modeIds[0];
-		}
-
-		return null;
+		return firstOrDefault(modeIds, null);
 	}
 
 	public getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null {
@@ -164,12 +155,7 @@ export class ModeServiceImpl implements IModeService {
 
 	private _getModeIdByLanguageName(languageName: string): string | null {
 		const modeIds = this._registry.getModeIdsFromLanguageName(languageName);
-
-		if (modeIds.length > 0) {
-			return modeIds[0];
-		}
-
-		return null;
+		return firstOrDefault(modeIds, null);
 	}
 
 	private _getOrCreateMode(modeId: string): IMode {

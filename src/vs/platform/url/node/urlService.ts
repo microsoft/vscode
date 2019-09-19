@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { AbstractURLService } from 'vs/platform/url/common/urlService';
 
 export class URLService extends AbstractURLService {
