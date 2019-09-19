@@ -212,7 +212,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		this.root = new Root();
 		this.menus = this._register(instantiationService.createInstance(TitleMenus, this.id));
 		this._register(this.menus.onDidChangeTitle(() => this._onDidChangeActions.fire()));
-		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.refresh([this.root]) /** soft refresh **/));
 		this._register(this.themeService.onThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer.decorations')) {
