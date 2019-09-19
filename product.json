@@ -22,6 +22,5 @@
 	"urlProtocol": "code-oss",
 	"extensionAllowedProposedApi": [
 		"ms-vscode.references-view"
-	],
-	"commit": "8b6e0efc0a98639085fabeb5226a516785424796"
+	]
 }
