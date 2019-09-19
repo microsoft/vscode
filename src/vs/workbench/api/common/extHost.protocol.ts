@@ -714,8 +714,6 @@ export interface IDebugConfiguration {
 }
 
 export interface IStartDebuggingOptions {
-	folder: UriComponents | undefined;
-	nameOrConfig: string | IDebugConfiguration;
 	parentSessionID?: DebugSessionUUID;
 	repl?: IDebugSessionReplMode;
 }
@@ -730,7 +728,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugAdapterDescriptorFactory(type: string, handle: number): Promise<void>;
 	$unregisterDebugConfigurationProvider(handle: number): void;
 	$unregisterDebugAdapterDescriptorFactory(handle: number): void;
-	$startDebugging(options: IStartDebuggingOptions): Promise<boolean>;
+	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean>;
 	$setDebugSessionName(id: DebugSessionUUID, name: string): void;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$appendDebugConsole(value: string): void;
