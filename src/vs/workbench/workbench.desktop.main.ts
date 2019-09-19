@@ -27,6 +27,7 @@ import 'vs/workbench/electron-browser/desktop.main';
 
 
 //#region --- workbench services
+import 'vs/workbench/services/dialogs/electron-browser/fileDialogService';
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/search/node/searchService';
