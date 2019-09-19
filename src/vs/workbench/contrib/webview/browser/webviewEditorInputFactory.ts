@@ -111,20 +111,6 @@ function reviveUri(data: string | UriComponents | undefined): URI | undefined {
 	}
 }
 
-
 function reviveState(state: unknown | undefined): undefined | string {
-	if (!state) {
-		return undefined;
-	}
-
-	if (typeof state === 'string') {
-		return state;
-	}
-
-	// Likely an old style state. Unwrap to a simple state object
-	// Remove after 1.37
-	if ('state' in (state as any) && typeof (state as any).state === 'string') {
-		return (state as any).state;
-	}
-	return undefined;
+	return typeof state === 'string' ? state : undefined;
 }
