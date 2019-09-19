@@ -138,7 +138,9 @@ export class ColorThemeData implements IColorTheme {
 	/** Public for testing reasons */
 	public findTokenStyleForScope(scope: ProbeScope): TokenStyle | undefined {
 
-		let foreground: string | null = null;
+		let foregroundColor = this.getColor(editorForeground);
+
+		let foreground = foregroundColor ? foregroundColor.toString() : null;
 		let fontStyle: string | null = null;
 		let foregroundScore = -1;
 		let fontStyleScore = -1;
@@ -154,12 +156,15 @@ export class ColorThemeData implements IColorTheme {
 					scopeMatchers[i] = matcher = getScopeMatcher(tokenColors[i]);
 				}
 				const score = matcher(scope);
-				if (score > foregroundScore && settings.foreground) {
-					foreground = settings.foreground;
+				if (score >= 0) {
+					if (score >= foregroundScore && settings.foreground) {
+						foreground = settings.foreground;
+					}
+					if (score >= fontStyleScore && types.isString(settings.fontStyle)) {
+						fontStyle = settings.fontStyle;
+					}
 				}
-				if (score > fontStyleScore && types.isString(settings.fontStyle)) {
-					fontStyle = settings.fontStyle;
-				}
+
 			}
 		}
 
@@ -173,10 +178,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 		findTokenStyleForScopeInScopes(this.customTokenScopeMatchers, this.customTokenColors);
 
-		if (foreground !== null || fontStyle !== null) {
-			return getTokenStyle(foreground, fontStyle);
-		}
-		return undefined;
+		return getTokenStyle(foreground, fontStyle);
 	}
 
 
@@ -464,16 +466,9 @@ const noMatch = (_scope: ProbeScope) => -1;
 function nameMatcher(identifers: string[], scope: ProbeScope): number {
 	function findInIdents(s: string, lastIndent: number): number {
 		for (let i = lastIndent - 1; i >= 0; i--) {
-			if (scopesAreMatching(identifers[i], s)) {
+			if (scopesAreMatching(s, identifers[i])) {
 				return i;
 			}
-		}
-		return -1;
-	}
-	if (!Array.isArray(scope)) {
-		const idx = findInIdents(scope, identifers.length);
-		if (idx >= 0) {
-			return idx * 0x10000 + scope.length;
 		}
 		return -1;
 	}
@@ -483,7 +478,7 @@ function nameMatcher(identifers: string[], scope: ProbeScope): number {
 	let lastScopeIndex = scope.length - 1;
 	let lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], identifers.length);
 	if (lastIdentifierIndex >= 0) {
-		const score = lastIdentifierIndex * 0x10000 + scope.length;
+		const score = (lastIdentifierIndex + 1) * 0x10000 + scope.length;
 		while (lastScopeIndex >= 0) {
 			lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], lastIdentifierIndex);
 			if (lastIdentifierIndex === -1) {
@@ -520,10 +515,13 @@ function getScopeMatcher(rule: ITokenColorizationRule): Matcher<ProbeScope> {
 	} else {
 		matchers.push(...createMatchers(ruleScope, nameMatcher));
 	}
+	if (matchers.length === 0) {
+		return noMatch;
+	}
 	return (scope: ProbeScope) => {
-		let max = 0;
-		for (const m of matchers) {
-			max = Math.max(max, m.matcher(scope));
+		let max = matchers[0].matcher(scope);
+		for (let i = 1; i < matchers.length; i++) {
+			max = Math.max(max, matchers[i].matcher(scope));
 		}
 		return max;
 	};

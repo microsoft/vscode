@@ -71,7 +71,7 @@ export namespace TokenStyle {
 	}
 }
 
-export type ProbeScope = string[] | string;
+export type ProbeScope = string[];
 
 export interface TokenStyleFunction {
 	(theme: ITheme): TokenStyle | undefined;
@@ -246,13 +246,13 @@ export function getTokenStyleRegistry(): ITokenStyleRegistry {
 // colors
 
 
-export const comments = registerTokenStyle('comments', { scopesToProbe: ['comment'], dark: null, light: null, hc: null }, nls.localize('comments', "Token style for comments."));
-export const strings = registerTokenStyle('strings', { scopesToProbe: ['string'], dark: null, light: null, hc: null }, nls.localize('strings', "Token style for strings."));
-export const keywords = registerTokenStyle('keywords', { scopesToProbe: ['keyword.control', 'storage', 'storage.type'], dark: null, light: null, hc: null }, nls.localize('keywords', "Token style for keywords."));
-export const numbers = registerTokenStyle('numbers', { scopesToProbe: ['constant.numeric'], dark: null, light: null, hc: null }, nls.localize('numbers', "Token style for numbers."));
-export const types = registerTokenStyle('types', { scopesToProbe: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'], dark: null, light: null, hc: null }, nls.localize('types', "Token style for types."));
-export const functions = registerTokenStyle('functions', { scopesToProbe: ['entity.name.function', 'support.function'], dark: null, light: null, hc: null }, nls.localize('functions', "Token style for functions."));
-export const variables = registerTokenStyle('variables', { scopesToProbe: ['variable', 'entity.name.variable'], dark: null, light: null, hc: null }, nls.localize('variables', "Token style for variables."));
+export const comments = registerTokenStyle('comments', { scopesToProbe: [['comment']], dark: null, light: null, hc: null }, nls.localize('comments', "Token style for comments."));
+export const strings = registerTokenStyle('strings', { scopesToProbe: [['string']], dark: null, light: null, hc: null }, nls.localize('strings', "Token style for strings."));
+export const keywords = registerTokenStyle('keywords', { scopesToProbe: [['keyword.control'], ['storage'], ['storage.type']], dark: null, light: null, hc: null }, nls.localize('keywords', "Token style for keywords."));
+export const numbers = registerTokenStyle('numbers', { scopesToProbe: [['constant.numeric']], dark: null, light: null, hc: null }, nls.localize('numbers', "Token style for numbers."));
+export const types = registerTokenStyle('types', { scopesToProbe: [['entity.name.type'], ['entity.name.class'], ['support.type'], ['support.class']], dark: null, light: null, hc: null }, nls.localize('types', "Token style for types."));
+export const functions = registerTokenStyle('functions', { scopesToProbe: [['entity.name.function'], ['support.function']], dark: null, light: null, hc: null }, nls.localize('functions', "Token style for functions."));
+export const variables = registerTokenStyle('variables', { scopesToProbe: [['variable'], ['entity.name.variable']], dark: null, light: null, hc: null }, nls.localize('variables', "Token style for variables."));
 
 /**
  * @param colorValue Resolve a color value in the context of a theme

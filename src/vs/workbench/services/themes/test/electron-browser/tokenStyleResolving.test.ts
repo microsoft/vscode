@@ -15,6 +15,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 function ts(foreground: string | undefined, styleFlags: number | undefined): TokenStyle {
 	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
@@ -154,12 +155,12 @@ suite('Themes - TokenStyleResolving', () => {
 
 		assertTokenStyles(themeData, {
 			[comments]: ts('#384887', 0),
-			[variables]: ts('#9966b8', 0),
-			[types]: ts('#f06431', 0),
-			[functions]: ts('#8ab1b0', 0),
+			[variables]: ts('#6688cc', 0),
+			[types]: ts('#ffeebb', TokenStyleBits.UNDERLINE),
+			[functions]: ts('#ddbb88', 0),
 			[strings]: ts('#22aa44', 0),
 			[numbers]: ts('#f280d0', 0),
-			[keywords]: ts('#98676a', 0)
+			[keywords]: ts('#225588', 0)
 		});
 
 	});
@@ -209,6 +210,7 @@ suite('Themes - TokenStyleResolving', () => {
 		themeData.setCustomTokenColors(customTokenColors);
 
 		let tokenStyle;
+		let defaultTokenStyle = new TokenStyle(themeData.getColor(editorForeground));
 
 		tokenStyle = themeData.findTokenStyleForScope(['variable']);
 		assertTokenStyle(tokenStyle, ts('#F8F8F2', 0), 'variable');
@@ -217,13 +219,13 @@ suite('Themes - TokenStyleResolving', () => {
 		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC | TokenStyleBits.BOLD | TokenStyleBits.UNDERLINE), 'keyword');
 
 		tokenStyle = themeData.findTokenStyleForScope(['keyword']);
-		assertTokenStyle(tokenStyle, undefined, 'keyword');
+		assertTokenStyle(tokenStyle, defaultTokenStyle, 'keyword');
 
 		tokenStyle = themeData.findTokenStyleForScope(['keyword.operator']);
 		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC | TokenStyleBits.BOLD | TokenStyleBits.UNDERLINE), 'keyword.operator');
 
 		tokenStyle = themeData.findTokenStyleForScope(['keyword.operators']);
-		assertTokenStyle(tokenStyle, undefined, 'keyword.operators');
+		assertTokenStyle(tokenStyle, defaultTokenStyle, 'keyword.operators');
 
 		tokenStyle = themeData.findTokenStyleForScope(['storage']);
 		assertTokenStyle(tokenStyle, ts('#F92672', TokenStyleBits.ITALIC), 'storage');
