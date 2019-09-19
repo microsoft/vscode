@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IEnterWorkspaceResult, CrashReporterStartOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -29,22 +29,6 @@ export class WindowsService implements IWindowsService {
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
 		this.channel = mainProcessService.getChannel('windows');
-	}
-
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickFileFolderAndOpen', options);
-	}
-
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickFileAndOpen', options);
-	}
-
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickFolderAndOpen', options);
-	}
-
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickWorkspaceAndOpen', options);
 	}
 
 	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void> {

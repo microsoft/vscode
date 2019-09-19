@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, IEnterWorkspaceResult, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { crashReporter, app, Menu, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, CrashReporterStartOptions, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
 import { Event } from 'vs/base/common/event';
@@ -55,30 +55,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		// remember last active window id
 		Event.latch(Event.any(this.onWindowOpen, this.onWindowFocus))
 			(id => this._activeWindowId = id, null, this.disposables);
-	}
-
-	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		this.logService.trace('windowsService#pickFileFolderAndOpen');
-
-		this.windowsMainService.pickFileFolderAndOpen(options);
-	}
-
-	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		this.logService.trace('windowsService#pickFileAndOpen');
-
-		this.windowsMainService.pickFileAndOpen(options);
-	}
-
-	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		this.logService.trace('windowsService#pickFolderAndOpen');
-
-		this.windowsMainService.pickFolderAndOpen(options);
-	}
-
-	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		this.logService.trace('windowsService#pickWorkspaceAndOpen');
-
-		this.windowsMainService.pickWorkspaceAndOpen(options);
 	}
 
 	async showMessageBox(windowId: number, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {

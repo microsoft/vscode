@@ -136,7 +136,9 @@ export class FileDialogService implements IFileDialogService {
 			return;
 		}
 
-		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		if (this.electronService) {
+			return this.electronService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		}
 	}
 
 	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
@@ -163,7 +165,9 @@ export class FileDialogService implements IFileDialogService {
 			return;
 		}
 
-		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
+		if (this.electronService) {
+			return this.electronService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
+		}
 	}
 
 	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
@@ -185,7 +189,9 @@ export class FileDialogService implements IFileDialogService {
 			return;
 		}
 
-		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		if (this.electronService) {
+			return this.electronService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		}
 	}
 
 	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
@@ -208,7 +214,9 @@ export class FileDialogService implements IFileDialogService {
 			return;
 		}
 
-		return this.windowService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
+		if (this.electronService) {
+			return this.electronService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
+		}
 	}
 
 	async pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined> {

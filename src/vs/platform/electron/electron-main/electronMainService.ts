@@ -7,7 +7,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { OpenContext } from 'vs/platform/windows/common/windows';
+import { OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { isMacintosh } from 'vs/base/common/platform';
 
 export class ElectronMainService implements IElectronService {
@@ -48,6 +48,22 @@ export class ElectronMainService implements IElectronService {
 
 	async showOpenDialog(options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
 		return this.windowsMainService.showOpenDialog(options, this.window);
+	}
+
+	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+		return this.windowsMainService.pickFileFolderAndOpen(options);
+	}
+
+	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+		return this.windowsMainService.pickFileAndOpen(options);
+	}
+
+	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+		return this.pickFolderAndOpen(options);
+	}
+
+	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+		return this.pickWorkspaceAndOpen(options);
 	}
 
 	//#endregion

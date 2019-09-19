@@ -5,6 +5,7 @@
 
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
 
@@ -20,6 +21,11 @@ export interface IElectronService {
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
 	showSaveDialog(options: SaveDialogOptions): Promise<SaveDialogReturnValue>;
 	showOpenDialog(options: OpenDialogOptions): Promise<OpenDialogReturnValue>;
+
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;

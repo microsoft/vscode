@@ -35,7 +35,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration, CrashReporterStartOptions } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IEnterWorkspaceResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration, CrashReporterStartOptions } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -1196,22 +1196,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFileAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickWorkspaceAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
 	reloadWindow(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1340,22 +1324,6 @@ export class TestWindowsService implements IWindowsService {
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(false);
-	}
-
-	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFileAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickWorkspaceAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
 	}
 
 	reloadWindow(_windowId: number): Promise<void> {
