@@ -19,7 +19,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	private readonly proxy: ExtHostWindowShape;
 	private readonly disposables = new DisposableStore();
-	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
+	private readonly _tunnels = new Map<number, { refcount: number, readonly value: Promise<RemoteTunnel> }>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -37,8 +37,8 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	dispose(): void {
 		this.disposables.dispose();
 
-		for (const tunnel of this._tunnels.values()) {
-			tunnel.then(tunnel => tunnel.dispose());
+		for (const { value } of this._tunnels.values()) {
+			value.then(tunnel => tunnel.dispose());
 		}
 		this._tunnels.clear();
 	}
@@ -47,29 +47,52 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		return this.windowService.isFocused();
 	}
 
-	async $openUri(uriComponent: UriComponents, options: IOpenUriOptions): Promise<boolean> {
-		let uri = URI.revive(uriComponent);
-		if (options.allowTunneling && !!this.environmentService.configuration.remoteAuthority) {
-			const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
-			if (portMappingRequest) {
-				const tunnel = await this.getOrCreateTunnel(portMappingRequest.port);
-				if (tunnel) {
-					uri = uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` });
-				}
-			}
-		}
-
+	async $openUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<boolean> {
+		const uri = await this.resolveExternalUri(URI.from(uriComponents), options);
 		return this.openerService.open(uri, { openExternal: true });
 	}
 
-	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
+	async $resolveExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
+		const uri = URI.revive(uriComponents);
+		return this.resolveExternalUri(uri, options);
+	}
+
+	async $releaseResolvedExternalUri(uriComponents: UriComponents): Promise<boolean> {
+		const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(URI.from(uriComponents));
+		if (portMappingRequest) {
+			const existing = this._tunnels.get(portMappingRequest.port);
+			if (existing) {
+				if (--existing.refcount <= 0) {
+					existing.value.then(tunnel => tunnel.dispose());
+					this._tunnels.delete(portMappingRequest.port);
+				}
+			}
+		}
+		return true;
+	}
+
+	private async resolveExternalUri(uri: URI, options: IOpenUriOptions): Promise<URI> {
+		if (options.allowTunneling && !!this.environmentService.configuration.remoteAuthority) {
+			const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
+			if (portMappingRequest) {
+				const tunnel = await this.retainOrCreateTunnel(portMappingRequest.port);
+				if (tunnel) {
+					return uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` });
+				}
+			}
+		}
+		return uri;
+	}
+
+	private retainOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
 		const existing = this._tunnels.get(remotePort);
 		if (existing) {
-			return existing;
+			++existing.refcount;
+			return existing.value;
 		}
 		const tunnel = this.tunnelService.openTunnel(remotePort);
 		if (tunnel) {
-			this._tunnels.set(remotePort, tunnel);
+			this._tunnels.set(remotePort, { refcount: 1, value: tunnel });
 		}
 		return tunnel;
 	}

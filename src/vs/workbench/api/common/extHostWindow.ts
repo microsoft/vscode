@@ -9,6 +9,7 @@ import { WindowState } from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { once } from 'vs/base/common/functional';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -52,5 +53,21 @@ export class ExtHostWindow implements ExtHostWindowShape {
 			return Promise.reject(`Invalid scheme '${stringOrUri.scheme}'`);
 		}
 		return this._proxy.$openUri(stringOrUri, options);
+	}
+
+	async resolveExternalUri(uri: URI, options: IOpenUriOptions): Promise<{ resolved: URI, dispose(): void }> {
+		if (isFalsyOrWhitespace(uri.scheme)) {
+			return Promise.reject('Invalid scheme - cannot be empty');
+		} else if (!new Set([Schemas.http, Schemas.https]).has(uri.scheme)) {
+			return Promise.reject(`Invalid scheme '${uri.scheme}'`);
+		}
+
+		const resolved = await this._proxy.$resolveExternalUri(uri, options);
+		return {
+			resolved: URI.from(resolved),
+			dispose: once(() => {
+				this._proxy.$releaseResolvedExternalUri(uri);
+			}),
+		};
 	}
 }
