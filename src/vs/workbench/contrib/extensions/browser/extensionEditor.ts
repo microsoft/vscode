@@ -697,11 +697,6 @@ export class ExtensionEditor extends BaseEditor {
 						line-height: 19px;
 					}
 
-					.mac code {
-						font-size: 12px;
-						line-height: 18px;
-					}
-
 					code > div {
 						padding: 16px;
 						border-radius: 3px;
