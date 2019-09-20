@@ -393,7 +393,6 @@ const enum ViewModelMode {
 	Tree = 'tree'
 }
 
-// TODO: cache tree scrollTop
 class ViewModel {
 
 	private _mode = ViewModelMode.Tree;
@@ -409,6 +408,7 @@ class ViewModel {
 
 	private items: IGroupItem[] = [];
 	private visibilityDisposables = new DisposableStore();
+	private scrollTop: number | undefined;
 	private disposables = new DisposableStore();
 
 	constructor(
@@ -464,9 +464,15 @@ class ViewModel {
 			this.visibilityDisposables = new DisposableStore();
 			this.groups.onDidSplice(this.onDidSpliceGroups, this, this.visibilityDisposables);
 			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: this.groups.elements });
+
+			if (typeof this.scrollTop === 'number') {
+				this.tree.scrollTop = this.scrollTop;
+				this.scrollTop = undefined;
+			}
 		} else {
 			this.visibilityDisposables.dispose();
 			this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: [] });
+			this.scrollTop = this.tree.scrollTop;
 		}
 	}
 
