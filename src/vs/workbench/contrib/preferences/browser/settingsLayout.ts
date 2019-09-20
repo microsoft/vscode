@@ -200,7 +200,12 @@ export const tocData: ITOCEntry = {
 					id: 'application/sync',
 					label: localize('sync', "Sync"),
 					settings: ['userConfiguration.*']
-				}
+				},
+				{
+					id: 'application/extensions',
+					label: localize('aplicationExtension', "Extensions"),
+					settings: ['aplicationExtension.*']
+				},
 			]
 		}
 	]

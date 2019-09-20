@@ -25,6 +25,13 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { localize } from 'vs/nls';
+
+const GalleryServiceUrlConfigurationKey = 'aplicationExtension.galleryServiceUrl';
+
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -325,6 +332,21 @@ interface IRawExtensionsReport {
 	slow: string[];
 }
 
+Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+	.registerConfiguration({
+		id: 'extensionsGallery',
+		order: 10,
+		title: localize('extensionsGalleryConfigurationTitle', "Extensions Gallery"),
+		type: 'object',
+		properties: {
+			[GalleryServiceUrlConfigurationKey]: {
+				type: 'string',
+				description: localize('extensionsGalleryServiceUrl', "Overrides the default extension gallery URL. Requires a restart after change."),
+				default: null
+			}
+		}
+	})
+
 export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	_serviceBrand: undefined;
@@ -341,11 +363,13 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@optional(IStorageService) private readonly storageService: IStorageService,
 	) {
 		const config = productService.extensionsGallery;
-		this.extensionsGalleryUrl = config && config.serviceUrl;
+		const userGalleryUrl = configurationService.getValue<string>(GalleryServiceUrlConfigurationKey);
 		this.extensionsControlUrl = config && config.controlUrl;
+		this.extensionsGalleryUrl = userGalleryUrl || (config && config.serviceUrl);
 		this.commonHeadersPromise = resolveMarketplaceHeaders(productService.version, this.environmentService, this.fileService, this.storageService);
 	}
 
