@@ -1611,9 +1611,9 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return getLastActiveWindow(WindowsManager.WINDOWS.filter(window => window.remoteAuthority === remoteAuthority));
 	}
 
-	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean }): ICodeWindow[] {
+	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean, remoteAuthority?: string }): ICodeWindow[] {
 		let cli = this.environmentService.args;
-		const remote = undefined;
+		const remote = options && options.remoteAuthority;
 		if (cli && (cli.remote !== remote)) {
 			cli = { ...cli, remote };
 		}

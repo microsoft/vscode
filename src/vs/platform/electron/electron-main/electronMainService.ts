@@ -25,7 +25,7 @@ export class ElectronMainService {
 		return this.windowsMainService.getWindowCount();
 	}
 
-	async openEmptyWindow(windowId: number, options?: { reuse?: boolean }): Promise<void> {
+	async openEmptyWindow(windowId: number, options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> {
 		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
 

@@ -17,7 +17,7 @@ export class BrowserHostService implements IHostService {
 
 	readonly windowCount = Promise.resolve(1);
 
-	async openEmptyWindow(options?: { reuse?: boolean }): Promise<void> {
+	async openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> {
 		// TODO@Ben delegate to embedder
 		const targetHref = `${document.location.origin}${document.location.pathname}?ew=true`;
 		if (options && options.reuse) {

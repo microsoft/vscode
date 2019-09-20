@@ -15,7 +15,7 @@ export interface IElectronService {
 
 	// Window
 	windowCount(): Promise<number>;
-	openEmptyWindow(options?: { reuse?: boolean }): Promise<void>;
+	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void>;
 	toggleFullScreen(): Promise<void>;
 
 	// Dialogs

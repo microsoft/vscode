@@ -1520,7 +1520,7 @@ export class TestHostService implements IHostService {
 	restart(): Promise<void> { return Promise.resolve(); }
 	reload(): Promise<void> { return Promise.resolve(); }
 
-	openEmptyWindow(options?: { reuse?: boolean }): Promise<void> { return Promise.resolve(); }
+	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> { return Promise.resolve(); }
 
 	toggleFullScreen(): Promise<void> { return Promise.resolve(); }
 }
