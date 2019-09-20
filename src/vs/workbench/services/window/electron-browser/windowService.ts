@@ -77,10 +77,6 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.closeWindow(this.windowId);
 	}
 
-	toggleFullScreen(target?: HTMLElement): Promise<void> {
-		return this.windowsService.toggleFullScreen(this.windowId);
-	}
-
 	setRepresentedFilename(fileName: string): Promise<void> {
 		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
 	}

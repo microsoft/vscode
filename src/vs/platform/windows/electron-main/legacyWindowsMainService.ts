@@ -99,12 +99,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.enterWorkspace(codeWindow, path));
 	}
 
-	async toggleFullScreen(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#toggleFullScreen', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.toggleFullScreen());
-	}
-
 	async setRepresentedFilename(windowId: number, fileName: string): Promise<void> {
 		this.logService.trace('windowsService#setRepresentedFilename', windowId);
 

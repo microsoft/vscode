@@ -16,6 +16,7 @@ export interface IElectronService {
 	// Window
 	windowCount(): Promise<number>;
 	openEmptyWindow(options?: { reuse?: boolean }): Promise<void>;
+	toggleFullScreen(): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;

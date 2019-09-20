@@ -1208,10 +1208,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve(undefined);
 	}
 
-	toggleFullScreen(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	setRepresentedFilename(_fileName: string): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1332,10 +1328,6 @@ export class TestWindowsService implements IWindowsService {
 
 	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
-	}
-
-	toggleFullScreen(_windowId: number): Promise<void> {
-		return Promise.resolve();
 	}
 
 	setRepresentedFilename(_windowId: number, _fileName: string): Promise<void> {
@@ -1553,4 +1545,5 @@ export class TestHostService implements IHostService {
 
 	openEmptyWindow(options?: { reuse?: boolean }): Promise<void> { return Promise.resolve(); }
 
+	toggleFullScreen(): Promise<void> { return Promise.resolve(); }
 }

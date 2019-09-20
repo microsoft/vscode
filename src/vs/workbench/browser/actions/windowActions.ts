@@ -14,7 +14,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IsFullscreenContext, IsDevelopmentContext, IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -196,15 +195,13 @@ class ToggleFullScreenAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private readonly windowService: IWindowService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService) {
+		@IHostService private readonly hostService: IHostService
+	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		const container = this.layoutService.getWorkbenchElement();
-
-		return this.windowService.toggleFullScreen(container);
+		return this.hostService.toggleFullScreen();
 	}
 }
 

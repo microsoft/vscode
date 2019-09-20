@@ -46,7 +46,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'reloadWindow': return this.service.reloadWindow(arg[0], arg[1]);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
-			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map((recent: IRecent) => {
 				if (isRecentFile(recent)) {

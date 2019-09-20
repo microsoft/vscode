@@ -24,6 +24,8 @@ export interface IHostService {
 	 */
 	openEmptyWindow(options?: { reuse?: boolean }): Promise<void>;
 
+	toggleFullScreen(): Promise<void>;
+
 	//#endregion
 
 	//#region Lifecycle

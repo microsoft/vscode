@@ -34,6 +34,13 @@ export class ElectronMainService implements IElectronService {
 		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
 
+	async toggleFullScreen(): Promise<void> {
+		const window = this.window;
+		if (window) {
+			window.toggleFullScreen();
+		}
+	}
+
 	//#endregion
 
 	//#region Dialog

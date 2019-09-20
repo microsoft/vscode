@@ -48,10 +48,6 @@ export class WindowsService implements IWindowsService {
 		return result;
 	}
 
-	toggleFullScreen(windowId: number): Promise<void> {
-		return this.channel.call('toggleFullScreen', windowId);
-	}
-
 	setRepresentedFilename(windowId: number, fileName: string): Promise<void> {
 		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
