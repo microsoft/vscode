@@ -29,6 +29,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 class RenameSkeleton {
 
@@ -285,7 +286,7 @@ export class RenameAction extends EditorAction {
 		const [uri, pos] = Array.isArray(args) && args || [undefined, undefined];
 
 		if (URI.isUri(uri) && Position.isIPosition(pos)) {
-			return editorService.openCodeEditor({ resource: uri }, editorService.getActiveCodeEditor()).then(editor => {
+			return editorService.openCodeEditor({ resource: uri }, withUndefinedAsNull(editorService.getActiveCodeEditor())).then(editor => {
 				if (!editor) {
 					return;
 				}

@@ -15,8 +15,8 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 
-	public getActiveCodeEditor(): ICodeEditor | null {
-		return null; // not supported in the standalone case
+	public getActiveCodeEditor(): ICodeEditor | undefined {
+		return undefined; // not supported in the standalone case
 	}
 
 	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {

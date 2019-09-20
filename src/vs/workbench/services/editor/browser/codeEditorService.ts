@@ -22,7 +22,7 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		super(themeService);
 	}
 
-	getActiveCodeEditor(): ICodeEditor | null {
+	getActiveCodeEditor(): ICodeEditor | undefined {
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (isCodeEditor(activeTextEditorWidget)) {
 			return activeTextEditorWidget;
@@ -32,7 +32,7 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 			return activeTextEditorWidget.getModifiedEditor();
 		}
 
-		return null;
+		return undefined;
 	}
 
 	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
