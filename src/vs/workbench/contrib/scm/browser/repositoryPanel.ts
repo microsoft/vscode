@@ -670,9 +670,6 @@ export class RepositoryPanel extends ViewletPanel {
 				keyboardNavigationLabelProvider
 			});
 
-		// TODO@joao: this breaks the tree
-		// setTimeout(() => this.tree.refilter(), 2000);
-
 		this._register(Event.chain(this.tree.onDidOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e && !ResourceTree.isBranchNode(e) && isSCMResource(e))
