@@ -144,7 +144,13 @@ function asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider: () => I
 		...options,
 		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
 			getKeyboardNavigationLabel(e: T) {
-				const compressedTreeNode = compressedTreeNodeProvider().getCompressedTreeNode(e);
+				let compressedTreeNode: ITreeNode<ICompressedTreeNode<T>, TFilterData>;
+
+				try {
+					compressedTreeNode = compressedTreeNodeProvider().getCompressedTreeNode(e);
+				} catch {
+					return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e);
+				}
 
 				if (compressedTreeNode.element.elements.length === 1) {
 					return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e);
