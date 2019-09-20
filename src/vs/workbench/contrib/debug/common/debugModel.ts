@@ -501,7 +501,7 @@ export class Enablement implements IEnablement {
 export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 
 	private sessionData = new Map<string, DebugProtocol.Breakpoint>();
-	private sessionId: string | undefined;
+	protected data: DebugProtocol.Breakpoint | undefined;
 
 	constructor(
 		enabled: boolean,
@@ -516,30 +516,34 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		}
 	}
 
-	protected getSessionData(): DebugProtocol.Breakpoint | undefined {
-		return this.sessionId ? this.sessionData.get(this.sessionId) : undefined;
-	}
+	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint | undefined): void {
+		if (!data) {
+			this.sessionData.delete(sessionId);
+		} else {
+			this.sessionData.set(sessionId, data);
+		}
 
-	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {
-		this.sessionData.set(sessionId, data);
-	}
-
-	setSessionId(sessionId: string | undefined): void {
-		this.sessionId = sessionId;
+		const allData = Array.from(this.sessionData.values());
+		const verifiedData = distinct(allData.filter(d => d.verified), d => `${d.line}:${d.column}`);
+		if (verifiedData.length) {
+			// In case multiple session verified the breakpoint and they provide different data show the intial data that the user set (corner case)
+			this.data = verifiedData.length === 1 ? verifiedData[0] : undefined;
+		} else {
+			// No session verified the breakpoint
+			this.data = allData.length ? allData[0] : undefined;
+		}
 	}
 
 	get message(): string | undefined {
-		const data = this.getSessionData();
-		if (!data) {
+		if (!this.data) {
 			return undefined;
 		}
 
-		return data.message;
+		return this.data.message;
 	}
 
 	get verified(): boolean {
-		const data = this.getSessionData();
-		return data ? data.verified : true;
+		return this.data ? this.data.verified : true;
 	}
 
 	getIdFromAdapter(sessionId: string): number | undefined {
@@ -576,23 +580,20 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get lineNumber(): number {
-		const data = this.getSessionData();
-		return this.verified && data && typeof data.line === 'number' ? data.line : this._lineNumber;
+		return this.verified && this.data && typeof this.data.line === 'number' ? this.data.line : this._lineNumber;
 	}
 
 	get verified(): boolean {
-		const data = this.getSessionData();
-		if (data) {
-			return data.verified && !this.textFileService.isDirty(this.uri);
+		if (this.data) {
+			return this.data.verified && !this.textFileService.isDirty(this.uri);
 		}
 
 		return true;
 	}
 
 	get column(): number | undefined {
-		const data = this.getSessionData();
 		// Only respect the column if the user explictly set the column to have an inline breakpoint
-		return data && typeof data.column === 'number' && typeof this._column === 'number' ? data.column : this._column;
+		return this.verified && this.data && typeof this.data.column === 'number' && typeof this._column === 'number' ? this.data.column : this._column;
 	}
 
 	get message(): string | undefined {
@@ -604,18 +605,15 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get adapterData(): any {
-		const data = this.getSessionData();
-		return data && data.source && data.source.adapterData ? data.source.adapterData : this._adapterData;
+		return this.data && this.data.source && this.data.source.adapterData ? this.data.source.adapterData : this._adapterData;
 	}
 
 	get endLineNumber(): number | undefined {
-		const data = this.getSessionData();
-		return data ? data.endLine : undefined;
+		return this.verified && this.data ? this.data.endLine : undefined;
 	}
 
 	get endColumn(): number | undefined {
-		const data = this.getSessionData();
-		return data ? data.endColumn : undefined;
+		return this.verified && this.data ? this.data.endColumn : undefined;
 	}
 
 	get sessionAgnosticData(): { lineNumber: number, column: number | undefined } {
@@ -625,7 +623,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		};
 	}
 
-	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {
+	setSessionData(sessionId: string, data: DebugProtocol.Breakpoint | undefined): void {
 		super.setSessionData(sessionId, data);
 		if (!this._adapterData) {
 			this._adapterData = this.adapterData;
@@ -751,7 +749,6 @@ export class DebugModel implements IDebugModel {
 	private sessions: IDebugSession[];
 	private toDispose: lifecycle.IDisposable[];
 	private schedulers = new Map<string, RunOnceScheduler>();
-	private breakpointsSessionId: string | undefined;
 	private breakpointsActivated = true;
 	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent | undefined>;
 	private readonly _onDidChangeCallStack: Emitter<void>;
@@ -945,7 +942,6 @@ export class DebugModel implements IDebugModel {
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
 		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, rawBp.id));
-		newBreakpoints.forEach(bp => bp.setSessionId(this.breakpointsSessionId));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();
@@ -975,36 +971,37 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ changed: updated });
 	}
 
-	setBreakpointSessionData(sessionId: string, data: Map<string, DebugProtocol.Breakpoint>): void {
+	setBreakpointSessionData(sessionId: string, data: Map<string, DebugProtocol.Breakpoint> | undefined): void {
 		this.breakpoints.forEach(bp => {
-			const bpData = data.get(bp.getId());
-			if (bpData) {
-				bp.setSessionData(sessionId, bpData);
+			if (!data) {
+				bp.setSessionData(sessionId, undefined);
+			} else {
+				const bpData = data.get(bp.getId());
+				if (bpData) {
+					bp.setSessionData(sessionId, bpData);
+				}
 			}
 		});
 		this.functionBreakpoints.forEach(fbp => {
-			const fbpData = data.get(fbp.getId());
-			if (fbpData) {
-				fbp.setSessionData(sessionId, fbpData);
+			if (!data) {
+				fbp.setSessionData(sessionId, undefined);
+			} else {
+				const fbpData = data.get(fbp.getId());
+				if (fbpData) {
+					fbp.setSessionData(sessionId, fbpData);
+				}
 			}
 		});
 		this.dataBreakopints.forEach(dbp => {
-			const dbpData = data.get(dbp.getId());
-			if (dbpData) {
-				dbp.setSessionData(sessionId, dbpData);
+			if (!data) {
+				dbp.setSessionData(sessionId, undefined);
+			} else {
+				const dbpData = data.get(dbp.getId());
+				if (dbpData) {
+					dbp.setSessionData(sessionId, dbpData);
+				}
 			}
 		});
-
-		this._onDidChangeBreakpoints.fire({
-			sessionOnly: true
-		});
-	}
-
-	setBreakpointsSessionId(sessionId: string | undefined): void {
-		this.breakpointsSessionId = sessionId;
-		this.breakpoints.forEach(bp => bp.setSessionId(sessionId));
-		this.functionBreakpoints.forEach(fbp => fbp.setSessionId(sessionId));
-		this.dataBreakopints.forEach(dbp => dbp.setSessionId(sessionId));
 
 		this._onDidChangeBreakpoints.fire({
 			sessionOnly: true

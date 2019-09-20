@@ -885,6 +885,7 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
 			this.initialized = true;
+			this.model.setBreakpointSessionData(this.getId(), undefined);
 			this._onDidEndAdapter.fire(event);
 		}));
 	}
