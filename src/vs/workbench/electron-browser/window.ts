@@ -423,9 +423,7 @@ export class ElectronWindow extends Disposable {
 				// scheme is one where we prefer to open externally
 				// we handle this resource by delegating the opening to
 				// the main process to prevent window focus issues.
-				const scheme = resource.scheme.toLowerCase();
-				const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
-				if ((options && options.openExternal) || preferOpenExternal) {
+				if ($this.shouldOpenExternal(resource, options)) {
 					const success = await $this.windowsService.openExternal(encodeURI(resource.toString(true)));
 					if (!success && resource.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
@@ -438,6 +436,12 @@ export class ElectronWindow extends Disposable {
 				return false; // not handled by us
 			}
 		});
+	}
+
+	private shouldOpenExternal(resource: URI, options?: { openToSide?: boolean; openExternal?: boolean; }) {
+		const scheme = resource.scheme.toLowerCase();
+		const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
+		return (options && options.openExternal) || preferOpenExternal;
 	}
 
 	private updateTouchbarMenu(): void {
