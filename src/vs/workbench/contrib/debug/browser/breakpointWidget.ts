@@ -152,6 +152,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 			const value = this.getInputValue(this.breakpoint);
 			this.input.getModel().setValue(value);
+			this.input.focus();
 		});
 
 		this.createBreakpointInput(dom.append(container, $('.inputContainer')));

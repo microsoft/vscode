@@ -43,20 +43,8 @@ export class WindowsChannel implements IServerChannel {
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
-			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
-			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
-			case 'pickWorkspaceAndOpen': return this.service.pickWorkspaceAndOpen(arg);
-			case 'showMessageBox': return this.service.showMessageBox(arg[0], arg[1]);
-			case 'showSaveDialog': return this.service.showSaveDialog(arg[0], arg[1]);
-			case 'showOpenDialog': return this.service.showOpenDialog(arg[0], arg[1]);
-			case 'reloadWindow': return this.service.reloadWindow(arg[0], arg[1]);
-			case 'openDevTools': return this.service.openDevTools(arg[0], arg[1]);
-			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
-			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
-			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map((recent: IRecent) => {
 				if (isRecentFile(recent)) {
 					recent.fileUri = URI.revive(recent.fileUri);
@@ -85,7 +73,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'unmaximizeWindow': return this.service.unmaximizeWindow(arg);
 			case 'minimizeWindow': return this.service.minimizeWindow(arg);
 			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
-			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
 			case 'openWindow': {
 				const urisToOpen: IURIToOpen[] = arg[1];
 				const options: IOpenSettings = arg[2];
@@ -101,19 +88,14 @@ export class WindowsChannel implements IServerChannel {
 				options.waitMarkerFileURI = options.waitMarkerFileURI && URI.revive(options.waitMarkerFileURI);
 				return this.service.openWindow(arg[0], urisToOpen, options);
 			}
-			case 'openNewWindow': return this.service.openNewWindow(arg);
 			case 'openExtensionDevelopmentHostWindow': return this.service.openExtensionDevelopmentHostWindow(arg[0], arg[1]);
 			case 'getWindows': return this.service.getWindows();
-			case 'getWindowCount': return this.service.getWindowCount();
-			case 'relaunch': return this.service.relaunch(arg[0]);
 			case 'whenSharedProcessReady': return this.service.whenSharedProcessReady();
 			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
 			case 'quit': return this.service.quit();
-			case 'showItemInFolder': return this.service.showItemInFolder(URI.revive(arg));
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
-			case 'resolveProxy': return this.service.resolveProxy(arg[0], arg[1]);
 		}
 
 		throw new Error(`Call not found: ${command}`);

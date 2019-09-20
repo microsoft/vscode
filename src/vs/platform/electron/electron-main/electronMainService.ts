@@ -3,57 +3,153 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElectronService } from 'vs/platform/electron/node/electron';
-import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue } from 'electron';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { isMacintosh } from 'vs/base/common/platform';
 
-export class ElectronMainService implements IElectronService {
+export class ElectronMainService {
 
 	_serviceBrand: undefined;
 
 	constructor(
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 	}
 
-	private get window(): ICodeWindow | undefined {
-		return this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+	//#region Window
+
+	async windowCount(windowId: number): Promise<number> {
+		return this.windowsMainService.getWindowCount();
 	}
 
-	async showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		const result = await this.windowsMainService.showMessageBox(options, this.window);
-
-		return {
-			response: result.button,
-			checkboxChecked: !!result.checkboxChecked
-		};
-	}
-}
-
-export class ElectronChannel implements IServerChannel {
-
-	private service: { [key: string]: unknown };
-
-	constructor(service: IElectronService) {
-		this.service = service as unknown as { [key: string]: unknown };
+	async openEmptyWindow(windowId: number, options?: { reuse?: boolean }): Promise<void> {
+		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
 
-	listen<T>(_: unknown, event: string): Event<T> {
-		throw new Error(`Event not found: ${event}`);
-	}
-
-	call(_: unknown, command: string, arg?: any): Promise<any> {
-		const target = this.service[command];
-		if (typeof target === 'function') {
-			if (Array.isArray(arg)) {
-				return target.apply(this.service, arg);
-			}
-
-			return target.call(this.service, arg);
+	async toggleFullScreen(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.toggleFullScreen();
 		}
-
-		throw new Error(`Call Not Found in ElectronService: ${command}`);
 	}
+
+	//#endregion
+
+	//#region Dialog
+
+	async showMessageBox(windowId: number, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
+		return this.windowsMainService.showMessageBox(options, this.windowsMainService.getWindowById(windowId));
+	}
+
+	async showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
+		return this.windowsMainService.showSaveDialog(options, this.windowsMainService.getWindowById(windowId));
+	}
+
+	async showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
+		return this.windowsMainService.showOpenDialog(options, this.windowsMainService.getWindowById(windowId));
+	}
+
+	async pickFileFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
+		options.windowId = windowId;
+
+		return this.windowsMainService.pickFileFolderAndOpen(options);
+	}
+
+	async pickFileAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
+		options.windowId = windowId;
+
+		return this.windowsMainService.pickFileAndOpen(options);
+	}
+
+	async pickFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
+		options.windowId = windowId;
+
+		return this.windowsMainService.pickFolderAndOpen(options);
+	}
+
+	async pickWorkspaceAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
+		options.windowId = windowId;
+
+		return this.windowsMainService.pickWorkspaceAndOpen(options);
+	}
+
+	//#endregion
+
+	//#region OS
+
+	async showItemInFolder(windowId: number, path: string): Promise<void> {
+		shell.showItemInFolder(path);
+	}
+
+	async setRepresentedFilename(windowId: number, path: string): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.setRepresentedFilename(path);
+		}
+	}
+
+	async setDocumentEdited(windowId: number, edited: boolean): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.win.setDocumentEdited(edited);
+		}
+	}
+
+	//#endregion
+
+	//#region Lifecycle
+
+	async relaunch(windowId: number, options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
+		return this.lifecycleMainService.relaunch(options);
+	}
+
+	async reload(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return this.windowsMainService.reload(window);
+		}
+	}
+
+	//#endregion
+
+	//#region Development
+
+	async openDevTools(windowId: number, options?: OpenDevToolsOptions): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.win.webContents.openDevTools(options);
+		}
+	}
+
+	async toggleDevTools(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			const contents = window.win.webContents;
+			if (isMacintosh && window.hasHiddenTitleBarStyle() && !window.isFullScreen() && !contents.isDevToolsOpened()) {
+				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
+			} else {
+				contents.toggleDevTools();
+			}
+		}
+	}
+
+	//#endregion
+
+	//#region Connectivity
+
+	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {
+		return new Promise(resolve => {
+			const window = this.windowsMainService.getWindowById(windowId);
+			if (window && window.win && window.win.webContents && window.win.webContents.session) {
+				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
+			} else {
+				resolve();
+			}
+		});
+	}
+
+	//#endregion
 }

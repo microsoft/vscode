@@ -389,7 +389,7 @@ export interface IEditor {
 	 * Set the selections for all the cursors of the editor.
 	 * Cursors will be removed or added, as necessary.
 	 */
-	setSelections(selections: ISelection[]): void;
+	setSelections(selections: readonly ISelection[]): void;
 
 	/**
 	 * Scroll vertically as necessary and reveal lines.

@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { Dimension } from 'vs/base/browser/dom';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
@@ -60,6 +61,19 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 			this._webview.clear();
 			this._webviewEvents.clear();
 		}
+	}
+
+	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension) {
+		if (!this.container || !this.container.parentElement) {
+			return;
+		}
+		const frameRect = element.getBoundingClientRect();
+		const containerRect = this.container.parentElement.getBoundingClientRect();
+		this.container.style.position = 'absolute';
+		this.container.style.top = `${frameRect.top - containerRect.top}px`;
+		this.container.style.left = `${frameRect.left - containerRect.left}px`;
+		this.container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
+		this.container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
 	}
 
 	private show() {

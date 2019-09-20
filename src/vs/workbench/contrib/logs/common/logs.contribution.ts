@@ -8,7 +8,7 @@ import { join } from 'vs/base/common/path';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { SetLogLevelAction, OpenLogsFolderAction, OpenWindowSessionLogFileAction } from 'vs/workbench/contrib/logs/common/logsActions';
+import { SetLogLevelAction, OpenWindowSessionLogFileAction } from 'vs/workbench/contrib/logs/common/logsActions';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -64,10 +64,6 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		};
 		registerTelemetryChannel(this.logService.getLevel());
 		this.logService.onDidChangeLogLevel(registerTelemetryChannel);
-
-		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-		const devCategory = nls.localize('developer', "Developer");
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLogsFolderAction, OpenLogsFolderAction.ID, OpenLogsFolderAction.LABEL), 'Developer: Open Logs Folder', devCategory);
 	}
 
 	private async registerLogChannel(id: string, label: string, file: URI): Promise<void> {

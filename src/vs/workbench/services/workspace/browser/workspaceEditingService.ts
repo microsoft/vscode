@@ -7,7 +7,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWindowService, MessageBoxOptions, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -31,6 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -54,7 +55,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILifecycleService readonly lifecycleService: ILifecycleService,
-		@ILabelService readonly labelService: ILabelService
+		@ILabelService readonly labelService: ILabelService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		this.registerListeners();
 	}
@@ -82,7 +84,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return false; // only care about untitled workspaces to ask for saving
 		}
 
-		const windowCount = await this.windowsService.getWindowCount();
+		const windowCount = await this.hostService.windowCount;
 
 		if (reason === ShutdownReason.CLOSE && !isMacintosh && windowCount === 1) {
 			return false; // Windows/Linux: quits when last window is closed, so do not ask then
@@ -321,14 +323,14 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (windows.some(window => !!window.workspace && isEqual(window.workspace.configPath, path))) {
-			const options: MessageBoxOptions = {
-				type: 'info',
-				buttons: [nls.localize('ok', "OK")],
-				message: nls.localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
-				detail: nls.localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
-				noLink: true
-			};
-			await this.windowService.showMessageBox(options);
+			await this.dialogService.show(
+				Severity.Info,
+				nls.localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
+				[nls.localize('ok', "OK")],
+				{
+					detail: nls.localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
+				}
+			);
 
 			return false;
 		}
@@ -413,7 +415,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// TODO@aeschli: workaround until restarting works
 		if (this.environmentService.configuration.remoteAuthority) {
-			this.windowService.reloadWindow();
+			this.hostService.reload();
 		}
 
 		// Restart the extension host: entering a workspace means a new location for

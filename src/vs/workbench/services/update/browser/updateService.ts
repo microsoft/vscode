@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IUpdateService, State, UpdateType } from 'vs/platform/update/common/update';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IUpdate {
@@ -40,7 +40,7 @@ export class UpdateService extends Disposable implements IUpdateService {
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IWindowService private readonly windowService: IWindowService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -84,11 +84,11 @@ export class UpdateService extends Disposable implements IUpdateService {
 	}
 
 	async applyUpdate(): Promise<void> {
-		this.windowService.reloadWindow();
+		this.hostService.reload();
 	}
 
 	async quitAndInstall(): Promise<void> {
-		this.windowService.reloadWindow();
+		this.hostService.reload();
 	}
 }
 

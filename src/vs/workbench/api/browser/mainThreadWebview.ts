@@ -207,7 +207,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 					return;
 				}
 
-				const handle = generateUuid();
+				const handle = webviewEditorInput.id;
 				this._webviewEditorInputs.add(handle, webviewEditorInput);
 				this.hookupWebviewEventDelegate(handle, webviewEditorInput);
 

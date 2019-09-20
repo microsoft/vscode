@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/titlebarpart';
-import { dirname, posix } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { IWindowService, IWindowsService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { EditorInput, toResource, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -29,14 +28,16 @@ import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { template, getBaseLabel } from 'vs/base/common/labels';
+import { template } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Schemas } from 'vs/base/common/network';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -71,7 +72,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	private lastLayoutDimensions: Dimension;
 
 	private pendingTitle: string;
-	private representedFileName: string;
 
 	private isInactive: boolean;
 
@@ -80,11 +80,12 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private titleUpdater: RunOnceScheduler = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
+	private contextMenu: IMenu;
+
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWindowsService private readonly windowsService: IWindowsService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -92,9 +93,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IThemeService themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+
+		this.contextMenu = this._register(menuService.createMenu(MenuId.TitleBarContext, contextKeyService));
 
 		this.registerListeners();
 	}
@@ -170,20 +175,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
-
-		// Represented File Name
-		this.updateRepresentedFilename();
-	}
-
-	private updateRepresentedFilename(): void {
-		const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
-		const path = file ? file.fsPath : '';
-
-		// Apply to window
-		this.windowService.setRepresentedFilename(path);
-
-		// Keep for context menu
-		this.representedFileName = path;
 	}
 
 	private doUpdateTitle(): void {
@@ -254,6 +245,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	 * {folderName}: e.g. myFolder
 	 * {folderPath}: e.g. /Users/Development/myFolder
 	 * {appName}: e.g. VS Code
+	 * {remoteName}: e.g. SSH
 	 * {dirty}: indicator
 	 * {separator}: conditional separator
 	 */
@@ -294,6 +286,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor && editor.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
+		const remoteName = this.environmentService.configuration.remoteAuthority;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
 
@@ -310,6 +303,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			folderPath,
 			dirty,
 			appName,
+			remoteName,
 			separator: { label: separator }
 		});
 	}
@@ -375,7 +369,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Window Controls (Native Windows/Linux)
 		if (!isMacintosh && !isWeb) {
 			this.windowControls = append(this.element, $('div.window-controls-container'));
-
 
 			// Minimize
 			const minimizeIconContainer = append(this.windowControls, $('div.window-icon-bg'));
@@ -503,44 +496,16 @@ export class TitlebarPart extends Part implements ITitleService {
 		const event = new StandardMouseEvent(e);
 		const anchor = { x: event.posx, y: event.posy };
 
-		// Show menu
-		const actions = this.getContextMenuActions();
-		if (actions.length) {
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => actions,
-				onHide: () => actions.forEach(a => a.dispose())
-			});
-		}
-	}
-
-	private getContextMenuActions(): IAction[] {
+		// Fill in contributed actions
 		const actions: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, undefined, actions, this.contextMenuService);
 
-		if (this.representedFileName) {
-			const segments = this.representedFileName.split(posix.sep);
-			for (let i = segments.length; i > 0; i--) {
-				const isFile = (i === segments.length);
-
-				let pathOffset = i;
-				if (!isFile) {
-					pathOffset++; // for segments which are not the file name we want to open the folder
-				}
-
-				const path = segments.slice(0, pathOffset).join(posix.sep);
-
-				let label: string;
-				if (!isFile) {
-					label = getBaseLabel(dirname(path));
-				} else {
-					label = getBaseLabel(path);
-				}
-
-				actions.push(new ShowItemInFolderAction(path, label || posix.sep, this.windowsService));
-			}
-		}
-
-		return actions;
+		// Show it
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			onHide: () => dispose(actionsDisposable)
+		});
 	}
 
 	private adjustTitleMarginToCenter(): void {
@@ -602,17 +567,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		return {
 			type: Parts.TITLEBAR_PART
 		};
-	}
-}
-
-class ShowItemInFolderAction extends Action {
-
-	constructor(private path: string, label: string, private windowsService: IWindowsService) {
-		super('showItemInFolder.action.id', label);
-	}
-
-	run(): Promise<void> {
-		return this.windowsService.showItemInFolder(URI.file(this.path));
 	}
 }
 

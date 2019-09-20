@@ -20,7 +20,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
@@ -328,9 +328,12 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath)) : source.resource.toString()).join(lineDelimiter));
 
 	const envService = accessor.get(IWorkbenchEnvironmentService);
-	if (!(isLinux && envService.configuration.remoteAuthority)) {
+	const hasRemote = !!envService.configuration.remoteAuthority;
+	if (
+		!(isLinux && hasRemote) && 	// Not supported on linux remote due to chrome limitation https://github.com/microsoft/vscode-remote-release/issues/849
+		!isWeb 						// Does not seem to work anymore when running from web, the file ends up being empty (and PWA crashes)
+	) {
 		// Download URL: enables support to drag a tab as file to desktop (only single file supported)
-		// Not supported on linux remote due to chrome limitation https://github.com/microsoft/vscode-remote-release/issues/849
 		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), firstSource.resource.toString()].join(':'));
 	}
 

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IEnterWorkspaceResult, CrashReporterStartOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -31,46 +31,6 @@ export class WindowsService implements IWindowsService {
 		this.channel = mainProcessService.getChannel('windows');
 	}
 
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickFileFolderAndOpen', options);
-	}
-
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickFileAndOpen', options);
-	}
-
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickFolderAndOpen', options);
-	}
-
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.channel.call('pickWorkspaceAndOpen', options);
-	}
-
-	showMessageBox(windowId: number, options: MessageBoxOptions): Promise<IMessageBoxResult> {
-		return this.channel.call('showMessageBox', [windowId, options]);
-	}
-
-	showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<string> {
-		return this.channel.call('showSaveDialog', [windowId, options]);
-	}
-
-	showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<string[]> {
-		return this.channel.call('showOpenDialog', [windowId, options]);
-	}
-
-	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void> {
-		return this.channel.call('reloadWindow', [windowId, args]);
-	}
-
-	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void> {
-		return this.channel.call('openDevTools', [windowId, options]);
-	}
-
-	toggleDevTools(windowId: number): Promise<void> {
-		return this.channel.call('toggleDevTools', windowId);
-	}
-
 	closeWorkspace(windowId: number): Promise<void> {
 		return this.channel.call('closeWorkspace', windowId);
 	}
@@ -82,14 +42,6 @@ export class WindowsService implements IWindowsService {
 		}
 
 		return result;
-	}
-
-	toggleFullScreen(windowId: number): Promise<void> {
-		return this.channel.call('toggleFullScreen', windowId);
-	}
-
-	setRepresentedFilename(windowId: number, fileName: string): Promise<void> {
-		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
 	}
 
 	addRecentlyOpened(recent: IRecent[]): Promise<void> {
@@ -168,16 +120,8 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('onWindowTitleDoubleClick', windowId);
 	}
 
-	setDocumentEdited(windowId: number, flag: boolean): Promise<void> {
-		return this.channel.call('setDocumentEdited', [windowId, flag]);
-	}
-
 	quit(): Promise<void> {
 		return this.channel.call('quit');
-	}
-
-	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
-		return this.channel.call('relaunch', [options]);
 	}
 
 	whenSharedProcessReady(): Promise<void> {
@@ -190,10 +134,6 @@ export class WindowsService implements IWindowsService {
 
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void> {
 		return this.channel.call('openWindow', [windowId, uris, options]);
-	}
-
-	openNewWindow(options?: INewWindowOptions): Promise<void> {
-		return this.channel.call('openNewWindow', options);
 	}
 
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
@@ -222,14 +162,6 @@ export class WindowsService implements IWindowsService {
 		return result;
 	}
 
-	getWindowCount(): Promise<number> {
-		return this.channel.call('getWindowCount');
-	}
-
-	showItemInFolder(path: URI): Promise<void> {
-		return this.channel.call('showItemInFolder', path);
-	}
-
 	getActiveWindowId(): Promise<number | undefined> {
 		return this.channel.call('getActiveWindowId');
 	}
@@ -244,9 +176,5 @@ export class WindowsService implements IWindowsService {
 
 	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
 		return this.channel.call('updateTouchBar', [windowId, items]);
-	}
-
-	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return Promise.resolve(this.channel.call('resolveProxy', [windowId, url]));
 	}
 }

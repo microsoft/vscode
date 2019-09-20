@@ -135,7 +135,7 @@ export interface IExpressionTemplateData {
 	name: HTMLSpanElement;
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
-	enableInputBox(expression: IExpression, options: IInputBoxOptions): void;
+	enableInputBox(options: IInputBoxOptions): void;
 	toDispose: IDisposable[];
 	label: HighlightedLabel;
 }
@@ -159,15 +159,12 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
 		const toDispose: IDisposable[] = [];
 
-		const enableInputBox = (expression: IExpression, options: IInputBoxOptions) => {
+		const enableInputBox = (options: IInputBoxOptions) => {
 			name.style.display = 'none';
 			value.style.display = 'none';
 			inputBoxContainer.style.display = 'initial';
 
-			const inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
-				placeholder: options.placeholder,
-				ariaLabel: options.ariaLabel
-			});
+			const inputBox = new InputBox(inputBoxContainer, this.contextViewService, options);
 			const styler = attachInputBoxStyler(inputBox, this.themeService);
 
 			inputBox.value = replaceWhitespace(options.initialValue);
@@ -217,10 +214,10 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 
 	renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
 		const { element } = node;
-		if (element === this.debugService.getViewModel().getSelectedExpression()) {
+		if (element === this.debugService.getViewModel().getSelectedExpression() || (element instanceof Variable && element.errorMessage)) {
 			const options = this.getInputBoxOptions(element);
 			if (options) {
-				data.enableInputBox(element, options);
+				data.enableInputBox(options);
 				return;
 			}
 		}

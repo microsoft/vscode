@@ -82,7 +82,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 		});
 
-		const exectuableVerification = stat(shellLaunchConfig.executable!).then(async stat => {
+		const executableVerification = stat(shellLaunchConfig.executable!).then(async stat => {
 			if (!stat.isFile() && !stat.isSymbolicLink()) {
 				return Promise.reject(stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE);
 			}
@@ -98,7 +98,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 		});
 
-		Promise.all([cwdVerification, exectuableVerification]).then(() => {
+		Promise.all([cwdVerification, executableVerification]).then(() => {
 			this.setupPtyProcess(shellLaunchConfig, options);
 		}).catch((exitCode: number) => {
 			return this._launchFailed(exitCode);
