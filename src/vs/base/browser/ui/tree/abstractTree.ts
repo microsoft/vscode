@@ -1228,7 +1228,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
-		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
+		const onDidChangeActiveNodes = new Emitter<ITreeNode<T, TFilterData>[]>();
 		const activeNodes = new EventCollection(onDidChangeActiveNodes.event);
 		this.disposables.push(activeNodes);
 
@@ -1251,11 +1251,23 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
 		this.model.onDidSplice(e => {
-			this.focus.onDidModelSplice(e);
-			this.selection.onDidModelSplice(e);
-		}, null, this.disposables);
+			this.eventBufferer.bufferEvents(() => {
+				this.focus.onDidModelSplice(e);
+				this.selection.onDidModelSplice(e);
+			});
 
-		onDidChangeActiveNodes.input = Event.map(Event.any<any>(this.focus.onDidChange, this.selection.onDidChange, this.model.onDidSplice), () => [...this.focus.getNodes(), ...this.selection.getNodes()]);
+			const set = new Set<ITreeNode<T, TFilterData>>();
+
+			for (const node of this.focus.getNodes()) {
+				set.add(node);
+			}
+
+			for (const node of this.selection.getNodes()) {
+				set.add(node);
+			}
+
+			onDidChangeActiveNodes.fire(Array.from(set.values()));
+		}, null, this.disposables);
 
 		if (_options.keyboardSupport !== false) {
 			const onKeyDown = Event.chain(this.view.onKeyDown)
