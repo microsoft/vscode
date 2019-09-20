@@ -10,7 +10,7 @@ import { basename } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -38,7 +38,7 @@ import * as platform from 'vs/base/common/platform';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ISequence, ISplice } from 'vs/base/common/sequence';
 import { ResourceTree, IBranchNode, INode } from 'vs/base/common/resourceTree';
-import { ObjectTree, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
+import { ObjectTree, ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { URI } from 'vs/base/common/uri';
@@ -321,18 +321,21 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 	}
 }
 
-export class SCMTreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<TreeElement> {
+export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<TreeElement> {
 
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | undefined {
-		if (isSCMResourceGroup(element)) {
+		if (ResourceTree.isBranchNode(element)) {
+			return element.name;
+		} else if (isSCMResourceGroup(element)) {
 			return element.label;
-		}
-
-		if (isSCMResource(element)) {
+		} else {
 			return basename(element.sourceUri);
 		}
+	}
 
-		return '';
+	getCompressedNodeKeyboardNavigationLabel(elements: TreeElement[]): { toString(): string | undefined; } | undefined {
+		const folders = elements as IBranchNode<ISCMResource, ISCMResourceGroup>[];
+		return folders.map(e => e.name).join('/');
 	}
 }
 
