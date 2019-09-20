@@ -9,9 +9,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape, IOpenUriOptions } from '../common/extHost.protocol';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { extractLocalHostUriMetaDataForPortMapping } from 'vs/workbench/contrib/webview/common/portMapping';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
