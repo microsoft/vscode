@@ -46,7 +46,7 @@ export async function configureOpenerTrustedDomainsHandler(
 	};
 	const trustSubDomainAndOpenLinkItem: IQuickPickItem = {
 		type: 'item',
-		label: localize('trustedDomain.trustSubDomain', 'Trust all domains ending in {0}', domainEnd),
+		label: localize('trustedDomain.trustSubDomain', 'Trust {0} and all its subdomains', domainEnd),
 		id: topLevelDomain
 	};
 	const openAllLinksItem: IQuickPickItem = {
