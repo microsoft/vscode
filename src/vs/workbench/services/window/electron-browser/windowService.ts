@@ -7,7 +7,6 @@ import { Event } from 'vs/base/common/event';
 import { IWindowService, IWindowsService, IEnterWorkspaceResult, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -51,10 +50,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	get windowId(): number {
 		return this._windowId;
-	}
-
-	reloadWindow(args?: ParsedArgs): Promise<void> {
-		return this.windowsService.reloadWindow(this.windowId, args);
 	}
 
 	closeWorkspace(): Promise<void> {

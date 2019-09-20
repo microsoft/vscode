@@ -75,12 +75,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.showOpenDialog(options, codeWindow), () => this.windowsMainService.showOpenDialog(options))!;
 	}
 
-	async reloadWindow(windowId: number, args: ParsedArgs): Promise<void> {
-		this.logService.trace('windowsService#reloadWindow', windowId);
-
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.reload(codeWindow, args));
-	}
-
 	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
 		this.logService.trace('windowsService#updateTouchBar', windowId);
 

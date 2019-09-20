@@ -31,10 +31,6 @@ export class WindowsService implements IWindowsService {
 		this.channel = mainProcessService.getChannel('windows');
 	}
 
-	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void> {
-		return this.channel.call('reloadWindow', [windowId, args]);
-	}
-
 	closeWorkspace(windowId: number): Promise<void> {
 		return this.channel.call('closeWorkspace', windowId);
 	}

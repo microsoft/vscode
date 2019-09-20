@@ -69,7 +69,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWindowService protected readonly _windowService: IWindowService,
 		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
-		@IElectronService private readonly _electronService: IElectronService
+		@IElectronService private readonly _electronService: IElectronService,
+		@IHostService private readonly _hostService: IHostService
 	) {
 		super(
 			instantiationService,
@@ -85,7 +86,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
 				label: nls.localize('Reload', "Reload"),
 				run: () => {
-					this._windowService.reloadWindow();
+					this._hostService.reload();
 				}
 			}]);
 		}

@@ -94,7 +94,6 @@ export interface IWindowsService {
 	readonly onWindowUnmaximize: Event<number>;
 	readonly onRecentlyOpenedChange: Event<void>;
 
-	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void>;
 	closeWorkspace(windowId: number): Promise<void>;
 	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
@@ -196,7 +195,6 @@ export interface IWindowService {
 
 	readonly windowId: number;
 
-	reloadWindow(args?: ParsedArgs): Promise<void>;
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;

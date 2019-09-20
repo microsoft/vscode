@@ -30,7 +30,10 @@ export interface IElectronService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
+
+	// Lifecycle
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
+	reload(): Promise<void>;
 
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;

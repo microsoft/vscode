@@ -30,6 +30,10 @@ export class DesktopHostService implements IHostService {
 	restart(): Promise<void> {
 		return this.electronService.relaunch();
 	}
+
+	reload(): Promise<void> {
+		return this.electronService.reload();
+	}
 }
 
 registerSingleton(IHostService, DesktopHostService, true);

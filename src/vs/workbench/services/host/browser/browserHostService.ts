@@ -64,6 +64,10 @@ export class BrowserHostService implements IHostService {
 	//#endregion
 
 	async restart(): Promise<void> {
+		this.reload();
+	}
+
+	async reload(): Promise<void> {
 		window.location.reload();
 	}
 }

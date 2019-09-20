@@ -83,6 +83,13 @@ export class ElectronMainService implements IElectronService {
 		return this.lifecycleMainService.relaunch(options);
 	}
 
+	async reload(): Promise<void> {
+		const window = this.window;
+		if (window) {
+			return this.windowsMainService.reload(window);
+		}
+	}
+
 	async openDevTools(options?: OpenDevToolsOptions): Promise<void> {
 		const window = this.window;
 		if (window) {

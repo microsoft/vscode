@@ -50,7 +50,7 @@ export interface ICodeWindow {
 
 	addTabbedWindow(window: ICodeWindow): void;
 
-	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void;
+	load(config: IWindowConfiguration, isReload?: boolean): void;
 	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
 
 	focus(): void;

@@ -91,12 +91,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	reloadWindow(): Promise<void> {
-		window.location.reload();
-
-		return Promise.resolve();
-	}
-
 	closeWorkspace(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -250,10 +244,6 @@ export class SimpleWindowsService implements IWindowsService {
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(true);
-	}
-
-	reloadWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
 	}
 
 	closeWorkspace(_windowId: number): Promise<void> {

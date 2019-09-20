@@ -213,13 +213,13 @@ export class ReloadWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private readonly windowService: IWindowService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<boolean> {
-		await this.windowService.reloadWindow();
+		await this.hostService.reload();
 
 		return true;
 	}

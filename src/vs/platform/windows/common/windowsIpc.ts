@@ -43,7 +43,6 @@ export class WindowsChannel implements IServerChannel {
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'reloadWindow': return this.service.reloadWindow(arg[0], arg[1]);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);

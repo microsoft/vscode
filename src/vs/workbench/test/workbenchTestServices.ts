@@ -1196,10 +1196,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	reloadWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	closeWorkspace(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1316,10 +1312,6 @@ export class TestWindowsService implements IWindowsService {
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(false);
-	}
-
-	reloadWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
 	}
 
 	closeWorkspace(_windowId: number): Promise<void> {
@@ -1542,6 +1534,7 @@ export class TestHostService implements IHostService {
 	windowCount = Promise.resolve(1);
 
 	restart(): Promise<void> { return Promise.resolve(); }
+	reload(): Promise<void> { return Promise.resolve(); }
 
 	openEmptyWindow(options?: { reuse?: boolean }): Promise<void> { return Promise.resolve(); }
 
