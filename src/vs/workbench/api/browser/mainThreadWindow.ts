@@ -47,8 +47,8 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	}
 
 	async $openUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<boolean> {
-		const uri = await this.resolveExternalUri(URI.from(uriComponents), options);
-		return this.openerService.open(uri, { openExternal: true });
+		const uri = URI.from(uriComponents);
+		return this.openerService.open(uri, { openExternal: true, allowTunneling: options.allowTunneling });
 	}
 
 	async $resolveExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {

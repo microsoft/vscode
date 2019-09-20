@@ -58,6 +58,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
+import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -108,7 +109,8 @@ export class ElectronWindow extends Disposable {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IElectronService private readonly electronService: IElectronService
+		@IElectronService private readonly electronService: IElectronService,
+		@ITunnelService private readonly tunnelService: ITunnelService,
 	) {
 		super();
 
@@ -433,6 +435,21 @@ export class ElectronWindow extends Disposable {
 				}
 
 				return false; // not handled by us
+			}
+		});
+
+		this.openerService.registerExternalUriResolver({
+			resolveExternalUri: async (uri: URI, options?: OpenOptions): Promise<URI> => {
+				if (options && options.allowTunneling) {
+					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
+					if (portMappingRequest) {
+						const tunnel = await this.tunnelService.openTunnel(portMappingRequest.port);
+						if (tunnel) {
+							return uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` });
+						}
+					}
+				}
+				return uri;
 			}
 		});
 	}

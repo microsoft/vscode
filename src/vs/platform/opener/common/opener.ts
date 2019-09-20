@@ -10,7 +10,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
 type OpenToSideOptions = { readonly openToSide?: boolean };
-type OpenExternalOptions = { readonly openExternal?: boolean };
+type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
 
 export type OpenOptions = OpenToSideOptions & OpenExternalOptions;
 
@@ -24,7 +24,7 @@ export interface IValidator {
 }
 
 export interface IExternalUriResolver {
-	resolveExternalUri(resource: URI): Promise<URI>;
+	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<URI>;
 }
 
 export interface IOpenerService {
