@@ -14,8 +14,15 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+// import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+
+export interface ISyncPreviewResult {
+	readonly added: ISyncExtension[];
+	readonly removed: ISyncExtension[];
+	readonly updated: ISyncExtension[];
+	readonly remote: ISyncExtension[] | null;
+}
 
 export class ExtensionsSynchroniser extends Disposable implements ISynchroniser {
 
@@ -86,7 +93,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		const lastSyncData = await this.getLastSyncUserData();
 		const remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, lastSyncData);
 
-		const lastSyncExtensions: ISyncExtension[] = lastSyncData ? JSON.parse(lastSyncData.content!) : null;
+		// const lastSyncExtensions: ISyncExtension[] = lastSyncData ? JSON.parse(lastSyncData.content!) : null;
 		const remoteExtensions: ISyncExtension[] = remoteData.content ? JSON.parse(remoteData.content) : null;
 		const localExtensions = await this.getLocalExtensions();
 
@@ -98,81 +105,109 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		}
 
 		if (localExtensions && remoteExtensions) {
-			const localToRemote = this.compare(localExtensions, remoteExtensions);
-			if (localToRemote.added.length === 0 && localToRemote.removed.length === 0 && localToRemote.updated.length === 0) {
-				// No changes found between local and remote.
-				return;
-			}
-
-			const baseToLocal = lastSyncExtensions ? this.compare(lastSyncExtensions, localExtensions) : { added: localExtensions.map(({ identifier }) => identifier), removed: [], updated: [] };
-			const baseToRemote = lastSyncExtensions ? this.compare(lastSyncExtensions, remoteExtensions) : { added: remoteExtensions.map(({ identifier }) => identifier), removed: [], updated: [] };
-
-			// Locally added extensions
-			for (const localAdded of baseToLocal.added) {
-				// Got added in remote
-				if (baseToRemote.added.some(added => areSameExtensions(added, localAdded))) {
-					// Is different from local to remote
-					if (localToRemote.updated.some(updated => areSameExtensions(updated, localAdded))) {
-						// update it in local
-					}
-				} else {
-					// add to remote
-				}
-			}
-
-			// Remotely added extension
-			for (const remoteAdded of baseToRemote.added) {
-				// Got added in local
-				if (baseToLocal.added.some(added => areSameExtensions(added, remoteAdded))) {
-					// Is different from local to remote
-					if (localToRemote.updated.some(updated => areSameExtensions(updated, remoteAdded))) {
-						// update it in local
-					}
-				} else {
-					// add to local
-				}
-			}
-
-			// Locally updated extensions
-			for (const localUpdated of baseToLocal.updated) {
-				// If updated in remote
-				if (baseToRemote.updated.some(updated => areSameExtensions(updated, localUpdated))) {
-					// Is different from local to remote
-					if (localToRemote.updated.some(updated => areSameExtensions(updated, localUpdated))) {
-						// update it in local
-					}
-				}
-			}
-
-			// Remotely updated extensions
-			for (const remoteUpdated of baseToRemote.updated) {
-				// If updated in local
-				if (baseToLocal.updated.some(updated => areSameExtensions(updated, remoteUpdated))) {
-					// Is different from local to remote
-					if (localToRemote.updated.some(updated => areSameExtensions(updated, remoteUpdated))) {
-						// update it in local
-					}
-				}
-			}
-
-			// Locally removed extensions
-			for (const localRemoved of baseToLocal.removed) {
-				// If not updated in remote
-				if (!baseToRemote.updated.some(updated => areSameExtensions(updated, localRemoved))) {
-					// remove it from remote
-				}
-			}
-
-			// Remote removed extensions
-			for (const remoteRemoved of baseToRemote.removed) {
-				// If not updated in local
-				if (!baseToLocal.updated.some(updated => areSameExtensions(updated, remoteRemoved))) {
-					// remove it from local
-				}
-			}
 
 		}
+	}
 
+	/* private computeChanges(localExtensions: ISyncExtension[], remoteExtensions: ISyncExtension[], lastSyncExtensions: ISyncExtension[] | null): { added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], remote: ISyncExtension[] | null } {
+		const added: ISyncExtension[] = [];
+		const removed: IExtensionIdentifier[] = [];
+		const updated: ISyncExtension[] = [];
+		let remote: ISyncExtension[] | null = null;
+
+		const uuids: Map<string, string> = new Map<string, string>();
+		const addUUID = (identifier: IExtensionIdentifier) => { if (identifier.uuid) { uuids.set(identifier.id.toLowerCase(), identifier.uuid); } };
+		localExtensions.forEach(({ identifier }) => addUUID(identifier));
+		remoteExtensions.forEach(({ identifier }) => addUUID(identifier));
+		if (lastSyncExtensions) {
+			lastSyncExtensions.forEach(({ identifier }) => addUUID(identifier));
+		}
+
+		const addExtensionToMap = (map: Map<string, ISyncExtension>, extension: ISyncExtension) => {
+			const uuid = extension.identifier.uuid || uuids.get(extension.identifier.id.toLowerCase());
+			const key = uuid ? `uuid:${uuid}` : `id:${extension.identifier.id.toLowerCase()}`;
+			map.set(key, extension);
+			return map;
+		};
+		const localExtensionsMap = localExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>());
+		const remoteExtensionsMap = remoteExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>());
+		const lastSyncExtensionsMap = lastSyncExtensions ? lastSyncExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>()) : null;
+
+		const localToRemote = this.compare(localExtensions, remoteExtensions);
+		if (localToRemote.added.length === 0 && localToRemote.removed.length === 0 && localToRemote.updated.length === 0) {
+			// No changes found between local and remote.
+			return { added, removed, updated, remote };
+		}
+
+		const baseToLocal = lastSyncExtensions ? this.compare(lastSyncExtensions, localExtensions) : { added: localExtensions.map(({ identifier }) => identifier), removed: [], updated: [] };
+		const baseToRemote = lastSyncExtensions ? this.compare(lastSyncExtensions, remoteExtensions) : { added: remoteExtensions.map(({ identifier }) => identifier), removed: [], updated: [] };
+
+		// Locally added extensions
+		for (const localAdded of baseToLocal.added) {
+			// Got added in remote
+			if (baseToRemote.added.some(added => areSameExtensions(added, localAdded))) {
+				// Is different from local to remote
+				if (localToRemote.updated.some(updated => areSameExtensions(updated, localAdded))) {
+					const remoteExtension = remoteExtensions.filter(remote => areSameExtensions(remote.identifier, localAdded))[0];
+					updated.push()
+				}
+			} else {
+				// add to remote
+			}
+		}
+
+		// Remotely added extension
+		for (const remoteAdded of baseToRemote.added) {
+			// Got added in local
+			if (baseToLocal.added.some(added => areSameExtensions(added, remoteAdded))) {
+				// Is different from local to remote
+				if (localToRemote.updated.some(updated => areSameExtensions(updated, remoteAdded))) {
+					// update it in local
+				}
+			} else {
+				// add to local
+			}
+		}
+
+		// Locally updated extensions
+		for (const localUpdated of baseToLocal.updated) {
+			// If updated in remote
+			if (baseToRemote.updated.some(updated => areSameExtensions(updated, localUpdated))) {
+				// Is different from local to remote
+				if (localToRemote.updated.some(updated => areSameExtensions(updated, localUpdated))) {
+					// update it in local
+				}
+			}
+		}
+
+		// Remotely updated extensions
+		for (const remoteUpdated of baseToRemote.updated) {
+			// If updated in local
+			if (baseToLocal.updated.some(updated => areSameExtensions(updated, remoteUpdated))) {
+				// Is different from local to remote
+				if (localToRemote.updated.some(updated => areSameExtensions(updated, remoteUpdated))) {
+					// update it in local
+				}
+			}
+		}
+
+		// Locally removed extensions
+		for (const localRemoved of baseToLocal.removed) {
+			// If not updated in remote
+			if (!baseToRemote.updated.some(updated => areSameExtensions(updated, localRemoved))) {
+				// remove it from remote
+			}
+		}
+
+		// Remote removed extensions
+		for (const remoteRemoved of baseToRemote.removed) {
+			// If not updated in local
+			if (!baseToLocal.updated.some(updated => areSameExtensions(updated, remoteRemoved))) {
+				// remove it from local
+			}
+		}
+
+		return { added, removed, updated, remote };
 	}
 
 	private compare(from: ISyncExtension[], to: ISyncExtension[]): { added: IExtensionIdentifier[], removed: IExtensionIdentifier[], updated: IExtensionIdentifier[] } {
@@ -194,7 +229,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		}
 
 		return { added, removed, updated };
-	}
+	} */
 
 	private async getLocalExtensions(): Promise<ISyncExtension[]> {
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
