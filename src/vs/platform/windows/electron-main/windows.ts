@@ -108,7 +108,7 @@ export interface IWindowsMainService {
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow | undefined;
 	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
-	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean, remoteAuthority?: string}): ICodeWindow[];
+	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean, remoteAuthority?: string }): ICodeWindow[];
 	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
 	openExternal(url: string): Promise<boolean>;
 	sendToFocused(channel: string, ...args: any[]): void;
