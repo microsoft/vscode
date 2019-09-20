@@ -63,11 +63,13 @@ export class ManagementConnection {
 	private _onClose = new Emitter<void>();
 	public readonly onClose: Event<void> = this._onClose.event;
 
+	private readonly _reconnectionGraceTime: number;
+	private readonly _reconnectionShortGraceTime: number;
+	private _remoteAddress: string;
+
 	public readonly protocol: PersistentProtocol;
 	private _disposed: boolean;
-	private readonly _reconnectionGraceTime: number;
 	private _disconnectRunner1: RunOnceScheduler;
-	private readonly _reconnectionShortGraceTime: number;
 	private _disconnectRunner2: RunOnceScheduler;
 
 	constructor(
@@ -78,6 +80,7 @@ export class ManagementConnection {
 	) {
 		this._reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
 		this._reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
+		this._remoteAddress = remoteAddress;
 
 		this.protocol = protocol;
 		this._disposed = false;
@@ -100,13 +103,11 @@ export class ManagementConnection {
 			this._disconnectRunner1.schedule();
 		});
 
-		this._log(`New connection established from ${remoteAddress}`);
+		this._log(`New connection established.`);
 	}
 
 	private _log(_str: string): void {
-		const str = `[ManagementConnection] [${this._reconnectionToken.substr(0,8)}] ${_str}`;
-		this._logService.info(str);
-		console.log(str);
+		this._logService.info(`[${this._remoteAddress}][${this._reconnectionToken.substr(0,8)}][ManagementConnection] ${_str}`);
 	}
 
 	public shortenReconnectionGraceTimeIfNecessary(): void {
@@ -137,7 +138,8 @@ export class ManagementConnection {
 	}
 
 	public acceptReconnection(remoteAddress: string, socket: ISocket, initialDataChunk: VSBuffer): void {
-		this._log(`The client has reconnected from ${remoteAddress}.`);
+		this._remoteAddress = remoteAddress;
+		this._log(`The client has reconnected.`);
 		this._disconnectRunner1.cancel();
 		this._disconnectRunner2.cancel();
 		this.protocol.beginAcceptReconnection(socket, initialDataChunk);

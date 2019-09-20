@@ -24,19 +24,38 @@ export class ExtensionHostConnection {
 	readonly onClose: Event<void> = this._onClose.event;
 
 	private _disposed: boolean;
+	private _remoteAddress: string;
 	private _extensionHostProcess: cp.ChildProcess | null;
 	private _rendererConnection: net.Socket | null;
 	private _initialDataChunk: VSBuffer | null;
 	private _skipWebSocketFrames: boolean;
 
-	constructor(private readonly _environmentService: EnvironmentService, private readonly _logService: ILogService, _socket: NodeSocket | WebSocketNodeSocket, initialDataChunk: VSBuffer) {
+	constructor(
+		private readonly _environmentService: EnvironmentService,
+		private readonly _logService: ILogService,
+		private readonly _reconnectionToken: string,
+		remoteAddress: string,
+		_socket: NodeSocket | WebSocketNodeSocket,
+		initialDataChunk: VSBuffer
+	) {
 		this._disposed = false;
+		this._remoteAddress = remoteAddress;
 		this._extensionHostProcess = null;
 		const { skipWebSocketFrames, socket } = this._getUnderlyingSocket(_socket);
 		this._skipWebSocketFrames = skipWebSocketFrames;
 		this._rendererConnection = socket;
 		this._rendererConnection.pause();
 		this._initialDataChunk = initialDataChunk;
+
+		this._log(`New connection established.`);
+	}
+
+	private _log(_str: string): void {
+		this._logService.info(`[${this._remoteAddress}][${this._reconnectionToken.substr(0,8)}][ExtensionHostConnection] ${_str}`);
+	}
+
+	private _logError(_str: string): void {
+		this._logService.error(`[${this._remoteAddress}][${this._reconnectionToken.substr(0,8)}][ExtensionHostConnection] ${_str}`);
 	}
 
 	private _getUnderlyingSocket(socket: NodeSocket | WebSocketNodeSocket): { skipWebSocketFrames: boolean; socket: net.Socket; } {
@@ -53,7 +72,9 @@ export class ExtensionHostConnection {
 		}
 	}
 
-	public acceptReconnection(_socket: NodeSocket | WebSocketNodeSocket, initialDataChunk: VSBuffer): void {
+	public acceptReconnection(remoteAddress: string, _socket: NodeSocket | WebSocketNodeSocket, initialDataChunk: VSBuffer): void {
+		this._remoteAddress = remoteAddress;
+		this._log(`The client has reconnected.`);
 		const { skipWebSocketFrames, socket } = this._getUnderlyingSocket(_socket);
 
 		if (!this._extensionHostProcess) {
@@ -109,7 +130,6 @@ export class ExtensionHostConnection {
 			} else {
 				PATH = binFolder;
 			}
-			console.log('Got start params:', startParams);
 			const opts = {
 				env: <{ [key: string]: string }>{
 					...processEnv,
@@ -133,6 +153,8 @@ export class ExtensionHostConnection {
 
 			// Run Extension Host as fork of current process
 			this._extensionHostProcess = cp.fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=extensionHost', `--uriTransformerPath=${uriTransformerPath}`], opts);
+			const pid = this._extensionHostProcess.pid;
+			this._log(`<${pid}> Launched Extension Host Process.`);
 
 			// Catch all output coming from the extension host process
 			this._extensionHostProcess.stdout.setEncoding('utf8');
@@ -154,13 +176,13 @@ export class ExtensionHostConnection {
 
 			// Lifecycle
 			this._extensionHostProcess.on('error', (err) => {
-				console.log(`EXTHOST: PROCESS ERROR`);
-				console.log(err);
+				this._logError(`<${pid}> Extension Host Process had an error`);
+				this._logService.error(err);
 				this._cleanResources();
 			});
 
 			this._extensionHostProcess.on('exit', (code: number, signal: string) => {
-				console.log(`EXTHOST: PROCESS EXITED (Code: ${code}, Signal: ${signal})`);
+				this._log(`<${pid}> Extension Host Process exited with code: ${code}, signal: ${signal}.`);
 				this._cleanResources();
 			});
 

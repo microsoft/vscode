@@ -21,7 +21,7 @@ import { ConnectionType, HandshakeMessage, IRemoteExtensionHostStartParams, ITun
 import { ExtensionHostConnection } from 'vs/server/extensionHostConnection';
 import { ManagementConnection } from 'vs/server/remoteExtensionManagement';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, AbstractLogService, DEFAULT_LOG_LEVEL, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import product from 'vs/platform/product/common/product';
@@ -87,8 +87,96 @@ class SocketServer<TContext = string> extends IPCServer<TContext> {
 	}
 }
 
+function twodigits(n: number): string {
+	if (n < 10) {
+		return `0${n}`;
+	}
+	return String(n);
+}
+
+function now(): string {
+	const date = new Date();
+	return `${twodigits(date.getHours())}:${twodigits(date.getMinutes())}:${twodigits(date.getSeconds())}`;
+}
+
+class ServerLogService extends AbstractLogService implements ILogService {
+	_serviceBrand: undefined;
+	private useColors: boolean;
+
+	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
+		super();
+		this.setLevel(logLevel);
+		this.useColors = Boolean(process.stdout.isTTY);
+	}
+
+	trace(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Trace) {
+			if (this.useColors) {
+				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
+			} else {
+				console.log(`[${now()}]`, message, ...args);
+			}
+		}
+	}
+
+	debug(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Debug) {
+			if (this.useColors) {
+				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
+			} else {
+				console.log(`[${now()}]`, message, ...args);
+			}
+		}
+	}
+
+	info(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Info) {
+			if (this.useColors) {
+				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
+			} else {
+				console.log(`[${now()}]`, message, ...args);
+			}
+		}
+	}
+
+	warn(message: string | Error, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Warning) {
+			if (this.useColors) {
+				console.warn(`\x1b[93m[${now()}]\x1b[0m`, message, ...args);
+			} else {
+				console.warn(`[${now()}]`, message, ...args);
+			}
+		}
+	}
+
+	error(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Error) {
+			if (this.useColors) {
+				console.error(`\x1b[91m[${now()}]\x1b[0m`, message, ...args);
+			} else {
+				console.error(`[${now()}]`, message, ...args);
+			}
+		}
+	}
+
+	critical(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Critical) {
+			if (this.useColors) {
+				console.error(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
+			} else {
+				console.error(`[${now()}]`, message, ...args);
+			}
+		}
+	}
+
+	dispose(): void {
+		// noop
+	}
+}
+
 export class RemoteExtensionHostAgentServer extends Disposable {
 
+	private readonly _logService: ILogService;
 	private readonly _socketServer: SocketServer<RemoteAgentConnectionContext>;
 	private readonly _uriTransformerCache: { [remoteAuthority: string]: IURITransformer; };
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection; };
@@ -100,9 +188,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	constructor(
 		private readonly _connectionToken: string,
 		private readonly _environmentService: ServerEnvironmentService,
-		private readonly _logService: ILogService
+		logService: ILogService
 	) {
 		super();
+		this._logService = new MultiplexLogService([new ServerLogService(getLogLevel(this._environmentService)), logService]);
 		this._socketServer = new SocketServer<RemoteAgentConnectionContext>();
 		this._uriTransformerCache = Object.create(null);
 		this._extHostConnections = Object.create(null);
@@ -330,21 +419,23 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			}
 		});
 		server.on('error', (err) => {
-			this._logService.error(`Error occurred in server`, err);
-			console.error(`Error occurred in server`);
-			console.error(err);
+			this._logService.error(`Error occurred in server`);
+			this._logService.error(err);
 		});
 		server.listen({ host, port }, () => {
 			// Do not change this line. VS Code looks for this in
 			// the output.
 			const address = server.address();
 			console.log(`Extension host agent listening on ${typeof address === 'string' ? address : address.port}`);
-			this._logService.info(`Extension host agent listening on ${typeof address === 'string' ? address : address.port}`);
 
 			if (this._webClientServer && typeof address !== 'string') {
 				// ships the web ui!
 				console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/?tkn=${this._connectionToken}`);
 			}
+
+			console.log();
+			console.log();
+			this._logService.info(`Extension host agent started.`);
 		});
 
 		this._register({ dispose: () => server.close() });
@@ -377,6 +468,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 	private _handleWebSocketConnection(socket: NodeSocket | WebSocketNodeSocket, isReconnection: boolean, reconnectionToken: string): void {
 		const remoteAddress = this._getRemoteAddress(socket);
+		const logPrefix = `[${remoteAddress}][${reconnectionToken.substr(0,8)}]`;
 		const protocol = new PersistentProtocol(socket);
 
 		let validator: any;
@@ -394,8 +486,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				if (typeof msg.auth !== 'string' || msg.auth !== '00000000000000000000') {
 					// TODO@vs-remote: use real nonce here
 					// Invalid nonce, will not communicate further with this client
-					console.error(`Unauthorized client refused.`);
-					this._logService.error(`Unauthorized client refused.`);
+					this._logService.error(`${logPrefix} Unauthorized client refused.`);
 					protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Unauthorized client refused.' })));
 					protocol.dispose();
 					socket.dispose();
@@ -426,8 +517,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				if (rendererCommit && myCommit) {
 					// Running in the built version where commits are defined
 					if (rendererCommit !== myCommit) {
-						console.error(`Version mismatch, client refused.`);
-						this._logService.error(`Version mismatch, client refused.`);
+						this._logService.error(`${logPrefix} Version mismatch, client refused.`);
 						protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Version mismatch, client refused.' })));
 						protocol.dispose();
 						socket.dispose();
@@ -450,20 +540,17 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 				if (!valid) {
 					if (this._environmentService.isBuilt) {
-						console.error(`Unauthorized client refused.`);
-						this._logService.error(`Unauthorized client refused.`);
+						this._logService.error(`${logPrefix} Unauthorized client refused.`);
 						protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Unauthorized client refused.' })));
 						protocol.dispose();
 						socket.dispose();
 						return;
 					} else {
-						console.error(`Unauthorized client handshake failed but we proceed because of dev mode.`);
-						this._logService.error(`Unauthorized client handshake failed but we proceed because of dev mode.`);
+						this._logService.error(`${logPrefix} Unauthorized client handshake failed but we proceed because of dev mode.`);
 					}
 				} else {
 					if (!this._environmentService.isBuilt) {
-						console.log(`Client handshake succeded.`);
-						this._logService.trace(`Client handshake succeded.`);
+						this._logService.trace(`${logPrefix} Client handshake succeded.`);
 					}
 				}
 
@@ -478,9 +565,6 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				switch (msg.desiredConnectionType) {
 					case ConnectionType.Management:
 						// This should become a management connection
-						console.log(`==> Received a management connection`);
-						this._logService.info(`==> Received a management connection`);
-
 
 						if (isReconnection) {
 							// This is a reconnection
@@ -491,6 +575,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 								this._managementConnections[reconnectionToken].acceptReconnection(remoteAddress, socket, dataChunk);
 							} else {
 								// This is an unknown reconnection token
+								this._logService.error(`${logPrefix}[ManagementConnection] Unknown reconnection token.`);
 								protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Unknown reconnection token.' })));
 								protocol.dispose();
 								socket.dispose();
@@ -499,6 +584,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 							// This is a fresh connection
 							if (this._managementConnections[reconnectionToken]) {
 								// Cannot have two concurrent connections using the same reconnection token
+								this._logService.error(`${logPrefix}[ManagementConnection] Duplicate reconnection token.`);
 								protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Duplicate reconnection token.' })));
 								protocol.dispose();
 								socket.dispose();
@@ -520,18 +606,13 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 						const startParams = <IRemoteExtensionHostStartParams>msg.args || { language: 'en' };
 						this._updateWithFreeDebugPort(startParams).then(startParams => {
 
-							console.log(`==> Received an extension host connection.`);
-							this._logService.info(`==> Received an extension host connection.`);
 							if (startParams.port) {
-								console.log(`==> Debug port ${startParams.port}`);
-								this._logService.info(`==> Debug port ${startParams.port}`);
+								this._logService.trace(`${logPrefix}[ExtensionHostConnection] - startParams debug port ${startParams.port}`);
 							}
 							if (msg.args) {
-								console.log(`==> Using UI language: ${startParams.language}`);
-								this._logService.info(`==> Using UI language: ${startParams.language}`);
+								this._logService.trace(`${logPrefix}[ExtensionHostConnection] - startParams language: ${startParams.language}`);
 							} else {
-								console.log(`==> No UI language provided by renderer. Falling back to English.`);
-								this._logService.info(`==> No UI language provided by renderer. Falling back to English.`);
+								this._logService.trace(`${logPrefix}[ExtensionHostConnection] - no UI language provided by renderer. Falling back to English`);
 							}
 
 							if (isReconnection) {
@@ -540,9 +621,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 									protocol.sendControl(VSBuffer.fromString(JSON.stringify(startParams.port ? { debugPort: startParams.port } : {})));
 									const dataChunk = protocol.readEntireBuffer();
 									protocol.dispose();
-									this._extHostConnections[reconnectionToken].acceptReconnection(socket, dataChunk);
+									this._extHostConnections[reconnectionToken].acceptReconnection(remoteAddress, socket, dataChunk);
 								} else {
 									// This is an unknown reconnection token
+									this._logService.error(`${logPrefix}[ExtensionHostConnection] Unknown reconnection token.`);
 									protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Unknown reconnection token.' })));
 									protocol.dispose();
 									socket.dispose();
@@ -551,6 +633,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 								// This is a fresh connection
 								if (this._extHostConnections[reconnectionToken]) {
 									// Cannot have two concurrent connections using the same reconnection token
+									this._logService.error(`${logPrefix}[ExtensionHostConnection] Duplicate reconnection token.`);
 									protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Duplicate reconnection token.' })));
 									protocol.dispose();
 									socket.dispose();
@@ -558,7 +641,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 									protocol.sendControl(VSBuffer.fromString(JSON.stringify(startParams.port ? { debugPort: startParams.port } : {})));
 									const dataChunk = protocol.readEntireBuffer();
 									protocol.dispose();
-									const con = new ExtensionHostConnection(this._environmentService, this._logService, socket, dataChunk);
+									const con = new ExtensionHostConnection(this._environmentService, this._logService, reconnectionToken, remoteAddress, socket, dataChunk);
 									this._extHostConnections[reconnectionToken] = con;
 									con.onClose(() => {
 										delete this._extHostConnections[reconnectionToken];

@@ -58,8 +58,10 @@ export async function serveFile(logService: ILogService, req: http.IncomingMessa
 		// Data
 		fs.createReadStream(filePath).pipe(res);
 	} catch (error) {
-		logService.error(error);
-		console.error(error.toString());
+		if (error.code !== 'ENOENT') {
+			logService.error(error);
+			console.error(error.toString());
+		}
 
 		res.writeHead(404, { 'Content-Type': 'text/plain' });
 		return res.end('Not found');
