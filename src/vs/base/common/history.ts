@@ -62,7 +62,8 @@ export class HistoryNavigator<T> implements INavigator<T> {
 
 	private _onChange() {
 		this._reduceToLimit();
-		this._navigator = new ArrayNavigator(this._elements, 0, this._elements.length, this._elements.length);
+		const elements = this._elements;
+		this._navigator = new ArrayNavigator(elements, 0, elements.length, elements.length);
 	}
 
 	private _reduceToLimit() {
