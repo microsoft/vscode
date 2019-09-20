@@ -56,15 +56,15 @@
 
 /* Actions */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .codicon-close {
 	background: url('close-light.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
+.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .title .codicon-close {
 	background: url('close-dark.svg') center center no-repeat;
 }
 
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .close-editor-action {
+.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .codicon-close {
 	background: url('close-hc.svg') center center no-repeat;
 }
 
