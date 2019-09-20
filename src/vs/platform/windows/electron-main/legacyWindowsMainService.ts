@@ -93,12 +93,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.enterWorkspace(codeWindow, path));
 	}
 
-	async setRepresentedFilename(windowId: number, fileName: string): Promise<void> {
-		this.logService.trace('windowsService#setRepresentedFilename', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.setRepresentedFilename(fileName));
-	}
-
 	async addRecentlyOpened(recents: IRecent[]): Promise<void> {
 		this.logService.trace('windowsService#addRecentlyOpened');
 		this.historyMainService.addRecentlyOpened(recents);
@@ -208,16 +202,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#onWindowTitleDoubleClick', windowId);
 
 		return this.withWindow(windowId, codeWindow => codeWindow.onWindowTitleDoubleClick());
-	}
-
-	async setDocumentEdited(windowId: number, flag: boolean): Promise<void> {
-		this.logService.trace('windowsService#setDocumentEdited', windowId);
-
-		return this.withWindow(windowId, codeWindow => {
-			if (codeWindow.win.isDocumentEdited() !== flag) {
-				codeWindow.win.setDocumentEdited(flag);
-			}
-		});
 	}
 
 	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings): Promise<void> {

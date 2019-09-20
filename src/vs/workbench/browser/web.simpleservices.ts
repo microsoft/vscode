@@ -99,10 +99,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve(undefined);
 	}
 
-	setRepresentedFilename(_fileName: string): Promise<void> {
-		return Promise.resolve();
-	}
-
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
 		const recentlyOpenedRaw = this.storageService.get(SimpleWindowService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
 		if (recentlyOpenedRaw) {
@@ -213,10 +209,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve();
 	}
 
-	setDocumentEdited(_flag: boolean): Promise<void> {
-		return Promise.resolve();
-	}
-
 	onWindowTitleDoubleClick(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -252,10 +244,6 @@ export class SimpleWindowsService implements IWindowsService {
 
 	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
-	}
-
-	setRepresentedFilename(_windowId: number, _fileName: string): Promise<void> {
-		return Promise.resolve();
 	}
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void> {
@@ -302,10 +290,6 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	onWindowTitleDoubleClick(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setDocumentEdited(_windowId: number, _flag: boolean): Promise<void> {
 		return Promise.resolve();
 	}
 

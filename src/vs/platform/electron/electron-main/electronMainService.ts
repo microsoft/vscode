@@ -75,9 +75,29 @@ export class ElectronMainService implements IElectronService {
 
 	//#endregion
 
+	//#region OS
+
 	async showItemInFolder(path: string): Promise<void> {
 		shell.showItemInFolder(path);
 	}
+
+	async setRepresentedFilename(path: string): Promise<void> {
+		const window = this.window;
+		if (window) {
+			window.setRepresentedFilename(path);
+		}
+	}
+
+	async setDocumentEdited(edited: boolean): Promise<void> {
+		const window = this.window;
+		if (window) {
+			window.win.setDocumentEdited(edited);
+		}
+	}
+
+	//#endregion
+
+	//#region Lifecycle
 
 	async relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
 		return this.lifecycleMainService.relaunch(options);
@@ -89,6 +109,10 @@ export class ElectronMainService implements IElectronService {
 			return this.windowsMainService.reload(window);
 		}
 	}
+
+	//#endregion
+
+	//#region Development
 
 	async openDevTools(options?: OpenDevToolsOptions): Promise<void> {
 		const window = this.window;
@@ -109,6 +133,10 @@ export class ElectronMainService implements IElectronService {
 		}
 	}
 
+	//#endregion
+
+	//#region Connectivity
+
 	async resolveProxy(url: string): Promise<string | undefined> {
 		return new Promise(resolve => {
 			const window = this.window;
@@ -119,4 +147,6 @@ export class ElectronMainService implements IElectronService {
 			}
 		});
 	}
+
+	//#endregion
 }

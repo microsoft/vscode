@@ -72,10 +72,6 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.closeWindow(this.windowId);
 	}
 
-	setRepresentedFilename(fileName: string): Promise<void> {
-		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
-	}
-
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return this.windowsService.getRecentlyOpened(this.windowId);
 	}
@@ -114,10 +110,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	onWindowTitleDoubleClick(): Promise<void> {
 		return this.windowsService.onWindowTitleDoubleClick(this.windowId);
-	}
-
-	setDocumentEdited(flag: boolean): Promise<void> {
-		return this.windowsService.setDocumentEdited(this.windowId, flag);
 	}
 
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void> {

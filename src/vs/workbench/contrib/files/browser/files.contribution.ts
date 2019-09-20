@@ -25,7 +25,6 @@ import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry'
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { DirtyFilesTracker } from 'vs/workbench/contrib/files/common/dirtyFilesTracker';
 import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
@@ -168,9 +167,6 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 // Register Save Error Handler
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SaveErrorHandler, LifecyclePhase.Starting);
-
-// Register Dirty Files Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);
 
 // Register uri display for file uris
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);

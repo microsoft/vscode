@@ -1204,10 +1204,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve(undefined);
 	}
 
-	setRepresentedFilename(_fileName: string): Promise<void> {
-		return Promise.resolve();
-	}
-
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return Promise.resolve({
 			workspaces: [],
@@ -1244,10 +1240,6 @@ export class TestWindowService implements IWindowService {
 	}
 
 	closeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setDocumentEdited(_flag: boolean): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1322,10 +1314,6 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve(undefined);
 	}
 
-	setRepresentedFilename(_windowId: number, _fileName: string): Promise<void> {
-		return Promise.resolve();
-	}
-
 	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1370,10 +1358,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	onWindowTitleDoubleClick(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setDocumentEdited(_windowId: number, _flag: boolean): Promise<void> {
 		return Promise.resolve();
 	}
 

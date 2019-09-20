@@ -250,9 +250,17 @@ export class ElectronWindow extends Disposable {
 			this._register(this.trackClosedWaitFiles(waitMarkerFile, resourcesToWaitFor));
 		}
 
-		// macOS custom title menu
+		// macOS OS integration
 		if (isMacintosh) {
-			this._register(this.editorService.onDidActiveEditorChange(() => this.provideCustomTitleContextMenu()));
+			this._register(this.editorService.onDidActiveEditorChange(() => {
+				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
+
+				// Represented Filename
+				this.updateRepresentedFilename(file ? file.fsPath : undefined);
+
+				// Custom title menu
+				this.provideCustomTitleContextMenu(file ? file.fsPath : undefined);
+			}));
 		}
 	}
 
@@ -317,19 +325,21 @@ export class ElectronWindow extends Disposable {
 		}
 	}
 
-	private provideCustomTitleContextMenu(): void {
+	private updateRepresentedFilename(filePath: string | undefined): void {
+		this.electronService.setRepresentedFilename(filePath ? filePath : '');
+	}
+
+	private provideCustomTitleContextMenu(filePath: string | undefined): void {
 
 		// Clear old menu
 		this.customTitleContextMenuDisposable.clear();
 
 		// Provide new menu if a file is opened and we are on a custom title
-		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
-		if (!fileResource || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+		if (!filePath || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
 			return;
 		}
 
 		// Split up filepath into segments
-		const filePath = fileResource.fsPath;
 		const segments = filePath.split(posix.sep);
 		for (let i = segments.length; i > 0; i--) {
 			const isFile = (i === segments.length);

@@ -44,10 +44,6 @@ export class WindowsService implements IWindowsService {
 		return result;
 	}
 
-	setRepresentedFilename(windowId: number, fileName: string): Promise<void> {
-		return this.channel.call('setRepresentedFilename', [windowId, fileName]);
-	}
-
 	addRecentlyOpened(recent: IRecent[]): Promise<void> {
 		return this.channel.call('addRecentlyOpened', recent);
 	}
@@ -122,10 +118,6 @@ export class WindowsService implements IWindowsService {
 
 	onWindowTitleDoubleClick(windowId: number): Promise<void> {
 		return this.channel.call('onWindowTitleDoubleClick', windowId);
-	}
-
-	setDocumentEdited(windowId: number, flag: boolean): Promise<void> {
-		return this.channel.call('setDocumentEdited', [windowId, flag]);
 	}
 
 	quit(): Promise<void> {
