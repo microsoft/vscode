@@ -169,7 +169,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		parentNode.visibleChildrenCount += insertedVisibleChildrenCount - deletedVisibleChildrenCount;
 
 		if (revealed && visible) {
-			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + node.renderNodeCount, 0);
+			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + (node.visible ? node.renderNodeCount : 0), 0);
 
 			this._updateAncestorsRenderNodeCount(parentNode, renderNodeCount - visibleDeleteCount);
 			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
