@@ -20,7 +20,7 @@ function exists(file: string) {
 export function getNLSConfiguration(language: string, userDataPath: string): Promise<lp.NLSConfiguration> {
 	return exists(metaData).then((fileExists) => {
 		if (!fileExists || !product.commit) {
-			console.log(`==> MetaData or commit unknown. Using default language.`);
+			// console.log(`==> MetaData or commit unknown. Using default language.`);
 			return Promise.resolve({ locale: 'en', availableLanguages: {} });
 		}
 		let key = `${language}||${userDataPath}`;
