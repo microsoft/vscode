@@ -33,9 +33,10 @@ export interface ICodeEditorService {
 	listDiffEditors(): IDiffEditor[];
 
 	/**
-	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.
+	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or
+	 * `undefined` if none.
 	 */
-	getFocusedCodeEditor(): ICodeEditor | null;
+	getFocusedCodeEditor(): ICodeEditor | undefined;
 
 	registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
 	removeDecorationType(key: string): void;

@@ -28,6 +28,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { coalesce, flatten } from 'vs/base/common/arrays';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -106,7 +107,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 	}
 
 	const codeEditorService = accessor.get(ICodeEditorService);
-	return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
+	return codeEditorService.openCodeEditor({ resource }, withUndefinedAsNull(codeEditorService.getFocusedCodeEditor())).then(control => {
 		if (!isCodeEditor(control) || !control.hasModel()) {
 			return undefined;
 		}
@@ -132,7 +133,7 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 	}
 
 	const codeEditorService = accessor.get(ICodeEditorService);
-	return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
+	return codeEditorService.openCodeEditor({ resource }, withUndefinedAsNull(codeEditorService.getFocusedCodeEditor())).then(control => {
 		if (!isCodeEditor(control)) {
 			return undefined;
 		}

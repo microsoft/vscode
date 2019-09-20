@@ -70,8 +70,8 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return Object.keys(this._diffEditors).map(id => this._diffEditors[id]);
 	}
 
-	getFocusedCodeEditor(): ICodeEditor | null {
-		let editorWithWidgetFocus: ICodeEditor | null = null;
+	getFocusedCodeEditor(): ICodeEditor | undefined {
+		let editorWithWidgetFocus: ICodeEditor | undefined;
 
 		const editors = this.listCodeEditors();
 		for (const editor of editors) {

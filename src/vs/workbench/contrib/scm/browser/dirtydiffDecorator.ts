@@ -149,7 +149,7 @@ function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color | unde
 	}
 }
 
-function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor | null {
+function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor | undefined {
 	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
