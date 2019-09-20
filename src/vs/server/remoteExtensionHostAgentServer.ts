@@ -561,6 +561,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					const managementConnection = this._managementConnections[key];
 					managementConnection.shortenReconnectionGraceTimeIfNecessary();
 				}
+				for (let key in this._extHostConnections) {
+					const extHostConnection = this._extHostConnections[key];
+					extHostConnection.shortenReconnectionGraceTimeIfNecessary();
+				}
 
 				switch (msg.desiredConnectionType) {
 					case ConnectionType.Management:

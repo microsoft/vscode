@@ -16,7 +16,7 @@ import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IExtHostReadyMessage, IExtHostSocketMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtHostReadyMessage, IExtHostSocketMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 export class ExtensionHostConnection {
 
@@ -70,6 +70,16 @@ export class ExtensionHostConnection {
 				socket: socket.socket.socket
 			};
 		}
+	}
+
+	public shortenReconnectionGraceTimeIfNecessary(): void {
+		if (!this._extensionHostProcess) {
+			return;
+		}
+		const msg: IExtHostReduceGraceTimeMessage = {
+			type: 'VSCODE_EXTHOST_IPC_REDUCE_GRACE_TIME'
+		};
+		this._extensionHostProcess.send(msg);
 	}
 
 	public acceptReconnection(remoteAddress: string, _socket: NodeSocket | WebSocketNodeSocket, initialDataChunk: VSBuffer): void {
