@@ -53,7 +53,7 @@ import { IPreferencesService } from '../services/preferences/common/preferences'
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/node/menubar';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { posix, dirname } from 'vs/base/common/path';
@@ -416,7 +416,7 @@ export class ElectronWindow extends Disposable {
 
 		// Handle internal open() calls
 		this.openerService.registerOpener({
-			open: async (resource: URI, options?: { openToSide?: boolean; openExternal?: boolean; }): Promise<boolean> => {
+			open: async (resource: URI, options?: OpenOptions): Promise<boolean> => {
 
 				// If either the caller wants to open externally or the
 				// scheme is one where we prefer to open externally
@@ -437,7 +437,7 @@ export class ElectronWindow extends Disposable {
 		});
 	}
 
-	private shouldOpenExternal(resource: URI, options?: { openToSide?: boolean; openExternal?: boolean; }) {
+	private shouldOpenExternal(resource: URI, options?: OpenOptions) {
 		const scheme = resource.scheme.toLowerCase();
 		const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
 		return (options && options.openExternal) || preferOpenExternal;

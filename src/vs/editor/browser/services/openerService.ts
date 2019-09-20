@@ -13,7 +13,7 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IOpener, IOpenerService, IValidator, IExternalUriResolver } from 'vs/platform/opener/common/opener';
+import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions } from 'vs/platform/opener/common/opener';
 
 export class OpenerService extends Disposable implements IOpenerService {
 
@@ -45,7 +45,7 @@ export class OpenerService extends Disposable implements IOpenerService {
 		return { dispose: remove };
 	}
 
-	async open(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
+	async open(resource: URI, options?: OpenOptions): Promise<boolean> {
 		// no scheme ?!?
 		if (!resource.scheme) {
 			return Promise.resolve(false);
@@ -69,7 +69,7 @@ export class OpenerService extends Disposable implements IOpenerService {
 		return this._doOpen(resource, options);
 	}
 
-	private _doOpen(resource: URI, options?: { openToSide?: boolean, openExternal?: boolean }): Promise<boolean> {
+	private _doOpen(resource: URI, options?: OpenOptions): Promise<boolean> {
 
 		const { scheme, path, query, fragment } = resource;
 
