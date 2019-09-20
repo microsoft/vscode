@@ -100,7 +100,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
-			case 'resolveProxy': return this.service.resolveProxy(arg[0], arg[1]);
 		}
 
 		throw new Error(`Call not found: ${command}`);

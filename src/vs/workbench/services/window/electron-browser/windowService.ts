@@ -133,10 +133,6 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.updateTouchBar(this.windowId, items);
 	}
 
-	resolveProxy(url: string): Promise<string | undefined> {
-		return this.windowsService.resolveProxy(this.windowId, url);
-	}
-
 	private getRecentLabel(u: IURIToOpen): string {
 		if (isFolderToOpen(u)) {
 			return this.labelService.getWorkspaceLabel(u.folderUri, { verbose: true });

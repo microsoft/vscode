@@ -193,8 +193,4 @@ export class WindowsService implements IWindowsService {
 	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
 		return this.channel.call('updateTouchBar', [windowId, items]);
 	}
-
-	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return Promise.resolve(this.channel.call('resolveProxy', [windowId, url]));
-	}
 }
