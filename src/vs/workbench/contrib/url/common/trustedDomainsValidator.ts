@@ -37,9 +37,10 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		}
 
 		const domainToOpen = `${scheme}://${authority}`;
-		const trustedDomains = readTrustedDomains(this._storageService, this._productService);
+		const { defaultTrustedDomains, trustedDomains } = readTrustedDomains(this._storageService, this._productService);
+		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains];
 
-		if (isURLDomainTrusted(resource, trustedDomains)) {
+		if (isURLDomainTrusted(resource, allTrustedDomains)) {
 			return true;
 		} else {
 			const { choice } = await this._dialogService.show(
@@ -67,7 +68,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 			// Configure Trusted Domains
 			else if (choice === 2) {
 				const pickedDomains = await configureOpenerTrustedDomainsHandler(
-					trustedDomains,
+					allTrustedDomains,
 					domainToOpen,
 					this._quickInputService,
 					this._storageService,
