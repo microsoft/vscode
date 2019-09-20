@@ -24,6 +24,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -406,9 +407,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	public async _activateById(extensionId: ExtensionIdentifier, activationEvent: string): Promise<void> {
+	public async _activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		const results = await Promise.all(
-			this._extensionHostProcessManagers.map(manager => manager.activate(extensionId, activationEvent))
+			this._extensionHostProcessManagers.map(manager => manager.activate(extensionId, reason))
 		);
 		const activated = results.some(e => e);
 		if (!activated) {
@@ -420,8 +421,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._extensionHostActiveExtensions.set(ExtensionIdentifier.toKey(extensionId), extensionId);
 	}
 
-	public _onDidActivateExtension(extensionId: ExtensionIdentifier, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
-		this._extensionHostProcessActivationTimes.set(ExtensionIdentifier.toKey(extensionId), new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent));
+	public _onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
+		this._extensionHostProcessActivationTimes.set(ExtensionIdentifier.toKey(extensionId), new ActivationTimes(codeLoadingTime, activateCallTime, activateResolvedTime, activationReason));
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 

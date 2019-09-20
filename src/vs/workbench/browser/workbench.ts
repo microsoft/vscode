@@ -325,13 +325,6 @@ export class Workbench extends Layout {
 		].forEach(({ id, role, classes, options }) => {
 			const partContainer = this.createPart(id, role, classes);
 
-			if (!configurationService.getValue('workbench.useExperimentalGridLayout')) {
-				// TODO@Ben cleanup once moved to grid
-				// Insert all workbench parts at the beginning. Issue #52531
-				// This is primarily for the title bar to allow overriding -webkit-app-region
-				this.container.insertBefore(partContainer, this.container.lastChild);
-			}
-
 			this.getPart(id).create(partContainer, options);
 		});
 

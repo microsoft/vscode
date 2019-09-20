@@ -33,7 +33,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
@@ -218,7 +218,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IStorageService private readonly storageService: IStorageService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IWindowService private readonly _windowService: IWindowService,
+		@IHostService private readonly _hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -252,7 +252,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						),
 						[{
 							label: nls.localize('reloadWindow', "Reload Window"),
-							run: () => this._windowService.reloadWindow()
+							run: () => this._hostService.reload()
 						}],
 						{ sticky: true }
 					);

@@ -18,7 +18,6 @@ import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerServ
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/contrib/files/browser/saveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -99,17 +98,6 @@ registry.registerWorkbenchAction(
 );
 
 // Register file editors
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
-		TextFileEditor,
-		TextFileEditor.ID,
-		nls.localize('textFileEditor', "Text File Editor")
-	),
-	[
-		new SyncDescriptor<EditorInput>(FileEditorInput)
-	]
-);
-
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
 		BinaryFileEditor,
@@ -339,7 +327,8 @@ configurationRegistry.registerConfiguration({
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
-			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line.")
+			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
+			included: platform.isNative
 		},
 		'files.simpleDialog.enable': {
 			'type': 'boolean',

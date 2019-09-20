@@ -160,12 +160,12 @@ export interface INextIterator<T> {
 
 export class ArrayIterator<T> implements INextIterator<T> {
 
-	private items: T[];
+	private readonly items: readonly T[];
 	protected start: number;
 	protected end: number;
 	protected index: number;
 
-	constructor(items: T[], start: number = 0, end: number = items.length, index = start - 1) {
+	constructor(items: readonly T[], start: number = 0, end: number = items.length, index = start - 1) {
 		this.items = items;
 		this.start = start;
 		this.end = end;
@@ -193,7 +193,7 @@ export class ArrayIterator<T> implements INextIterator<T> {
 
 export class ArrayNavigator<T> extends ArrayIterator<T> implements INavigator<T> {
 
-	constructor(items: T[], start: number = 0, end: number = items.length, index = start - 1) {
+	constructor(items: readonly T[], start: number = 0, end: number = items.length, index = start - 1) {
 		super(items, start, end, index);
 	}
 

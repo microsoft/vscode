@@ -196,7 +196,8 @@ export class BreakpointsView extends ViewletPanel {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => element
+			getActionsContext: () => element,
+			onHide: () => dispose(actions)
 		});
 	}
 

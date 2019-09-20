@@ -12,7 +12,7 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ToggleSharedProcessAction, ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, QuickSwitchWindow, RestartWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
 import { SaveWorkspaceAsAction, DuplicateWorkspaceInNewWindowAction, CloseWorkspaceAction } from 'vs/workbench/electron-browser/actions/workspaceActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -44,7 +44,6 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 
 	// Actions: Window
 	(function registerWindowActions(): void {
-		registry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowAction, NewWindowAction.ID, NewWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
 		registry.registerWorkbenchAction(new SyncActionDescriptor(CloseCurrentWindowAction, CloseCurrentWindowAction.ID, CloseCurrentWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
 		registry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: 0, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
 		registry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
@@ -106,7 +105,7 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 	(function registerDeveloperActions(): void {
 		const developerCategory = nls.localize('developer', "Developer");
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Developer: Reload Window With Extensions Disabled', developerCategory);
+		registry.registerWorkbenchAction(new SyncActionDescriptor(RestartWithExtensionsDisabledAction, RestartWithExtensionsDisabledAction.ID, RestartWithExtensionsDisabledAction.LABEL), 'Developer: Restart With Extensions Disabled', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
 
 		KeybindingsRegistry.registerKeybindingRule({
@@ -121,15 +120,6 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 
 // Menu
 (function registerMenu(): void {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '1_new',
-		command: {
-			id: NewWindowAction.ID,
-			title: nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")
-		},
-		order: 2
-	});
-
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		group: '3_workspace',
 		command: {

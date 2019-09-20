@@ -51,7 +51,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		// we pass the "ParsedArgs" as query parameters of the URL
 
-		let newAddress = `${document.location.origin}/?`;
+		let newAddress = `${document.location.origin}${document.location.pathname}?`;
 		let gotFolder = false;
 
 		const addQueryParameter = (key: string, value: string) => {

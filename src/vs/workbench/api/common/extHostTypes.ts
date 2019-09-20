@@ -14,7 +14,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { UserDataSyncStoreErrorCode, markAsUserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
@@ -2353,6 +2352,22 @@ export enum CommentMode {
 
 //#endregion
 
+//#region debug
+export enum DebugConsoleMode {
+	/**
+	 * Debug session should have a separate debug console.
+	 */
+	Separate = 0,
+
+	/**
+	 * Debug session should share debug console with its parent session.
+	 * This value has no effect for sessions which do not have a parent session.
+	 */
+	MergeWithParent = 1
+}
+
+//#endregion
+
 @es5ClassCompat
 export class QuickInputButtons {
 
@@ -2382,28 +2397,6 @@ export class Decoration {
 	color?: vscode.ThemeColor;
 	priority?: number;
 	bubble?: boolean;
-}
-
-@es5ClassCompat
-export class UserDataError extends Error {
-
-	static Rejected(message?: string): UserDataError {
-		return new UserDataError(message, UserDataSyncStoreErrorCode.Rejected);
-	}
-
-	constructor(message?: string, code: UserDataSyncStoreErrorCode = UserDataSyncStoreErrorCode.Unknown) {
-		super(message);
-
-		// mark the error as user data provider error so that
-		// we can extract the error code on the receiving side
-		markAsUserDataSyncStoreError(this, code);
-
-		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, UserDataError.prototype);
-		}
-	}
 }
 
 export enum WebviewEditorState {

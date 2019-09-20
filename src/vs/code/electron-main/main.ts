@@ -14,7 +14,7 @@ import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
+import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchMainService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';

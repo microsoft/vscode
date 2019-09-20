@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IWindowService, INativeOpenDialogOptions, OpenDialogOptions, IURIToOpen, FileFilter } from 'vs/platform/windows/common/windows';
+import { IWindowService, INativeOpenDialogOptions, OpenDialogOptions, IURIToOpen, FileFilter, SaveDialogOptions } from 'vs/platform/windows/common/windows';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -12,7 +12,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { RemoteFileDialog } from 'vs/workbench/services/dialogs/browser/remoteFileDialog';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
@@ -21,6 +21,10 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isWeb } from 'vs/base/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+
+// TODO@Alex layer breaker
+// tslint:disable-next-line: layering import-patterns
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class FileDialogService implements IFileDialogService {
 
@@ -34,7 +38,8 @@ export class FileDialogService implements IFileDialogService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@optional(IElectronService) private readonly electronService: IElectronService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
@@ -131,7 +136,9 @@ export class FileDialogService implements IFileDialogService {
 			return;
 		}
 
-		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		if (this.electronService) {
+			return this.electronService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		}
 	}
 
 	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
@@ -158,7 +165,9 @@ export class FileDialogService implements IFileDialogService {
 			return;
 		}
 
-		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
+		if (this.electronService) {
+			return this.electronService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
+		}
 	}
 
 	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
@@ -180,7 +189,9 @@ export class FileDialogService implements IFileDialogService {
 			return;
 		}
 
-		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		if (this.electronService) {
+			return this.electronService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		}
 	}
 
 	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
@@ -203,7 +214,9 @@ export class FileDialogService implements IFileDialogService {
 			return;
 		}
 
-		return this.windowService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
+		if (this.electronService) {
+			return this.electronService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
+		}
 	}
 
 	async pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined> {
@@ -217,15 +230,17 @@ export class FileDialogService implements IFileDialogService {
 			return this.saveRemoteResource(options);
 		}
 
-		const result = await this.windowService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-		if (result) {
-			return URI.file(result);
+		if (this.electronService) {
+			const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
+			if (result && !result.canceled && result.filePath) {
+				return URI.file(result.filePath);
+			}
 		}
 
 		return;
 	}
 
-	private toNativeSaveDialogOptions(options: ISaveDialogOptions): Electron.SaveDialogOptions {
+	private toNativeSaveDialogOptions(options: ISaveDialogOptions): SaveDialogOptions {
 		options.defaultUri = options.defaultUri ? URI.file(options.defaultUri.path) : undefined;
 		return {
 			defaultPath: options.defaultUri && options.defaultUri.fsPath,
@@ -245,9 +260,11 @@ export class FileDialogService implements IFileDialogService {
 			return this.saveRemoteResource(options);
 		}
 
-		const result = await this.windowService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-		if (result) {
-			return URI.file(result);
+		if (this.electronService) {
+			const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
+			if (result && !result.canceled && result.filePath) {
+				return URI.file(result.filePath);
+			}
 		}
 
 		return;
@@ -289,9 +306,13 @@ export class FileDialogService implements IFileDialogService {
 			newOptions.properties!.push('multiSelections');
 		}
 
-		const result = await this.windowService.showOpenDialog(newOptions);
+		if (this.electronService) {
+			const result = await this.electronService.showOpenDialog(newOptions);
 
-		return result ? result.map(URI.file) : undefined;
+			return result && Array.isArray(result.filePaths) && result.filePaths.length > 0 ? result.filePaths.map(URI.file) : undefined;
+		}
+
+		return;
 	}
 
 	private pickRemoteResource(options: IOpenDialogOptions): Promise<URI | undefined> {
