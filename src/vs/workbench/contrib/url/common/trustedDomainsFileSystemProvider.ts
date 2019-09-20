@@ -36,8 +36,9 @@ const TRUSTED_DOMAINS_STAT: IStat = {
 const CONFIG_HELP_TEXT_PRE =
 	`// Links matching one or more entries in the list below can be opened without link protection.
 // The following examples show what entries can look like:
-// - "https://microsoft.com": Matches this specific domain
+// - "https://microsoft.com": Matches this specific domain using https
 // - "https://*.microsoft.com": Match all domains ending in "microsoft.com" using https
+// - "microsoft.com": Match this specific domain using either http or https
 // - "*.microsoft.com": Match all domains ending in "microsoft.com" using either http or https
 // - "*": Match all domains using either http or https
 //
