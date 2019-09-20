@@ -11,7 +11,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	private _limit: number;
 	private _navigator!: ArrayNavigator<T>;
 
-	constructor(history: T[] = [], limit: number = 10) {
+	constructor(history: readonly T[] = [], limit: number = 10) {
 		this._initialize(history);
 		this._limit = limit;
 		this._onChange();
@@ -73,7 +73,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		}
 	}
 
-	private _initialize(history: T[]): void {
+	private _initialize(history: readonly T[]): void {
 		this._history = new Set();
 		for (const entry of history) {
 			this._history.add(entry);
