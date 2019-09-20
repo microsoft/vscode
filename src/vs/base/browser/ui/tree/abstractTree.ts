@@ -14,7 +14,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult, ITreeModelSpliceEvent, TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IDragAndDropData, StaticDND, DragAndDropData } from 'vs/base/browser/dnd';
-import { range, equals, distinctES6 } from 'vs/base/common/arrays';
+import { range, equals, distinctES6, fromSet } from 'vs/base/common/arrays';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { domEvent } from 'vs/base/browser/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
@@ -1266,7 +1266,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				set.add(node);
 			}
 
-			onDidChangeActiveNodes.fire(Array.from(set.values()));
+			onDidChangeActiveNodes.fire(fromSet(set));
 		}, null, this.disposables);
 
 		if (_options.keyboardSupport !== false) {
