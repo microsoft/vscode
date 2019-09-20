@@ -60,6 +60,5 @@
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
-	"files.insertFinalNewline": true,
-	"svg.preview.background": "black"
+	"files.insertFinalNewline": true
 }
