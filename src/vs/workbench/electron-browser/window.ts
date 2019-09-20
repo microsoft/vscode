@@ -410,24 +410,23 @@ export class ElectronWindow extends Disposable {
 	private setupOpenHandlers(): void {
 
 		// Block window.open() calls
-		const $this = this;
 		window.open = function (): Window | null {
 			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
 		};
 
 		// Handle internal open() calls
 		this.openerService.registerOpener({
-			async open(resource: URI, options?: { openToSide?: boolean; openExternal?: boolean; } | undefined): Promise<boolean> {
+			open: async (resource: URI, options?: { openToSide?: boolean; openExternal?: boolean; }): Promise<boolean> => {
 
 				// If either the caller wants to open externally or the
 				// scheme is one where we prefer to open externally
 				// we handle this resource by delegating the opening to
 				// the main process to prevent window focus issues.
-				if ($this.shouldOpenExternal(resource, options)) {
-					const success = await $this.windowsService.openExternal(encodeURI(resource.toString(true)));
+				if (this.shouldOpenExternal(resource, options)) {
+					const success = await this.windowsService.openExternal(encodeURI(resource.toString(true)));
 					if (!success && resource.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
-						await $this.electronService.showItemInFolder(resource.fsPath);
+						await this.electronService.showItemInFolder(resource.fsPath);
 					}
 
 					return true;
