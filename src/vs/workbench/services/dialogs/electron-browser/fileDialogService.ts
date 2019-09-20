@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowService, OpenDialogOptions, SaveDialogOptions } from 'vs/platform/windows/common/windows';
+import { IWindowService, OpenDialogOptions, SaveDialogOptions, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -16,6 +16,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -32,6 +33,20 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IOpenerService openerService: IOpenerService,
 		@IElectronService private readonly electronService: IElectronService
 	) { super(windowService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService); }
+
+	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
+		return {
+			forceNewWindow: options.forceNewWindow,
+			telemetryExtraData: options.telemetryExtraData,
+			defaultPath: options.defaultUri && options.defaultUri.fsPath
+		};
+	}
+
+	private shouldUseSimplified(schema: string): { useSimplified: boolean, isSetting: boolean } {
+		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
+
+		return { useSimplified: (schema !== Schemas.file) || setting, isSetting: (schema === Schemas.file) && setting };
+	}
 
 	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
 		const schema = this.getFileSystemSchema(options);

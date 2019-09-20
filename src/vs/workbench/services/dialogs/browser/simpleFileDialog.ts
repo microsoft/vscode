@@ -98,7 +98,7 @@ enum UpdateResult {
 	InvalidPath
 }
 
-export class RemoteFileDialog {
+export class SimpleFileDialog {
 	private options!: IOpenDialogOptions;
 	private currentFolder!: URI;
 	private filePickBox!: IQuickPick<FileQuickPickItem>;
@@ -303,7 +303,7 @@ export class RemoteFileDialog {
 			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 			this.filePickBox.items = [];
 
-			function doResolve(dialog: RemoteFileDialog, uri: URI | undefined) {
+			function doResolve(dialog: SimpleFileDialog, uri: URI | undefined) {
 				if (uri) {
 					uri = resources.removeTrailingPathSeparator(uri);
 				}
@@ -335,7 +335,7 @@ export class RemoteFileDialog {
 				}
 			});
 
-			function handleAccept(dialog: RemoteFileDialog) {
+			function handleAccept(dialog: SimpleFileDialog) {
 				if (dialog.busy) {
 					// Save the accept until the file picker is not busy.
 					dialog.onBusyChangeEmitter.event((busy: boolean) => {

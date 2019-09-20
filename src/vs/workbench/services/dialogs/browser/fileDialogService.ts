@@ -17,7 +17,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			options.defaultUri = this.defaultFilePath(schema);
 		}
 
-		return this.pickFileFolderAndOpenSimplified(schema, options, this.shouldUseSimplified(schema).isSetting);
+		return this.pickFileFolderAndOpenSimplified(schema, options, false);
 	}
 
 	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
@@ -27,7 +27,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			options.defaultUri = this.defaultFilePath(schema);
 		}
 
-		return this.pickFileAndOpenSimplified(schema, options, this.shouldUseSimplified(schema).isSetting);
+		return this.pickFileAndOpenSimplified(schema, options, false);
 	}
 
 	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
