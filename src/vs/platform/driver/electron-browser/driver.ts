@@ -11,11 +11,12 @@ import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { timeout } from 'vs/base/common/async';
 import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 class WindowDriver extends BaseWindowDriver {
 
 	constructor(
-		@IWindowService private readonly windowService: IWindowService
+		@IElectronService private readonly electronService: IElectronService
 	) {
 		super();
 	}
@@ -41,7 +42,7 @@ class WindowDriver extends BaseWindowDriver {
 	}
 
 	async openDevTools(): Promise<void> {
-		await this.windowService.openDevTools({ mode: 'detach' });
+		await this.electronService.openDevTools({ mode: 'detach' });
 	}
 }
 

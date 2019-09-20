@@ -21,6 +21,14 @@
 	background: url('breakpoint-disabled.svg') center center no-repeat;
 }
 
+.monaco-editor .inline-breakpoint-widget.debug-breakpoint-disabled:hover {
+	background: url('breakpoint-hint.svg') center center no-repeat;
+}
+
+.monaco-editor .inline-breakpoint-widget.line-start {
+	left: -0.45em !important;
+}
+
 .debug-breakpoint-unverified,
 .monaco-editor .inline-breakpoint-widget.debug-breakpoint-unverified {
 	background: url('breakpoint-unverified.svg') center center no-repeat;
@@ -57,6 +65,7 @@
 	width: 1.3em;
 	height: 1.3em;
 	margin-left: 0.61em;
+	cursor: pointer;
 }
 
 .debug-function-breakpoint {

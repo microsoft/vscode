@@ -616,6 +616,56 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
+	/**
+	 * Debug console mode used by debug session, see [options](#DebugSessionOptions).
+	 */
+	export enum DebugConsoleMode {
+		/**
+		 * Debug session should have a separate debug console.
+		 */
+		Separate = 0,
+
+		/**
+		 * Debug session should share debug console with its parent session.
+		 * This value has no effect for sessions which do not have a parent session.
+		 */
+		MergeWithParent = 1
+	}
+
+	/**
+	 * Options for [starting a debug session](#debug.startDebugging).
+	 */
+	export interface DebugSessionOptions {
+
+		/**
+		 * When specified the newly created debug session is registered as a "child" session of this
+		 * "parent" debug session.
+		 */
+		parentSession?: DebugSession;
+
+		/**
+		 * Controls whether this session should have a separate debug console or share it
+		 * with the parent session. Has no effect for sessions which do not have a parent session.
+		 * Defaults to Separate.
+		 */
+		consoleMode?: DebugConsoleMode;
+	}
+
+	export namespace debug {
+		/**
+		 * Start debugging by using either a named launch or named compound configuration,
+		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
+		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
+		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
+		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
+		 * @param parentSessionOrOptions Debug sesison options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
+		 * @return A thenable that resolves when debugging could be successfully started.
+		 */
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
+	}
+
 	//#endregion
 
 	//#region Rob, Matt: logging
@@ -1090,57 +1140,25 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// #region Sandy - User data synchronization
+	// #region resolveExternalUri — mjbvz
 
-	export namespace window {
-
+	namespace env {
 		/**
-		 * Register an [UserDataSyncProvider](#UserDataSyncProvider) to read and write user data.
-		 * @param name Name of the user data sync provider
-		 * @param userDataSyncProvider [UserDataSyncProvider](#UserDataSyncProvider) to read and write user data
-		 */
-		export function registerUserDataSyncProvider(name: string, userDataSyncProvider: UserDataSyncProvider): Disposable;
-
-	}
-
-	export class UserDataError extends Error {
-
-		/**
-		 * Create an error to signal that writing user data with given ref is rejected, becase of new ref.
-		 */
-		static Rejected(): FileSystemError;
-
-		/**
-		 * Creates a new userData error.
-		 */
-		constructor();
-	}
-
-	/**
-	 * User data sync provider to read and write user data.
-	 */
-	export interface UserDataSyncProvider {
-
-		/**
-		 * Reads the content and its ref for the given key.
-		 * Return <code>null</code> if key does not exists.
+		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
+		 * uri to the same resource on the client machine.
 		 *
-		 * @param key key of the content to read
-		 * @returns the content and its ref for the given key. Return <code>null</code> if key does not exists.
-		 */
-		read(key: string): Promise<{ content: string, ref: string } | null>;
-
-		/**
-		 * Writes the new content based on the given ref for the given key.
+		 * This is a no-oop if the extension is running locally. Currently only supports `https:` and `http:`.
 		 *
-		 * @param key key of the content to write
-		 * @param content new content to write
-		 * @param ref ref of the content on which the content to write is based on
-		 * @throws [Rejected](#UserDataError.Rejected) if the ref is not the latest.
-		 * @returns the latest ref of the content.
+		 * If the extension is running remotely, this function automatically establishes port forwarding from
+		 * the local machine to `target` on the remote and returns a local uri that can be used to for this connection.
+		 *
+		 * Note that uris passed through `openExternal` are automatically resolved.
+		 *
+		 * @return A uri that can be used on the client machine. Extensions should dispose of the returned value when
+		 * both the extension and the user are no longer using the value. For port forwarded uris, `dispose` will
+		 * close the connection.
 		 */
-		write(key: string, content: string, ref: string | null): Promise<string>;
-
+		export function resolveExternalUri(target: Uri): Thenable<{ resolved: Uri, dispose(): void }>;
 	}
 
 	//#endregion

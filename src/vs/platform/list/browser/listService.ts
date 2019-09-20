@@ -25,7 +25,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { attachListStyler, computeStyles, defaultListStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { ObjectTree, IObjectTreeOptions, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
+import { ObjectTree, IObjectTreeOptions, ICompressibleTreeRenderer, CompressibleObjectTree, ICompressibleObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeEvent, ITreeRenderer, IAsyncDataSource, IDataSource, ITreeMouseEvent } from 'vs/base/browser/ui/tree/tree';
 import { AsyncDataTree, IAsyncDataTreeOptions, CompressibleAsyncDataTree, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
@@ -212,14 +212,11 @@ function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationServic
 	result.openController = openController;
 	disposables.add(openController);
 
-	if (options.keyboardNavigationLabelProvider) {
-		const tlp = options.keyboardNavigationLabelProvider;
-
-		result.keyboardNavigationLabelProvider = {
-			getKeyboardNavigationLabel(e) { return tlp.getKeyboardNavigationLabel(e); },
-			mightProducePrintableCharacter(e) { return keybindingService.mightProducePrintableCharacter(e); }
-		};
-	}
+	result.keyboardNavigationDelegate = {
+		mightProducePrintableCharacter(e) {
+			return keybindingService.mightProducePrintableCharacter(e);
+		}
+	};
 
 	return [result, disposables];
 }
@@ -807,6 +804,33 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 	}
 }
 
+export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends CompressibleObjectTree<T, TFilterData> {
+
+	private internals: WorkbenchTreeInternals<any, T, TFilterData>;
+	get contextKeyService(): IContextKeyService { return this.internals.contextKeyService; }
+	get useAltAsMultipleSelectionModifier(): boolean { return this.internals.useAltAsMultipleSelectionModifier; }
+
+	constructor(
+		user: string,
+		container: HTMLElement,
+		delegate: IListVirtualDelegate<T>,
+		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
+		options: ICompressibleObjectTreeOptions<T, TFilterData>,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
+	) {
+		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble(container, options, contextKeyService, themeService, configurationService, keybindingService, accessibilityService);
+		super(user, container, delegate, renderers, treeOptions);
+		this.disposables.push(disposable);
+		this.internals = new WorkbenchTreeInternals(this, treeOptions, getAutomaticKeyboardNavigation, contextKeyService, listService, themeService, configurationService, accessibilityService);
+		this.disposables.push(this.internals);
+	}
+}
+
 export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<TInput, T, TFilterData> {
 
 	private internals: WorkbenchTreeInternals<TInput, T, TFilterData>;
@@ -957,7 +981,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchDataTree<TInput, T, TFilterData> | WorkbenchAsyncDataTree<TInput, T, TFilterData> | WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData>,
+		tree: WorkbenchObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | WorkbenchDataTree<TInput, T, TFilterData> | WorkbenchAsyncDataTree<TInput, T, TFilterData> | WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData>,
 		options: IAbstractTreeOptions<T, TFilterData> | IAsyncDataTreeOptions<T, TFilterData>,
 		getAutomaticKeyboardNavigation: () => boolean | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,

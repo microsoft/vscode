@@ -182,15 +182,8 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	private synchronizeWebviewContainerDimensions(webview: WebviewEditorOverlay, dimension?: DOM.Dimension) {
-		const webviewContainer = webview.container;
-		if (webviewContainer && webviewContainer.parentElement && this._editorFrame) {
-			const frameRect = this._editorFrame.getBoundingClientRect();
-			const containerRect = webviewContainer.parentElement.getBoundingClientRect();
-			webviewContainer.style.position = 'absolute';
-			webviewContainer.style.top = `${frameRect.top - containerRect.top}px`;
-			webviewContainer.style.left = `${frameRect.left - containerRect.left}px`;
-			webviewContainer.style.width = `${dimension ? dimension.width : frameRect.width}px`;
-			webviewContainer.style.height = `${dimension ? dimension.height : frameRect.height}px`;
+		if (this._editorFrame) {
+			webview.layoutWebviewOverElement(this._editorFrame, dimension);
 		}
 	}
 

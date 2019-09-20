@@ -17,6 +17,7 @@ import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/c
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 const viewCategory = nls.localize('viewCategory', "View");
 
@@ -32,7 +33,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: async (accessor: ServicesAccessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
-		const targetResource = resources[0];
+		const targetResource = firstOrDefault(resources);
 		if (!targetResource) {
 			return;
 		}

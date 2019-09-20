@@ -559,6 +559,24 @@ export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
 	hc: NOTIFICATIONS_CENTER_HEADER_BACKGROUND
 }, nls.localize('notificationsBorder', "Notifications border color separating from other notifications in the notifications center. Notifications slide in from the bottom right of the window."));
 
+export const NOTIFICATIONS_ERROR_ICON_FOREGROUND = registerColor('notificationsErrorIcon.foreground', {
+	dark: '#F48771',
+	light: '#A1260D',
+	hc: '#F48771'
+}, nls.localize('notificationsErrorIconForeground', "The color used for the notification error icon."));
+
+export const NOTIFICATIONS_WARNING_ICON_FOREGROUND = registerColor('notificationsWarningIcon.foreground', {
+	dark: '#FFCC00',
+	light: '#DDB100',
+	hc: '#FFCC00'
+}, nls.localize('notificationsWarningIconForeground', "The color used for the notification warning icon."));
+
+export const NOTIFICATIONS_INFO_ICON_FOREGROUND = registerColor('notificationsInfoIcon.foreground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, nls.localize('notificationsInfoIconForeground', "The color used for the notification info icon."));
+
 /**
  * Base class for all themable workbench components.
  */

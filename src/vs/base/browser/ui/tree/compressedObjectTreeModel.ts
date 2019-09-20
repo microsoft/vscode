@@ -336,7 +336,7 @@ function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwra
 		...options,
 		sorter: options.sorter && {
 			compare(node: ICompressedTreeNode<T>, otherNode: ICompressedTreeNode<T>): number {
-				return options.sorter!.compare(compressedNodeUnwrapper(node), compressedNodeUnwrapper(otherNode));
+				return options.sorter!.compare(node.elements[0], otherNode.elements[0]);
 			}
 		},
 		identityProvider: options.identityProvider && {

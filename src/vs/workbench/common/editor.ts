@@ -19,7 +19,7 @@ import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
 export const ActiveEditorIsSaveableContext = new RawContextKey<boolean>('activeEditorIsSaveable', false);
@@ -384,11 +384,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * for the input. This allows subclasses to decide late which editor to use for the input on a case by case basis.
 	 */
 	getPreferredEditorId(candidates: string[]): string | undefined {
-		if (candidates.length > 0) {
-			return candidates[0];
-		}
-
-		return undefined;
+		return firstOrDefault(candidates);
 	}
 
 	/**

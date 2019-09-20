@@ -3,26 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { createSimpleChannelProxy } from 'vs/platform/ipc/node/simpleIpcProxy';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class ElectronService {
 
 	_serviceBrand: undefined;
 
-	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		const channel = mainProcessService.getChannel('electron');
-
-		// Proxy: forward any property access to the channel
-		return new Proxy({}, {
-			get(_target, propKey, _receiver) {
-				if (typeof propKey === 'string') {
-					return function (...args: any[]) {
-						return channel.call(propKey, ...args);
-					};
-				}
-
-				throw new Error(`Not Implemented in ElectronService: ${String(propKey)}`);
-			}
-		}) as ElectronService;
+	constructor(
+		@IMainProcessService mainProcessService: IMainProcessService,
+		@IWindowService windowService: IWindowService
+	) {
+		return createSimpleChannelProxy<IElectronService>(mainProcessService.getChannel('electron'), windowService.windowId);
 	}
 }

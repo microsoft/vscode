@@ -6,12 +6,12 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IPCServer, ClientConnectionEvent } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
-import { ipcMain } from 'electron';
+import { ipcMain, WebContents } from 'electron';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 interface IIPCEvent {
-	event: { sender: Electron.WebContents; };
+	event: { sender: WebContents; };
 	message: Buffer | null;
 }
 
@@ -26,7 +26,7 @@ export class Server extends IPCServer {
 	private static Clients = new Map<number, IDisposable>();
 
 	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
-		const onHello = Event.fromNodeEventEmitter<Electron.WebContents>(ipcMain, 'ipc:hello', ({ sender }) => sender);
+		const onHello = Event.fromNodeEventEmitter<WebContents>(ipcMain, 'ipc:hello', ({ sender }) => sender);
 
 		return Event.map(onHello, webContents => {
 			const id = webContents.id;

@@ -26,7 +26,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 import { ipcRenderer } from 'electron';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
@@ -51,6 +51,11 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IUserDataSyncService, IUserDataSyncStoreService, ISettingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncService, UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { SettingsMergeChannelClient } from 'vs/platform/userDataSync/common/settingsSyncIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -117,6 +122,11 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	const windowsService = new WindowsService(mainProcessService);
 	services.set(IWindowsService, windowsService);
 
+	const activeWindowManager = new ActiveWindowManager(windowsService);
+	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
+	const settingsMergeChannel = server.getChannel('settingsMerge', activeWindowRouter);
+	services.set(ISettingsMergeService, new SettingsMergeChannelClient(settingsMergeChannel));
+
 	// Files
 	const fileService = new FileService(logService);
 	services.set(IFileService, fileService);
@@ -163,6 +173,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
+		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
 		const instantiationService2 = instantiationService.createChild(services);
 
@@ -180,6 +192,10 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			const diagnosticsChannel = new DiagnosticsChannel(diagnosticsService);
 			server.registerChannel('diagnostics', diagnosticsChannel);
 
+			const userDataSyncService = accessor.get(IUserDataSyncService);
+			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService);
+			server.registerChannel('userDataSync', userDataSyncChannel);
+
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
 			// update localizations cache
@@ -189,7 +205,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 				instantiationService2.createInstance(NodeCachedDataCleaner),
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
 				instantiationService2.createInstance(StorageDataCleaner),
-				instantiationService2.createInstance(LogsDataCleaner)
+				instantiationService2.createInstance(LogsDataCleaner),
+				instantiationService2.createInstance(UserDataAutoSync)
 			));
 			disposables.add(extensionManagementService as ExtensionManagementService);
 		});
