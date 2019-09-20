@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/node/issue';
-import { BrowserWindow, ipcMain, screen, dialog } from 'electron';
+import { BrowserWindow, ipcMain, screen, dialog, IpcMainEvent, Display } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
@@ -39,7 +39,7 @@ export class IssueMainService implements IIssueService {
 	}
 
 	private registerListeners(): void {
-		ipcMain.on('vscode:issueSystemInfoRequest', async (event: Electron.IpcMainEvent) => {
+		ipcMain.on('vscode:issueSystemInfoRequest', async (event: IpcMainEvent) => {
 			Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })])
 				.then(result => {
 					const [info, remoteData] = result;
@@ -49,7 +49,7 @@ export class IssueMainService implements IIssueService {
 				});
 		});
 
-		ipcMain.on('vscode:listProcesses', async (event: Electron.IpcMainEvent) => {
+		ipcMain.on('vscode:listProcesses', async (event: IpcMainEvent) => {
 			const processes = [];
 
 			try {
@@ -78,7 +78,7 @@ export class IssueMainService implements IIssueService {
 			event.sender.send('vscode:listProcessesResponse', processes);
 		});
 
-		ipcMain.on('vscode:issueReporterClipboard', (event: Electron.IpcMainEvent) => {
+		ipcMain.on('vscode:issueReporterClipboard', (event: IpcMainEvent) => {
 			const messageOptions = {
 				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub. Would you like to write the information to the clipboard so that it can be pasted?"),
 				type: 'warning',
@@ -96,7 +96,7 @@ export class IssueMainService implements IIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: Electron.IpcMainEvent) => {
+		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: IpcMainEvent) => {
 			this.getPerformanceInfo().then(msg => {
 				event.sender.send('vscode:issuePerformanceInfoResponse', msg);
 			});
@@ -149,13 +149,13 @@ export class IssueMainService implements IIssueService {
 			this.windowsMainService.openExternal(arg);
 		});
 
-		ipcMain.on('vscode:closeIssueReporter', (event: Electron.IpcMainEvent) => {
+		ipcMain.on('vscode:closeIssueReporter', (event: IpcMainEvent) => {
 			if (this._issueWindow) {
 				this._issueWindow.close();
 			}
 		});
 
-		ipcMain.on('windowsInfoRequest', (event: Electron.IpcMainEvent) => {
+		ipcMain.on('windowsInfoRequest', (event: IpcMainEvent) => {
 			this.launchMainService.getMainProcessInfo().then(info => {
 				event.sender.send('vscode:windowsInfoResponse', info.windows);
 			});
@@ -276,7 +276,7 @@ export class IssueMainService implements IIssueService {
 
 	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
 		// We want the new window to open on the same display that the parent is in
-		let displayToUse: Electron.Display | undefined;
+		let displayToUse: Display | undefined;
 		const displays = screen.getAllDisplays();
 
 		// Single Display

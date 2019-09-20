@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -100,6 +101,8 @@ export interface WebviewEditorOverlay extends Webview {
 	release(owner: any): void;
 
 	getInnerWebview(): Webview | undefined;
+
+	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
 }
 
 export const webviewDeveloperCategory = nls.localize('developer', "Developer");

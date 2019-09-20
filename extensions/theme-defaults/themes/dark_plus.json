@@ -23,6 +23,7 @@
 				"support.type",
 				"entity.name.type",
 				"entity.name.namespace",
+				"entity.other.attribute",
 				"entity.name.scope-resolution",
 				"entity.name.class",
 				"storage.type.numeric.go",
@@ -76,7 +77,8 @@
 				"source.cpp keyword.operator.new",
 				"keyword.operator.delete",
 				"keyword.other.using",
-				"keyword.other.operator"
+				"keyword.other.operator",
+				"entity.name.operator"
 			],
 			"settings": {
 				"foreground": "#C586C0"
@@ -171,71 +173,10 @@
 				"foreground": "#d7ba7d"
 			}
 		},
-		// Scopes that are potentially C++ only follow
 		{
-			"scope": "source.cpp entity.name",
+			"scope": "entity.name.label",
 			"settings": {
 				"foreground": "#C8C8C8"
-			}
-		},
-		{
-			"scope": "source.cpp keyword.control.directive",
-			"settings": {
-				"foreground": "#9B9B9B"
-			}
-		},
-		{
-			"scope": "source.cpp entity.name.function.operator",
-			"settings": {
-				"foreground": "#B4B4B4"
-			}
-		},
-		{
-			"scope": "source.cpp entity.name.function.preprocessor",
-			"settings": {
-				"foreground": "#C586C0"
-			}
-		},
-		{
-			"scope": "source.cpp entity.name.label",
-			"settings": {
-				"foreground": "#C8C8C8"
-			}
-		},
-		{
-			"scope": "source.cpp entity.name.operator.custom-literal",
-			"settings": {
-				"foreground": "#DADADA"
-			}
-		},
-		{
-			"scope": "source.cpp entity.name.operator.custom-literal.number",
-			"settings": {
-				"foreground": "#B5CEA8"
-			}
-		},
-		{
-			"scope": "source.cpp entity.name.operator.custom-literal.string",
-			"settings": {
-				"foreground": "#ce9178"
-			}
-		},
-		{
-			"scope": "source.cpp variable.other.enummember",
-			"settings": {
-				"foreground": "#B8D7A3"
-			}
-		},
-		{
-			"scope": "source.cpp variable.other.property",
-			"settings": {
-				"foreground": "#DADADA"
-			}
-		},
-		{
-			"scope": "source.cpp variable.parameter",
-			"settings": {
-				"foreground": "#7F7F7F"
 			}
 		}
 	]

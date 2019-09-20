@@ -737,7 +737,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 	}
 
-	public setSelections(ranges: ISelection[], source: string = 'api'): void {
+	public setSelections(ranges: readonly ISelection[], source: string = 'api'): void {
 		if (!this._modelData) {
 			return;
 		}

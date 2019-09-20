@@ -18,6 +18,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -132,21 +133,21 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 }
 
-export class ReloadWindowWithExtensionsDisabledAction extends Action {
+export class RestartWithExtensionsDisabledAction extends Action {
 
-	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
-	static LABEL = nls.localize('reloadWindowWithExntesionsDisabled', "Reload Window With Extensions Disabled");
+	static readonly ID = 'workbench.action.restartWithExtensionsDisabled';
+	static LABEL = nls.localize('restartWithExtensionsDisabled', "Restart With Extensions Disabled");
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private readonly windowService: IWindowService
+		@IElectronService private readonly electronService: IElectronService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<boolean> {
-		await this.windowService.reloadWindow({ _: [], 'disable-extensions': true });
+		await this.electronService.relaunch({ addArgs: ['--disable-extensions'] });
 
 		return true;
 	}

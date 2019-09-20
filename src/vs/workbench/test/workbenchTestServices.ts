@@ -35,7 +35,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IEnterWorkspaceResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration, CrashReporterStartOptions } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -1167,14 +1167,14 @@ export class TestCodeEditorService implements ICodeEditorService {
 	addDiffEditor(_editor: IDiffEditor): void { }
 	removeDiffEditor(_editor: IDiffEditor): void { }
 	listDiffEditors(): IDiffEditor[] { return []; }
-	getFocusedCodeEditor(): ICodeEditor | null { return null; }
+	getFocusedCodeEditor(): ICodeEditor | undefined { return undefined; }
 	registerDecorationType(_key: string, _options: IDecorationRenderOptions, _parentTypeKey?: string): void { }
 	removeDecorationType(_key: string): void { }
 	resolveDecorationOptions(_typeKey: string, _writable: boolean): IModelDecorationOptions { return Object.create(null); }
 	setTransientModelProperty(_model: ITextModel, _key: string, _value: any): void { }
 	getTransientModelProperty(_model: ITextModel, _key: string) { }
-	getActiveCodeEditor(): ICodeEditor | null { return null; }
-	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor | null> { return Promise.resolve(null); }
+	getActiveCodeEditor(): ICodeEditor | undefined { return undefined; }
+	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor | undefined> { return Promise.resolve(undefined); }
 }
 
 export class TestWindowService implements IWindowService {
@@ -1196,44 +1196,12 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFileAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickWorkspaceAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	reloadWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	openDevTools(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleDevTools(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	closeWorkspace(): Promise<void> {
 		return Promise.resolve();
 	}
 
 	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
-	}
-
-	toggleFullScreen(): Promise<void> {
-		return Promise.resolve();
 	}
 
 	setRepresentedFilename(_fileName: string): Promise<void> {
@@ -1287,24 +1255,8 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	showMessageBox(_options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
-		return Promise.resolve({ button: 0 });
-	}
-
-	showSaveDialog(_options: Electron.SaveDialogOptions): Promise<string> {
-		throw new Error('not implemented');
-	}
-
-	showOpenDialog(_options: Electron.OpenDialogOptions): Promise<string[]> {
-		throw new Error('not implemented');
-	}
-
 	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
 		return Promise.resolve();
-	}
-
-	resolveProxy(url: string): Promise<string | undefined> {
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -1362,44 +1314,12 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve(false);
 	}
 
-	pickFileFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFileAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickFolderAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	pickWorkspaceAndOpen(_options: INativeOpenDialogOptions): Promise<void> {
-		return Promise.resolve();
-	}
-
-	reloadWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	openDevTools(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleDevTools(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
 	closeWorkspace(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 
 	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
-	}
-
-	toggleFullScreen(_windowId: number): Promise<void> {
-		return Promise.resolve();
 	}
 
 	setRepresentedFilename(_windowId: number, _fileName: string): Promise<void> {
@@ -1521,24 +1441,8 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	// TODO: this is a bit backwards
-	startCrashReporter(_config: Electron.CrashReporterStartOptions): Promise<void> {
+	startCrashReporter(_config: CrashReporterStartOptions): Promise<void> {
 		return Promise.resolve();
-	}
-
-	showMessageBox(_windowId: number, _options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
-		throw new Error('not implemented');
-	}
-
-	showSaveDialog(_windowId: number, _options: Electron.SaveDialogOptions): Promise<string> {
-		throw new Error('not implemented');
-	}
-
-	showOpenDialog(_windowId: number, _options: Electron.OpenDialogOptions): Promise<string[]> {
-		throw new Error('not implemented');
-	}
-
-	resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -1630,7 +1534,9 @@ export class TestHostService implements IHostService {
 	windowCount = Promise.resolve(1);
 
 	restart(): Promise<void> { return Promise.resolve(); }
+	reload(): Promise<void> { return Promise.resolve(); }
 
 	openEmptyWindow(options?: { reuse?: boolean }): Promise<void> { return Promise.resolve(); }
 
+	toggleFullScreen(): Promise<void> { return Promise.resolve(); }
 }

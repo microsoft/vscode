@@ -43,19 +43,8 @@ export class WindowsChannel implements IServerChannel {
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
-			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
-			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
-			case 'pickWorkspaceAndOpen': return this.service.pickWorkspaceAndOpen(arg);
-			case 'showMessageBox': return this.service.showMessageBox(arg[0], arg[1]);
-			case 'showSaveDialog': return this.service.showSaveDialog(arg[0], arg[1]);
-			case 'showOpenDialog': return this.service.showOpenDialog(arg[0], arg[1]);
-			case 'reloadWindow': return this.service.reloadWindow(arg[0], arg[1]);
-			case 'openDevTools': return this.service.openDevTools(arg[0], arg[1]);
-			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
-			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map((recent: IRecent) => {
 				if (isRecentFile(recent)) {
@@ -109,7 +98,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
-			case 'resolveProxy': return this.service.resolveProxy(arg[0], arg[1]);
 		}
 
 		throw new Error(`Call not found: ${command}`);

@@ -83,10 +83,6 @@ export interface SaveDialogOptions {
 	showsTagField?: boolean;
 }
 
-export interface IDevToolsOptions {
-	mode: 'right' | 'bottom' | 'undocked' | 'detach';
-}
-
 export interface IWindowsService {
 
 	_serviceBrand: undefined;
@@ -98,21 +94,8 @@ export interface IWindowsService {
 	readonly onWindowUnmaximize: Event<number>;
 	readonly onRecentlyOpenedChange: Event<void>;
 
-	// Dialogs
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	showMessageBox(windowId: number, options: MessageBoxOptions): Promise<IMessageBoxResult>;
-	showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<string>;
-	showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<string[]>;
-
-	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void>;
-	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void>;
-	toggleDevTools(windowId: number): Promise<void>;
 	closeWorkspace(windowId: number): Promise<void>;
 	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(windowId: number): Promise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
@@ -156,16 +139,9 @@ export interface IWindowsService {
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): Promise<void>;
-
-	resolveProxy(windowId: number, url: string): Promise<string | undefined>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
-
-export interface IMessageBoxResult {
-	button: number;
-	checkboxChecked?: boolean;
-}
 
 export interface IOpenSettings {
 	forceNewWindow?: boolean;
@@ -219,19 +195,9 @@ export interface IWindowService {
 
 	readonly windowId: number;
 
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	reloadWindow(args?: ParsedArgs): Promise<void>;
-	openDevTools(options?: IDevToolsOptions): Promise<void>;
-	toggleDevTools(): Promise<void>;
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	// rationale: will eventually move to electron-browser
-	// tslint:disable-next-line: no-dom-globals
-	toggleFullScreen(target?: HTMLElement): Promise<void>;
 	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
@@ -246,10 +212,6 @@ export interface IWindowService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 	onWindowTitleDoubleClick(): Promise<void>;
-	showMessageBox(options: MessageBoxOptions): Promise<IMessageBoxResult>;
-	showSaveDialog(options: SaveDialogOptions): Promise<string>;
-	showOpenDialog(options: OpenDialogOptions): Promise<string[]>;
-	resolveProxy(url: string): Promise<string | undefined>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';

@@ -424,7 +424,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		return this._cursors.getPrimaryCursor().modelState.position;
 	}
 
-	public setSelections(source: string, selections: ISelection[]): void {
+	public setSelections(source: string, selections: readonly ISelection[]): void {
 		this.setStates(source, CursorChangeReason.NotSet, CursorState.fromModelSelections(selections));
 	}
 

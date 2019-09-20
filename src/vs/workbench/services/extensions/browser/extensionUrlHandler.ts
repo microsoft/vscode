@@ -16,7 +16,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IURLHandler, IURLService } from 'vs/platform/url/common/url';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -65,7 +65,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -269,7 +269,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	private async reloadAndHandle(url: URI): Promise<void> {
 		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE);
-		await this.windowService.reloadWindow();
+		await this.hostService.reload();
 	}
 
 	// forget about all uris buffered more than 5 minutes ago
