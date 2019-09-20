@@ -125,7 +125,7 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 		if (/^https?:\/\//.test(trustedDomains[i])) {
 			parsedTrustedDomain = URI.parse(trustedDomains[i]);
 			if (url.scheme !== parsedTrustedDomain.scheme) {
-				return false;
+				continue;
 			}
 		} else {
 			parsedTrustedDomain = URI.parse('https://' + trustedDomains[i]);
