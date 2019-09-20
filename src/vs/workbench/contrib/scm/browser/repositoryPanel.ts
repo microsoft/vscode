@@ -49,6 +49,7 @@ import { IViewDescriptor } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { flatten } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
+import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 type TreeElement = ISCMResourceGroup | IBranchNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -72,6 +73,9 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
+		// hack
+		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
+
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
 		const actionsContainer = append(element, $('.actions'));
@@ -527,7 +531,7 @@ export class RepositoryPanel extends ViewletPanel {
 		readonly repository: ISCMRepository,
 		options: IViewletPanelOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IThemeService protected themeService: IThemeService,
+		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextViewService protected contextViewService: IContextViewService,
 		@ICommandService protected commandService: ICommandService,
@@ -685,6 +689,19 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree);
 		this._register(this.viewModel);
+
+		addClass(this.listContainer, 'file-icon-themable-tree');
+		addClass(this.listContainer, 'show-file-icons');
+
+		const updateIndentStyles = (theme: IFileIconTheme) => {
+			toggleClass(this.listContainer, 'list-view-mode', this.viewModel.mode === ViewModelMode.List);
+			toggleClass(this.listContainer, 'align-icons-and-twisties', this.viewModel.mode === ViewModelMode.Tree && theme.hasFileIcons && !theme.hasFolderIcons);
+			toggleClass(this.listContainer, 'hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
+		};
+
+		updateIndentStyles(this.themeService.getFileIconTheme());
+		this._register(this.themeService.onDidFileIconThemeChange(updateIndentStyles));
+		this._register(this.viewModel.onDidChangeMode(() => updateIndentStyles(this.themeService.getFileIconTheme())));
 
 		this.toggleViewModelModeAction = new ToggleViewModeAction(this.viewModel);
 		this._register(this.toggleViewModelModeAction);
