@@ -365,7 +365,18 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		await Promise.all(toDelete.map(name => rimraf(path.join(logsRoot, name))));
 	}
 
+	private _getRemoteAddress(socket: NodeSocket | WebSocketNodeSocket): string {
+		let _socket: net.Socket;
+		if (socket instanceof NodeSocket) {
+			_socket = socket.socket;
+		} else {
+			_socket = socket.socket.socket;
+		}
+		return _socket.remoteAddress || `<unknown>`;
+	}
+
 	private _handleWebSocketConnection(socket: NodeSocket | WebSocketNodeSocket, isReconnection: boolean, reconnectionToken: string): void {
+		const remoteAddress = this._getRemoteAddress(socket);
 		const protocol = new PersistentProtocol(socket);
 
 		let validator: any;
@@ -456,6 +467,14 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					}
 				}
 
+				// We have received a new connection.
+				// This indicates that the server owner has connectivity.
+				// Therefore we will shorten the reconnection grace period for disconnected connections!
+				for (let key in this._managementConnections) {
+					const managementConnection = this._managementConnections[key];
+					managementConnection.shortenReconnectionGraceTimeIfNecessary();
+				}
+
 				switch (msg.desiredConnectionType) {
 					case ConnectionType.Management:
 						// This should become a management connection
@@ -469,7 +488,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 								protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'ok' })));
 								const dataChunk = protocol.readEntireBuffer();
 								protocol.dispose();
-								this._managementConnections[reconnectionToken].acceptReconnection(socket, dataChunk);
+								this._managementConnections[reconnectionToken].acceptReconnection(remoteAddress, socket, dataChunk);
 							} else {
 								// This is an unknown reconnection token
 								protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'error', reason: 'Unknown reconnection token.' })));
@@ -485,7 +504,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 								socket.dispose();
 							} else {
 								protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'ok' })));
-								const con = new ManagementConnection(protocol);
+								const con = new ManagementConnection(this._logService, reconnectionToken, remoteAddress, protocol);
 								this._socketServer.acceptConnection(con.protocol, con.onClose);
 								this._managementConnections[reconnectionToken] = con;
 								con.onClose(() => {
