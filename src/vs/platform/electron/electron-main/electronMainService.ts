@@ -59,11 +59,11 @@ export class ElectronMainService implements IElectronService {
 	}
 
 	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.pickFolderAndOpen(options);
+		return this.windowsMainService.pickFolderAndOpen(options);
 	}
 
 	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		return this.pickWorkspaceAndOpen(options);
+		return this.windowsMainService.pickWorkspaceAndOpen(options);
 	}
 
 	//#endregion
