@@ -593,8 +593,18 @@ export class ExtensionEditor extends BaseEditor {
 					webviewElement.layoutWebviewOverElement(template.content);
 				}
 			});
-
 			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+
+			let isDisposed = false;
+			this.contentDisposables.add(toDisposable(() => { isDisposed = true; }));
+
+			this.contentDisposables.add(this.themeService.onThemeChange(async () => {
+				// Render again since syntax highlighting of code blocks may have changed
+				const body = await this.renderMarkdown(cacheResult, template);
+				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+					webviewElement.html = body;
+				}
+			}));
 
 			this.contentDisposables.add(webviewElement.onDidClickLink(link => {
 				if (!link) {
