@@ -232,7 +232,7 @@ export class FileDialogService implements IFileDialogService {
 
 		if (this.electronService) {
 			const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-			if (result && result.filePath) {
+			if (result && !result.canceled && result.filePath) {
 				return URI.file(result.filePath);
 			}
 		}
@@ -262,7 +262,7 @@ export class FileDialogService implements IFileDialogService {
 
 		if (this.electronService) {
 			const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-			if (result && result.filePath) {
+			if (result && !result.canceled && result.filePath) {
 				return URI.file(result.filePath);
 			}
 		}
@@ -309,7 +309,7 @@ export class FileDialogService implements IFileDialogService {
 		if (this.electronService) {
 			const result = await this.electronService.showOpenDialog(newOptions);
 
-			return result && result.filePaths ? result.filePaths.map(URI.file) : undefined;
+			return result && Array.isArray(result.filePaths) && result.filePaths.length > 0 ? result.filePaths.map(URI.file) : undefined;
 		}
 
 		return;
