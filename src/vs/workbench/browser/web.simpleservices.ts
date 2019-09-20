@@ -20,7 +20,6 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 
@@ -310,7 +309,7 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> {
 		return Promise.resolve();
 	}
 

@@ -10,7 +10,6 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspace
 import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 
@@ -136,7 +135,7 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('openWindow', [windowId, uris, options]);
 	}
 
-	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> {
 		return this.channel.call('openExtensionDevelopmentHostWindow', [args, env]);
 	}
 

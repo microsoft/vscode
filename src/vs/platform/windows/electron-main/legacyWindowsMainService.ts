@@ -7,7 +7,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IWindowsService, OpenContext, IEnterWorkspaceResult, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { crashReporter, app, Menu, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, CrashReporterStartOptions, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
@@ -19,6 +19,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 
 // @deprecated this should eventually go away and be implemented by host & electron service
 export class LegacyWindowsMainService extends Disposable implements IWindowsService, IURLHandler {
@@ -225,14 +226,16 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		});
 	}
 
-	async openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+	async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> {
 		this.logService.trace('windowsService#openExtensionDevelopmentHostWindow ' + JSON.stringify(args));
 
-		const extDevPaths = args.extensionDevelopmentPath;
+		const pargs = parseArgs(args, OPTIONS);
+
+		const extDevPaths = pargs.extensionDevelopmentPath;
 		if (extDevPaths) {
 			this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
 				context: OpenContext.API,
-				cli: args,
+				cli: pargs,
 				userEnv: Object.keys(env).length > 0 ? env : undefined
 			});
 		}
