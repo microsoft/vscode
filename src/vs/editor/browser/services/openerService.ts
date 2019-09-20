@@ -14,7 +14,6 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IOpener, IOpenerService, IValidator, IExternalUriResolver } from 'vs/platform/opener/common/opener';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 
 export class OpenerService extends Disposable implements IOpenerService {
 
@@ -119,7 +118,7 @@ export class OpenerService extends Disposable implements IOpenerService {
 
 			return this._editorService.openCodeEditor(
 				{ resource, options: { selection, } },
-				withUndefinedAsNull(this._editorService.getFocusedCodeEditor()),
+				this._editorService.getFocusedCodeEditor(),
 				options && options.openToSide
 			).then(() => true);
 		}

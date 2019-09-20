@@ -15,9 +15,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 export class TestCodeEditorService extends AbstractCodeEditorService {
 	public lastInput?: IResourceInput;
 	public getActiveCodeEditor(): ICodeEditor | undefined { return undefined; }
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	public openCodeEditor(input: IResourceInput, _source: ICodeEditor | undefined, _sideBySide?: boolean): Promise<ICodeEditor | undefined> {
 		this.lastInput = input;
-		return Promise.resolve(null);
+		return Promise.resolve(undefined);
 	}
 	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
 	public removeDecorationType(key: string): void { }

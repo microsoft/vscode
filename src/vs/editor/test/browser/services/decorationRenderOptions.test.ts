@@ -19,8 +19,8 @@ export class TestCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return undefined;
 	}
 
-	openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
-		return Promise.resolve(null);
+	openCodeEditor(input: IResourceInput, source: ICodeEditor | undefined, sideBySide?: boolean): Promise<ICodeEditor | undefined> {
+		return Promise.resolve(undefined);
 	}
 }
 

@@ -125,7 +125,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor | undefined;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | undefined, sideBySide?: boolean): Promise<ICodeEditor | undefined>;
 }
 
 export class ModelTransientSettingWatcher {
