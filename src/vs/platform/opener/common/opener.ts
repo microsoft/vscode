@@ -24,7 +24,7 @@ export interface IValidator {
 }
 
 export interface IExternalUriResolver {
-	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<URI>;
+	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<{ resolved: URI, dispose(): void } | undefined>;
 }
 
 export interface IOpenerService {
@@ -55,6 +55,8 @@ export interface IOpenerService {
 	 */
 	open(resource: URI, options?: OpenToSideOptions): Promise<boolean>;
 	open(resource: URI, options?: OpenExternalOptions): Promise<boolean>;
+
+	resolveExternalUri(resource: URI, options?: { readonly allowTunneling?: boolean }): Promise<{ resolved: URI, dispose(): void }>;
 }
 
 export const NullOpenerService: IOpenerService = Object.freeze({
@@ -63,4 +65,5 @@ export const NullOpenerService: IOpenerService = Object.freeze({
 	registerValidator() { return Disposable.None; },
 	registerExternalUriResolver() { return Disposable.None; },
 	open() { return Promise.resolve(false); },
+	async resolveExternalUri(uri) { return { resolved: uri, dispose() { } }; },
 });

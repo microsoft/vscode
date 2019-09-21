@@ -439,17 +439,20 @@ export class ElectronWindow extends Disposable {
 		});
 
 		this.openerService.registerExternalUriResolver({
-			resolveExternalUri: async (uri: URI, options?: OpenOptions): Promise<URI> => {
+			resolveExternalUri: async (uri: URI, options?: OpenOptions) => {
 				if (options && options.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
 						const tunnel = await this.tunnelService.openTunnel(portMappingRequest.port);
 						if (tunnel) {
-							return uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` });
+							return {
+								resolved: uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` }),
+								dispose: () => tunnel.dispose(),
+							};
 						}
 					}
 				}
-				return uri;
+				return undefined;
 			}
 		});
 	}

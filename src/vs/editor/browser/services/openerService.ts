@@ -69,18 +69,28 @@ export class OpenerService extends Disposable implements IOpenerService {
 		return this._doOpen(resource, options);
 	}
 
-	private _doOpen(resource: URI, options?: OpenOptions): Promise<boolean> {
+	public async resolveExternalUri(resource: URI, options?: { readonly allowTunneling?: boolean }): Promise<{ resolved: URI, dispose(): void }> {
+		for (const resolver of this._resolvers.toArray()) {
+			const result = await resolver.resolveExternalUri(resource, options);
+			if (result) {
+				return result;
+			}
+		}
+		return { resolved: resource, dispose: () => { } };
+	}
+
+	private _doOpen(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
 
 		const { scheme, path, query, fragment } = resource;
 
 		if (equalsIgnoreCase(scheme, Schemas.mailto) || (options && options.openExternal)) {
 			// open default mail application
-			return this._doOpenExternal(resource);
+			return this._doOpenExternal(resource, options);
 		}
 
 		if (equalsIgnoreCase(scheme, Schemas.http) || equalsIgnoreCase(scheme, Schemas.https)) {
 			// open link in default browser
-			return this._doOpenExternal(resource);
+			return this._doOpenExternal(resource, options);
 		} else if (equalsIgnoreCase(scheme, Schemas.command)) {
 			// run command or bail out if command isn't known
 			if (!CommandsRegistry.getCommand(path)) {
@@ -124,12 +134,9 @@ export class OpenerService extends Disposable implements IOpenerService {
 		}
 	}
 
-	private async _doOpenExternal(resource: URI): Promise<boolean> {
-		for (const resolver of this._resolvers.toArray()) {
-			resource = await resolver.resolveExternalUri(resource);
-		}
-
-		dom.windowOpenNoOpener(encodeURI(resource.toString(true)));
+	private async _doOpenExternal(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
+		const { resolved } = await this.resolveExternalUri(resource, options);
+		dom.windowOpenNoOpener(encodeURI(resolved.toString(true)));
 
 		return Promise.resolve(true);
 	}
