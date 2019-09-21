@@ -345,7 +345,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 				default: null
 			}
 		}
-	})
+	});
 
 export class ExtensionGalleryService implements IExtensionGalleryService {
 
