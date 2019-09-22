@@ -156,12 +156,13 @@ class PartLayout {
 			titleSize = new Dimension(0, 0);
 		}
 
-		// Content Size: Width (Fill), Height (Variable)
-		const contentSize = new Dimension(width, height - titleSize.height);
-
+		let contentWidth = width;
 		if (this.options && typeof this.options.borderWidth === 'function') {
-			contentSize.width -= this.options.borderWidth(); // adjust for border size
+			contentWidth -= this.options.borderWidth(); // adjust for border size
 		}
+
+		// Content Size: Width (Fill), Height (Variable)
+		const contentSize = new Dimension(contentWidth, height - titleSize.height);
 
 		// Content
 		if (this.contentArea) {

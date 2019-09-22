@@ -19,9 +19,10 @@ import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
+export const ActiveEditorIsSaveableContext = new RawContextKey<boolean>('activeEditorIsSaveable', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
@@ -383,11 +384,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * for the input. This allows subclasses to decide late which editor to use for the input on a case by case basis.
 	 */
 	getPreferredEditorId(candidates: string[]): string | undefined {
-		if (candidates.length > 0) {
-			return candidates[0];
-		}
-
-		return undefined;
+		return firstOrDefault(candidates);
 	}
 
 	/**
@@ -774,6 +771,11 @@ export class EditorOptions implements IEditorOptions {
 	ignoreError: boolean | undefined;
 
 	/**
+	 * Does not use editor overrides while opening the editor.
+	 */
+	ignoreOverrides: boolean | undefined;
+
+	/**
 	 * Overwrites option values from the provided bag.
 	 */
 	overwrite(options: IEditorOptions): EditorOptions {
@@ -811,6 +813,10 @@ export class EditorOptions implements IEditorOptions {
 
 		if (typeof options.index === 'number') {
 			this.index = options.index;
+		}
+
+		if (typeof options.ignoreOverrides === 'boolean') {
+			this.ignoreOverrides = options.ignoreOverrides;
 		}
 
 		return this;

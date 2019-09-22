@@ -10,7 +10,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 
@@ -18,13 +18,13 @@ export class SharedProcess implements ISharedProcess {
 
 	private barrier = new Barrier();
 
-	private window: Electron.BrowserWindow | null = null;
+	private window: BrowserWindow | null = null;
 
 	constructor(
 		private readonly machineId: string,
 		private userEnv: NodeJS.ProcessEnv,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) { }
@@ -36,9 +36,8 @@ export class SharedProcess implements ISharedProcess {
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
 				images: false,
-				webaudio: false,
-				webgl: false,
 				nodeIntegration: true,
+				webgl: false,
 				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
 		});
@@ -69,7 +68,7 @@ export class SharedProcess implements ISharedProcess {
 
 		const disposables = new DisposableStore();
 
-		this.lifecycleService.onWillShutdown(() => {
+		this.lifecycleMainService.onWillShutdown(() => {
 			disposables.dispose();
 
 			// Shut the shared process down when we are quitting

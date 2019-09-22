@@ -5,17 +5,10 @@
 
 import { IURLService } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractURLService } from 'vs/platform/url/common/urlService';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { ILogService } from 'vs/platform/log/common/log';
-import { generateUuid } from 'vs/base/common/uuid';
 
 export interface IURLCallbackProvider {
 
@@ -47,130 +40,30 @@ export class BrowserURLService extends AbstractURLService {
 
 	_serviceBrand: undefined;
 
-	private provider: IURLCallbackProvider;
+	private provider: IURLCallbackProvider | undefined;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
-		this.provider = environmentService.options && environmentService.options.urlCallbackProvider ? environmentService.options.urlCallbackProvider : instantiationService.createInstance(SelfhostURLCallbackProvider);
+		this.provider = environmentService.options!.urlCallbackProvider;
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this._register(this.provider.onCallback(uri => this.open(uri)));
+		if (this.provider) {
+			this._register(this.provider.onCallback(uri => this.open(uri)));
+		}
 	}
 
 	create(options?: Partial<UriComponents>): URI {
-		return this.provider.create(options);
-	}
-}
-
-class SelfhostURLCallbackProvider extends Disposable implements IURLCallbackProvider {
-
-	static FETCH_INTERVAL = 500; 			// fetch every 500ms
-	static FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop after 5min
-
-	static QUERY_KEYS = {
-		REQUEST_ID: 'vscode-requestId',
-		SCHEME: 'vscode-scheme',
-		AUTHORITY: 'vscode-authority',
-		PATH: 'vscode-path',
-		QUERY: 'vscode-query',
-		FRAGMENT: 'vscode-fragment'
-	};
-
-	private readonly _onCallback: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onCallback: Event<URI> = this._onCallback.event;
-
-	constructor(
-		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService
-	) {
-		super();
-	}
-
-	create(options?: Partial<UriComponents>): URI {
-		const queryValues: Map<string, string> = new Map();
-
-		const requestId = generateUuid();
-		queryValues.set(SelfhostURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
-
-		const { scheme, authority, path, query, fragment } = options ? options : { scheme: undefined, authority: undefined, path: undefined, query: undefined, fragment: undefined };
-
-		if (scheme) {
-			queryValues.set(SelfhostURLCallbackProvider.QUERY_KEYS.SCHEME, scheme);
+		if (this.provider) {
+			return this.provider.create(options);
 		}
 
-		if (authority) {
-			queryValues.set(SelfhostURLCallbackProvider.QUERY_KEYS.AUTHORITY, authority);
-		}
-
-		if (path) {
-			queryValues.set(SelfhostURLCallbackProvider.QUERY_KEYS.PATH, path);
-		}
-
-		if (query) {
-			queryValues.set(SelfhostURLCallbackProvider.QUERY_KEYS.QUERY, query);
-		}
-
-		if (fragment) {
-			queryValues.set(SelfhostURLCallbackProvider.QUERY_KEYS.FRAGMENT, fragment);
-		}
-
-		// Start to poll on the callback being fired
-		this.periodicFetchCallback(requestId, Date.now());
-
-		return this.doCreateUri('/callback', queryValues);
-	}
-
-	private async periodicFetchCallback(requestId: string, startTime: number): Promise<void> {
-
-		// Ask server for callback results
-		const queryValues: Map<string, string> = new Map();
-		queryValues.set(SelfhostURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
-
-		const result = await this.requestService.request({
-			url: this.doCreateUri('/fetch-callback', queryValues).toString(true)
-		}, CancellationToken.None);
-
-		// Check for callback results
-		const content = await streamToBuffer(result.stream);
-		if (content.byteLength > 0) {
-			try {
-				this._onCallback.fire(URI.revive(JSON.parse(content.toString())));
-			} catch (error) {
-				this.logService.error(error);
-			}
-
-			return; // done
-		}
-
-		// Continue fetching unless we hit the timeout
-		if (Date.now() - startTime < SelfhostURLCallbackProvider.FETCH_TIMEOUT) {
-			setTimeout(() => this.periodicFetchCallback(requestId, startTime), SelfhostURLCallbackProvider.FETCH_INTERVAL);
-		}
-	}
-
-	private doCreateUri(path: string, queryValues: Map<string, string>): URI {
-		let query: string | undefined = undefined;
-
-		if (queryValues) {
-			let index = 0;
-			queryValues.forEach((value, key) => {
-				if (!query) {
-					query = '';
-				}
-
-				const prefix = (index++ === 0) ? '' : '&';
-				query += `${prefix}${key}=${encodeURIComponent(value)}`;
-			});
-		}
-
-		return URI.parse(window.location.href).with({ path, query });
+		return URI.parse('unsupported://');
 	}
 }
 

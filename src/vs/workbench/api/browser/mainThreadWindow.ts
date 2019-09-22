@@ -4,29 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape, IOpenUriOptions } from '../common/extHost.protocol';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { extractLocalHostUriMetaDataForPortMapping } from 'vs/workbench/contrib/webview/common/portMapping';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
 
+	private handlePool = 1;
+
 	private readonly proxy: ExtHostWindowShape;
 	private readonly disposables = new DisposableStore();
-	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
+	private readonly resolved = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IWindowService private readonly windowService: IWindowService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
@@ -37,40 +34,38 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	dispose(): void {
 		this.disposables.dispose();
 
-		for (const tunnel of this._tunnels.values()) {
-			tunnel.then(tunnel => tunnel.dispose());
+		for (const value of this.resolved.values()) {
+			value.dispose();
 		}
-		this._tunnels.clear();
+		this.resolved.clear();
 	}
 
 	$getWindowVisibility(): Promise<boolean> {
 		return this.windowService.isFocused();
 	}
 
-	async $openUri(uriComponent: UriComponents, options: IOpenUriOptions): Promise<boolean> {
-		let uri = URI.revive(uriComponent);
-		if (options.allowTunneling && !!this.environmentService.configuration.remoteAuthority) {
-			const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
-			if (portMappingRequest) {
-				const tunnel = await this.getOrCreateTunnel(portMappingRequest.port);
-				if (tunnel) {
-					uri = uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` });
-				}
-			}
-		}
-
-		return this.openerService.open(uri, { openExternal: true });
+	async $openUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<boolean> {
+		const uri = URI.from(uriComponents);
+		return this.openerService.open(uri, { openExternal: true, allowTunneling: options.allowTunneling });
 	}
 
-	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
-		const existing = this._tunnels.get(remotePort);
-		if (existing) {
-			return existing;
+	async $resolveExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<{ handle: number, result: UriComponents }> {
+		const uri = URI.revive(uriComponents);
+		const handle = ++this.handlePool;
+
+		const result = await this.openerService.resolveExternalUri(uri, options);
+		this.resolved.set(handle, result);
+
+		return { handle, result: result.resolved };
+	}
+
+	async $releaseResolvedExternalUri(handle: number): Promise<boolean> {
+		const entry = this.resolved.get(handle);
+		if (entry) {
+			entry.dispose();
+			this.resolved.delete(handle);
+			return true;
 		}
-		const tunnel = this.tunnelService.openTunnel(remotePort);
-		if (tunnel) {
-			this._tunnels.set(remotePort, tunnel);
-		}
-		return tunnel;
+		return false;
 	}
 }

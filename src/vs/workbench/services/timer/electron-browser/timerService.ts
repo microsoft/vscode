@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { virtualMachineHint } from 'vs/base/node/id';
 import * as perf from 'vs/base/common/performance';
 import * as os from 'os';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -308,7 +308,7 @@ class TimerService implements ITimerService {
 	private _startupMetrics?: Promise<IStartupMetrics>;
 
 	constructor(
-		@IWindowsService private readonly _windowsService: IWindowsService,
+		@IHostService private readonly _hostService: IHostService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
@@ -380,7 +380,7 @@ class TimerService implements ITimerService {
 			isLatestVersion: Boolean(await this._updateService.isLatestVersion()),
 			didUseCachedData: didUseCachedData(),
 			windowKind: this._lifecycleService.startupKind,
-			windowCount: await this._windowsService.getWindowCount(),
+			windowCount: await this._hostService.windowCount,
 			viewletId: activeViewlet ? activeViewlet.getId() : undefined,
 			editorIds: this._editorService.visibleEditors.map(input => input.getTypeId()),
 			panelId: activePanel ? activePanel.getId() : undefined,

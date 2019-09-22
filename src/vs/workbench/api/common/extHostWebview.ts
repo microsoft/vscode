@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as modes from 'vs/editor/common/modes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -13,7 +13,7 @@ import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import * as vscode from 'vscode';
 import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
-import { Disposable } from './extHostTypes';
+import { Disposable, WebviewEditorState } from './extHostTypes';
 
 type IconPath = URI | { light: URI, dark: URI };
 
@@ -40,7 +40,8 @@ export class ExtHostWebview implements vscode.Webview {
 	}
 
 	public get cspSource(): string {
-		return this._initData.webviewCspSource.replace('{{uuid}}', this._handle);
+		return this._initData.webviewCspSource
+			.replace('{{uuid}}', this._handle);
 	}
 
 	public get html(): string {
@@ -79,7 +80,7 @@ export class ExtHostWebview implements vscode.Webview {
 	}
 }
 
-export class ExtHostWebviewPanel implements vscode.WebviewPanel {
+export class ExtHostWebviewEditor implements vscode.WebviewEditor {
 
 	private readonly _handle: WebviewPanelHandle;
 	private readonly _proxy: MainThreadWebviewsShape;
@@ -92,6 +93,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private _visible: boolean = true;
 	private _active: boolean = true;
+	private _state = WebviewEditorState.Readonly;
 
 	_isDisposed: boolean = false;
 
@@ -212,6 +214,27 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		this._visible = value;
 	}
 
+	public get state(): vscode.WebviewEditorState {
+		return this._state;
+	}
+
+	public set state(newState: vscode.WebviewEditorState) {
+		this._state = newState;
+		this._proxy.$setState(this._handle, typeConverters.WebviewEditorState.from(newState));
+	}
+
+	private readonly _onWillSave = new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>();
+	public readonly onWillSave = this._onWillSave.event;
+
+	async _save(): Promise<boolean> {
+		const waitingOn: Thenable<boolean>[] = [];
+		this._onWillSave.fire({
+			waitUntil: (thenable: Thenable<boolean>): void => { waitingOn.push(thenable); },
+		});
+		const result = await Promise.all(waitingOn);
+		return result.every(x => x);
+	}
+
 	public postMessage(message: any): Promise<boolean> {
 		this.assertNotDisposed();
 		return this._proxy.$postMessage(this._handle, message);
@@ -239,8 +262,9 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	private readonly _proxy: MainThreadWebviewsShape;
-	private readonly _webviewPanels = new Map<WebviewPanelHandle, ExtHostWebviewPanel>();
+	private readonly _webviewPanels = new Map<WebviewPanelHandle, ExtHostWebviewEditor>();
 	private readonly _serializers = new Map<string, vscode.WebviewPanelSerializer>();
+	private readonly _editorProviders = new Map<string, vscode.WebviewEditorProvider>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -266,7 +290,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, convertWebviewOptions(options), extension.identifier, extension.extensionLocation);
 
 		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData);
-		const panel = new ExtHostWebviewPanel(handle, this._proxy, viewType, title, viewColumn, options, webview);
+		const panel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, viewColumn, options, webview);
 		this._webviewPanels.set(handle, panel);
 		return panel;
 	}
@@ -285,6 +309,23 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return new Disposable(() => {
 			this._serializers.delete(viewType);
 			this._proxy.$unregisterSerializer(viewType);
+		});
+	}
+
+	public registerWebviewEditorProvider(
+		viewType: string,
+		provider: vscode.WebviewEditorProvider
+	): vscode.Disposable {
+		if (this._editorProviders.has(viewType)) {
+			throw new Error(`Editor provider for '${viewType}' already registered`);
+		}
+
+		this._editorProviders.set(viewType, provider);
+		this._proxy.$registerEditorProvider(viewType);
+
+		return new Disposable(() => {
+			this._editorProviders.delete(viewType);
+			this._proxy.$unregisterEditorProvider(viewType);
 		});
 	}
 
@@ -363,13 +404,41 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 
 		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData);
-		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
+		const revivedPanel = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		return Promise.resolve(serializer.deserializeWebviewPanel(revivedPanel, state));
 	}
 
-	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewPanel | undefined {
+	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewEditor | undefined {
 		return this._webviewPanels.get(handle);
+	}
+
+	async $resolveWebviewEditor(
+		resource: UriComponents,
+		webviewHandle: WebviewPanelHandle,
+		viewType: string,
+		title: string,
+		state: any,
+		position: EditorViewColumn,
+		options: modes.IWebviewOptions & modes.IWebviewPanelOptions
+	): Promise<void> {
+		const provider = this._editorProviders.get(viewType);
+		if (!provider) {
+			return Promise.reject(new Error(`No provider found for '${viewType}'`));
+		}
+
+		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData);
+		const revivedPanel = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
+		this._webviewPanels.set(webviewHandle, revivedPanel);
+		return Promise.resolve(provider.resolveWebviewEditor(URI.revive(resource), revivedPanel));
+	}
+
+	async $save(handle: WebviewPanelHandle): Promise<boolean> {
+		const panel = this.getWebviewPanel(handle);
+		if (panel) {
+			return panel._save();
+		}
+		return false;
 	}
 }
 

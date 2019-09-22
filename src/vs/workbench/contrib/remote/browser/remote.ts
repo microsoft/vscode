@@ -38,6 +38,15 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
+import Severity from 'vs/base/common/severity';
+import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -126,7 +135,7 @@ class HelpDataSource implements IAsyncDataSource<any, any> {
 	}
 
 	getChildren(element: any) {
-		if (element instanceof HelpModel) {
+		if (element instanceof HelpModel && element.items) {
 			return element.items;
 		}
 
@@ -201,7 +210,7 @@ class IssueReporterItem implements IHelpItem {
 }
 
 class HelpModel {
-	items: IHelpItem[];
+	items: IHelpItem[] | undefined;
 
 	constructor(
 		viewModel: IViewModel,
@@ -445,3 +454,189 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	'View: Show Remote Explorer',
 	nls.localize('view', "View")
 );
+
+
+class ProgressReporter {
+	private _currentProgress: IProgress<IProgressStep> | null = null;
+	private lastReport: string | null = null;
+
+	constructor(currentProgress: IProgress<IProgressStep> | null) {
+		this._currentProgress = currentProgress;
+	}
+
+	set currentProgress(progress: IProgress<IProgressStep>) {
+		this._currentProgress = progress;
+	}
+
+	report(message?: string) {
+		if (message) {
+			this.lastReport = message;
+		}
+
+		if (this.lastReport && this._currentProgress) {
+			this._currentProgress.report({ message: this.lastReport });
+		}
+	}
+}
+
+class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
+	constructor(
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IProgressService progressService: IProgressService,
+		@IDialogService dialogService: IDialogService,
+		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			let currentProgressPromiseResolve: (() => void) | null = null;
+			let progressReporter: ProgressReporter | null = null;
+			let lastLocation: ProgressLocation | null = null;
+			let currentTimer: ReconnectionTimer | null = null;
+			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
+			let disposableListener: IDisposable | null = null;
+
+			function showProgress(location: ProgressLocation, buttons?: string[]) {
+				if (currentProgressPromiseResolve) {
+					currentProgressPromiseResolve();
+				}
+
+				const promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
+				lastLocation = location;
+
+				if (location === ProgressLocation.Dialog) {
+					// Show dialog
+					progressService!.withProgress(
+						{ location: ProgressLocation.Dialog, buttons },
+						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
+						(choice?) => {
+							// Handle choice from dialog
+							if (choice === 0 && buttons && reconnectWaitEvent) {
+								reconnectWaitEvent.skipWait();
+							} else {
+								showProgress(ProgressLocation.Notification, buttons);
+							}
+
+							progressReporter!.report();
+						});
+				} else {
+					// Show notification
+					progressService!.withProgress(
+						{ location: ProgressLocation.Notification, buttons },
+						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
+						(choice?) => {
+							// Handle choice from notification
+							if (choice === 0 && buttons && reconnectWaitEvent) {
+								reconnectWaitEvent.skipWait();
+							} else {
+								hideProgress();
+							}
+						});
+				}
+			}
+
+			function hideProgress() {
+				if (currentProgressPromiseResolve) {
+					currentProgressPromiseResolve();
+				}
+
+				currentProgressPromiseResolve = null;
+			}
+
+			connection.onDidStateChange((e) => {
+				if (currentTimer) {
+					currentTimer.dispose();
+					currentTimer = null;
+				}
+
+				if (disposableListener) {
+					disposableListener.dispose();
+					disposableListener = null;
+				}
+				switch (e.type) {
+					case PersistentConnectionEventType.ConnectionLost:
+						if (!currentProgressPromiseResolve) {
+							progressReporter = new ProgressReporter(null);
+							showProgress(ProgressLocation.Dialog, [nls.localize('reconnectNow', "Reconnect Now")]);
+						}
+
+						progressReporter!.report(nls.localize('connectionLost', "Connection Lost"));
+						break;
+					case PersistentConnectionEventType.ReconnectionWait:
+						hideProgress();
+						reconnectWaitEvent = e;
+						showProgress(lastLocation || ProgressLocation.Notification, [nls.localize('reconnectNow', "Reconnect Now")]);
+						currentTimer = new ReconnectionTimer(progressReporter!, Date.now() + 1000 * e.durationSeconds);
+						break;
+					case PersistentConnectionEventType.ReconnectionRunning:
+						hideProgress();
+						showProgress(lastLocation || ProgressLocation.Notification);
+						progressReporter!.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
+
+						// Register to listen for quick input is opened
+						disposableListener = contextKeyService.onDidChangeContext((contextKeyChangeEvent) => {
+							const reconnectInteraction = new Set<string>(['inQuickOpen']);
+							if (contextKeyChangeEvent.affectsSome(reconnectInteraction)) {
+								// Need to move from dialog if being shown and user needs to type in a prompt
+								if (lastLocation === ProgressLocation.Dialog && progressReporter !== null) {
+									hideProgress();
+									showProgress(ProgressLocation.Notification);
+									progressReporter.report();
+								}
+							}
+						});
+
+						break;
+					case PersistentConnectionEventType.ReconnectionPermanentFailure:
+						hideProgress();
+						progressReporter = null;
+
+						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
+							// Reload the window
+							if (result.choice === 0) {
+								commandService.executeCommand(ReloadWindowAction.ID);
+							}
+						});
+						break;
+					case PersistentConnectionEventType.ConnectionGain:
+						hideProgress();
+						progressReporter = null;
+						break;
+				}
+			});
+		}
+	}
+}
+
+class ReconnectionTimer implements IDisposable {
+	private readonly _progressReporter: ProgressReporter;
+	private readonly _completionTime: number;
+	private readonly _token: any;
+
+	constructor(progressReporter: ProgressReporter, completionTime: number) {
+		this._progressReporter = progressReporter;
+		this._completionTime = completionTime;
+		this._token = setInterval(() => this._render(), 1000);
+		this._render();
+	}
+
+	public dispose(): void {
+		clearInterval(this._token);
+	}
+
+	private _render() {
+		const remainingTimeMs = this._completionTime - Date.now();
+		if (remainingTimeMs < 0) {
+			return;
+		}
+		const remainingTime = Math.ceil(remainingTimeMs / 1000);
+		if (remainingTime === 1) {
+			this._progressReporter.report(nls.localize('reconnectionWaitOne', "Attempting to reconnect in {0} second...", remainingTime));
+		} else {
+			this._progressReporter.report(nls.localize('reconnectionWaitMany', "Attempting to reconnect in {0} seconds...", remainingTime));
+		}
+	}
+}
+
+const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);

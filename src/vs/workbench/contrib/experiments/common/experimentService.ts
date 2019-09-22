@@ -19,7 +19,7 @@ import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/co
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
 
 export const enum ExperimentState {

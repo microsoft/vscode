@@ -260,7 +260,7 @@ let schema: IJSONSchema = {
 	id: schemaId,
 	description: 'Task definition file',
 	type: 'object',
-	allowsTrailingCommas: true,
+	allowTrailingCommas: true,
 	allowComments: true,
 	default: {
 		version: '2.0.0',

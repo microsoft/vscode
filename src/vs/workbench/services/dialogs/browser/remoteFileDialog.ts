@@ -23,7 +23,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { equalsIgnoreCase, format, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { OpenLocalFileCommand, OpenLocalFileFolderCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/browser/actions/workspaceActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { isValidBasename } from 'vs/base/common/extpath';
@@ -32,6 +31,60 @@ import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ICommandHandler } from 'vs/platform/commands/common/commands';
+import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { toResource } from 'vs/workbench/common/editor';
+
+export namespace OpenLocalFileCommand {
+	export const ID = 'workbench.action.files.openLocalFile';
+	export const LABEL = nls.localize('openLocalFile', "Open Local File...");
+	export function handler(): ICommandHandler {
+		return accessor => {
+			const dialogService = accessor.get(IFileDialogService);
+			return dialogService.pickFileAndOpen({ forceNewWindow: false, availableFileSystems: [Schemas.file] });
+		};
+	}
+}
+
+export namespace SaveLocalFileCommand {
+	export const ID = 'workbench.action.files.saveLocalFile';
+	export const LABEL = nls.localize('saveLocalFile', "Save Local File...");
+	export function handler(): ICommandHandler {
+		return accessor => {
+			const textFileService = accessor.get(ITextFileService);
+			const editorService = accessor.get(IEditorService);
+			let resource: URI | undefined = toResource(editorService.activeEditor);
+			const options: ISaveOptions = { force: true, availableFileSystems: [Schemas.file] };
+			if (resource) {
+				return textFileService.saveAs(resource, undefined, options);
+			}
+			return Promise.resolve(undefined);
+		};
+	}
+}
+
+export namespace OpenLocalFolderCommand {
+	export const ID = 'workbench.action.files.openLocalFolder';
+	export const LABEL = nls.localize('openLocalFolder', "Open Local Folder...");
+	export function handler(): ICommandHandler {
+		return accessor => {
+			const dialogService = accessor.get(IFileDialogService);
+			return dialogService.pickFolderAndOpen({ forceNewWindow: false, availableFileSystems: [Schemas.file] });
+		};
+	}
+}
+
+export namespace OpenLocalFileFolderCommand {
+	export const ID = 'workbench.action.files.openLocalFileFolder';
+	export const LABEL = nls.localize('openLocalFileFolder', "Open Local...");
+	export function handler(): ICommandHandler {
+		return accessor => {
+			const dialogService = accessor.get(IFileDialogService);
+			return dialogService.pickFileFolderAndOpen({ forceNewWindow: false, availableFileSystems: [Schemas.file] });
+		};
+	}
+}
 
 interface FileQuickPickItem extends IQuickPickItem {
 	uri: URI;
@@ -101,7 +154,7 @@ export class RemoteFileDialog {
 	}
 
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
-		this.scheme = this.getScheme(options.availableFileSystems);
+		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.userHome = await this.getUserHome();
 		const newOptions = await this.getOptions(options);
 		if (!newOptions) {
@@ -112,7 +165,7 @@ export class RemoteFileDialog {
 	}
 
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-		this.scheme = this.getScheme(options.availableFileSystems);
+		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.userHome = await this.getUserHome();
 		this.requiresTrailing = true;
 		const newOptions = await this.getOptions(options, true);
@@ -157,8 +210,14 @@ export class RemoteFileDialog {
 		return resources.toLocalResource(URI.from({ scheme: this.scheme, path }), this.scheme === Schemas.file ? undefined : this.remoteAuthority);
 	}
 
-	private getScheme(available: string[] | undefined): string {
-		return available ? available[0] : Schemas.file;
+	private getScheme(available: string[] | undefined, defaultUri: URI | undefined): string {
+		if (available) {
+			if (defaultUri && (available.indexOf(defaultUri.scheme) >= 0)) {
+				return defaultUri.scheme;
+			}
+			return available[0];
+		}
+		return Schemas.file;
 	}
 
 	private async getRemoteAgentEnvironment(): Promise<IRemoteAgentEnvironment | null> {
@@ -215,7 +274,7 @@ export class RemoteFileDialog {
 			this.filePickBox.autoFocusOnList = false;
 			this.filePickBox.ignoreFocusOut = true;
 			this.filePickBox.ok = true;
-			if (this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
+			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
 				let action;

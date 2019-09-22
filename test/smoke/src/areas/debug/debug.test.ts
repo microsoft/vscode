@@ -8,7 +8,7 @@ import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { Application } from '../../application';
+import { Application } from '../../../../automation';
 
 export function setup() {
 	describe('Debug', () => {
