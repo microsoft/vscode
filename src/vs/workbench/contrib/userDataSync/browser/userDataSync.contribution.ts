@@ -30,7 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { isWeb } from 'vs/base/common/platform';
 import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 
-const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+const CONTEXT_SYNC_STATE = new RawContextKey<string>('userDataSyncStatus', SyncStatus.Uninitialized);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
@@ -231,5 +231,5 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SyncActionsContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(SyncActionsContribution, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UserDataAutoSyncContribution, LifecyclePhase.Restored);
