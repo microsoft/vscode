@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, SyncSource, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, SyncSource, IUserDataSyncService, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -39,6 +40,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	sync(_continue?: boolean): Promise<boolean> {
 		return this.channel.call('sync', [_continue]);
+	}
+
+	getRemoteExtensions(): Promise<ISyncExtension[]> {
+		return this.channel.call('getRemoteExtensions');
+	}
+
+	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
+		return this.channel.call('removeExtension', [identifier]);
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

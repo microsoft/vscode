@@ -17,6 +17,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { keys, values } from 'vs/base/common/map';
 import { startsWith } from 'vs/base/common/strings';
 import { IFileService } from 'vs/platform/files/common/files';
+import { Queue } from 'vs/base/common/async';
 
 export interface ISyncPreviewResult {
 	readonly added: ISyncExtension[];
@@ -38,6 +39,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
 	private readonly lastSyncExtensionsResource: URI;
+	private readonly replaceQueue: Queue<void>;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -48,6 +50,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 	) {
 		super();
+		this.replaceQueue = this._register(new Queue());
 		this.lastSyncExtensionsResource = joinPath(environmentService.userRoamingDataHome, '.lastSyncExtensions');
 		this._register(Event.debounce(Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)), () => undefined, 500)(() => this._onDidChangeLocal.fire()));
 	}
@@ -81,6 +84,25 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 
 		this.setStatus(SyncStatus.Idle);
 		return true;
+	}
+
+	async getRemoteExtensions(): Promise<ISyncExtension[]> {
+		const remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, null);
+		return remoteData.content ? JSON.parse(remoteData.content) : [];
+	}
+
+	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
+		return this.replaceQueue.queue(async () => {
+			const remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, null);
+			const remoteExtensions: ISyncExtension[] = remoteData.content ? JSON.parse(remoteData.content) : [];
+			const removedExtensions = remoteExtensions.filter(e => areSameExtensions(e.identifier, identifier));
+			if (removedExtensions.length) {
+				for (const removedExtension of removedExtensions) {
+					remoteExtensions.splice(remoteExtensions.indexOf(removedExtension), 1);
+				}
+				await this.writeToRemote(remoteExtensions, remoteData.ref);
+			}
+		});
 	}
 
 	private async doSync(): Promise<void> {
