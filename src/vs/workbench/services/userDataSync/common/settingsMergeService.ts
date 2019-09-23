@@ -16,6 +16,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ISettingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
 import { values } from 'vs/base/common/map';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 class SettingsMergeService implements ISettingsMergeService {
 
@@ -167,7 +168,7 @@ class SettingsMergeService implements ISettingsMergeService {
 		}
 	}
 
-	private compare(from: { [key: string]: any }, to: { [key: string]: any }): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
+	private compare(from: IStringDictionary<any>, to: IStringDictionary<any>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
 		const fromKeys = Object.keys(from);
 		const toKeys = Object.keys(to);
 		const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
