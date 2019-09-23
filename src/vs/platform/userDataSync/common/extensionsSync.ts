@@ -52,7 +52,12 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		super();
 		this.replaceQueue = this._register(new Queue());
 		this.lastSyncExtensionsResource = joinPath(environmentService.userRoamingDataHome, '.lastSyncExtensions');
-		this._register(Event.debounce(Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)), () => undefined, 500)(() => this._onDidChangeLocal.fire()));
+		this._register(
+			Event.debounce(
+				Event.any(
+					Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
+					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))),
+				() => undefined, 500)(() => this._onDidChangeLocal.fire()));
 	}
 
 	private setStatus(status: SyncStatus): void {
@@ -130,10 +135,8 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	/**
 	 * Merge Strategy:
 	 * - If remote does not exist, merge with local (First time sync)
-	 * - Do not add/update remote extensions if they are removed in local.
-	 * - Do not remove locally removed extensions in remote.
 	 * - Overwrite local with remote changes. Removed, Added, Updated.
-	 * - Update remote with those local extension which are newly added or updated.
+	 * - Update remote with those local extension which are newly added or updated or removed and untouched in remote.
 	 */
 	private merge(localExtensions: ISyncExtension[], remoteExtensions: ISyncExtension[] | null, lastSyncExtensions: ISyncExtension[] | null): { added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], remote: ISyncExtension[] | null } {
 
@@ -195,11 +198,6 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 
 		// Remotely added extension
 		for (const key of baseToRemote.added.keys()) {
-			// User removed extension, so do not add.
-			if (baseToLocal.removed.has(key)) {
-				continue;
-			}
-
 			// Got added in local
 			if (baseToLocal.added.has(key)) {
 				// Is different from local to remote
@@ -214,11 +212,6 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 
 		// Remotely updated extensions
 		for (const key of baseToRemote.updated.keys()) {
-			// User removed extension, so do not update.
-			if (baseToLocal.removed.has(key)) {
-				continue;
-			}
-
 			// If updated in local
 			if (baseToLocal.updated.has(key)) {
 				// Is different from local to remote
@@ -247,6 +240,14 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			// If not updated in remote
 			if (!baseToRemote.updated.has(key)) {
 				newRemoteExtensionsMap.set(key, massageSyncExtension(localExtensionsMap.get(key)!, key));
+			}
+		}
+
+		// Locally removed extensions
+		for (const key of baseToLocal.removed.keys()) {
+			// If not updated in remote
+			if (!baseToRemote.updated.has(key)) {
+				newRemoteExtensionsMap.delete(key);
 			}
 		}
 
