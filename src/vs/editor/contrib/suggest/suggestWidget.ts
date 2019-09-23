@@ -474,10 +474,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private docsPositionPreviousWidgetY: number | null = null;
 	private explainMode: boolean = false;
 
-	private _isDetailsFocused: boolean = false;
-	public get isDetailsFocused() { return this._isDetailsFocused; }
-	public setDetailsFocusedState(focused: boolean) { this._isDetailsFocused = focused; }
-
 	private readonly _onDetailsKeydown = new Emitter<IKeyboardEvent>();
 	public readonly onDetailsKeyDown: Event<IKeyboardEvent> = this._onDetailsKeydown.event;
 
@@ -552,12 +548,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		// Clicking inside details
 		if (this.details.element.contains(mouseEvent.target.element)) {
-			this._isDetailsFocused = true;
 			this.details.element.focus();
 		}
 		// Clicking outside details and inside suggest
 		else {
-			this._isDetailsFocused = false;
 			if (this.element.contains(mouseEvent.target.element)) {
 				this.editor.focus();
 			}

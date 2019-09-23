@@ -178,28 +178,14 @@ export class SuggestController implements IEditorContribution {
 			}
 		}));
 		this._toDispose.add(this._editor.onDidBlurEditorWidget(() => {
-			if (!_sticky && !this._widget.getValue().isDetailsFocused) {
+			if (!_sticky) {
 				this._model.cancel();
 				this._model.clear();
 			}
 		}));
 
 		this._toDispose.add(this._widget.getValue().onDetailsKeyDown(e => {
-			if (e.equals(KeyCode.Escape)) {
-				e.preventDefault();
-				e.stopPropagation();
-
-				this._widget.getValue().setDetailsFocusedState(false);
-				this.cancelSuggestWidget();
-				this._editor.focus();
-			} else if (e.equals(KeyCode.Tab)) {
-				e.preventDefault();
-				e.stopPropagation();
-
-				this._widget.getValue().setDetailsFocusedState(false);
-				this.acceptSelectedSuggestion();
-				this._editor.focus();
-			}
+			this._editor.focus();
 		}));
 
 		// Manage the acceptSuggestionsOnEnter context key
