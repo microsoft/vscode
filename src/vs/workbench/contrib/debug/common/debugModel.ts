@@ -101,6 +101,10 @@ export class ExpressionContainer implements IExpressionContainer {
 		return this.id;
 	}
 
+	getSession(): IDebugSession | undefined {
+		return this.session;
+	}
+
 	get value(): string {
 		return this._value;
 	}

@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IExceptionInfo } from 'vs/workbench/contrib/debug/common/debug';
+import { IExceptionInfo, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -27,7 +27,7 @@ export class ExceptionWidget extends ZoneWidget {
 
 	private _backgroundColor?: Color;
 
-	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo,
+	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo, private debugSession: IDebugSession | undefined,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -80,7 +80,7 @@ export class ExceptionWidget extends ZoneWidget {
 		if (this.exceptionInfo.details && this.exceptionInfo.details.stackTrace) {
 			let stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
-			const linkedStackTrace = linkDetector.handleLinks(this.exceptionInfo.details.stackTrace);
+			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, true, this.debugSession ? this.debugSession.root : undefined);
 			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 		}
