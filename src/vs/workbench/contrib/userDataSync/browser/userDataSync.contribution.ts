@@ -42,6 +42,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('userConfiguration.enableSync', "When enabled, synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION
+			},
+			'userConfiguration.syncExtensions': {
+				type: 'boolean',
+				description: localize('userConfiguration.syncExtensions', "When enabled extensions are synchronised while synchronising user configuration."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION
 			}
 		}
 	});

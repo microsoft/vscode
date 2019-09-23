@@ -18,6 +18,7 @@ import { keys, values } from 'vs/base/common/map';
 import { startsWith } from 'vs/base/common/strings';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface ISyncPreviewResult {
 	readonly added: ISyncExtension[];
@@ -48,6 +49,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.replaceQueue = this._register(new Queue());
@@ -68,6 +70,10 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	}
 
 	async sync(): Promise<boolean> {
+		const syncExtensions = this.configurationService.getValue<boolean>('userConfiguration.syncExtensions');
+		if (syncExtensions === undefined || syncExtensions === false) {
+			return false;
+		}
 
 		if (this.status !== SyncStatus.Idle) {
 			return false;
