@@ -29,28 +29,38 @@ import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { isWeb } from 'vs/base/common/platform';
 import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		id: 'userConfiguration',
-		order: 30,
-		title: localize('userConfiguration', "User Configuration"),
-		type: 'object',
-		properties: {
-			'userConfiguration.enableSync': {
-				type: 'boolean',
-				description: localize('userConfiguration.enableSync', "When enabled, synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
-				default: true,
-				scope: ConfigurationScope.APPLICATION
-			},
-			'userConfiguration.syncExtensions': {
-				type: 'boolean',
-				description: localize('userConfiguration.syncExtensions', "When enabled extensions are synchronised while synchronising user configuration."),
-				default: true,
-				scope: ConfigurationScope.APPLICATION
-			}
+class UserDataSyncConfigurationContribution implements IWorkbenchContribution {
+
+	constructor(
+		@IProductService productService: IProductService
+	) {
+		if (productService.settingsSyncStoreUrl) {
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+				.registerConfiguration({
+					id: 'userConfiguration',
+					order: 30,
+					title: localize('userConfiguration', "User Configuration"),
+					type: 'object',
+					properties: {
+						'userConfiguration.enableSync': {
+							type: 'boolean',
+							description: localize('userConfiguration.enableSync', "When enabled, synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
+							default: true,
+							scope: ConfigurationScope.APPLICATION
+						},
+						'userConfiguration.syncExtensions': {
+							type: 'boolean',
+							description: localize('userConfiguration.syncExtensions', "When enabled extensions are synchronised while synchronising user configuration."),
+							default: true,
+							scope: ConfigurationScope.APPLICATION
+						}
+					}
+				});
 		}
-	});
+	}
+}
 
 class UserDataAutoSyncContribution extends Disposable implements IWorkbenchContribution {
 
@@ -235,5 +245,6 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncConfigurationContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(SyncActionsContribution, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UserDataAutoSyncContribution, LifecyclePhase.Restored);
