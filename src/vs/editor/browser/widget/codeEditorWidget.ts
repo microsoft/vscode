@@ -1172,7 +1172,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public hasWidgetFocus(): boolean {
-		return (this._editorWidgetFocus.getValue() === BooleanEventValue.True);
+		return this._focusTracker && this._focusTracker.hasFocus();
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
@@ -1454,8 +1454,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const viewOutgoingEvents = new ViewOutgoingEvents(viewModel);
 		viewOutgoingEvents.onDidGainFocus = () => {
 			this._editorTextFocus.setValue(true);
-			// In IE, the focus is not synchronous, so we give it a little help
-			this._editorWidgetFocus.setValue(true);
 		};
 
 		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
@@ -1546,10 +1544,6 @@ export class BooleanEventEmitter extends Disposable {
 	constructor() {
 		super();
 		this._value = BooleanEventValue.NotSet;
-	}
-
-	public getValue(): BooleanEventValue {
-		return this._value;
 	}
 
 	public setValue(_value: boolean) {
