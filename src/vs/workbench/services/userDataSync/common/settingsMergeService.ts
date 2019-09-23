@@ -15,6 +15,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Position } from 'vs/editor/common/core/position';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ISettingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
+import { values } from 'vs/base/common/map';
 
 class SettingsMergeService implements ISettingsMergeService {
 
@@ -42,7 +43,7 @@ class SettingsMergeService implements ISettingsMergeService {
 		const settingsPreviewModel = this.modelService.createModel(localContent, this.modeService.create('jsonc'));
 
 		// Removed settings in Local
-		for (const key of baseToLocal.removed.keys()) {
+		for (const key of values(baseToLocal.removed)) {
 			// Got updated in remote
 			if (baseToRemote.updated.has(key)) {
 				conflicts.add(key);
@@ -50,7 +51,7 @@ class SettingsMergeService implements ISettingsMergeService {
 		}
 
 		// Removed settings in Remote
-		for (const key of baseToRemote.removed.keys()) {
+		for (const key of values(baseToRemote.removed)) {
 			if (conflicts.has(key)) {
 				continue;
 			}
@@ -63,7 +64,7 @@ class SettingsMergeService implements ISettingsMergeService {
 		}
 
 		// Added settings in Local
-		for (const key of baseToLocal.added.keys()) {
+		for (const key of values(baseToLocal.added)) {
 			if (conflicts.has(key)) {
 				continue;
 			}
@@ -77,7 +78,7 @@ class SettingsMergeService implements ISettingsMergeService {
 		}
 
 		// Added settings in remote
-		for (const key of baseToRemote.added.keys()) {
+		for (const key of values(baseToRemote.added)) {
 			if (conflicts.has(key)) {
 				continue;
 			}
@@ -93,7 +94,7 @@ class SettingsMergeService implements ISettingsMergeService {
 		}
 
 		// Updated settings in Local
-		for (const key of baseToLocal.updated.keys()) {
+		for (const key of values(baseToLocal.updated)) {
 			if (conflicts.has(key)) {
 				continue;
 			}
@@ -107,7 +108,7 @@ class SettingsMergeService implements ISettingsMergeService {
 		}
 
 		// Updated settings in Remote
-		for (const key of baseToRemote.updated.keys()) {
+		for (const key of values(baseToRemote.updated)) {
 			if (conflicts.has(key)) {
 				continue;
 			}
@@ -122,7 +123,7 @@ class SettingsMergeService implements ISettingsMergeService {
 			}
 		}
 
-		for (const key of conflicts.keys()) {
+		for (const key of values(conflicts)) {
 			const tree = parseTree(settingsPreviewModel.getValue());
 			const valueNode = findNodeAtLocation(tree, [key]);
 			const eol = settingsPreviewModel.getEOL();
