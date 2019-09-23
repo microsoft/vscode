@@ -27,7 +27,9 @@ function noCompress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompre
 
 	return {
 		element: { elements, incompressible },
-		children: Iterator.map(Iterator.from(element.children), noCompress)
+		children: Iterator.map(Iterator.from(element.children), noCompress),
+		collapsible: element.collapsible,
+		collapsed: element.collapsed
 	};
 }
 
@@ -58,7 +60,9 @@ export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<IC
 
 	return {
 		element: { elements, incompressible },
-		children: Iterator.map(Iterator.concat(Iterator.fromArray(children), childrenIterator), compress)
+		children: Iterator.map(Iterator.concat(Iterator.fromArray(children), childrenIterator), compress),
+		collapsible: element.collapsible,
+		collapsed: element.collapsed
 	};
 }
 
@@ -71,11 +75,13 @@ function _decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>, index = 0
 		children = Iterator.map(Iterator.from(element.children), el => _decompress(el, 0));
 	}
 
-	if (index === 0 && element.element.incompressible) {
-		return { element: element.element.elements[index], children, incompressible: true };
-	}
-
-	return { element: element.element.elements[index], children };
+	return {
+		element: element.element.elements[index],
+		children,
+		collapsible: element.collapsible,
+		collapsed: element.collapsed,
+		incompressible: index === 0 && element.element.incompressible
+	};
 }
 
 // Exported only for test reasons, do not use directly
@@ -84,14 +90,11 @@ export function decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>): IC
 }
 
 function splice<T>(treeElement: ICompressedTreeElement<T>, element: T, children: Iterator<ICompressedTreeElement<T>>): ICompressedTreeElement<T> {
-	if (treeElement.element === element) {
-		return { element, children };
+	if (treeElement.element !== element) {
+		children = Iterator.map(Iterator.from(treeElement.children), e => splice(e, element, children));
 	}
 
-	return {
-		...treeElement,
-		children: Iterator.map(Iterator.from(treeElement.children), e => splice(e, element, children))
-	};
+	return { ...treeElement, children };
 }
 
 interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<ICompressedTreeNode<T>, TFilterData> { }
