@@ -19,6 +19,7 @@ import { startsWith } from 'vs/base/common/strings';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { getSetValues as getValuesOfSet } from 'vs/base/common/types';
 
 export interface ISyncPreviewResult {
 	readonly added: ISyncExtension[];
@@ -195,7 +196,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		};
 
 		// Remotely removed extension.
-		for (const key of baseToRemote.removed.keys()) {
+		for (const key of getValuesOfSet(baseToRemote.removed)) {
 			const e = localExtensionsMap.get(key);
 			if (e) {
 				removed.push(e.identifier);
@@ -203,7 +204,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		}
 
 		// Remotely added extension
-		for (const key of baseToRemote.added.keys()) {
+		for (const key of getValuesOfSet(baseToRemote.added)) {
 			// Got added in local
 			if (baseToLocal.added.has(key)) {
 				// Is different from local to remote
@@ -217,7 +218,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		}
 
 		// Remotely updated extensions
-		for (const key of baseToRemote.updated.keys()) {
+		for (const key of getValuesOfSet(baseToRemote.updated)) {
 			// If updated in local
 			if (baseToLocal.updated.has(key)) {
 				// Is different from local to remote
@@ -229,7 +230,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		}
 
 		// Locally added extensions
-		for (const key of baseToLocal.added.keys()) {
+		for (const key of getValuesOfSet(baseToLocal.added)) {
 			// Not there in remote
 			if (!baseToRemote.added.has(key)) {
 				newRemoteExtensionsMap.set(key, massageSyncExtension(localExtensionsMap.get(key)!, key));
@@ -237,7 +238,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		}
 
 		// Locally updated extensions
-		for (const key of baseToLocal.updated.keys()) {
+		for (const key of getValuesOfSet(baseToLocal.updated)) {
 			// If removed in remote
 			if (baseToRemote.removed.has(key)) {
 				continue;
@@ -250,7 +251,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		}
 
 		// Locally removed extensions
-		for (const key of baseToLocal.removed.keys()) {
+		for (const key of getValuesOfSet(baseToLocal.removed)) {
 			// If not updated in remote
 			if (!baseToRemote.updated.has(key)) {
 				newRemoteExtensionsMap.delete(key);
