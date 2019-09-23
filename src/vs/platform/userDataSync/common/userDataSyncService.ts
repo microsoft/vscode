@@ -10,6 +10,7 @@ import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSy
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { timeout } from 'vs/base/common/async';
+import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -33,7 +34,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	) {
 		super();
 		this.synchronisers = [
-			this.instantiationService.createInstance(SettingsSynchroniser)
+			this.instantiationService.createInstance(SettingsSynchroniser),
+			this.instantiationService.createInstance(ExtensionsSynchroniser)
 		];
 		this.updateStatus();
 		this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
