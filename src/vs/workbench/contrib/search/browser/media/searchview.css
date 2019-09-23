@@ -303,30 +303,6 @@
 	padding: 0;
 }
 
-.vs .search-view .search-widget .toggle-replace-button.expand {
-	background-image: url('tree-expanded-light.svg');
-}
-
-.vs-dark .search-view .search-widget .toggle-replace-button.expand {
-	background-image: url('tree-expanded-dark.svg');
-}
-
-.hc-black .search-view .search-widget .toggle-replace-button.expand {
-	background-image: url('tree-expanded-hc.svg');
-}
-
-.vs .search-view .search-widget .toggle-replace-button.collapse {
-	background-image: url('tree-collapsed-light.svg');
-}
-
-.vs-dark .search-view .search-widget .toggle-replace-button.collapse {
-	background-image: url('tree-collapsed-dark.svg');
-}
-
-.hc-black .search-view .search-widget .toggle-replace-button.collapse {
-	background-image: url('tree-collapsed-hc.svg');
-}
-
 /* High Contrast Theming */
 
 .hc-black .monaco-workbench .search-view .foldermatch,
