@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInitDataProvider, RemoteExtensionHostClient } from 'vs/workbench/services/extensions/common/remoteExtensionHostClient';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { isUIExtension as isUIExtensionFunc } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -434,6 +434,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	protected async _scanAndHandleExtensions(): Promise<void> {
+		const isUIExtension = (extension: IExtensionDescription) => isUIExtensionFunc(extension, this._productService, this._configurationService);
+
 		this._extensionScanner.startScanningExtensions(this.createLogger());
 
 		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
@@ -445,7 +447,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._checkEnableProposedApi(localExtensions);
 
 		// remove disabled extensions
-		localExtensions = localExtensions.filter(extension => this._isEnabled(extension));
+		localExtensions = remove(localExtensions, extension => this._isDisabled(extension));
 
 		if (remoteAuthority) {
 			let resolvedAuthority: ResolverResult;
@@ -501,18 +503,16 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._checkEnableProposedApi(remoteEnv.extensions);
 
 			// remove disabled extensions
-			remoteEnv.extensions = remoteEnv.extensions.filter(extension => this._isEnabled(extension));
+			remoteEnv.extensions = remove(remoteEnv.extensions, extension => this._isDisabled(extension));
 
 			// remove UI extensions from the remote extensions
-			remoteEnv.extensions = remoteEnv.extensions.filter(extension => !isUIExtension(extension, this._productService, this._configurationService));
+			remoteEnv.extensions = remove(remoteEnv.extensions, extension => isUIExtension(extension));
 
 			// remove non-UI extensions from the local extensions
-			localExtensions = localExtensions.filter(extension => extension.isBuiltin || isUIExtension(extension, this._productService, this._configurationService));
+			localExtensions = remove(localExtensions, extension => !extension.isBuiltin && !isUIExtension(extension));
 
 			// in case of overlap, the remote wins
-			const isRemoteExtension = new Set<string>();
-			remoteEnv.extensions.forEach(extension => isRemoteExtension.add(ExtensionIdentifier.toKey(extension.identifier)));
-			localExtensions = localExtensions.filter(extension => !isRemoteExtension.has(ExtensionIdentifier.toKey(extension.identifier)));
+			localExtensions = remove(localExtensions, remoteEnv.extensions);
 
 			// save for remote extension's init data
 			this._remoteExtensionsEnvironmentData.set(remoteAuthority, remoteEnv);
@@ -555,6 +555,25 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			ipc.send('vscode:exit', code);
 		}
 	}
+}
+
+function remove(arr: IExtensionDescription[], predicate: (item: IExtensionDescription) => boolean): IExtensionDescription[];
+function remove(arr: IExtensionDescription[], toRemove: IExtensionDescription[]): IExtensionDescription[];
+function remove(arr: IExtensionDescription[], arg2: ((item: IExtensionDescription) => boolean) | IExtensionDescription[]): IExtensionDescription[] {
+	if (typeof arg2 === 'function') {
+		return _removePredicate(arr, arg2);
+	}
+	return _removeSet(arr, arg2);
+}
+
+function _removePredicate(arr: IExtensionDescription[], predicate: (item: IExtensionDescription) => boolean): IExtensionDescription[] {
+	return arr.filter(extension => !predicate(extension));
+}
+
+function _removeSet(arr: IExtensionDescription[], toRemove: IExtensionDescription[]): IExtensionDescription[] {
+	const toRemoveSet = new Set<string>();
+	toRemove.forEach(extension => toRemoveSet.add(ExtensionIdentifier.toKey(extension.identifier)));
+	return arr.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
 }
 
 registerSingleton(IExtensionService, ExtensionService);
