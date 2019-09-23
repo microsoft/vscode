@@ -207,3 +207,9 @@ export function withNullAsUndefined<T>(x: T | null): T | undefined {
 export function withUndefinedAsNull<T>(x: T | undefined): T | null {
 	return typeof x === 'undefined' ? null : x;
 }
+
+export function getSetValues<T>(set: Set<T>): T[] {
+	const result: T[] = [];
+	set.forEach((value) => result.push(value));
+	return result;
+}

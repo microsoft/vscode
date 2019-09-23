@@ -58,18 +58,16 @@ export class OpenerService extends Disposable implements IOpenerService {
 			}
 		}
 
-		const { resolved } = await this.resolveExternalUri(resource, options);
-
 		// check with contributed openers
 		for (const opener of this._openers.toArray()) {
-			const handled = await opener.open(resolved, options);
+			const handled = await opener.open(resource, options);
 			if (handled) {
 				return true;
 			}
 		}
 
 		// use default openers
-		return this._doOpen(resolved, options);
+		return this._doOpen(resource, options);
 	}
 
 	public async resolveExternalUri(resource: URI, options?: { readonly allowTunneling?: boolean }): Promise<{ resolved: URI, dispose(): void }> {
@@ -138,7 +136,8 @@ export class OpenerService extends Disposable implements IOpenerService {
 	}
 
 	private async _doOpenExternal(resource: URI, options: OpenOptions | undefined): Promise<boolean> {
-		dom.windowOpenNoOpener(encodeURI(resource.toString(true)));
+		const { resolved } = await this.resolveExternalUri(resource, options);
+		dom.windowOpenNoOpener(encodeURI(resolved.toString(true)));
 		return Promise.resolve(true);
 	}
 

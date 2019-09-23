@@ -425,10 +425,11 @@ export class ElectronWindow extends Disposable {
 				// we handle this resource by delegating the opening to
 				// the main process to prevent window focus issues.
 				if (this.shouldOpenExternal(resource, options)) {
-					const success = await this.windowsService.openExternal(encodeURI(resource.toString(true)));
-					if (!success && resource.scheme === Schemas.file) {
+					const { resolved } = await this.openerService.resolveExternalUri(resource);
+					const success = await this.windowsService.openExternal(encodeURI(resolved.toString(true)));
+					if (!success && resolved.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
-						await this.electronService.showItemInFolder(resource.fsPath);
+						await this.electronService.showItemInFolder(resolved.fsPath);
 					}
 
 					return true;

@@ -1465,41 +1465,41 @@ suite('ExtensionsActions Test', () => {
 		assert.equal(testObject.tooltip, 'Please reload Visual Studio Code to enable this extension.');
 	});
 
-	test('Test ReloadAction when ui extension is disabled on remote server and installed in local server', async () => {
-		// multi server setup
-		const gallery = aGalleryExtension('a');
-		const localExtensionManagementService = createExtensionManagementService([]);
-		const onDidInstallEvent = new Emitter<DidInstallExtensionEvent>();
-		localExtensionManagementService.onDidInstallExtension = onDidInstallEvent.event;
-		const remoteExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
-		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
+	// test('Test ReloadAction when ui extension is disabled on remote server and installed in local server', async () => {
+	// 	// multi server setup
+	// 	const gallery = aGalleryExtension('a');
+	// 	const localExtensionManagementService = createExtensionManagementService([]);
+	// 	const onDidInstallEvent = new Emitter<DidInstallExtensionEvent>();
+	// 	localExtensionManagementService.onDidInstallExtension = onDidInstallEvent.event;
+	// 	const remoteExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
+	// 	const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
+	// 	instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
+	// 	instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+	// 	const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+	// 	instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
-		const onDidChangeExtensionsEmitter: Emitter<void> = new Emitter<void>();
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
-			getExtensions: () => Promise.resolve([]),
-			onDidChangeExtensions: onDidChangeExtensionsEmitter.event,
-			canAddExtension: (extension) => false
-		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+	// 	const onDidChangeExtensionsEmitter: Emitter<void> = new Emitter<void>();
+	// 	instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+	// 		getExtensions: () => Promise.resolve([]),
+	// 		onDidChangeExtensions: onDidChangeExtensionsEmitter.event,
+	// 		canAddExtension: (extension) => false
+	// 	});
+	// 	const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
+	// 	instantiationService.createInstance(ExtensionContainers, [testObject]);
+	// 	instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
-		await workbenchService.queryGallery(CancellationToken.None);
-		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
-		testObject.extension = extensions[0];
-		assert.ok(testObject.extension);
-		assert.ok(!testObject.enabled);
+	// 	await workbenchService.queryGallery(CancellationToken.None);
+	// 	const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
+	// 	testObject.extension = extensions[0];
+	// 	assert.ok(testObject.extension);
+	// 	assert.ok(!testObject.enabled);
 
-		const localExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file('pub.a') });
-		onDidInstallEvent.fire({ identifier: localExtension.identifier, local: localExtension, operation: InstallOperation.Install });
+	// 	const localExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file('pub.a') });
+	// 	onDidInstallEvent.fire({ identifier: localExtension.identifier, local: localExtension, operation: InstallOperation.Install });
 
-		assert.ok(testObject.enabled);
-		assert.equal(testObject.tooltip, 'Please reload Visual Studio Code to enable this extension.');
-	});
+	// 	assert.ok(testObject.enabled);
+	// 	assert.equal(testObject.tooltip, 'Please reload Visual Studio Code to enable this extension.');
+	// });
 
 	test('Test remote install action is enabled for local workspace extension', async () => {
 		// multi server setup
@@ -1854,7 +1854,7 @@ suite('ExtensionsActions Test', () => {
 		assert.ok(!testObject.enabled);
 	});
 
-	test('Test local install action is enabled for remote ui extension', async () => {
+	test('Test local install action is disabled for remote ui extension', async () => {
 		// multi server setup
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
@@ -1870,9 +1870,7 @@ suite('ExtensionsActions Test', () => {
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
-		assert.ok(testObject.enabled);
-		assert.equal('Install Locally', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.ok(!testObject.enabled);
 	});
 
 	test('Test local install action when installing remote ui extension', async () => {
@@ -1896,54 +1894,10 @@ suite('ExtensionsActions Test', () => {
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
-		assert.ok(testObject.enabled);
-		assert.equal('Install Locally', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
-
-		onInstallExtension.fire({ identifier: remoteUIExtension.identifier, gallery });
-		assert.ok(testObject.enabled);
-		assert.equal('Installing', testObject.label);
-		assert.equal('extension-action install installing', testObject.class);
-	});
-
-	test('Test local install action when installing remote ui extension is finished', async () => {
-		// multi server setup
-		const localExtensionManagementService: IExtensionManagementService = createExtensionManagementService();
-		const onInstallExtension = new Emitter<InstallExtensionEvent>();
-		localExtensionManagementService.onInstallExtension = onInstallExtension.event;
-		const onDidInstallEvent = new Emitter<DidInstallExtensionEvent>();
-		localExtensionManagementService.onDidInstallExtension = onDidInstallEvent.event;
-		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
-		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteUIExtension]));
-		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
-		instantiationService.stub(IExtensionsWorkbenchService, workbenchService, 'open', undefined);
-		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
-
-		const gallery = aGalleryExtension('a', { identifier: remoteUIExtension.identifier });
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
-
-		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
-		await workbenchService.queryGallery(CancellationToken.None);
-		testObject.extension = extensions[0];
-		assert.ok(testObject.enabled);
-		assert.equal('Install Locally', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
-
-		onInstallExtension.fire({ identifier: remoteUIExtension.identifier, gallery });
-		assert.ok(testObject.enabled);
-		assert.equal('Installing', testObject.label);
-		assert.equal('extension-action install installing', testObject.class);
-
-		const installedExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`) });
-		onDidInstallEvent.fire({ identifier: installedExtension.identifier, local: installedExtension, operation: InstallOperation.Install });
 		assert.ok(!testObject.enabled);
 	});
 
-	test('Test local install action is enabled for disabled remote ui extension', async () => {
+	test('Test local install action is disabled for remote ui extension', async () => {
 		// multi server setup
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
@@ -1960,9 +1914,7 @@ suite('ExtensionsActions Test', () => {
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
-		assert.ok(testObject.enabled);
-		assert.equal('Install Locally', testObject.label);
-		assert.equal('extension-action prominent install', testObject.class);
+		assert.ok(!testObject.enabled);
 	});
 
 	test('Test local install action is disabled when extension is not set', async () => {
@@ -2062,7 +2014,7 @@ suite('ExtensionsActions Test', () => {
 		assert.ok(!testObject.enabled);
 	});
 
-	test('Test local install action is disabled for remoteUI extension if it is uninstalled locally', async () => {
+	test('Test local install action is disabled for remoteUI extension', async () => {
 		// multi server setup
 		const extensionManagementService = instantiationService.get(IExtensionManagementService);
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), extensionManagementService);
@@ -2080,14 +2032,10 @@ suite('ExtensionsActions Test', () => {
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = extensions[0];
-		assert.ok(testObject.enabled);
-		assert.equal('Install Locally', testObject.label);
-
-		uninstallEvent.fire(remoteUIExtension.identifier);
 		assert.ok(!testObject.enabled);
 	});
 
-	test('Test local install action is enabled for remote UI extension if it has gallery', async () => {
+	test('Test local install action is disabled for remote UI extension', async () => {
 		// multi server setup
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
@@ -2103,7 +2051,7 @@ suite('ExtensionsActions Test', () => {
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		testObject.extension = extensions[0];
 		assert.ok(testObject.extension);
-		assert.ok(testObject.enabled);
+		assert.ok(!testObject.enabled);
 	});
 
 	test('Test local install action is disabled for remote UI system extension', async () => {
