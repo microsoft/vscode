@@ -691,6 +691,9 @@ export class ExtensionsListView extends ViewletPanel {
 
 	private async getSyncedExtensionsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const syncedExtensions = await this.userDataSyncService.getRemoteExtensions();
+		if (!syncedExtensions.length) {
+			return this.showEmptyModel();
+		}
 		const ids: string[] = [], names: string[] = [];
 		for (const installed of syncedExtensions) {
 			if (installed.identifier.uuid) {
@@ -843,7 +846,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	static isSyncedExtensionsQuery(query: string): boolean {
-		return /@synced/i.test(query);
+		return /@myaccount/i.test(query);
 	}
 
 	focus(): void {
@@ -944,7 +947,8 @@ export class BuiltInBasicsExtensionsView extends ExtensionsListView {
 export class SyncedExtensionsView extends ExtensionsListView {
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@synced') ? this.showEmptyModel() : super.show('@synced');
+		query = query || '@myaccount';
+		return ExtensionsListView.isSyncedExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
 	}
 }
 

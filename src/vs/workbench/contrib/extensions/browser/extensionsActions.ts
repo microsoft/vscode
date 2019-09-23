@@ -1613,7 +1613,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 export class ShowSyncedExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.listSyncedExtensions';
-	static LABEL = localize('showSyncedExtensions', "Show Synced Extensions");
+	static LABEL = localize('showSyncedExtensions', "Show My Accoount Extensions");
 
 	constructor(
 		id: string,
@@ -1627,7 +1627,7 @@ export class ShowSyncedExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@synced ');
+				viewlet.search('@myaccount ');
 				viewlet.focus();
 			});
 	}
