@@ -468,7 +468,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 
 	private _handleWebSocketConnection(socket: NodeSocket | WebSocketNodeSocket, isReconnection: boolean, reconnectionToken: string): void {
 		const remoteAddress = this._getRemoteAddress(socket);
-		const logPrefix = `[${remoteAddress}][${reconnectionToken.substr(0,8)}]`;
+		const logPrefix = `[${remoteAddress}][${reconnectionToken.substr(0, 8)}]`;
 		const protocol = new PersistentProtocol(socket);
 
 		let validator: any;

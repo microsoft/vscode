@@ -107,7 +107,7 @@ export class ManagementConnection {
 	}
 
 	private _log(_str: string): void {
-		this._logService.info(`[${this._remoteAddress}][${this._reconnectionToken.substr(0,8)}][ManagementConnection] ${_str}`);
+		this._logService.info(`[${this._remoteAddress}][${this._reconnectionToken.substr(0, 8)}][ManagementConnection] ${_str}`);
 	}
 
 	public shortenReconnectionGraceTimeIfNecessary(): void {

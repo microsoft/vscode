@@ -51,11 +51,11 @@ export class ExtensionHostConnection {
 	}
 
 	private _log(_str: string): void {
-		this._logService.info(`[${this._remoteAddress}][${this._reconnectionToken.substr(0,8)}][ExtensionHostConnection] ${_str}`);
+		this._logService.info(`[${this._remoteAddress}][${this._reconnectionToken.substr(0, 8)}][ExtensionHostConnection] ${_str}`);
 	}
 
 	private _logError(_str: string): void {
-		this._logService.error(`[${this._remoteAddress}][${this._reconnectionToken.substr(0,8)}][ExtensionHostConnection] ${_str}`);
+		this._logService.error(`[${this._remoteAddress}][${this._reconnectionToken.substr(0, 8)}][ExtensionHostConnection] ${_str}`);
 	}
 
 	private _getUnderlyingSocket(socket: NodeSocket | WebSocketNodeSocket): { skipWebSocketFrames: boolean; socket: net.Socket; } {
