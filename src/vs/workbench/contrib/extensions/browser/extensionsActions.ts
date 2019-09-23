@@ -61,7 +61,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 
 export function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -422,50 +421,6 @@ export class UninstallAction extends ExtensionAction {
 	}
 }
 
-export class UninstallEveryWhereAction extends ExtensionAction {
-
-	private static readonly UninstallLabel = localize('uninstallEverywhereAction', "Uninstall Everywhere");
-	private static readonly UninstallClass = 'extension-action uninstall-everywhere';
-
-	constructor(
-		@IUserDataSyncService private userDataSyncService: IUserDataSyncService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
-	) {
-		super('extensions.uninstallEverywhere', UninstallEveryWhereAction.UninstallLabel, UninstallEveryWhereAction.UninstallClass, false);
-		this.update();
-	}
-
-	update(): void {
-		if (!this.extension) {
-			this.enabled = false;
-			return;
-		}
-
-		if (this.userDataSyncService.status === SyncStatus.Uninitialized) {
-			this.enabled = false;
-			return;
-		}
-
-		const state = this.extension.state;
-		if (state !== ExtensionState.Installed) {
-			this.enabled = false;
-			return;
-		}
-		if (this.extension.type !== ExtensionType.User) {
-			this.enabled = false;
-			return;
-		}
-
-		this.enabled = true;
-	}
-
-	async run(): Promise<any> {
-		await this.userDataSyncService.removeExtension(this.extension.identifier);
-		await this.extensionsWorkbenchService.uninstall(this.extension);
-		alert(localize('uninstallExtensionComplete', "Please reload Visual Studio Code to complete the uninstallation of the extension {0}.", this.extension.displayName));
-	}
-}
-
 export class CombinedInstallAction extends ExtensionAction {
 
 	private static readonly NoExtensionClass = 'extension-action prominent install no-extension';
@@ -734,10 +689,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 			this.instantiationService.createInstance(DisableGloballyAction, runningExtensions),
 			this.instantiationService.createInstance(DisableForWorkspaceAction, runningExtensions)
 		]);
-		groups.push([
-			this.instantiationService.createInstance(UninstallAction),
-			this.instantiationService.createInstance(UninstallEveryWhereAction)
-		]);
+		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
 
 		const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(ExtensionInfoAction)];
