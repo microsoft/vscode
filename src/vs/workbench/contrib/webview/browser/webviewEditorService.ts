@@ -232,11 +232,6 @@ export class WebviewEditorService implements IWebviewEditorService {
 	public shouldPersist(
 		webview: WebviewInput
 	): boolean {
-		// Has no state, don't persist
-		if (!webview.webview.state) {
-			return false;
-		}
-
 		if (values(this._revivers).some(reviver => canRevive(reviver, webview))) {
 			return true;
 		}

@@ -96,7 +96,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		// This should trigger the real reviver to be registered from the extension host side.
 		this._register(_webviewEditorService.registerResolver({
 			canResolve: (webview: WebviewInput) => {
-				if (!webview.webview.state && webview.getTypeId() === WebviewInput.typeId) { // TODO: The typeid check is a workaround for the CustomFileEditorInput case
+				if (webview.getTypeId() !== WebviewInput.typeId) { // TODO: The typeid check is a workaround for the CustomFileEditorInput case
 					return false;
 				}
 
@@ -198,7 +198,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 
 		this._revivers.set(viewType, this._webviewEditorService.registerResolver({
 			canResolve: (webviewEditorInput) => {
-				return !!webviewEditorInput.webview.state && webviewEditorInput.viewType === this.getInternalWebviewViewType(viewType);
+				return webviewEditorInput.viewType === this.getInternalWebviewViewType(viewType);
 			},
 			resolveWebview: async (webviewEditorInput): Promise<void> => {
 				const viewType = this.fromInternalWebviewViewType(webviewEditorInput.viewType);
