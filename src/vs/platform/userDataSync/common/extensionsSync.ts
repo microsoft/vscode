@@ -71,7 +71,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 
 	async sync(): Promise<boolean> {
 		const syncExtensions = this.configurationService.getValue<boolean>('userConfiguration.syncExtensions');
-		if (syncExtensions === undefined || syncExtensions === false) {
+		if (syncExtensions === false) {
 			return false;
 		}
 
