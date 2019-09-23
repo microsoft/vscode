@@ -198,8 +198,10 @@
 	opacity: 1;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before {
-	content: "\ea71"; /* use `circle-filled` unicode */
+/* change close icon to dirty state icon */
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before {
+	content: "\ea71"; /* use `circle-filled` icon unicode */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-close .action-label,					/* show dimmed for inactive group */
