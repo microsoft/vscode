@@ -53,11 +53,12 @@ import { IPreferencesService } from '../services/preferences/common/preferences'
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/node/menubar';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
+import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -108,7 +109,8 @@ export class ElectronWindow extends Disposable {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IElectronService private readonly electronService: IElectronService
+		@IElectronService private readonly electronService: IElectronService,
+		@ITunnelService private readonly tunnelService: ITunnelService,
 	) {
 		super();
 
@@ -410,26 +412,23 @@ export class ElectronWindow extends Disposable {
 	private setupOpenHandlers(): void {
 
 		// Block window.open() calls
-		const $this = this;
 		window.open = function (): Window | null {
 			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
 		};
 
 		// Handle internal open() calls
 		this.openerService.registerOpener({
-			async open(resource: URI, options?: { openToSide?: boolean; openExternal?: boolean; } | undefined): Promise<boolean> {
+			open: async (resource: URI, options?: OpenOptions): Promise<boolean> => {
 
 				// If either the caller wants to open externally or the
 				// scheme is one where we prefer to open externally
 				// we handle this resource by delegating the opening to
 				// the main process to prevent window focus issues.
-				const scheme = resource.scheme.toLowerCase();
-				const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
-				if ((options && options.openExternal) || preferOpenExternal) {
-					const success = await $this.windowsService.openExternal(encodeURI(resource.toString(true)));
+				if (this.shouldOpenExternal(resource, options)) {
+					const success = await this.windowsService.openExternal(encodeURI(resource.toString(true)));
 					if (!success && resource.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
-						await $this.electronService.showItemInFolder(resource.fsPath);
+						await this.electronService.showItemInFolder(resource.fsPath);
 					}
 
 					return true;
@@ -438,6 +437,30 @@ export class ElectronWindow extends Disposable {
 				return false; // not handled by us
 			}
 		});
+
+		this.openerService.registerExternalUriResolver({
+			resolveExternalUri: async (uri: URI, options?: OpenOptions) => {
+				if (options && options.allowTunneling) {
+					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
+					if (portMappingRequest) {
+						const tunnel = await this.tunnelService.openTunnel(portMappingRequest.port);
+						if (tunnel) {
+							return {
+								resolved: uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` }),
+								dispose: () => tunnel.dispose(),
+							};
+						}
+					}
+				}
+				return undefined;
+			}
+		});
+	}
+
+	private shouldOpenExternal(resource: URI, options?: OpenOptions) {
+		const scheme = resource.scheme.toLowerCase();
+		const preferOpenExternal = (scheme === Schemas.mailto || scheme === Schemas.http || scheme === Schemas.https);
+		return (options && options.openExternal) || preferOpenExternal;
 	}
 
 	private updateTouchbarMenu(): void {

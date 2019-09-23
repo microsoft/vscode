@@ -42,6 +42,7 @@ import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/contrib/stats/browser/workspaceStatsService';
 import 'vs/workbench/services/workspace/browser/workspacesService';
 import 'vs/workbench/services/dialogs/browser/dialogService';
+import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/request/browser/requestService';
 import 'vs/workbench/browser/web.simpleservices';

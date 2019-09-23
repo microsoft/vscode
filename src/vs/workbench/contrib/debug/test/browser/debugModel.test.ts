@@ -112,7 +112,7 @@ suite('Debug - Model', () => {
 
 	test('breakpoints multiple sessions', () => {
 		const modelUri = uri.file('/myfolder/myfile.js');
-		const breakpoints = model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
+		const breakpoints = model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true, condition: 'x > 5' }, { lineNumber: 10, enabled: false }]);
 		const session = createMockSession(model);
 		const data = new Map<string, DebugProtocol.Breakpoint>();
 
@@ -121,7 +121,7 @@ suite('Debug - Model', () => {
 
 		data.set(breakpoints[0].getId(), { verified: false, line: 10 });
 		data.set(breakpoints[1].getId(), { verified: true, line: 50 });
-		model.setBreakpointSessionData(session.getId(), data);
+		model.setBreakpointSessionData(session.getId(), {}, data);
 		assert.equal(breakpoints[0].lineNumber, 5);
 		assert.equal(breakpoints[1].lineNumber, 50);
 
@@ -129,17 +129,23 @@ suite('Debug - Model', () => {
 		const data2 = new Map<string, DebugProtocol.Breakpoint>();
 		data2.set(breakpoints[0].getId(), { verified: true, line: 100 });
 		data2.set(breakpoints[1].getId(), { verified: true, line: 500 });
-		model.setBreakpointSessionData(session2.getId(), data2);
+		model.setBreakpointSessionData(session2.getId(), {}, data2);
 
 		// Breakpoint is verified only once, show that line
 		assert.equal(breakpoints[0].lineNumber, 100);
 		// Breakpoint is verified two times, show the original line
 		assert.equal(breakpoints[1].lineNumber, 10);
 
-		model.setBreakpointSessionData(session.getId(), undefined);
+		model.setBreakpointSessionData(session.getId(), {}, undefined);
 		// No more double session verification
 		assert.equal(breakpoints[0].lineNumber, 100);
 		assert.equal(breakpoints[1].lineNumber, 500);
+
+		assert.equal(breakpoints[0].supported, false);
+		const data3 = new Map<string, DebugProtocol.Breakpoint>();
+		data3.set(breakpoints[0].getId(), { verified: true, line: 500 });
+		model.setBreakpointSessionData(session2.getId(), { supportsConditionalBreakpoints: true }, data2);
+		assert.equal(breakpoints[0].supported, true);
 	});
 
 	// Threads
