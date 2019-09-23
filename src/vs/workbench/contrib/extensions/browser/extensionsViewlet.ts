@@ -316,7 +316,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createSyncedExtensionsViewDescriptor(): IViewDescriptor {
-		const id = 'extensions.syncedExtensionsLisst';
+		const id = 'extensions.syncedExtensionsList';
 		return {
 			id,
 			name: viewIdNameMappings[id],
