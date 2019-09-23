@@ -56,7 +56,7 @@ import 'vs/workbench/browser/parts/views/views';
 
 //#region --- workbench services
 
-import 'vs/workbench/services/extensions/common/extensionUrlHandler';
+import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
@@ -65,7 +65,6 @@ import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
 import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';

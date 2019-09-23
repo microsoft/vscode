@@ -75,12 +75,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.showOpenDialog(options, codeWindow), () => this.windowsMainService.showOpenDialog(options))!;
 	}
 
-	async reloadWindow(windowId: number, args: ParsedArgs): Promise<void> {
-		this.logService.trace('windowsService#reloadWindow', windowId);
-
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.reload(codeWindow, args));
-	}
-
 	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
 		this.logService.trace('windowsService#updateTouchBar', windowId);
 
@@ -97,18 +91,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#enterWorkspace', windowId);
 
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.enterWorkspace(codeWindow, path));
-	}
-
-	async toggleFullScreen(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#toggleFullScreen', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.toggleFullScreen());
-	}
-
-	async setRepresentedFilename(windowId: number, fileName: string): Promise<void> {
-		this.logService.trace('windowsService#setRepresentedFilename', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.setRepresentedFilename(fileName));
 	}
 
 	async addRecentlyOpened(recents: IRecent[]): Promise<void> {
@@ -220,16 +202,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#onWindowTitleDoubleClick', windowId);
 
 		return this.withWindow(windowId, codeWindow => codeWindow.onWindowTitleDoubleClick());
-	}
-
-	async setDocumentEdited(windowId: number, flag: boolean): Promise<void> {
-		this.logService.trace('windowsService#setDocumentEdited', windowId);
-
-		return this.withWindow(windowId, codeWindow => {
-			if (codeWindow.win.isDocumentEdited() !== flag) {
-				codeWindow.win.setDocumentEdited(flag);
-			}
-		});
 	}
 
 	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings): Promise<void> {

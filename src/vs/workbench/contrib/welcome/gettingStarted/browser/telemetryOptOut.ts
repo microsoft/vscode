@@ -11,7 +11,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExperimentService, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { language, locale } from 'vs/base/common/platform';
@@ -30,7 +30,6 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		@IOpenerService openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWindowService windowService: IWindowService,
-		@IWindowsService windowsService: IWindowsService,
 		@IHostService hostService: IHostService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExperimentService private readonly experimentService: IExperimentService,

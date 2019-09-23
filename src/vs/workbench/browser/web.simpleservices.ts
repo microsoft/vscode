@@ -91,59 +91,12 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	reloadWindow(): Promise<void> {
-		window.location.reload();
-
-		return Promise.resolve();
-	}
-
 	closeWorkspace(): Promise<void> {
 		return Promise.resolve();
 	}
 
 	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
-	}
-
-	toggleFullScreen(target?: HTMLElement): Promise<void> {
-		if (!target) {
-			return Promise.resolve();
-		}
-
-		// Chromium
-		if ((<any>document).fullscreen !== undefined) {
-			if (!(<any>document).fullscreen) {
-
-				return (<any>target).requestFullscreen().catch(() => {
-					// if it fails, chromium throws an exception with error undefined.
-					// re https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
-					console.warn('Toggle Full Screen failed');
-				});
-			} else {
-				return document.exitFullscreen().catch(() => {
-					console.warn('Exit Full Screen failed');
-				});
-			}
-		}
-
-		// Safari and Edge 14 are all using webkit prefix
-		if ((<any>document).webkitIsFullScreen !== undefined) {
-			try {
-				if (!(<any>document).webkitIsFullScreen) {
-					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
-				} else {
-					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
-				}
-			} catch {
-				console.warn('Enter/Exit Full Screen failed');
-			}
-		}
-
-		return Promise.resolve();
-	}
-
-	setRepresentedFilename(_fileName: string): Promise<void> {
-		return Promise.resolve();
 	}
 
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
@@ -256,10 +209,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve();
 	}
 
-	setDocumentEdited(_flag: boolean): Promise<void> {
-		return Promise.resolve();
-	}
-
 	onWindowTitleDoubleClick(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -289,24 +238,12 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve(true);
 	}
 
-	reloadWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
 	closeWorkspace(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 
 	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
-	}
-
-	toggleFullScreen(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setRepresentedFilename(_windowId: number, _fileName: string): Promise<void> {
-		return Promise.resolve();
 	}
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void> {
@@ -353,10 +290,6 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	onWindowTitleDoubleClick(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setDocumentEdited(_windowId: number, _flag: boolean): Promise<void> {
 		return Promise.resolve();
 	}
 

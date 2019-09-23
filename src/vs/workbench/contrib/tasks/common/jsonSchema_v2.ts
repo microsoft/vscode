@@ -74,7 +74,8 @@ const dependsOn: IJSONSchema = {
 				]
 			}
 		}
-	]
+	],
+	description: nls.localize('JsonSchema.tasks.dependsOn', 'Either a string representing another task or an array of other tasks that this task depends on.')
 };
 
 const dependsOrder: IJSONSchema = {

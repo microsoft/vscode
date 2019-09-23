@@ -35,7 +35,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Schemas } from 'vs/base/common/network';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -176,17 +175,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
-
-		// Represented File Name
-		this.updateRepresentedFilename();
-	}
-
-	private updateRepresentedFilename(): void {
-		const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.file });
-		const path = file ? file.fsPath : '';
-
-		// Apply to window
-		this.windowService.setRepresentedFilename(path);
 	}
 
 	private doUpdateTitle(): void {

@@ -9,6 +9,7 @@ import { IndexTreeModel, IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { mergeSort } from 'vs/base/common/arrays';
 
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 
@@ -123,7 +124,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		let iterator = elements ? getSequenceIterator(elements) : Iterator.empty<ITreeElement<T>>();
 
 		if (this.sorter) {
-			iterator = Iterator.fromArray(Iterator.collect(iterator).sort(this.sorter.compare.bind(this.sorter)));
+			iterator = Iterator.fromArray(mergeSort(Iterator.collect(iterator), this.sorter.compare.bind(this.sorter)));
 		}
 
 		return Iterator.map(iterator, treeElement => {

@@ -655,9 +655,8 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 		};
 	}
 
-	const session = debugService.getViewModel().focusedSession;
 	if (breakpoint instanceof FunctionBreakpoint) {
-		if (session && !session.capabilities.supportsFunctionBreakpoints) {
+		if (!breakpoint.supported) {
 			return {
 				className: 'debug-function-breakpoint-unverified',
 				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
@@ -671,7 +670,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 	}
 
 	if (breakpoint instanceof DataBreakpoint) {
-		if (session && !session.capabilities.supportsDataBreakpoints) {
+		if (!breakpoint.supported) {
 			return {
 				className: 'debug-data-breakpoint-unverified',
 				message: nls.localize('dataBreakpointUnsupported', "Data breakpoints not supported by this debug type"),
@@ -686,30 +685,17 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 
 	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
 		const messages: string[] = [];
-		if (breakpoint.logMessage) {
-			if (session && !session.capabilities.supportsLogPoints) {
-				return {
-					className: 'debug-breakpoint-unsupported',
-					message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
-				};
-			}
 
+		if (!breakpoint.supported) {
+			return {
+				className: 'debug-breakpoint-unsupported',
+				message: nls.localize('breakpointUnsupported', "Breakpoints of this type are not supported by the debugger"),
+			};
+		}
+
+		if (breakpoint.logMessage) {
 			messages.push(nls.localize('logMessage', "Log Message: {0}", breakpoint.logMessage));
 		}
-
-		if (session && breakpoint.condition && !session.capabilities.supportsConditionalBreakpoints) {
-			return {
-				className: 'debug-breakpoint-unsupported',
-				message: nls.localize('conditionalBreakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
-			};
-		}
-		if (session && breakpoint.hitCondition && !session.capabilities.supportsHitConditionalBreakpoints) {
-			return {
-				className: 'debug-breakpoint-unsupported',
-				message: nls.localize('hitBreakpointUnsupported', "Hit conditional breakpoints not supported by this debug type"),
-			};
-		}
-
 		if (breakpoint.condition) {
 			messages.push(nls.localize('expression', "Expression: {0}", breakpoint.condition));
 		}

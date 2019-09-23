@@ -603,7 +603,7 @@ let schema: IJSONSchema = {
 	id: schemaId,
 	type: 'array',
 	title: nls.localize('keybindings.json.title', "Keybindings configuration"),
-	allowsTrailingCommas: true,
+	allowTrailingCommas: true,
 	allowComments: true,
 	definitions: {
 		'editorGroupsSchema': {

@@ -37,7 +37,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { RemoteConnectionState, Deprecated_RemoteAuthorityContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/remoteFileDialog';
+import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'remote.showActions';
 const CLOSE_REMOTE_COMMAND_ID = 'remote.closeRemote';

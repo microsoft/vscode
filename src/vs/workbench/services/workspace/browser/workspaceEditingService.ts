@@ -415,7 +415,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// TODO@aeschli: workaround until restarting works
 		if (this.environmentService.configuration.remoteAuthority) {
-			this.windowService.reloadWindow();
+			this.hostService.reload();
 		}
 
 		// Restart the extension host: entering a workspace means a new location for

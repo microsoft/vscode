@@ -43,11 +43,8 @@ export class WindowsChannel implements IServerChannel {
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'reloadWindow': return this.service.reloadWindow(arg[0], arg[1]);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
-			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
-			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map((recent: IRecent) => {
 				if (isRecentFile(recent)) {
 					recent.fileUri = URI.revive(recent.fileUri);
@@ -76,7 +73,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'unmaximizeWindow': return this.service.unmaximizeWindow(arg);
 			case 'minimizeWindow': return this.service.minimizeWindow(arg);
 			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
-			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
 			case 'openWindow': {
 				const urisToOpen: IURIToOpen[] = arg[1];
 				const options: IOpenSettings = arg[2];

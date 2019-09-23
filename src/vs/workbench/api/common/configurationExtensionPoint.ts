@@ -238,7 +238,7 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 	allowComments: true,
-	allowsTrailingCommas: true,
+	allowTrailingCommas: true,
 	default: {
 		folders: [
 			{

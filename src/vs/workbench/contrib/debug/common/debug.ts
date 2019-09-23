@@ -319,7 +319,7 @@ export interface IStackFrame extends ITreeElement {
 	forgetScopes(): void;
 	restart(): Promise<any>;
 	toString(): string;
-	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditor | null>;
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditor | undefined>;
 	equals(other: IStackFrame): boolean;
 }
 
@@ -350,6 +350,7 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly hitCondition?: string;
 	readonly logMessage?: string;
 	readonly verified: boolean;
+	readonly supported: boolean;
 	getIdFromAdapter(sessionId: string): number | undefined;
 }
 

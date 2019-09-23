@@ -38,6 +38,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqualOrParent } from 'vs/base/common/resources';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
@@ -74,7 +75,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService
+		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
+		@IHostService private readonly _hostService: IHostService
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -101,7 +103,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}));
 		this._toDispose.add(this._extensionHostDebugService.onReload(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
-				this._windowService.reloadWindow();
+				this._hostService.reload();
 			}
 		}));
 
@@ -234,7 +236,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						this._notificationService.prompt(Severity.Warning, msg,
 							[{
 								label: nls.localize('reloadWindow', "Reload Window"),
-								run: () => this._windowService.reloadWindow()
+								run: () => this._hostService.reload()
 							}],
 							{ sticky: true }
 						);

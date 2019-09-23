@@ -73,10 +73,10 @@ request-light@^0.2.4:
     https-proxy-agent "^2.2.1"
     vscode-nls "^4.0.0"
 
-vscode-json-languageservice@^3.3.3:
-  version "3.3.3"
-  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.3.3.tgz#f7e512a2cd5e82fecbebf507d6fceaea47661297"
-  integrity sha512-5vL3OXTUuQpn6+tGd47dopio+7WwbtIZ07zfYMzAUX8eVWPZjfEsLeSWmQk5Xw+vwgu+j5zC4koz5UofLDGGRA==
+vscode-json-languageservice@^3.3.4:
+  version "3.3.4"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.3.4.tgz#4ff67580491d3a5dc469f4a78643f20adff0278d"
+  integrity sha512-/nuI4uDBfxyVyeGtBdYwP/tIaXYKOoymUOSozYKLzsmrDmu555gZpzc11LrARa96z92wSaa5hfjTtNMAoM2mxw==
   dependencies:
     jsonc-parser "^2.1.1"
     vscode-languageserver-types "^3.15.0-next.2"

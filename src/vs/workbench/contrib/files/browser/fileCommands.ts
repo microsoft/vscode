@@ -98,7 +98,7 @@ export const openWindowCommand = (accessor: ServicesAccessor, urisToOpen: IURITo
 	}
 };
 
-export const newWindowCommand = (accessor: ServicesAccessor, options?: { reuse?: boolean }) => {
+export const newWindowCommand = (accessor: ServicesAccessor, options?: { reuse?: boolean, remoteAuthority?: string }) => {
 	const hostService = accessor.get(IHostService);
 	hostService.openEmptyWindow(options);
 };

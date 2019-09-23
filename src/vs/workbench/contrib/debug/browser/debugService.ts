@@ -167,9 +167,7 @@ export class DebugService implements IDebugService {
 		this.toDispose.push(this.viewModel.onDidFocusStackFrame(() => {
 			this.onStateChange();
 		}));
-		this.toDispose.push(this.viewModel.onDidFocusSession(session => {
-			const id = session ? session.getId() : undefined;
-			this.model.setBreakpointsSessionId(id);
+		this.toDispose.push(this.viewModel.onDidFocusSession(() => {
 			this.onStateChange();
 		}));
 	}

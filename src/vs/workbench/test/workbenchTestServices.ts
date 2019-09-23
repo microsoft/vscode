@@ -1167,14 +1167,14 @@ export class TestCodeEditorService implements ICodeEditorService {
 	addDiffEditor(_editor: IDiffEditor): void { }
 	removeDiffEditor(_editor: IDiffEditor): void { }
 	listDiffEditors(): IDiffEditor[] { return []; }
-	getFocusedCodeEditor(): ICodeEditor | null { return null; }
+	getFocusedCodeEditor(): ICodeEditor | undefined { return undefined; }
 	registerDecorationType(_key: string, _options: IDecorationRenderOptions, _parentTypeKey?: string): void { }
 	removeDecorationType(_key: string): void { }
 	resolveDecorationOptions(_typeKey: string, _writable: boolean): IModelDecorationOptions { return Object.create(null); }
 	setTransientModelProperty(_model: ITextModel, _key: string, _value: any): void { }
 	getTransientModelProperty(_model: ITextModel, _key: string) { }
-	getActiveCodeEditor(): ICodeEditor | null { return null; }
-	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor | null> { return Promise.resolve(null); }
+	getActiveCodeEditor(): ICodeEditor | undefined { return undefined; }
+	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor | undefined> { return Promise.resolve(undefined); }
 }
 
 export class TestWindowService implements IWindowService {
@@ -1196,24 +1196,12 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	reloadWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	closeWorkspace(): Promise<void> {
 		return Promise.resolve();
 	}
 
 	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
-	}
-
-	toggleFullScreen(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setRepresentedFilename(_fileName: string): Promise<void> {
-		return Promise.resolve();
 	}
 
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
@@ -1252,10 +1240,6 @@ export class TestWindowService implements IWindowService {
 	}
 
 	closeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setDocumentEdited(_flag: boolean): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1322,24 +1306,12 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve(false);
 	}
 
-	reloadWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
 	closeWorkspace(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 
 	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
-	}
-
-	toggleFullScreen(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setRepresentedFilename(_windowId: number, _fileName: string): Promise<void> {
-		return Promise.resolve();
 	}
 
 	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
@@ -1386,10 +1358,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	onWindowTitleDoubleClick(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	setDocumentEdited(_windowId: number, _flag: boolean): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1550,7 +1518,9 @@ export class TestHostService implements IHostService {
 	windowCount = Promise.resolve(1);
 
 	restart(): Promise<void> { return Promise.resolve(); }
+	reload(): Promise<void> { return Promise.resolve(); }
 
-	openEmptyWindow(options?: { reuse?: boolean }): Promise<void> { return Promise.resolve(); }
+	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> { return Promise.resolve(); }
 
+	toggleFullScreen(): Promise<void> { return Promise.resolve(); }
 }

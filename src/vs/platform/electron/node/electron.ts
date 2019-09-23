@@ -15,7 +15,8 @@ export interface IElectronService {
 
 	// Window
 	windowCount(): Promise<number>;
-	openEmptyWindow(options?: { reuse?: boolean }): Promise<void>;
+	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void>;
+	toggleFullScreen(): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
@@ -29,7 +30,12 @@ export interface IElectronService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
+	setRepresentedFilename(path: string): Promise<void>;
+	setDocumentEdited(edited: boolean): Promise<void>;
+
+	// Lifecycle
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
+	reload(): Promise<void>;
 
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
