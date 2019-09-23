@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -13,7 +13,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
-import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -30,8 +30,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { isWeb } from 'vs/base/common/platform';
 import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 
-const CONTEXT_SYNC_STATE = new RawContextKey<string>('userDataSyncStatus', SyncStatus.Uninitialized);
-
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		id: 'userConfiguration',
@@ -42,6 +40,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'userConfiguration.enableSync': {
 				type: 'boolean',
 				description: localize('userConfiguration.enableSync', "When enabled, synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION
+			},
+			'userConfiguration.syncExtensions': {
+				type: 'boolean',
+				description: localize('userConfiguration.syncExtensions', "When enabled extensions are synchronised while synchronising user configuration."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION
 			}

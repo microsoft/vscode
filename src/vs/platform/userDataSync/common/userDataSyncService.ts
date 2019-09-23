@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { timeout } from 'vs/base/common/async';
+import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
+import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -27,14 +29,17 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _conflictsSource: SyncSource | null = null;
 	get conflictsSource(): SyncSource | null { return this._conflictsSource; }
 
+	private readonly settingsSynchroniser: SettingsSynchroniser;
+	private readonly extensionsSynchroniser: ExtensionsSynchroniser;
+
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-		this.synchronisers = [
-			this.instantiationService.createInstance(SettingsSynchroniser)
-		];
+		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
+		this.extensionsSynchroniser = this._register(this.instantiationService.createInstance(ExtensionsSynchroniser));
+		this.synchronisers = [this.settingsSynchroniser, this.extensionsSynchroniser];
 		this.updateStatus();
 		this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
@@ -50,6 +55,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 		}
 		return true;
+	}
+
+	getRemoteExtensions(): Promise<ISyncExtension[]> {
+		return this.extensionsSynchroniser.getRemoteExtensions();
+	}
+
+	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
+		return this.extensionsSynchroniser.removeExtension(identifier);
 	}
 
 	private updateStatus(): void {
