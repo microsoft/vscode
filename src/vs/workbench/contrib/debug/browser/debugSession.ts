@@ -313,7 +313,7 @@ export class DebugSession implements IDebugSession {
 					data.set(breakpointsToSend[i].getId(), response.body.breakpoints[i]);
 				}
 
-				this.model.setBreakpointSessionData(this.getId(), data);
+				this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 			}
 		});
 	}
@@ -327,7 +327,7 @@ export class DebugSession implements IDebugSession {
 						for (let i = 0; i < fbpts.length; i++) {
 							data.set(fbpts[i].getId(), response.body.breakpoints[i]);
 						}
-						this.model.setBreakpointSessionData(this.getId(), data);
+						this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 					}
 				});
 			}
@@ -367,7 +367,7 @@ export class DebugSession implements IDebugSession {
 						for (let i = 0; i < dataBreakpoints.length; i++) {
 							data.set(dataBreakpoints[i].getId(), response.body.breakpoints[i]);
 						}
-						this.model.setBreakpointSessionData(this.getId(), data);
+						this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 					}
 				});
 			}
@@ -844,7 +844,7 @@ export class DebugSession implements IDebugSession {
 				}], false);
 				if (bps.length === 1) {
 					const data = new Map<string, DebugProtocol.Breakpoint>([[bps[0].getId(), event.body.breakpoint]]);
-					this.model.setBreakpointSessionData(this.getId(), data);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 				}
 			}
 
@@ -863,11 +863,11 @@ export class DebugSession implements IDebugSession {
 						event.body.breakpoint.column = undefined;
 					}
 					const data = new Map<string, DebugProtocol.Breakpoint>([[breakpoint.getId(), event.body.breakpoint]]);
-					this.model.setBreakpointSessionData(this.getId(), data);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 				}
 				if (functionBreakpoint) {
 					const data = new Map<string, DebugProtocol.Breakpoint>([[functionBreakpoint.getId(), event.body.breakpoint]]);
-					this.model.setBreakpointSessionData(this.getId(), data);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 				}
 			}
 		}));
@@ -885,7 +885,7 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
 			this.initialized = true;
-			this.model.setBreakpointSessionData(this.getId(), undefined);
+			this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
 			this._onDidEndAdapter.fire(event);
 		}));
 	}
