@@ -164,7 +164,10 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 
 		// Remotely removed extension.
 		for (const key of baseToRemote.removed.keys()) {
-			removed.push(remoteExtensionsMap.get(key)!.identifier);
+			const e = localExtensionsMap.get(key);
+			if (e) {
+				removed.push(e.identifier);
+			}
 		}
 
 		// Remotely added extension
