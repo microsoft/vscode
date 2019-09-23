@@ -38,14 +38,6 @@
 	background: url("preview-dark.svg") center center no-repeat;
 }
 
-.vs-dark .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close {
-	opacity: 0;
-}
-.vs-dark .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close,
-.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close {
-	background: url("action-close-dirty-dark.svg") center center no-repeat;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list.focused .monaco-list-row.selected.dirty:not(:hover) > .monaco-action-bar .codicon-close {
-	background: url("action-close-dirty-focus.svg") center center no-repeat;
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
+	content: "\ea71";
 }
