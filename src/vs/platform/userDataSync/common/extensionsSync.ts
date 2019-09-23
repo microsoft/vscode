@@ -98,7 +98,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 
 		if (remote) {
 			// update remote
-			remoteData = await this.writeToRemote(localExtensions, remoteData.ref);
+			remoteData = await this.writeToRemote(remote, remoteData.ref);
 		}
 
 		// update last sync
