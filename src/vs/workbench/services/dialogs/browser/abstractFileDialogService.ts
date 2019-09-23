@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
-import { SimpleFileDialog as SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
+import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -88,7 +88,7 @@ export class AbstractFileDialogService {
 		}
 	}
 
-	protected async pickFileFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferCurrentWindow: boolean): Promise<any> {
+	protected async pickFileFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<any> {
 		const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
@@ -98,7 +98,7 @@ export class AbstractFileDialogService {
 			const stat = await this.fileService.resolve(uri);
 
 			const toOpen: IURIToOpen = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
-			if (stat.isDirectory || options.forceNewWindow || preferCurrentWindow) {
+			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
 				return this.windowService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
 			} else {
 				return this.openerService.open(uri);
@@ -106,13 +106,13 @@ export class AbstractFileDialogService {
 		}
 	}
 
-	protected async pickFileAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferCurrentWindow: boolean): Promise<any> {
+	protected async pickFileAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<any> {
 		const title = nls.localize('openFile.title', 'Open File');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
-			if (options.forceNewWindow || preferCurrentWindow) {
+			if (options.forceNewWindow || preferNewWindow) {
 				return this.windowService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
 			} else {
 				return this.openerService.open(uri);
