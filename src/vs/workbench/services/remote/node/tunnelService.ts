@@ -88,18 +88,53 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 export class TunnelService implements ITunnelService {
 	_serviceBrand: undefined;
 
+	private readonly _tunnels = new Map</* port */ number, { refcount: number, readonly value: Promise<RemoteTunnel> }>();
+
 	public constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService private readonly signService: ISignService,
-		@ILogService private readonly logService: ILogService
-	) {
+		@ILogService private readonly logService: ILogService,
+	) { }
+
+	dispose(): void {
+		for (const { value } of this._tunnels.values()) {
+			value.then(tunnel => tunnel.dispose());
+		}
+		this._tunnels.clear();
 	}
 
 	openTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		if (!remoteAuthority) {
 			return undefined;
+		}
+
+		const resolvedTunnel = this.retainOrCreateTunnel(remoteAuthority, remotePort);
+		if (!resolvedTunnel) {
+			return resolvedTunnel;
+		}
+
+		return resolvedTunnel.then(tunnel => ({
+			tunnelRemotePort: tunnel.tunnelRemotePort,
+			tunnelLocalPort: tunnel.tunnelLocalPort,
+			dispose: () => {
+				const existing = this._tunnels.get(remotePort);
+				if (existing) {
+					if (--existing.refcount <= 0) {
+						existing.value.then(tunnel => tunnel.dispose());
+						this._tunnels.delete(remotePort);
+					}
+				}
+			}
+		}));
+	}
+
+	private retainOrCreateTunnel(remoteAuthority: string, remotePort: number): Promise<RemoteTunnel> | undefined {
+		const existing = this._tunnels.get(remotePort);
+		if (existing) {
+			++existing.refcount;
+			return existing.value;
 		}
 
 		const options: IConnectionOptions = {
@@ -114,7 +149,10 @@ export class TunnelService implements ITunnelService {
 			signService: this.signService,
 			logService: this.logService
 		};
-		return createRemoteTunnel(options, remotePort);
+
+		const tunnel = createRemoteTunnel(options, remotePort);
+		this._tunnels.set(remotePort, { refcount: 1, value: tunnel });
+		return tunnel;
 	}
 }
 

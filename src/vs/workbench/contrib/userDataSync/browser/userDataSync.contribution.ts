@@ -30,7 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { isWeb } from 'vs/base/common/platform';
 import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 
-const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+const CONTEXT_SYNC_STATE = new RawContextKey<string>('userDataSyncStatus', SyncStatus.Uninitialized);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
@@ -60,8 +60,8 @@ class UserDataAutoSyncContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
-const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/sync-push-light.svg`));
-const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/sync-push-dark.svg`));
+const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-light.svg`));
+const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-dark.svg`));
 class SyncActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly syncEnablementContext: IContextKey<string>;
@@ -231,5 +231,5 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SyncActionsContribution, LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(SyncActionsContribution, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UserDataAutoSyncContribution, LifecyclePhase.Restored);

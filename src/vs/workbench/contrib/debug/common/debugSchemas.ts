@@ -137,7 +137,7 @@ export const launchSchema: IJSONSchema = {
 	id: launchSchemaId,
 	type: 'object',
 	title: nls.localize('app.launch.json.title', "Launch"),
-	allowsTrailingCommas: true,
+	allowTrailingCommas: true,
 	allowComments: true,
 	required: [],
 	default: { version: '0.2.0', configurations: [], compounds: [] },

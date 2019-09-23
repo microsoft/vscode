@@ -47,12 +47,12 @@ export interface ISyncExtension {
 	enabled: boolean;
 }
 
-export enum SyncSource {
+export const enum SyncSource {
 	Settings = 1,
 	Extensions
 }
 
-export enum SyncStatus {
+export const enum SyncStatus {
 	Uninitialized = 'uninitialized',
 	Idle = 'idle',
 	Syncing = 'syncing',

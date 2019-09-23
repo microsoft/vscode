@@ -94,11 +94,8 @@ export interface IWindowsService {
 	readonly onWindowUnmaximize: Event<number>;
 	readonly onRecentlyOpenedChange: Event<void>;
 
-	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void>;
 	closeWorkspace(windowId: number): Promise<void>;
 	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(windowId: number): Promise<void>;
-	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
@@ -111,7 +108,6 @@ export interface IWindowsService {
 	unmaximizeWindow(windowId: number): Promise<void>;
 	minimizeWindow(windowId: number): Promise<void>;
 	onWindowTitleDoubleClick(windowId: number): Promise<void>;
-	setDocumentEdited(windowId: number, flag: boolean): Promise<void>;
 	quit(): Promise<void>;
 
 	// macOS Native Tabs
@@ -197,14 +193,9 @@ export interface IWindowService {
 
 	readonly windowId: number;
 
-	reloadWindow(args?: ParsedArgs): Promise<void>;
 	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	// rationale: will eventually move to electron-browser
-	// tslint:disable-next-line: no-dom-globals
-	toggleFullScreen(target?: HTMLElement): Promise<void>;
-	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
@@ -212,7 +203,6 @@ export interface IWindowService {
 	closeWindow(): Promise<void>;
 	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
 	isFocused(): Promise<boolean>;
-	setDocumentEdited(flag: boolean): Promise<void>;
 	isMaximized(): Promise<boolean>;
 	maximizeWindow(): Promise<void>;
 	unmaximizeWindow(): Promise<void>;

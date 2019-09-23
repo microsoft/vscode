@@ -23,7 +23,8 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -126,7 +127,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private configurationService: IConfigurationService;
 	private lifecycleService: ILifecycleService;
 	private storageService: IStorageService;
-	private windowService: IWindowService;
+	private hostService: IHostService;
 	private editorService: IEditorService;
 	private editorGroupService: IEditorGroupsService;
 	private panelService: IPanelService;
@@ -201,7 +202,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.environmentService = accessor.get(IWorkbenchEnvironmentService);
 		this.configurationService = accessor.get(IConfigurationService);
 		this.lifecycleService = accessor.get(ILifecycleService);
-		this.windowService = accessor.get(IWindowService);
+		this.hostService = accessor.get(IHostService);
 		this.contextService = accessor.get(IWorkspaceContextService);
 		this.storageService = accessor.get(IStorageService);
 		this.backupFileService = accessor.get(IBackupFileService);
@@ -716,7 +717,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (toggleFullScreen) {
-			this.windowService.toggleFullScreen();
+			this.hostService.toggleFullScreen();
 		}
 
 		// Event

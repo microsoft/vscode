@@ -18,6 +18,22 @@ export interface Iterator<T> {
 	next(): IteratorResult<T>;
 }
 
+interface NativeIteratorYieldResult<TYield> {
+	done?: false;
+	value: TYield;
+}
+
+interface NativeIteratorReturnResult<TReturn> {
+	done: true;
+	value: TReturn;
+}
+
+type NativeIteratorResult<T, TReturn = any> = NativeIteratorYieldResult<T> | NativeIteratorReturnResult<TReturn>;
+
+export interface NativeIterator<T> {
+	next(): NativeIteratorResult<T>;
+}
+
 export module Iterator {
 	const _empty: Iterator<any> = {
 		next() {
@@ -52,6 +68,20 @@ export module Iterator {
 				}
 
 				return { done: false, value: array[index++] };
+			}
+		};
+	}
+
+	export function fromNativeIterator<T>(it: NativeIterator<T>): Iterator<T> {
+		return {
+			next(): IteratorResult<T> {
+				const result = it.next();
+
+				if (result.done) {
+					return FIN;
+				}
+
+				return { done: false, value: result.value };
 			}
 		};
 	}

@@ -319,7 +319,7 @@ export interface IStackFrame extends ITreeElement {
 	forgetScopes(): void;
 	restart(): Promise<any>;
 	toString(): string;
-	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditor | null>;
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditor | undefined>;
 	equals(other: IStackFrame): boolean;
 }
 

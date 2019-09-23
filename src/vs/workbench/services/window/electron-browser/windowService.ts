@@ -7,7 +7,6 @@ import { Event } from 'vs/base/common/event';
 import { IWindowService, IWindowsService, IEnterWorkspaceResult, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -53,10 +52,6 @@ export class WindowService extends Disposable implements IWindowService {
 		return this._windowId;
 	}
 
-	reloadWindow(args?: ParsedArgs): Promise<void> {
-		return this.windowsService.reloadWindow(this.windowId, args);
-	}
-
 	closeWorkspace(): Promise<void> {
 		return this.windowsService.closeWorkspace(this.windowId);
 	}
@@ -75,14 +70,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	closeWindow(): Promise<void> {
 		return this.windowsService.closeWindow(this.windowId);
-	}
-
-	toggleFullScreen(target?: HTMLElement): Promise<void> {
-		return this.windowsService.toggleFullScreen(this.windowId);
-	}
-
-	setRepresentedFilename(fileName: string): Promise<void> {
-		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
 	}
 
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
@@ -123,10 +110,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	onWindowTitleDoubleClick(): Promise<void> {
 		return this.windowsService.onWindowTitleDoubleClick(this.windowId);
-	}
-
-	setDocumentEdited(flag: boolean): Promise<void> {
-		return this.windowsService.setDocumentEdited(this.windowId, flag);
 	}
 
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void> {

@@ -110,6 +110,38 @@ suite('Debug - Model', () => {
 		assert.equal(model.getFunctionBreakpoints().length, 0);
 	});
 
+	test('breakpoints multiple sessions', () => {
+		const modelUri = uri.file('/myfolder/myfile.js');
+		const breakpoints = model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
+		const session = createMockSession(model);
+		const data = new Map<string, DebugProtocol.Breakpoint>();
+
+		assert.equal(breakpoints[0].lineNumber, 5);
+		assert.equal(breakpoints[1].lineNumber, 10);
+
+		data.set(breakpoints[0].getId(), { verified: false, line: 10 });
+		data.set(breakpoints[1].getId(), { verified: true, line: 50 });
+		model.setBreakpointSessionData(session.getId(), data);
+		assert.equal(breakpoints[0].lineNumber, 5);
+		assert.equal(breakpoints[1].lineNumber, 50);
+
+		const session2 = createMockSession(model);
+		const data2 = new Map<string, DebugProtocol.Breakpoint>();
+		data2.set(breakpoints[0].getId(), { verified: true, line: 100 });
+		data2.set(breakpoints[1].getId(), { verified: true, line: 500 });
+		model.setBreakpointSessionData(session2.getId(), data2);
+
+		// Breakpoint is verified only once, show that line
+		assert.equal(breakpoints[0].lineNumber, 100);
+		// Breakpoint is verified two times, show the original line
+		assert.equal(breakpoints[1].lineNumber, 10);
+
+		model.setBreakpointSessionData(session.getId(), undefined);
+		// No more double session verification
+		assert.equal(breakpoints[0].lineNumber, 100);
+		assert.equal(breakpoints[1].lineNumber, 500);
+	});
+
 	// Threads
 
 	test('threads simple', () => {

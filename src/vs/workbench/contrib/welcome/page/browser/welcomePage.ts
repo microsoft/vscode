@@ -42,6 +42,7 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
 import { IRecentlyOpened, isRecentWorkspace, IRecentWorkspace, IRecentFolder, isRecentFolder } from 'vs/platform/history/common/history';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
@@ -262,7 +263,8 @@ class WelcomePage extends Disposable {
 		@IExtensionTipsService private readonly tipsService: IExtensionTipsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 		this._register(lifecycleService.onShutdown(() => this.dispose()));
@@ -490,7 +492,7 @@ class WelcomePage extends Disposable {
 													extensionId: extensionSuggestion.id,
 													outcome: installedExtension ? 'enabled' : 'installed',
 												});
-												return this.windowService.reloadWindow();
+												return this.hostService.reload();
 											});
 									} else {
 										/* __GDPR__FRAGMENT__

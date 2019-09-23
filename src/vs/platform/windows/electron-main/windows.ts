@@ -50,7 +50,7 @@ export interface ICodeWindow {
 
 	addTabbedWindow(window: ICodeWindow): void;
 
-	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void;
+	load(config: IWindowConfiguration, isReload?: boolean): void;
 	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
 
 	focus(): void;
@@ -108,7 +108,7 @@ export interface IWindowsMainService {
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow | undefined;
 	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
-	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean }): ICodeWindow[];
+	openEmptyWindow(context: OpenContext, options?: { reuse?: boolean, remoteAuthority?: string }): ICodeWindow[];
 	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
 	openExternal(url: string): Promise<boolean>;
 	sendToFocused(channel: string, ...args: any[]): void;
