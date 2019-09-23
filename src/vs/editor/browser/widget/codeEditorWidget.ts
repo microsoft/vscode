@@ -1452,11 +1452,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		const viewOutgoingEvents = new ViewOutgoingEvents(viewModel);
-		viewOutgoingEvents.onDidGainFocus = () => {
-			this._editorTextFocus.setValue(true);
-		};
-
 		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
+		viewOutgoingEvents.onDidGainFocus = () => this._editorTextFocus.setValue(true);
 		viewOutgoingEvents.onDidLoseFocus = () => this._editorTextFocus.setValue(false);
 		viewOutgoingEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
 		viewOutgoingEvents.onMouseDown = (e) => this._onMouseDown.fire(e);
