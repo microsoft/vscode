@@ -505,13 +505,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			// remove disabled extensions
 			remoteEnv.extensions = remove(remoteEnv.extensions, extension => this._isDisabled(extension));
 
-			// remove UI extensions from the remote extensions
-			remoteEnv.extensions = remove(remoteEnv.extensions, extension => isUIExtension(extension));
-
 			// remove non-UI extensions from the local extensions
 			localExtensions = remove(localExtensions, extension => !extension.isBuiltin && !isUIExtension(extension));
 
-			// in case of overlap, the remote wins
+			// in case of UI extensions overlap, the local extension wins
+			remoteEnv.extensions = remove(remoteEnv.extensions, localExtensions.filter(extension => isUIExtension(extension)));
+
+			// in case of other extensions overlap, the remote extension wins
 			localExtensions = remove(localExtensions, remoteEnv.extensions);
 
 			// save for remote extension's init data

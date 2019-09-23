@@ -148,8 +148,11 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const server = isUIExtension(extension.manifest, this.productService, this.configurationService) ? this.extensionManagementServerService.localExtensionManagementServer : this.extensionManagementServerService.remoteExtensionManagementServer;
-			return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
+			if (!isUIExtension(extension.manifest, this.productService, this.configurationService)) {
+				// workspace extensions must run on the remote, but UI extensions can run on either side
+				const server = this.extensionManagementServerService.remoteExtensionManagementServer;
+				return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
+			}
 		}
 		return false;
 	}
