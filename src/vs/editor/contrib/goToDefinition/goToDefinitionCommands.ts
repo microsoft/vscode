@@ -162,7 +162,7 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean): Promise<ICodeEditor | null> {
+	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean): Promise<ICodeEditor | undefined> {
 		// range is the target-selection-range when we have one
 		// and the the fallback is the 'full' range
 		let range: IRange | undefined = undefined;

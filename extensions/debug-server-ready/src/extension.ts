@@ -10,7 +10,8 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 const PATTERN = 'listening on.* (https?://\\S+|[0-9]+)'; // matches "listening on port 3000" or "Now listening on: https://localhost:5001"
-const URI_FORMAT = 'http://localhost:%s';
+const URI_PORT_FORMAT = 'http://localhost:%s';
+const URI_FORMAT = '%s';
 const WEB_ROOT = '${workspaceFolder}';
 
 interface ServerReadyAction {
@@ -107,19 +108,21 @@ class ServerReadyDetector extends vscode.Disposable {
 	private openExternalWithString(session: vscode.DebugSession, captureString: string) {
 
 		const args: ServerReadyAction = session.configuration.serverReadyAction;
-		const format = args.uriFormat || URI_FORMAT;
 
+		let uri;
 		if (captureString === '') {
-			// nothing captured by reg exp -> use the uriFormat as the target url without substitution
+			// nothing captured by reg exp -> use the uriFormat as the target uri without substitution
 			// verify that format does not contain '%s'
+			const format = args.uriFormat || '';
 			if (format.indexOf('%s') >= 0) {
 				const errMsg = localize('server.ready.nocapture.error', "Format uri ('{0}') uses a substitution placeholder but pattern did not capture anything.", format);
 				vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
 				return;
 			}
-			captureString = format;
-		} else if (/^[0-9]+$/.test(captureString)) {
-			// looks like a port number -> use the uriFormat and substitute a single "%s" with the port
+			uri = format;
+		} else {
+			// if no uriFormat is specified guess the appropriate format based on the captureString
+			const format = args.uriFormat || (/^[0-9]+$/.test(captureString) ? URI_PORT_FORMAT : URI_FORMAT);
 			// verify that format only contains a single '%s'
 			const s = format.split('%s');
 			if (s.length !== 2) {
@@ -127,12 +130,10 @@ class ServerReadyDetector extends vscode.Disposable {
 				vscode.window.showErrorMessage(errMsg, { modal: true }).then(_ => undefined);
 				return;
 			}
-			captureString = util.format(format, captureString);
-		} else {
-			// use the string as is
+			uri = util.format(format, captureString);
 		}
 
-		this.openExternalWithUri(session, captureString);
+		this.openExternalWithUri(session, uri);
 	}
 
 	private openExternalWithUri(session: vscode.DebugSession, uri: string) {

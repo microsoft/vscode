@@ -39,8 +39,9 @@ namespace schema {
 			case 'menuBar/file': return MenuId.MenubarFileMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
-			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'scm/resourceFolder/context': return MenuId.SCMResourceFolderContext;
+			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/change/title': return MenuId.SCMChangeContext;
 			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;

@@ -123,3 +123,8 @@
 	min-width: 110px;
 	margin-right: 10px;
 }
+
+.monaco-workbench .part.panel.right .title-actions .codicon-chevron-up,
+.monaco-workbench .part.panel.right .title-actions .codicon-chevron-down {
+	transform: rotate(-90deg);
+}

@@ -372,6 +372,12 @@ export function distinctES6<T>(array: ReadonlyArray<T>): T[] {
 	});
 }
 
+export function fromSet<T>(set: Set<T>): T[] {
+	const result: T[] = [];
+	set.forEach(o => result.push(o));
+	return result;
+}
+
 export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	const seen: { [key: string]: boolean; } = Object.create(null);
 

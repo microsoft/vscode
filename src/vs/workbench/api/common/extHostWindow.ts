@@ -62,11 +62,11 @@ export class ExtHostWindow implements ExtHostWindowShape {
 			return Promise.reject(`Invalid scheme '${uri.scheme}'`);
 		}
 
-		const resolved = await this._proxy.$resolveExternalUri(uri, options);
+		const { result, handle } = await this._proxy.$resolveExternalUri(uri, options);
 		return {
-			resolved: URI.from(resolved),
+			resolved: URI.from(result),
 			dispose: once(() => {
-				this._proxy.$releaseResolvedExternalUri(uri);
+				this._proxy.$releaseResolvedExternalUri(handle);
 			}),
 		};
 	}

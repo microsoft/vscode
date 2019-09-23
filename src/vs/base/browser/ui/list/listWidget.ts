@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole, ListError } from './list';
+import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListAriaRootRole, ListError, IKeyboardNavigationDelegate } from './list';
 import { ListView, IListViewOptions, IListViewDragAndDrop, IAriaProvider } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -322,16 +322,18 @@ enum TypeLabelControllerState {
 	Typing
 }
 
-export function mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-	if (event.ctrlKey || event.metaKey || event.altKey) {
-		return false;
-	}
+export const DefaultKeyboardNavigationDelegate = new class implements IKeyboardNavigationDelegate {
+	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
+		if (event.ctrlKey || event.metaKey || event.altKey) {
+			return false;
+		}
 
-	return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
-		|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
-		|| (event.keyCode >= KeyCode.NUMPAD_0 && event.keyCode <= KeyCode.NUMPAD_9)
-		|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
-}
+		return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
+			|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
+			|| (event.keyCode >= KeyCode.NUMPAD_0 && event.keyCode <= KeyCode.NUMPAD_9)
+			|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
+	}
+};
 
 class TypeLabelController<T> implements IDisposable {
 
@@ -347,7 +349,8 @@ class TypeLabelController<T> implements IDisposable {
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>,
-		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>
+		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
+		private delegate: IKeyboardNavigationDelegate
 	) {
 		this.updateOptions(list.options);
 	}
@@ -379,7 +382,7 @@ class TypeLabelController<T> implements IDisposable {
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
-			.filter(this.keyboardNavigationLabelProvider.mightProducePrintableCharacter ? e => this.keyboardNavigationLabelProvider.mightProducePrintableCharacter!(e) : e => mightProducePrintableCharacter(e))
+			.filter(e => this.delegate.mightProducePrintableCharacter(e))
 			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
 			.map(event => event.browserEvent.key)
 			.event;
@@ -818,6 +821,7 @@ export interface IListOptions<T> extends IListStyles {
 	readonly enableKeyboardNavigation?: boolean;
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
+	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
 	readonly ariaRole?: ListAriaRootRole;
 	readonly ariaLabel?: string;
 	readonly keyboardSupport?: boolean;
@@ -1110,10 +1114,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private _onDidOpen = new Emitter<IListEvent<T>>();
 	readonly onDidOpen: Event<IListEvent<T>> = this._onDidOpen.event;
 
-	private _onPin = new Emitter<number[]>();
-	@memoize get onPin(): Event<IListEvent<T>> {
-		return Event.map(this._onPin.event, indexes => this.toListEvent({ indexes }));
-	}
+	private _onDidPin = new Emitter<IListEvent<T>>();
+	readonly onDidPin: Event<IListEvent<T>> = this._onDidPin.event;
 
 	get domId(): string { return this.view.domId; }
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
@@ -1228,7 +1230,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (_options.keyboardNavigationLabelProvider) {
-			this.typeLabelController = new TypeLabelController(this, this.view, _options.keyboardNavigationLabelProvider);
+			const delegate = _options.keyboardNavigationDelegate || DefaultKeyboardNavigationDelegate;
+			this.typeLabelController = new TypeLabelController(this, this.view, _options.keyboardNavigationLabelProvider, delegate);
 			this.disposables.add(this.typeLabelController);
 		}
 
@@ -1582,14 +1585,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this._onDidOpen.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
 	}
 
-	pin(indexes: number[]): void {
+	pin(indexes: number[], browserEvent?: UIEvent): void {
 		for (const index of indexes) {
 			if (index < 0 || index >= this.length) {
 				throw new ListError(this.user, `Invalid index ${index}`);
 			}
 		}
 
-		this._onPin.fire(indexes);
+		this._onDidPin.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
 	}
 
 	style(styles: IListStyles): void {
@@ -1626,7 +1629,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.disposables.dispose();
 
 		this._onDidOpen.dispose();
-		this._onPin.dispose();
+		this._onDidPin.dispose();
 		this._onDidDispose.dispose();
 	}
 }

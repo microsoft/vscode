@@ -209,4 +209,10 @@ if (options.workspaceUri) {
 	options.workspaceUri = URI.revive(options.workspaceUri);
 }
 
+if (Array.isArray(options.staticExtensions)) {
+	options.staticExtensions.forEach(extension => {
+		extension.extensionLocation = URI.revive(extension.extensionLocation);
+	});
+}
+
 create(document.body, options);

@@ -7,13 +7,13 @@ import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { Event } from 'vs/base/common/event';
-import { BrowserWindow, app } from 'electron';
+import { BrowserWindow, app, AuthInfo, WebContents, Event as ElectronEvent } from 'electron';
 
 type LoginEvent = {
-	event: Electron.Event;
-	webContents: Electron.WebContents;
-	req: Electron.Request;
-	authInfo: Electron.AuthInfo;
+	event: ElectronEvent;
+	webContents: WebContents;
+	req: Request;
+	authInfo: AuthInfo;
 	cb: (username: string, password: string) => void;
 };
 

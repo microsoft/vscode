@@ -18,7 +18,20 @@ export interface IHostService {
 	 */
 	readonly windowCount: Promise<number>;
 
+	/**
+	 * Opens an empty window. The optional parameter allows to define if
+	 * a new window should open or the existing one change to an empty.
+	 */
+	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void>;
+
+	toggleFullScreen(): Promise<void>;
+
 	//#endregion
 
+	//#region Lifecycle
+
 	restart(): Promise<void>;
+	reload(): Promise<void>;
+
+	//#endregion
 }

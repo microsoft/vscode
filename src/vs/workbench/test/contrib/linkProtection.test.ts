@@ -39,4 +39,11 @@ suite('Link protection domain matching', () => {
 		assert.ok(isURLDomainTrusted(URI.parse('https://a.b.x.org'), ['https://*.b.*.org']));
 		assert.ok(isURLDomainTrusted(URI.parse('https://a.a.b.x.org'), ['https://*.b.*.org']));
 	});
+
+	test('no scheme', () => {
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['a.x.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.x.org'), ['*.x.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://a.b.x.org'), ['*.x.org']));
+		assert.ok(isURLDomainTrusted(URI.parse('https://x.org'), ['*.x.org']));
+	});
 });

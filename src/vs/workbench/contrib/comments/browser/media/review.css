@@ -144,16 +144,16 @@
 	margin-right: 4px;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
+.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
 	background-image: url("./close-light.svg");
 	background-size: 16px;
 }
 
-.monaco-editor.vs-dark .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
+.monaco-editor.vs-dark .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
 	background-image: url("./close-dark.svg");
 }
 
-.monaco-editor.hc-black .review-widget .head .review-actions > .monaco-action-bar .icon.expand-review-action {
+.monaco-editor.hc-black .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
 	background-image: url("./close-hc.svg");
 }
 
@@ -417,7 +417,7 @@
 	margin: 0;
 }
 
-.monaco-editor .review-widget .head .review-actions .action-label.icon.close-review-action {
+.monaco-editor .review-widget .head .review-actions .action-label.codicon.close-review-action {
 	background: url("./close.svg") center center no-repeat;
 }
 

@@ -6,12 +6,16 @@
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { createSimpleChannelProxy } from 'vs/platform/ipc/node/simpleIpcProxy';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class ElectronService {
 
 	_serviceBrand: undefined;
 
-	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		return createSimpleChannelProxy<IElectronService>(mainProcessService.getChannel('electron'));
+	constructor(
+		@IMainProcessService mainProcessService: IMainProcessService,
+		@IWindowService windowService: IWindowService
+	) {
+		return createSimpleChannelProxy<IElectronService>(mainProcessService.getChannel('electron'), windowService.windowId);
 	}
 }

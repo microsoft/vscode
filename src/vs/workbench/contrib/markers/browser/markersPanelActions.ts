@@ -298,7 +298,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 export class QuickFixAction extends Action {
 
 	public static readonly ID: string = 'workbench.actions.problems.quickfix';
-	private static readonly CLASS: string = 'markers-panel-action-quickfix';
+	private static readonly CLASS: string = 'markers-panel-action-quickfix codicon-lightbulb';
 	private static readonly AUTO_FIX_CLASS: string = QuickFixAction.CLASS + ' autofixable';
 
 	private readonly _onShowQuickFixes = this._register(new Emitter<void>());
