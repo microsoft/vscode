@@ -108,9 +108,10 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	/**
 	 * Merge Strategy:
 	 * - If remote does not exist, merge with local (First time sync)
-	 * - Do not add/update user removed extensions in local.
+	 * - Do not add/update remote extensions if they are removed in local.
+	 * - Do not remove locally removed extensions in remote.
 	 * - Overwrite local with remote changes. Removed, Added, Updated.
-	 * - Update remove with those extension which are newly added or got updated in local.
+	 * - Update remote with those local extension which are newly added or updated.
 	 */
 	private merge(localExtensions: ISyncExtension[], remoteExtensions: ISyncExtension[] | null, lastSyncExtensions: ISyncExtension[] | null): { added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], remote: ISyncExtension[] | null } {
 
