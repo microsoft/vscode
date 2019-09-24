@@ -282,7 +282,9 @@ export class ExplorerView extends ViewletPanel {
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [filesRenderer],
+		const compressionDelegate = this.instantiationService.createInstance(ExplorerCompressionDelegate);
+
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), compressionDelegate, [filesRenderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
 			accessibilityProvider: new ExplorerAccessibilityProvider(),
 			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),

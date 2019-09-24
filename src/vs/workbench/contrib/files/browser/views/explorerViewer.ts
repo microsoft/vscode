@@ -865,7 +865,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {
 
-	isIncompressible(element: ExplorerItem): boolean {
-		return element.isRoot || !element.isDirectory;
+	constructor(
+		@IExplorerService private readonly explorerService: IExplorerService
+	) { }
+
+	isIncompressible(stat: ExplorerItem): boolean {
+		return stat.isRoot || !stat.isDirectory || !!this.explorerService.getEditableData(stat);
 	}
 }
