@@ -20,6 +20,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	private messageCallback: ((message: DebugProtocol.ProtocolMessage) => void) | undefined;
 	protected readonly _onError: Emitter<Error>;
 	protected readonly _onExit: Emitter<number | null>;
+	private queue: DebugProtocol.ProtocolMessage[] = [];
 
 	constructor() {
 		this.sequence = 1;
@@ -110,26 +111,40 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 			this.messageCallback(message);
 		}
 		else {
-			switch (message.type) {
-				case 'event':
-					if (this.eventCallback) {
-						this.eventCallback(<DebugProtocol.Event>message);
-					}
-					break;
-				case 'request':
-					if (this.requestCallback) {
-						this.requestCallback(<DebugProtocol.Request>message);
-					}
-					break;
-				case 'response':
-					const response = <DebugProtocol.Response>message;
-					const clb = this.pendingRequests.get(response.request_seq);
-					if (clb) {
-						this.pendingRequests.delete(response.request_seq);
-						clb(response);
-					}
-					break;
+			// Artificially queueing protocol messages guarantees that any microtasks for
+			// previous message finish before next message is processed. This is essential
+			// to guarantee ordering when using promises anywhere along the call path.
+			this.queue.push(message);
+			if (this.queue.length === 1) {
+				setTimeout(() => this.processQueue(), 0);
 			}
+		}
+	}
+
+	private processQueue(): void {
+		const message = this.queue!.shift()!;
+		switch (message.type) {
+			case 'event':
+				if (this.eventCallback) {
+					this.eventCallback(<DebugProtocol.Event>message);
+				}
+				break;
+			case 'request':
+				if (this.requestCallback) {
+					this.requestCallback(<DebugProtocol.Request>message);
+				}
+				break;
+			case 'response':
+				const response = <DebugProtocol.Response>message;
+				const clb = this.pendingRequests.get(response.request_seq);
+				if (clb) {
+					this.pendingRequests.delete(response.request_seq);
+					clb(response);
+				}
+				break;
+		}
+		if (this.queue!.length) {
+			setTimeout(() => this.processQueue(), 0);
 		}
 	}
 

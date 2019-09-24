@@ -685,6 +685,11 @@ export class DebugSession implements IDebugSession {
 		}) : Promise.resolve(undefined);
 	}
 
+	initializeForTest(raw: RawDebugSession): void {
+		this.raw = raw;
+		this.registerListeners();
+	}
+
 	//---- private
 
 	private registerListeners(): void {
