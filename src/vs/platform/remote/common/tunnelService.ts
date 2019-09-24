@@ -8,11 +8,7 @@ import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 export class NoOpTunnelService implements ITunnelService {
 	_serviceBrand: undefined;
 
-	public constructor(
-	) {
-	}
-
-	openTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
+	openTunnel(_remotePort: number): Promise<RemoteTunnel> | undefined {
 		return undefined;
 	}
 }
