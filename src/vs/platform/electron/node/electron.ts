@@ -17,6 +17,7 @@ export interface IElectronService {
 	windowCount(): Promise<number>;
 	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void>;
 	toggleFullScreen(): Promise<void>;
+	handleTitleDoubleClick(): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;

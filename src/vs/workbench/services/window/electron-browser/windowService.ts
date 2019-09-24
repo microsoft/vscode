@@ -108,10 +108,6 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.minimizeWindow(this.windowId);
 	}
 
-	onWindowTitleDoubleClick(): Promise<void> {
-		return this.windowsService.onWindowTitleDoubleClick(this.windowId);
-	}
-
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void> {
 		return this.windowsService.updateTouchBar(this.windowId, items);
 	}

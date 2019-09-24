@@ -42,6 +42,13 @@ export class ElectronMainService implements ElectronServiceInterface {
 		}
 	}
 
+	async handleTitleDoubleClick(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.handleTitleDoubleClick();
+		}
+	}
+
 	//#endregion
 
 	//#region Dialog

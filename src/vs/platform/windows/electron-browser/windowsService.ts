@@ -116,10 +116,6 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('minimizeWindow', windowId);
 	}
 
-	onWindowTitleDoubleClick(windowId: number): Promise<void> {
-		return this.channel.call('onWindowTitleDoubleClick', windowId);
-	}
-
 	quit(): Promise<void> {
 		return this.channel.call('quit');
 	}

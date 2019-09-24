@@ -67,7 +67,7 @@ export interface ICodeWindow {
 	hasHiddenTitleBarStyle(): boolean;
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string;
-	onWindowTitleDoubleClick(): void;
+	handleTitleDoubleClick(): void;
 
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 

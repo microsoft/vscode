@@ -209,10 +209,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve();
 	}
 
-	onWindowTitleDoubleClick(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
 		return Promise.resolve();
 	}
@@ -286,10 +282,6 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	unmaximizeWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	onWindowTitleDoubleClick(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 

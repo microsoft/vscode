@@ -198,12 +198,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		return this.withWindow(windowId, codeWindow => codeWindow.win.minimize());
 	}
 
-	async onWindowTitleDoubleClick(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#onWindowTitleDoubleClick', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.onWindowTitleDoubleClick());
-	}
-
 	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings): Promise<void> {
 		this.logService.trace('windowsService#openWindow');
 		if (!urisToOpen || !urisToOpen.length) {

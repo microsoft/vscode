@@ -59,6 +59,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -111,6 +112,7 @@ export class ElectronWindow extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IElectronService private readonly electronService: IElectronService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
@@ -262,6 +264,17 @@ export class ElectronWindow extends Disposable {
 
 				// Custom title menu
 				this.provideCustomTitleContextMenu(file ? file.fsPath : undefined);
+			}));
+		}
+
+		// Maximize/Restore on doubleclick (for macOS custom title)
+		if (isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+			const titlePart = this.layoutService.getContainer(Parts.TITLEBAR_PART);
+
+			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
+				DOM.EventHelper.stop(e);
+
+				this.electronService.handleTitleDoubleClick();
 			}));
 		}
 	}

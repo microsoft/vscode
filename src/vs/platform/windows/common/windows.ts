@@ -106,7 +106,6 @@ export interface IWindowsService {
 	maximizeWindow(windowId: number): Promise<void>;
 	unmaximizeWindow(windowId: number): Promise<void>;
 	minimizeWindow(windowId: number): Promise<void>;
-	onWindowTitleDoubleClick(windowId: number): Promise<void>;
 	quit(): Promise<void>;
 
 	// macOS Native Tabs
@@ -206,7 +205,6 @@ export interface IWindowService {
 	maximizeWindow(): Promise<void>;
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
-	onWindowTitleDoubleClick(): Promise<void>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';

@@ -72,7 +72,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'maximizeWindow': return this.service.maximizeWindow(arg);
 			case 'unmaximizeWindow': return this.service.unmaximizeWindow(arg);
 			case 'minimizeWindow': return this.service.minimizeWindow(arg);
-			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'openWindow': {
 				const urisToOpen: IURIToOpen[] = arg[1];
 				const options: IOpenSettings = arg[2];
