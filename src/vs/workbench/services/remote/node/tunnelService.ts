@@ -97,7 +97,7 @@ export class TunnelService implements ITunnelService {
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	public get tunnels(): Promise<Iterable<RemoteTunnel>> {
+	public get tunnels(): Promise<readonly RemoteTunnel[]> {
 		return Promise.all(Array.from(this._tunnels.values()).map(x => x.value));
 	}
 

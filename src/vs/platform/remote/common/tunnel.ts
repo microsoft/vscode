@@ -18,7 +18,7 @@ export interface RemoteTunnel {
 export interface ITunnelService {
 	_serviceBrand: undefined;
 
-	readonly tunnels: Promise<Iterable<RemoteTunnel>>;
+	readonly tunnels: Promise<readonly RemoteTunnel[]>;
 
 	openTunnel(remotePort: number): Promise<RemoteTunnel> | undefined;
 }

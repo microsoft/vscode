@@ -8,7 +8,7 @@ import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 export class NoOpTunnelService implements ITunnelService {
 	_serviceBrand: undefined;
 
-	public readonly tunnels: Promise<Iterable<RemoteTunnel>> = Promise.resolve([]);
+	public readonly tunnels: Promise<readonly RemoteTunnel[]> = Promise.resolve([]);
 
 	openTunnel(_remotePort: number): Promise<RemoteTunnel> | undefined {
 		return undefined;
