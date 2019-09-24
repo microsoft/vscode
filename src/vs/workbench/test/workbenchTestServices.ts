@@ -1230,10 +1230,6 @@ export class TestWindowService implements IWindowService {
 	openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
 		return Promise.resolve();
 	}
-
-	closeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
 }
 
 export class TestLifecycleService implements ILifecycleService {
@@ -1310,10 +1306,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	focusWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	closeWindow(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 

@@ -57,7 +57,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
 			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
-			case 'closeWindow': return this.service.closeWindow(arg);
 			case 'isFocused': return this.service.isFocused(arg);
 			case 'isMaximized': return this.service.isMaximized(arg);
 			case 'maximizeWindow': return this.service.maximizeWindow(arg);

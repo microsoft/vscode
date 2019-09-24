@@ -161,6 +161,13 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 		}
 	}
 
+	async closeWindow(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return window.win.close();
+		}
+	}
+
 	async quit(windowId: number): Promise<void> {
 		return this.windowsMainService.quit();
 	}

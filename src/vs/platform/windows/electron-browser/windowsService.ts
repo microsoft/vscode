@@ -54,10 +54,6 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('focusWindow', windowId);
 	}
 
-	closeWindow(windowId: number): Promise<void> {
-		return this.channel.call('closeWindow', windowId);
-	}
-
 	isFocused(windowId: number): Promise<boolean> {
 		return this.channel.call('isFocused', windowId);
 	}

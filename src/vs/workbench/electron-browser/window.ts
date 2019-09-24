@@ -295,7 +295,7 @@ export class ElectronWindow extends Disposable {
 	private onAllEditorsClosed(): void {
 		const visibleEditors = this.editorService.visibleControls.length;
 		if (visibleEditors === 0) {
-			this.windowService.closeWindow();
+			this.electronService.closeWindow();
 		}
 	}
 

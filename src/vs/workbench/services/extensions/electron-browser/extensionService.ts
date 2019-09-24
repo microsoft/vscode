@@ -547,7 +547,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	public _onExtensionHostExit(code: number): void {
 		// Expected development extension termination: When the extension host goes down we also shutdown the window
 		if (!this._isExtensionDevTestFromCli) {
-			this._windowService.closeWindow();
+			this._electronService.closeWindow();
 		}
 
 		// When CLI testing make sure to exit with proper exit code

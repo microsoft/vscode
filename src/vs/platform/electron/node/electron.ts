@@ -49,6 +49,7 @@ export interface IElectronService {
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 	reload(): Promise<void>;
 	closeWorkpsace(): Promise<void>;
+	closeWindow(): Promise<void>;
 	quit(): Promise<void>;
 
 	// Development

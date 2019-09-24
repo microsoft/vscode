@@ -27,7 +27,7 @@ import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -38,6 +38,10 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+
+// TODO@sbatten https://github.com/microsoft/vscode/issues/81360
+// tslint:disable-next-line: import-patterns layering
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -95,7 +99,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@optional(IElectronService) private electronService: IElectronService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -322,7 +327,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.onUpdateAppIconDragBehavior();
 
 			this._register(addDisposableListener(this.appIcon, EventType.DBLCLICK, (e => {
-				this.windowService.closeWindow();
+				this.electronService.closeWindow();
 			})));
 		}
 
@@ -388,7 +393,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			const closeIcon = append(closeIconContainer, $('div.window-icon'));
 			addClass(closeIcon, 'window-close');
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
-				this.windowService.closeWindow();
+				this.electronService.closeWindow();
 			}));
 
 			// Resizer

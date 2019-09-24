@@ -191,12 +191,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		}
 		return { openFolderInNewWindow };
 	}
-
-	closeWindow(): Promise<void> {
-		window.close();
-
-		return Promise.resolve();
-	}
 }
 
 registerSingleton(IWindowService, SimpleWindowService);
@@ -239,10 +233,6 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	focusWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	closeWindow(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 

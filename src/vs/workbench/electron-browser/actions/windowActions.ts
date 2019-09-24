@@ -25,12 +25,16 @@ export class CloseCurrentWindowAction extends Action {
 	static readonly ID = 'workbench.action.closeWindow';
 	static readonly LABEL = nls.localize('closeWindow', "Close Window");
 
-	constructor(id: string, label: string, @IWindowService private readonly windowService: IWindowService) {
+	constructor(
+		id: string,
+		label: string,
+		@IElectronService private readonly electronService: IElectronService
+	) {
 		super(id, label);
 	}
 
 	run(): Promise<boolean> {
-		this.windowService.closeWindow();
+		this.electronService.closeWindow();
 
 		return Promise.resolve(true);
 	}
@@ -169,6 +173,7 @@ export abstract class BaseSwitchWindow extends Action {
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
 		private modeService: IModeService,
+		private electronService: IElectronService
 	) {
 		super(id, label);
 
@@ -200,7 +205,7 @@ export abstract class BaseSwitchWindow extends Action {
 			placeHolder,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: async context => {
-				await this.windowsService.closeWindow(context.item.payload);
+				await this.electronService.closeWindow();
 				context.removeItem();
 			}
 		});
@@ -225,8 +230,9 @@ export class SwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
+		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService);
+		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService, electronService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -248,8 +254,9 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
+		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService);
+		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService, electronService);
 	}
 
 	protected isQuickNavigate(): boolean {

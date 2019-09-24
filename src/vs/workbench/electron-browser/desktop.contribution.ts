@@ -20,7 +20,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 
 // Actions
@@ -48,8 +47,8 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 			when: ContextKeyExpr.and(NoEditorsVisibleContext, SingleEditorGroupsContext),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 			handler: accessor => {
-				const windowService = accessor.get(IWindowService);
-				windowService.closeWindow();
+				const electronService = accessor.get(IElectronService);
+				electronService.closeWindow();
 			}
 		});
 

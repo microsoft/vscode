@@ -87,7 +87,6 @@ export interface IWindowsService {
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
 	focusWindow(windowId: number): Promise<void>;
-	closeWindow(windowId: number): Promise<void>;
 	isFocused(windowId: number): Promise<boolean>;
 	isMaximized(windowId: number): Promise<boolean>;
 	maximizeWindow(windowId: number): Promise<void>;
@@ -158,7 +157,6 @@ export interface IWindowService {
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	focusWindow(): Promise<void>;
-	closeWindow(): Promise<void>;
 	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
 	isFocused(): Promise<boolean>;
 	isMaximized(): Promise<boolean>;

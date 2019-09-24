@@ -106,12 +106,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		}
 	}
 
-	async closeWindow(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#closeWindow', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.win.close());
-	}
-
 	async isFocused(windowId: number): Promise<boolean> {
 		this.logService.trace('windowsService#isFocused', windowId);
 

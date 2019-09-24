@@ -59,10 +59,6 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.openWindow(this.windowId, uris, options);
 	}
 
-	closeWindow(): Promise<void> {
-		return this.windowsService.closeWindow(this.windowId);
-	}
-
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return this.windowsService.getRecentlyOpened(this.windowId);
 	}
