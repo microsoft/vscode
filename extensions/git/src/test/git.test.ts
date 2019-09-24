@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommit, parseGitmodules, parseLsTree, parseLsFiles } from '../git';
+import { GitStatusParser, parseGitCommit, parseGitmodules, parseGitFilterAttribute, parseLsTree, parseLsFiles } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -228,6 +228,20 @@ This is a commit message.`;
 				authorEmail: 'john.doe@mail.com',
 			});
 		});
+	});
+
+	suite('parseGitAttributes', () => {
+		test('unspecified', function() {
+			assert.strictEqual(parseGitFilterAttribute(`engine/bwsafe/README.md\0filter\0unspecified\0`), null);
+		})
+
+		test('executable value returned', function() {
+			assert.strictEqual(parseGitFilterAttribute(`engine/bwsafe/README.md\0filter\0some-tool\0`), 'some-tool');
+		})
+
+		test('not filter attribute',function() {
+			assert.strictEqual(parseGitFilterAttribute(`engine/bwsafe/README.md\0merge\0some-tool\0`), null);
+		})
 	});
 
 	suite('parseLsTree', function () {

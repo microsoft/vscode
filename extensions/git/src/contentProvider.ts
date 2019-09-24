@@ -81,7 +81,7 @@ export class GitContentProvider {
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
-		let { path, ref, submoduleOf } = fromGitUri(uri);
+		let { path, ref, submoduleOf, filter } = fromGitUri(uri);
 
 		if (submoduleOf) {
 			const repository = this.model.getRepository(submoduleOf);
@@ -119,7 +119,7 @@ export class GitContentProvider {
 		}
 
 		try {
-			return await repository.show(ref, path);
+			return await repository.show(ref, path, filter);
 		} catch (err) {
 			return '';
 		}

@@ -295,6 +295,7 @@ export const enum Operation {
 	Stash = 'Stash',
 	CheckIgnore = 'CheckIgnore',
 	GetObjectDetails = 'GetObjectDetails',
+	GetGitFilter = 'GetGitFilter',
 	SubmoduleUpdate = 'SubmoduleUpdate',
 	RebaseContinue = 'RebaseContinue',
 	FindTrackingBranches = 'GetTracking',
@@ -1177,7 +1178,7 @@ export class Repository implements Disposable {
 		});
 	}
 
-	async show(ref: string, filePath: string): Promise<string> {
+	async show(ref: string, filePath: string, filter?: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
@@ -1185,11 +1186,11 @@ export class Repository implements Disposable {
 			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
 
 			try {
-				return await this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
+				return await this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding, filter);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
 					const gitRelativePath = await this.repository.getGitRelativePath(ref, relativePath);
-					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding);
+					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding, filter);
 				}
 
 				throw err;
@@ -1204,12 +1205,16 @@ export class Repository implements Disposable {
 		});
 	}
 
+	getGitFilter(filePath: string): Promise<string | null> {
+		return this.run(Operation.GetGitFilter, () => this.repository.getGitFilter(filePath));
+	}
+
 	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number }> {
 		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
 	}
 
-	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
-		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
+	detectObjectType(object: string, filter?: string): Promise<{ mimetype: string, encoding?: string }> {
+		return this.run(Operation.Show, () => this.repository.detectObjectType(object, filter));
 	}
 
 	async apply(patch: string, reverse?: boolean): Promise<void> {

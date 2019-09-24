@@ -9,6 +9,7 @@ export interface GitUriParams {
 	path: string;
 	ref: string;
 	submoduleOf?: string;
+	filter?: string;
 }
 
 export function fromGitUri(uri: Uri): GitUriParams {
@@ -18,6 +19,7 @@ export function fromGitUri(uri: Uri): GitUriParams {
 export interface GitUriOptions {
 	replaceFileExtension?: boolean;
 	submoduleOf?: string;
+	filter?: string;
 }
 
 // As a mitigation for extensions like ESLint showing warnings and errors
@@ -26,11 +28,14 @@ export interface GitUriOptions {
 export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Uri {
 	const params: GitUriParams = {
 		path: uri.fsPath,
-		ref
+		ref,
 	};
 
 	if (options.submoduleOf) {
 		params.submoduleOf = options.submoduleOf;
+	}
+	if (options.filter) {
+		params.filter = options.filter;
 	}
 
 	let path = uri.path;

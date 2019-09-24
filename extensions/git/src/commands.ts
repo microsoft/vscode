@@ -327,10 +327,11 @@ export class CommandCenter {
 			}
 
 			const { size, object } = await repository.getObjectDetails(gitRef, uri.fsPath);
-			const { mimetype } = await repository.detectObjectType(object);
+			const filter = await repository.getGitFilter(uri.fsPath) || undefined;
+			const { mimetype } = await repository.detectObjectType(object, filter);
 
 			if (mimetype === 'text/plain') {
-				return toGitUri(uri, ref);
+				return toGitUri(uri, ref, { filter });
 			}
 
 			if (size > 1000000) { // 1 MB

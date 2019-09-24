@@ -163,6 +163,7 @@ export interface SpawnOptions extends cp.SpawnOptions {
 	encoding?: string;
 	log?: boolean;
 	cancellationToken?: CancellationToken;
+	shell?: boolean;
 }
 
 async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
@@ -610,6 +611,14 @@ export function parseGitCommit(raw: string): Commit | null {
 	return { hash: match[1], message: match[5], parents, authorEmail: match[2] };
 }
 
+export function parseGitFilterAttribute(raw: string): string | null {
+	const parts = raw.trim().split('\0');
+	if (parts.length < 3 || parts[1] !== 'filter' || parts[2] === 'unspecified') {
+		return null;
+	}
+	return parts[2];
+}
+
 interface LsTreeElement {
 	mode: string;
 	type: string;
@@ -759,8 +768,8 @@ export class Repository {
 		return result;
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
-		const stdout = await this.buffer(object);
+	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false, filter?: string): Promise<string> {
+		const stdout = await this.buffer(object, filter);
 
 		if (autoGuessEncoding) {
 			encoding = detectEncoding(stdout) || encoding;
@@ -771,8 +780,18 @@ export class Repository {
 		return iconv.decode(stdout, encoding);
 	}
 
-	async buffer(object: string): Promise<Buffer> {
-		const child = this.stream(['show', object]);
+	streamShow(object: string, filter?: string): cp.ChildProcess {
+		const args = ['show', object];
+		const options: SpawnOptions = {};
+		if (filter) {
+			args.push('|', filter, 'smudge');
+			options.shell = true;
+		}
+		return this.stream(args, options);
+	}
+
+	async buffer(object: string, filter?: string): Promise<Buffer> {
+		const child = this.streamShow(object, filter);
 
 		if (!child.stdout) {
 			return Promise.reject<Buffer>('Can\'t open file from git');
@@ -794,6 +813,11 @@ export class Repository {
 		}
 
 		return stdout;
+	}
+
+	async getGitFilter(path: string): Promise<string | null> {
+		const { stdout } = await this.run(['check-attr', '-z', 'filter', '--', path]);
+		return parseGitFilterAttribute(stdout);
 	}
 
 	async getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
@@ -844,8 +868,8 @@ export class Repository {
 		return element.file;
 	}
 
-	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
-		const child = await this.stream(['show', object]);
+	async detectObjectType(object: string, filter?: string): Promise<{ mimetype: string, encoding?: string }> {
+		const child = this.streamShow(object, filter);
 		const buffer = await readBytes(child.stdout, 4100);
 
 		try {
