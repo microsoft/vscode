@@ -346,15 +346,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.titleUpdater.schedule();
 		}
 
-		// Maximize/Restore on doubleclick
-		if (isMacintosh && !isWeb) {
-			this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
-				EventHelper.stop(e);
-
-				this.onTitleDoubleclick();
-			}));
-		}
-
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
 			this._register(addDisposableListener(this.title, event, e => {
@@ -405,7 +396,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			const isMaximized = this.environmentService.configuration.maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
-			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
+			this._register(this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this));
 		}
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
@@ -475,10 +466,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
 			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : null;
 		}
-	}
-
-	private onTitleDoubleclick(): void {
-		this.windowService.onWindowTitleDoubleClick();
 	}
 
 	private onUpdateAppIconDragBehavior() {

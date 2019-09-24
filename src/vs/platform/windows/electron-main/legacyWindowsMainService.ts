@@ -8,14 +8,13 @@ import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IWindowsService, OpenContext, IEnterWorkspaceResult, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { crashReporter, app, Menu, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, CrashReporterStartOptions, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
+import { app, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -41,7 +40,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 	readonly onRecentlyOpenedChange: Event<void> = this.historyMainService.onRecentlyOpenedChange;
 
 	constructor(
-		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
@@ -75,18 +73,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.showOpenDialog(options, codeWindow), () => this.windowsMainService.showOpenDialog(options))!;
 	}
 
-	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
-		this.logService.trace('windowsService#updateTouchBar', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.updateTouchBar(items));
-	}
-
-	async closeWorkspace(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#closeWorkspace', windowId);
-
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.closeWorkspace(codeWindow));
-	}
-
 	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		this.logService.trace('windowsService#enterWorkspace', windowId);
 
@@ -114,42 +100,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#getRecentlyOpened', windowId);
 
 		return this.withWindow(windowId, codeWindow => this.historyMainService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpenOrCreate), () => this.historyMainService.getRecentlyOpened())!;
-	}
-
-	async newWindowTab(): Promise<void> {
-		this.logService.trace('windowsService#newWindowTab');
-
-		this.windowsMainService.openNewTabbedWindow(OpenContext.API);
-	}
-
-	async showPreviousWindowTab(): Promise<void> {
-		this.logService.trace('windowsService#showPreviousWindowTab');
-
-		Menu.sendActionToFirstResponder('selectPreviousTab:');
-	}
-
-	async showNextWindowTab(): Promise<void> {
-		this.logService.trace('windowsService#showNextWindowTab');
-
-		Menu.sendActionToFirstResponder('selectNextTab:');
-	}
-
-	async moveWindowTabToNewWindow(): Promise<void> {
-		this.logService.trace('windowsService#moveWindowTabToNewWindow');
-
-		Menu.sendActionToFirstResponder('moveTabToNewWindow:');
-	}
-
-	async mergeAllWindowTabs(): Promise<void> {
-		this.logService.trace('windowsService#mergeAllWindowTabs');
-
-		Menu.sendActionToFirstResponder('mergeAllWindows:');
-	}
-
-	async toggleWindowTabsBar(): Promise<void> {
-		this.logService.trace('windowsService#toggleWindowTabsBar');
-
-		Menu.sendActionToFirstResponder('toggleTabBar:');
 	}
 
 	async focusWindow(windowId: number): Promise<void> {
@@ -196,12 +146,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#minimizeWindow', windowId);
 
 		return this.withWindow(windowId, codeWindow => codeWindow.win.minimize());
-	}
-
-	async onWindowTitleDoubleClick(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#onWindowTitleDoubleClick', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.onWindowTitleDoubleClick());
 	}
 
 	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings): Promise<void> {
@@ -260,35 +204,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 
 	async getActiveWindowId(): Promise<number | undefined> {
 		return this._activeWindowId;
-	}
-
-	async openExternal(url: string): Promise<boolean> {
-		return this.windowsMainService.openExternal(url);
-	}
-
-	async startCrashReporter(config: CrashReporterStartOptions): Promise<void> {
-		this.logService.trace('windowsService#startCrashReporter');
-
-		crashReporter.start(config);
-	}
-
-	async quit(): Promise<void> {
-		this.logService.trace('windowsService#quit');
-
-		this.windowsMainService.quit();
-	}
-
-	async whenSharedProcessReady(): Promise<void> {
-		this.logService.trace('windowsService#whenSharedProcessReady');
-
-		return this.sharedProcess.whenReady();
-	}
-
-	async toggleSharedProcess(): Promise<void> {
-		this.logService.trace('windowsService#toggleSharedProcess');
-
-		this.sharedProcess.toggle();
-
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {

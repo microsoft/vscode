@@ -10,18 +10,15 @@ import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWindowService, IEnterWorkspaceResult, IURIToOpen, IWindowsService, IOpenSettings, IWindowSettings, CrashReporterStartOptions } from 'vs/platform/windows/common/windows';
+import { IWindowService, IEnterWorkspaceResult, IURIToOpen, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { addDisposableListener, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 
 //#region Window
@@ -89,10 +86,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 
 	isMaximized(): Promise<boolean> {
 		return Promise.resolve(false);
-	}
-
-	closeWorkspace(): Promise<void> {
-		return Promise.resolve();
 	}
 
 	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult | undefined> {
@@ -208,14 +201,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 
 		return Promise.resolve();
 	}
-
-	onWindowTitleDoubleClick(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
-		return Promise.resolve();
-	}
 }
 
 registerSingleton(IWindowService, SimpleWindowService);
@@ -236,10 +221,6 @@ export class SimpleWindowsService implements IWindowsService {
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(true);
-	}
-
-	closeWorkspace(_windowId: number): Promise<void> {
-		return Promise.resolve();
 	}
 
 	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
@@ -289,28 +270,8 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	onWindowTitleDoubleClick(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	quit(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	whenSharedProcessReady(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleSharedProcess(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	// Global methods
 	openWindow(_windowId: number, _uris: IURIToOpen[], _options: IOpenSettings): Promise<void> {
-		return Promise.resolve();
-	}
-
-	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -318,49 +279,8 @@ export class SimpleWindowsService implements IWindowsService {
 		return Promise.resolve([]);
 	}
 
-	newWindowTab(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	showPreviousWindowTab(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	showNextWindowTab(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	moveWindowTabToNewWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	mergeAllWindowTabs(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleWindowTabsBar(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	updateTouchBar(_windowId: number, _items: ISerializableCommandAction[][]): Promise<void> {
-		return Promise.resolve();
-	}
-
 	getActiveWindowId(): Promise<number | undefined> {
 		return Promise.resolve(0);
-	}
-
-	// This needs to be handled from browser process to prevent
-	// foreground ordering issues on Windows
-	openExternal(_url: string): Promise<boolean> {
-		windowOpenNoOpener(_url);
-
-		return Promise.resolve(true);
-	}
-
-	// TODO: this is a bit backwards
-	startCrashReporter(_config: CrashReporterStartOptions): Promise<void> {
-		return Promise.resolve();
 	}
 }
 

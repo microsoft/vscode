@@ -5,10 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, IEnterWorkspaceResult, CrashReporterStartOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IEnterWorkspaceResult, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
@@ -29,10 +28,6 @@ export class WindowsService implements IWindowsService {
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
 		this.channel = mainProcessService.getChannel('windows');
-	}
-
-	closeWorkspace(windowId: number): Promise<void> {
-		return this.channel.call('closeWorkspace', windowId);
 	}
 
 	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
@@ -64,30 +59,6 @@ export class WindowsService implements IWindowsService {
 		return recentlyOpened;
 	}
 
-	newWindowTab(): Promise<void> {
-		return this.channel.call('newWindowTab');
-	}
-
-	showPreviousWindowTab(): Promise<void> {
-		return this.channel.call('showPreviousWindowTab');
-	}
-
-	showNextWindowTab(): Promise<void> {
-		return this.channel.call('showNextWindowTab');
-	}
-
-	moveWindowTabToNewWindow(): Promise<void> {
-		return this.channel.call('moveWindowTabToNewWindow');
-	}
-
-	mergeAllWindowTabs(): Promise<void> {
-		return this.channel.call('mergeAllWindowTabs');
-	}
-
-	toggleWindowTabsBar(): Promise<void> {
-		return this.channel.call('toggleWindowTabsBar');
-	}
-
 	focusWindow(windowId: number): Promise<void> {
 		return this.channel.call('focusWindow', windowId);
 	}
@@ -114,22 +85,6 @@ export class WindowsService implements IWindowsService {
 
 	minimizeWindow(windowId: number): Promise<void> {
 		return this.channel.call('minimizeWindow', windowId);
-	}
-
-	onWindowTitleDoubleClick(windowId: number): Promise<void> {
-		return this.channel.call('onWindowTitleDoubleClick', windowId);
-	}
-
-	quit(): Promise<void> {
-		return this.channel.call('quit');
-	}
-
-	whenSharedProcessReady(): Promise<void> {
-		return this.channel.call('whenSharedProcessReady');
-	}
-
-	toggleSharedProcess(): Promise<void> {
-		return this.channel.call('toggleSharedProcess');
 	}
 
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void> {
@@ -164,17 +119,5 @@ export class WindowsService implements IWindowsService {
 
 	getActiveWindowId(): Promise<number | undefined> {
 		return this.channel.call('getActiveWindowId');
-	}
-
-	openExternal(url: string): Promise<boolean> {
-		return this.channel.call('openExternal', url);
-	}
-
-	startCrashReporter(config: CrashReporterStartOptions): Promise<void> {
-		return this.channel.call('startCrashReporter', config);
-	}
-
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
-		return this.channel.call('updateTouchBar', [windowId, items]);
 	}
 }

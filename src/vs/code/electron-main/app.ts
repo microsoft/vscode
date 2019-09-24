@@ -77,6 +77,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
+import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 
 export class CodeApplication extends Disposable {
 
@@ -448,7 +449,8 @@ export class CodeApplication extends Disposable {
 		}
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, [machineId, this.userEnv]));
-		services.set(IWindowsService, new SyncDescriptor(LegacyWindowsMainService, [sharedProcess]));
+		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
+		services.set(IWindowsService, new SyncDescriptor(LegacyWindowsMainService));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
 		const diagnosticsChannel = getDelayedChannel(sharedProcessClient.then(client => client.getChannel('diagnostics')));
@@ -544,6 +546,10 @@ export class CodeApplication extends Disposable {
 		const electronService = accessor.get(IElectronService);
 		const electronChannel = new SimpleServiceProxyChannel(electronService);
 		electronIpcServer.registerChannel('electron', electronChannel);
+
+		const sharedProcessMainService = accessor.get(ISharedProcessMainService);
+		const sharedProcessChannel = new SimpleServiceProxyChannel(sharedProcessMainService);
+		electronIpcServer.registerChannel('sharedProcess', sharedProcessChannel);
 
 		const workspacesMainService = accessor.get(IWorkspacesMainService);
 		const workspacesChannel = new WorkspacesChannel(workspacesMainService);

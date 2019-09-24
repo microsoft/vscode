@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { AddContextToFunctions } from 'vs/platform/ipc/node/simpleIpcProxy';
 
-export class ElectronMainService {
+export class ElectronMainService implements AddContextToFunctions<IElectronService, number> {
 
 	_serviceBrand: undefined;
 
@@ -36,6 +39,13 @@ export class ElectronMainService {
 		}
 	}
 
+	async handleTitleDoubleClick(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.handleTitleDoubleClick();
+		}
+	}
+
 	//#endregion
 
 	//#region Dialog
@@ -53,27 +63,19 @@ export class ElectronMainService {
 	}
 
 	async pickFileFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickFileFolderAndOpen(options);
+		return this.windowsMainService.pickFileFolderAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	async pickFileAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickFileAndOpen(options);
+		return this.windowsMainService.pickFileAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	async pickFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickFolderAndOpen(options);
+		return this.windowsMainService.pickFolderAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	async pickWorkspaceAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickWorkspaceAndOpen(options);
+		return this.windowsMainService.pickWorkspaceAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	//#endregion
@@ -98,6 +100,45 @@ export class ElectronMainService {
 		}
 	}
 
+	async openExternal(windowId: number, url: string): Promise<boolean> {
+		return this.windowsMainService.openExternal(url);
+	}
+
+	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.updateTouchBar(items);
+		}
+	}
+
+	//#endregion
+
+	//#region macOS Touchbar
+
+	async newWindowTab(): Promise<void> {
+		this.windowsMainService.openNewTabbedWindow(OpenContext.API);
+	}
+
+	async showPreviousWindowTab(): Promise<void> {
+		Menu.sendActionToFirstResponder('selectPreviousTab:');
+	}
+
+	async showNextWindowTab(): Promise<void> {
+		Menu.sendActionToFirstResponder('selectNextTab:');
+	}
+
+	async moveWindowTabToNewWindow(): Promise<void> {
+		Menu.sendActionToFirstResponder('moveTabToNewWindow:');
+	}
+
+	async mergeAllWindowTabs(): Promise<void> {
+		Menu.sendActionToFirstResponder('mergeAllWindows:');
+	}
+
+	async toggleWindowTabsBar(): Promise<void> {
+		Menu.sendActionToFirstResponder('toggleTabBar:');
+	}
+
 	//#endregion
 
 	//#region Lifecycle
@@ -111,6 +152,32 @@ export class ElectronMainService {
 		if (window) {
 			return this.windowsMainService.reload(window);
 		}
+	}
+
+	async closeWorkpsace(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return this.windowsMainService.closeWorkspace(window);
+		}
+	}
+
+	async quit(windowId: number): Promise<void> {
+		return this.windowsMainService.quit();
+	}
+
+	//#endregion
+
+	//#region Connectivity
+
+	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {
+		return new Promise(resolve => {
+			const window = this.windowsMainService.getWindowById(windowId);
+			if (window && window.win && window.win.webContents && window.win.webContents.session) {
+				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
+			} else {
+				resolve();
+			}
+		});
 	}
 
 	//#endregion
@@ -136,19 +203,8 @@ export class ElectronMainService {
 		}
 	}
 
-	//#endregion
-
-	//#region Connectivity
-
-	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return new Promise(resolve => {
-			const window = this.windowsMainService.getWindowById(windowId);
-			if (window && window.win && window.win.webContents && window.win.webContents.session) {
-				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
-			} else {
-				resolve();
-			}
-		});
+	async startCrashReporter(windowId: number, options: CrashReporterStartOptions): Promise<void> {
+		crashReporter.start(options);
 	}
 
 	//#endregion

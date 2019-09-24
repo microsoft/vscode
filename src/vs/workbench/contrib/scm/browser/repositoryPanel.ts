@@ -493,7 +493,7 @@ class ViewModel {
 export class ToggleViewModeAction extends Action {
 
 	static readonly ID = 'workbench.scm.action.toggleViewMode';
-	static readonly LABEL = localize('toggleViewMode', "ToggleViewMode");
+	static readonly LABEL = localize('toggleViewMode', "Toggle View Mode");
 
 	constructor(private viewModel: ViewModel) {
 		super(ToggleViewModeAction.ID, ToggleViewModeAction.LABEL);

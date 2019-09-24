@@ -6,9 +6,10 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 
 export const ISharedProcessService = createDecorator<ISharedProcessService>('sharedProcessService');
 
@@ -17,8 +18,10 @@ export interface ISharedProcessService {
 	_serviceBrand: undefined;
 
 	getChannel(channelName: string): IChannel;
-
 	registerChannel(channelName: string, channel: IServerChannel<string>): void;
+
+	whenSharedProcessReady(): Promise<void>;
+	toggleSharedProcessWindow(): Promise<void>;
 }
 
 export class SharedProcessService implements ISharedProcessService {
@@ -26,14 +29,21 @@ export class SharedProcessService implements ISharedProcessService {
 	_serviceBrand: undefined;
 
 	private withSharedProcessConnection: Promise<Client<string>>;
+	private sharedProcessMainChannel: IChannel;
 
 	constructor(
-		@IWindowsService windowsService: IWindowsService,
+		@IMainProcessService mainProcessService: IMainProcessService,
 		@IWindowService windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		this.withSharedProcessConnection = windowsService.whenSharedProcessReady()
+		this.sharedProcessMainChannel = mainProcessService.getChannel('sharedProcess');
+
+		this.withSharedProcessConnection = this.whenSharedProcessReady()
 			.then(() => connect(environmentService.sharedIPCHandle, `window:${windowService.windowId}`));
+	}
+
+	whenSharedProcessReady(): Promise<void> {
+		return this.sharedProcessMainChannel.call('whenSharedProcessReady');
 	}
 
 	getChannel(channelName: string): IChannel {
@@ -42,5 +52,9 @@ export class SharedProcessService implements ISharedProcessService {
 
 	registerChannel(channelName: string, channel: IServerChannel<string>): void {
 		this.withSharedProcessConnection.then(connection => connection.registerChannel(channelName, channel));
+	}
+
+	toggleSharedProcessWindow(): Promise<void> {
+		return this.sharedProcessMainChannel.call('toggleSharedProcessWindow');
 	}
 }

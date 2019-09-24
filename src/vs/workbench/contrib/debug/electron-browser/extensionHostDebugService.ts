@@ -10,6 +10,7 @@ import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } f
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
 
 export class ExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
@@ -22,7 +23,7 @@ export class ExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		// TODO@Isidor use debug IPC channel
-		return this.windowsService.openExtensionDevelopmentHostWindow(args, env);
+		return (this.windowsService as WindowsService).openExtensionDevelopmentHostWindow(args, env);
 	}
 }
 

@@ -1763,7 +1763,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		this._onWindowClose.fire(win.id);
 	}
 
-	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+	async pickFileFolderAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
 		const title = localize('open', "Open");
 		const paths = await this.dialogs.pick({ ...options, pickFolders: true, pickFiles: true, title });
 		if (paths) {
@@ -1775,7 +1775,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			}));
 			this.open({
 				context: OpenContext.DIALOG,
-				contextWindowId: options.windowId,
+				contextWindowId: win ? win.id : undefined,
 				cli: this.environmentService.args,
 				urisToOpen,
 				forceNewWindow: options.forceNewWindow
@@ -1783,14 +1783,14 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 	}
 
-	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+	async pickFolderAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
 		const title = localize('openFolder', "Open Folder");
 		const paths = await this.dialogs.pick({ ...options, pickFolders: true, title });
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFolder', options.telemetryExtraData);
 			this.open({
 				context: OpenContext.DIALOG,
-				contextWindowId: options.windowId,
+				contextWindowId: win ? win.id : undefined,
 				cli: this.environmentService.args,
 				urisToOpen: paths.map(path => ({ folderUri: URI.file(path) })),
 				forceNewWindow: options.forceNewWindow
@@ -1798,14 +1798,14 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 	}
 
-	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+	async pickFileAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
 		const title = localize('openFile', "Open File");
 		const paths = await this.dialogs.pick({ ...options, pickFiles: true, title });
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFile', options.telemetryExtraData);
 			this.open({
 				context: OpenContext.DIALOG,
-				contextWindowId: options.windowId,
+				contextWindowId: win ? win.id : undefined,
 				cli: this.environmentService.args,
 				urisToOpen: paths.map(path => ({ fileUri: URI.file(path) })),
 				forceNewWindow: options.forceNewWindow
@@ -1813,7 +1813,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		}
 	}
 
-	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
+	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions, win?: ICodeWindow): Promise<void> {
 		const title = localize('openWorkspaceTitle', "Open Workspace");
 		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
 		const filters = WORKSPACE_FILTER;
@@ -1822,7 +1822,7 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openWorkspace', options.telemetryExtraData);
 			this.open({
 				context: OpenContext.DIALOG,
-				contextWindowId: options.windowId,
+				contextWindowId: win ? win.id : undefined,
 				cli: this.environmentService.args,
 				urisToOpen: paths.map(path => ({ workspaceUri: URI.file(path) })),
 				forceNewWindow: options.forceNewWindow
@@ -1899,7 +1899,7 @@ class Dialogs {
 		this.noWindowDialogQueue = new Queue<void>();
 	}
 
-	async pick(options: IInternalNativeOpenDialogOptions): Promise<string[] | undefined> {
+	async pick(options: IInternalNativeOpenDialogOptions, win?: ICodeWindow): Promise<string[] | undefined> {
 
 		// Ensure dialog options
 		const dialogOptions: OpenDialogOptions = {
@@ -1930,9 +1930,9 @@ class Dialogs {
 		}
 
 		// Show Dialog
-		const focusedWindow = (typeof options.windowId === 'number' ? this.windowsMainService.getWindowById(options.windowId) : undefined) || this.windowsMainService.getFocusedWindow();
+		const windowToUse = win || this.windowsMainService.getFocusedWindow();
 
-		const result = await this.showOpenDialog(dialogOptions, focusedWindow);
+		const result = await this.showOpenDialog(dialogOptions, windowToUse);
 		if (result && result.filePaths && result.filePaths.length > 0) {
 
 			// Remember path in storage for next time

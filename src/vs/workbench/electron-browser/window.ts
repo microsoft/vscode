@@ -59,6 +59,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -88,7 +89,6 @@ export class ElectronWindow extends Disposable {
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITitleService private readonly titleService: ITitleService,
@@ -111,6 +111,7 @@ export class ElectronWindow extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IElectronService private readonly electronService: IElectronService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
@@ -262,6 +263,17 @@ export class ElectronWindow extends Disposable {
 
 				// Custom title menu
 				this.provideCustomTitleContextMenu(file ? file.fsPath : undefined);
+			}));
+		}
+
+		// Maximize/Restore on doubleclick (for macOS custom title)
+		if (isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+			const titlePart = this.layoutService.getContainer(Parts.TITLEBAR_PART);
+
+			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
+				DOM.EventHelper.stop(e);
+
+				this.electronService.handleTitleDoubleClick();
 			}));
 		}
 	}
@@ -426,7 +438,7 @@ export class ElectronWindow extends Disposable {
 				// the main process to prevent window focus issues.
 				if (this.shouldOpenExternal(resource, options)) {
 					const { resolved } = await this.openerService.resolveExternalUri(resource);
-					const success = await this.windowsService.openExternal(encodeURI(resolved.toString(true)));
+					const success = await this.electronService.openExternal(encodeURI(resolved.toString(true)));
 					if (!success && resolved.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
 						await this.electronService.showItemInFolder(resolved.fsPath);
@@ -526,7 +538,7 @@ export class ElectronWindow extends Disposable {
 		// Only update if the actions have changed
 		if (!equals(this.lastInstalledTouchedBar, items)) {
 			this.lastInstalledTouchedBar = items;
-			this.windowService.updateTouchBar(items);
+			this.electronService.updateTouchBar(items);
 		}
 	}
 
@@ -554,7 +566,7 @@ export class ElectronWindow extends Disposable {
 		crashReporter.start(deepClone(options));
 
 		// start crash reporter in the main process
-		return this.windowsService.startCrashReporter(options);
+		return this.electronService.startCrashReporter(options);
 	}
 
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {

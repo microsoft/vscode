@@ -11,6 +11,11 @@ import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 // for a very basic process <=> process communication over methods.
 //
 
+export type AddContextToFunctions<Target, Context> = {
+	//  For every property: IF property is a FUNCTION				ADD context as first parameter and original parameters afterwards with same return type, otherwise preserve as is
+	[K in keyof Target]: Target[K] extends (...args: any) => any ? (context: Context, ...args: Parameters<Target[K]>) => ReturnType<Target[K]> : Target[K]
+};
+
 interface ISimpleChannelProxyContext {
 	__$simpleIPCContextMarker: boolean;
 	proxyContext: unknown;
@@ -44,12 +49,14 @@ export class SimpleServiceProxyChannel implements IServerChannel {
 		throw new Error(`Events are currently unsupported by SimpleServiceProxyChannel: ${event}`);
 	}
 
-	call(_: unknown, command: string, args: any[]): Promise<any> {
+	call(_: unknown, command: string, args?: any[]): Promise<any> {
 		const target = this.service[command];
 		if (typeof target === 'function') {
-			const context = deserializeContext(args[0]);
-			if (context) {
-				args[0] = context;
+			if (Array.isArray(args)) {
+				const context = deserializeContext(args[0]);
+				if (context) {
+					args[0] = context;
+				}
 			}
 
 			return target.apply(this.service, args);
