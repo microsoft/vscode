@@ -451,7 +451,7 @@ class LeakageMonitor {
  * Sample:
 	class Document {
 
-		private _onDidChange = new Emitter<(value:string)=>any>();
+		private readonly _onDidChange = new Emitter<(value:string)=>any>();
 
 		public onDidChange = this._onDidChange.event;
 
@@ -808,7 +808,7 @@ export class Relay<T> implements IDisposable {
 	private inputEvent: Event<T> = Event.None;
 	private inputEventListener: IDisposable = Disposable.None;
 
-	private emitter = new Emitter<T>({
+	private readonly emitter = new Emitter<T>({
 		onFirstListenerDidAdd: () => {
 			this.listening = true;
 			this.inputEventListener = this.inputEvent(this.emitter.fire, this.emitter);

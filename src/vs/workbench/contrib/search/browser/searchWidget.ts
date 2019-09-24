@@ -62,7 +62,7 @@ class ReplaceAllAction extends Action {
 	private _searchWidget: SearchWidget | null = null;
 
 	constructor() {
-		super(ReplaceAllAction.ID, '', 'action-replace-all', false);
+		super(ReplaceAllAction.ID, '', 'codicon-replace-all', false);
 	}
 
 	set searchWidget(searchWidget: SearchWidget) {
@@ -280,7 +280,8 @@ export class SearchWidget extends Widget {
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
-		this.toggleReplaceButton.element.classList.add('collapse');
+		this.toggleReplaceButton.element.classList.add('codicon');
+		this.toggleReplaceButton.element.classList.add('codicon-chevron-right');
 		this.toggleReplaceButton.icon = 'toggle-replace-button';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
@@ -396,8 +397,8 @@ export class SearchWidget extends Widget {
 
 	private onToggleReplaceButton(): void {
 		dom.toggleClass(this.replaceContainer, 'disabled');
-		dom.toggleClass(this.toggleReplaceButton.element, 'collapse');
-		dom.toggleClass(this.toggleReplaceButton.element, 'expand');
+		dom.toggleClass(this.toggleReplaceButton.element, 'codicon-chevron-right');
+		dom.toggleClass(this.toggleReplaceButton.element, 'codicon-chevron-down');
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();

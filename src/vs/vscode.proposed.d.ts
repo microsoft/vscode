@@ -1152,7 +1152,12 @@ declare module 'vscode' {
 		 * If the extension is running remotely, this function automatically establishes port forwarding from
 		 * the local machine to `target` on the remote and returns a local uri that can be used to for this connection.
 		 *
-		 * Note that uris passed through `openExternal` are automatically resolved.
+		 * Extensions should not store the result of `resolveExternalUri` as the resolved uri may become invalid due to
+		 * a system or user action — for example, in remote cases, a user may close a port that was forwarded by
+		 * `resolveExternalUri`.
+		 *
+		 * Note: uris passed through `openExternal` are automatically resolved and you should not call `resolveExternalUri`
+		 * on them.
 		 *
 		 * @return A uri that can be used on the client machine.
 		 */

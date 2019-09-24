@@ -102,7 +102,7 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 
 	readonly templateId = 'provider';
 
-	private _onDidRenderElement = new Emitter<ISCMRepository>();
+	private readonly _onDidRenderElement = new Emitter<ISCMRepository>();
 	readonly onDidRenderElement = this._onDidRenderElement.event;
 
 	constructor(

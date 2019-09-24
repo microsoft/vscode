@@ -83,7 +83,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	public _serviceBrand: undefined;
 
-	private _onDidClose = new Emitter<PeekViewWidget>();
+	private readonly _onDidClose = new Emitter<PeekViewWidget>();
 
 	protected _headElement?: HTMLDivElement;
 	protected _primaryHeading?: HTMLElement;

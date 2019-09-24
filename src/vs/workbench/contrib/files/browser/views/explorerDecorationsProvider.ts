@@ -15,7 +15,7 @@ import { explorerRootErrorEmitter } from 'vs/workbench/contrib/files/browser/vie
 
 export class ExplorerDecorationsProvider implements IDecorationsProvider {
 	readonly label: string = localize('label', "Explorer");
-	private _onDidChange = new Emitter<URI[]>();
+	private readonly _onDidChange = new Emitter<URI[]>();
 	private readonly toDispose = new DisposableStore();
 
 	constructor(

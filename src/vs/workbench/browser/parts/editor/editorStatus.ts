@@ -203,8 +203,6 @@ class State {
 	private _metadata: string | undefined;
 	get metadata(): string | undefined { return this._metadata; }
 
-	constructor() { }
-
 	update(update: StateDelta): StateChange {
 		const change = new StateChange();
 
