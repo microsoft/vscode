@@ -28,7 +28,7 @@ import { once } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
+import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
 import { fillResourceDataTransfers, CodeDataTransfers, extractResources } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -865,11 +865,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {
 
-	constructor(
-		@IExplorerService private readonly explorerService: IExplorerService
-	) { }
-
 	isIncompressible(stat: ExplorerItem): boolean {
-		return stat.isRoot || !stat.isDirectory || !!this.explorerService.getEditableData(stat);
+		return stat.isRoot || !stat.isDirectory || stat instanceof NewExplorerItem;
 	}
 }
