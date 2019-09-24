@@ -389,8 +389,8 @@ function asTreeElement(node: INode<ISCMResource, ISCMResourceGroup>, incompressi
 }
 
 const enum ViewModelMode {
-	List = 'list',
-	Tree = 'tree'
+	List = 'codicon-filter',
+	Tree = 'codicon-selection'
 }
 
 class ViewModel {
