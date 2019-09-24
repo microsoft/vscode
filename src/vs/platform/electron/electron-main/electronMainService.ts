@@ -8,8 +8,14 @@ import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, S
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
-export class ElectronMainService {
+type ElectronServiceInterface = {
+	//  Every property of service: IF property is a FUNCTION						   ADD windowId as first parameter and original parameters afterwards with same return type			 ELSE preserve as is
+	[K in keyof IElectronService]: IElectronService[K] extends (...args: any) => any ? (windowId: number, ...args: Parameters<IElectronService[K]>) => ReturnType<IElectronService[K]> : IElectronService[K]
+};
+
+export class ElectronMainService implements ElectronServiceInterface {
 
 	_serviceBrand: undefined;
 
