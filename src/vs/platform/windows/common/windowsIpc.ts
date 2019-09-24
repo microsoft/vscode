@@ -58,10 +58,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
 			case 'isFocused': return this.service.isFocused(arg);
-			case 'isMaximized': return this.service.isMaximized(arg);
-			case 'maximizeWindow': return this.service.maximizeWindow(arg);
-			case 'unmaximizeWindow': return this.service.unmaximizeWindow(arg);
-			case 'minimizeWindow': return this.service.minimizeWindow(arg);
 			case 'openWindow': {
 				const urisToOpen: IURIToOpen[] = arg[1];
 				const options: IOpenSettings = arg[2];

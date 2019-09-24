@@ -20,6 +20,11 @@ export interface IElectronService {
 	toggleFullScreen(): Promise<void>;
 	handleTitleDoubleClick(): Promise<void>;
 
+	isMaximized(): Promise<boolean>;
+	maximizeWindow(): Promise<void>;
+	unmaximizeWindow(): Promise<void>;
+	minimizeWindow(): Promise<void>;
+
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
 	showSaveDialog(options: SaveDialogOptions): Promise<SaveDialogReturnValue>;

@@ -371,7 +371,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			const minimizeIcon = append(minimizeIconContainer, $('div.window-icon'));
 			addClass(minimizeIcon, 'window-minimize');
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
-				this.windowService.minimizeWindow();
+				this.electronService.minimizeWindow();
 			}));
 
 			// Restore
@@ -379,12 +379,12 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.maxRestoreControl = append(restoreIconContainer, $('div.window-icon'));
 			addClass(this.maxRestoreControl, 'window-max-restore');
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
-				const maximized = await this.windowService.isMaximized();
+				const maximized = await this.electronService.isMaximized();
 				if (maximized) {
-					return this.windowService.unmaximizeWindow();
+					return this.electronService.unmaximizeWindow();
 				}
 
-				return this.windowService.maximizeWindow();
+				return this.electronService.maximizeWindow();
 			}));
 
 			// Close

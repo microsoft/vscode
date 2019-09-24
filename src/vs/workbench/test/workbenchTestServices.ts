@@ -1192,10 +1192,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	isMaximized(): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return Promise.resolve({
 			workspaces: [],
@@ -1212,18 +1208,6 @@ export class TestWindowService implements IWindowService {
 	}
 
 	focusWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	maximizeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	unmaximizeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	minimizeWindow(): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1306,22 +1290,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	focusWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	isMaximized(_windowId: number): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
-	maximizeWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	minimizeWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	unmaximizeWindow(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 

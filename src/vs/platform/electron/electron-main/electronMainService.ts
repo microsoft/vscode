@@ -46,6 +46,36 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 		}
 	}
 
+	async isMaximized(windowId: number): Promise<boolean> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			return window.win.isMaximized();
+		}
+
+		return false;
+	}
+
+	async maximizeWindow(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.win.maximize();
+		}
+	}
+
+	async unmaximizeWindow(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.win.unmaximize();
+		}
+	}
+
+	async minimizeWindow(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.win.minimize();
+		}
+	}
+
 	//#endregion
 
 	//#region Dialog

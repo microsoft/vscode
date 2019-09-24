@@ -58,22 +58,6 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('isFocused', windowId);
 	}
 
-	isMaximized(windowId: number): Promise<boolean> {
-		return this.channel.call('isMaximized', windowId);
-	}
-
-	maximizeWindow(windowId: number): Promise<void> {
-		return this.channel.call('maximizeWindow', windowId);
-	}
-
-	unmaximizeWindow(windowId: number): Promise<void> {
-		return this.channel.call('unmaximizeWindow', windowId);
-	}
-
-	minimizeWindow(windowId: number): Promise<void> {
-		return this.channel.call('minimizeWindow', windowId);
-	}
-
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void> {
 		return this.channel.call('openWindow', [windowId, uris, options]);
 	}

@@ -84,10 +84,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve(this.hasFocus);
 	}
 
-	isMaximized(): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
 		const recentlyOpenedRaw = this.storageService.get(SimpleWindowService.RECENTLY_OPENED_KEY, StorageScope.GLOBAL);
 		if (recentlyOpenedRaw) {
@@ -139,18 +135,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	}
 
 	focusWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	maximizeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	unmaximizeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	minimizeWindow(): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -233,22 +217,6 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	focusWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	isMaximized(_windowId: number): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
-	maximizeWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	minimizeWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	unmaximizeWindow(_windowId: number): Promise<void> {
 		return Promise.resolve();
 	}
 

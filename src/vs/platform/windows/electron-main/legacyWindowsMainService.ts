@@ -112,30 +112,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		return this.withWindow(windowId, codeWindow => codeWindow.win.isFocused(), () => false)!;
 	}
 
-	async isMaximized(windowId: number): Promise<boolean> {
-		this.logService.trace('windowsService#isMaximized', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.win.isMaximized(), () => false)!;
-	}
-
-	async maximizeWindow(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#maximizeWindow', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.win.maximize());
-	}
-
-	async unmaximizeWindow(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#unmaximizeWindow', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.win.unmaximize());
-	}
-
-	async minimizeWindow(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#minimizeWindow', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.win.minimize());
-	}
-
 	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings): Promise<void> {
 		this.logService.trace('windowsService#openWindow');
 		if (!urisToOpen || !urisToOpen.length) {

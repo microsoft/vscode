@@ -79,22 +79,6 @@ export class WindowService extends Disposable implements IWindowService {
 		return this.windowsService.isFocused(this.windowId);
 	}
 
-	isMaximized(): Promise<boolean> {
-		return this.windowsService.isMaximized(this.windowId);
-	}
-
-	maximizeWindow(): Promise<void> {
-		return this.windowsService.maximizeWindow(this.windowId);
-	}
-
-	unmaximizeWindow(): Promise<void> {
-		return this.windowsService.unmaximizeWindow(this.windowId);
-	}
-
-	minimizeWindow(): Promise<void> {
-		return this.windowsService.minimizeWindow(this.windowId);
-	}
-
 	private getRecentLabel(u: IURIToOpen): string {
 		if (isFolderToOpen(u)) {
 			return this.labelService.getWorkspaceLabel(u.folderUri, { verbose: true });
