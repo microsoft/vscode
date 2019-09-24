@@ -8,7 +8,6 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService, IEnterWorkspaceResult, CrashReporterStartOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
@@ -156,9 +155,5 @@ export class WindowsService implements IWindowsService {
 
 	startCrashReporter(config: CrashReporterStartOptions): Promise<void> {
 		return this.channel.call('startCrashReporter', config);
-	}
-
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
-		return this.channel.call('updateTouchBar', [windowId, items]);
 	}
 }

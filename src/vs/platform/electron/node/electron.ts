@@ -6,6 +6,7 @@
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
 
@@ -34,6 +35,7 @@ export interface IElectronService {
 	setRepresentedFilename(path: string): Promise<void>;
 	setDocumentEdited(edited: boolean): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
+	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 
 	// Lifecycle
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;

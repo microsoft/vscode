@@ -13,7 +13,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWindowService, IEnterWorkspaceResult, IURIToOpen, IWindowsService, IOpenSettings, IWindowSettings, CrashReporterStartOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -204,10 +203,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 
 		return Promise.resolve();
 	}
-
-	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
-		return Promise.resolve();
-	}
 }
 
 registerSingleton(IWindowService, SimpleWindowService);
@@ -319,10 +314,6 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	toggleWindowTabsBar(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	updateTouchBar(_windowId: number, _items: ISerializableCommandAction[][]): Promise<void> {
 		return Promise.resolve();
 	}
 

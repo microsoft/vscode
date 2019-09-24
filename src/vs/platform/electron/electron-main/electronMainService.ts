@@ -9,6 +9,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 
 type ElectronServiceInterface = {
 	//  Every property of service: IF property is a FUNCTION						   ADD windowId as first parameter and original parameters afterwards with same return type			 ELSE preserve as is
@@ -105,6 +106,13 @@ export class ElectronMainService implements ElectronServiceInterface {
 
 	async openExternal(windowId: number, url: string): Promise<boolean> {
 		return this.windowsMainService.openExternal(url);
+	}
+
+	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			window.updateTouchBar(items);
+		}
 	}
 
 	//#endregion

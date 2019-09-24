@@ -45,7 +45,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
-import { IMenuService, MenuId, IMenu, ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
@@ -1238,10 +1238,6 @@ export class TestWindowService implements IWindowService {
 	closeWindow(): Promise<void> {
 		return Promise.resolve();
 	}
-
-	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
-		return Promise.resolve();
-	}
 }
 
 export class TestLifecycleService implements ILifecycleService {
@@ -1387,10 +1383,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	toggleWindowTabsBar(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	updateTouchBar(_windowId: number, _items: ISerializableCommandAction[][]): Promise<void> {
 		return Promise.resolve();
 	}
 

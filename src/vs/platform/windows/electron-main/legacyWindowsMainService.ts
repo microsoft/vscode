@@ -15,7 +15,6 @@ import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/wi
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -73,12 +72,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#showOpenDialog', windowId);
 
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.showOpenDialog(options, codeWindow), () => this.windowsMainService.showOpenDialog(options))!;
-	}
-
-	async updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
-		this.logService.trace('windowsService#updateTouchBar', windowId);
-
-		return this.withWindow(windowId, codeWindow => codeWindow.updateTouchBar(items));
 	}
 
 	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {

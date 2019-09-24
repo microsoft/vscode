@@ -62,7 +62,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'moveWindowTabToNewWindow': return this.service.moveWindowTabToNewWindow();
 			case 'mergeAllWindowTabs': return this.service.mergeAllWindowTabs();
 			case 'toggleWindowTabsBar': return this.service.toggleWindowTabsBar();
-			case 'updateTouchBar': return this.service.updateTouchBar(arg[0], arg[1]);
 			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
 			case 'closeWindow': return this.service.closeWindow(arg);

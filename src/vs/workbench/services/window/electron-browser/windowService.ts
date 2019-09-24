@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { IWindowService, IWindowsService, IEnterWorkspaceResult, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -102,10 +101,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	minimizeWindow(): Promise<void> {
 		return this.windowsService.minimizeWindow(this.windowId);
-	}
-
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void> {
-		return this.windowsService.updateTouchBar(this.windowId, items);
 	}
 
 	private getRecentLabel(u: IURIToOpen): string {

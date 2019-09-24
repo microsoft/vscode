@@ -539,7 +539,7 @@ export class ElectronWindow extends Disposable {
 		// Only update if the actions have changed
 		if (!equals(this.lastInstalledTouchedBar, items)) {
 			this.lastInstalledTouchedBar = items;
-			this.windowService.updateTouchBar(items);
+			this.electronService.updateTouchBar(items);
 		}
 	}
 

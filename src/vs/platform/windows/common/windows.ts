@@ -10,7 +10,6 @@ import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
@@ -114,9 +113,6 @@ export interface IWindowsService {
 	mergeAllWindowTabs(): Promise<void>;
 	toggleWindowTabsBar(): Promise<void>;
 
-	// macOS TouchBar
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void>;
-
 	// Shared process
 	whenSharedProcessReady(): Promise<void>;
 	toggleSharedProcess(): Promise<void>;
@@ -185,7 +181,6 @@ export interface IWindowService {
 
 	readonly windowId: number;
 
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
