@@ -9,7 +9,7 @@ import { URI as uri } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as nls from 'vs/nls';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class LinkDetector {
 	private static readonly MAX_LENGTH = 500;
@@ -87,11 +87,13 @@ export class LinkDetector {
 
 					const link = document.createElement('a');
 					link.textContent = line.substr(match.index, match[0].length);
-					link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
+					link.title = isMacintosh ? nls.localize('fileLinkMac', "Cmd + click to follow link") : nls.localize('fileLink', "Ctrl + click to follow link");
 					lineContainer.appendChild(link);
 					const lineNumber = Number(match[3]);
 					const columnNumber = match[4] ? Number(match[4]) : undefined;
 					link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource!, lineNumber, columnNumber);
+					link.onmousemove = (event) => link.classList.toggle('pointer', isMacintosh ? event.metaKey : event.ctrlKey);
+					link.onmouseleave = () => link.classList.remove('pointer');
 
 					lastMatchIndex = pattern.lastIndex;
 					const currentMatch = match;
@@ -141,9 +143,11 @@ export class LinkDetector {
 		if (!selection || selection.type === 'Range') {
 			return; // do not navigate when user is selecting
 		}
+		if (!(isMacintosh ? event.metaKey : event.ctrlKey)) {
+			return;
+		}
 
 		event.preventDefault();
-		const group = event.ctrlKey || event.metaKey ? SIDE_GROUP : ACTIVE_GROUP;
 
 		this.editorService.openEditor({
 			resource,
@@ -153,6 +157,6 @@ export class LinkDetector {
 					startColumn: column
 				}
 			}
-		}, group);
+		});
 	}
 }

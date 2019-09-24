@@ -165,7 +165,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 			}
 
 			if (!f.contents) {
-				cb(new Error('empty file'));
+				cb(undefined, f);
 				return;
 			}
 

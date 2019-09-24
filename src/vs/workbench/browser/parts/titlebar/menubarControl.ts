@@ -253,6 +253,7 @@ export class CustomMenubarControl extends MenubarControl {
 	private menubar: MenuBar;
 	private container: HTMLElement;
 	private alwaysOnMnemonics: boolean;
+	private focusInsideMenubar: boolean;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
@@ -480,8 +481,26 @@ export class CustomMenubarControl extends MenubarControl {
 				this.menubar.update({ enableMnemonics: this.currentEnableMenuBarMnemonics, disableAltFocus: this.currentDisableMenuBarAltFocus, visibility: this.currentMenubarVisibility, getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id), alwaysOnMnemonics: this.alwaysOnMnemonics });
 			});
 
-			this._register(this.menubar.onFocusStateChange(e => this._onFocusStateChange.fire(e)));
+			this._register(this.menubar.onFocusStateChange(focused => {
+				this._onFocusStateChange.fire(focused);
+
+				// When the menubar loses focus, update it to clear any pending updates
+				if (!focused) {
+					this.updateMenubar();
+					this.focusInsideMenubar = false;
+				}
+			}));
+
 			this._register(this.menubar.onVisibilityChange(e => this._onVisibilityChange.fire(e)));
+
+			// Before we focus the menubar, stop updates to it so that focus-related context keys will work
+			this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_IN, () => {
+				this.focusInsideMenubar = true;
+			}));
+
+			this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, () => {
+				this.focusInsideMenubar = false;
+			}));
 
 			this._register(attachMenuStyler(this.menubar, this.themeService));
 		} else {
@@ -502,9 +521,11 @@ export class CustomMenubarControl extends MenubarControl {
 							this.menus[action.item.submenu] = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
 							const submenu = this.menus[action.item.submenu];
 							this._register(submenu!.onDidChange(() => {
-								const actions: IAction[] = [];
-								updateActions(menu, actions, topLevelTitle);
-								this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[topLevelTitle]) });
+								if (!this.focusInsideMenubar) {
+									const actions: IAction[] = [];
+									updateActions(menu, actions, topLevelTitle);
+									this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[topLevelTitle]) });
+								}
 							}, this));
 						}
 
@@ -528,9 +549,11 @@ export class CustomMenubarControl extends MenubarControl {
 			const menu = this.menus[title];
 			if (firstTime && menu) {
 				this._register(menu.onDidChange(() => {
-					const actions: IAction[] = [];
-					updateActions(menu, actions, title);
-					this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+					if (!this.focusInsideMenubar) {
+						const actions: IAction[] = [];
+						updateActions(menu, actions, title);
+						this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+					}
 				}));
 			}
 

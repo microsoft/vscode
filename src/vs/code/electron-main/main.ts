@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/platform/update/node/update.config.contribution';
+import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
-import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
+import { LaunchChannelClient } from 'vs/platform/launch/electron-main/launchMainService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -27,7 +27,7 @@ import { EnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestService } from 'vs/platform/request/electron-main/requestService';
+import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
 import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { localize } from 'vs/nls';
@@ -116,13 +116,13 @@ class CodeMain {
 			await instantiationService.invokeFunction(async accessor => {
 				const environmentService = accessor.get(IEnvironmentService);
 				const logService = accessor.get(ILogService);
-				const lifecycleService = accessor.get(ILifecycleService);
+				const lifecycleMainService = accessor.get(ILifecycleMainService);
 				const configurationService = accessor.get(IConfigurationService);
 
-				const mainIpcServer = await this.doStartup(logService, environmentService, lifecycleService, instantiationService, true);
+				const mainIpcServer = await this.doStartup(logService, environmentService, lifecycleMainService, instantiationService, true);
 
 				bufferLogService.logger = new SpdLogService('main', environmentService.logsPath, bufferLogService.getLevel());
-				once(lifecycleService.onWillShutdown)(() => (configurationService as ConfigurationService).dispose());
+				once(lifecycleMainService.onWillShutdown)(() => (configurationService as ConfigurationService).dispose());
 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 			});
@@ -143,9 +143,9 @@ class CodeMain {
 		services.set(ILogService, logService);
 
 		services.set(IConfigurationService, new ConfigurationService(environmentService.settingsResource));
-		services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
+		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 		services.set(IStateService, new SyncDescriptor(StateService));
-		services.set(IRequestService, new SyncDescriptor(RequestService));
+		services.set(IRequestService, new SyncDescriptor(RequestMainService));
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 		services.set(ISignService, new SyncDescriptor(SignService));
 
@@ -189,7 +189,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async doStartup(logService: ILogService, environmentService: IEnvironmentService, lifecycleService: ILifecycleService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
+	private async doStartup(logService: ILogService, environmentService: IEnvironmentService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -197,7 +197,7 @@ class CodeMain {
 		let server: Server;
 		try {
 			server = await serve(environmentService.mainIPCHandle);
-			once(lifecycleService.onWillShutdown)(() => server.dispose());
+			once(lifecycleMainService.onWillShutdown)(() => server.dispose());
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
@@ -245,7 +245,7 @@ class CodeMain {
 					throw error;
 				}
 
-				return this.doStartup(logService, environmentService, lifecycleService, instantiationService, false);
+				return this.doStartup(logService, environmentService, lifecycleMainService, instantiationService, false);
 			}
 
 			// Tests from CLI require to be the only instance currently
@@ -374,7 +374,7 @@ class CodeMain {
 
 	private quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
 		const logService = accessor.get(ILogService);
-		const lifecycleService = accessor.get(ILifecycleService);
+		const lifecycleMainService = accessor.get(ILifecycleMainService);
 
 		let exitCode = 0;
 
@@ -394,7 +394,7 @@ class CodeMain {
 			}
 		}
 
-		lifecycleService.kill(exitCode);
+		lifecycleMainService.kill(exitCode);
 	}
 }
 

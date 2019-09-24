@@ -41,7 +41,7 @@ export class ThemeMainService implements IThemeMainService {
 		this.stateService.setItem(THEME_BG_STORAGE_KEY, data.background);
 	}
 
-	public getBackgroundColor(): string {
+	getBackgroundColor(): string {
 		if (isWindows && systemPreferences.isInvertedColorScheme()) {
 			return DEFAULT_BG_HC_BLACK;
 		}

@@ -23,9 +23,9 @@ import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { webFrame } from 'electron';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
+import { ConsoleLogService, MultiplexLogService, ILogService, ConsoleLogInMainService } from 'vs/platform/log/common/log';
 import { StorageService } from 'vs/platform/storage/node/storageService';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/common/extpath';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
@@ -51,8 +51,8 @@ import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { basename } from 'vs/base/common/resources';
-import { IProductService } from 'vs/platform/product/common/product';
-import product from 'vs/platform/product/node/product';
+import { IProductService } from 'vs/platform/product/common/productService';
+import product from 'vs/platform/product/common/product';
 
 class CodeRendererMain extends Disposable {
 
@@ -345,12 +345,25 @@ class CodeRendererMain extends Disposable {
 	}
 
 	private createLogService(mainProcessService: IMainProcessService, environmentService: IWorkbenchEnvironmentService): ILogService {
-		const spdlogService = new SpdLogService(`renderer${this.environmentService.configuration.windowId}`, environmentService.logsPath, this.environmentService.configuration.logLevel);
-		const consoleLogService = new ConsoleLogService(this.environmentService.configuration.logLevel);
-		const logService = new MultiplexLogService([consoleLogService, spdlogService]);
-		const logLevelClient = new LogLevelSetterChannelClient(mainProcessService.getChannel('loglevel'));
+		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
 
-		return new FollowerLogService(logLevelClient, logService);
+		// Extension development test CLI: forward everything to main side
+		const loggers: ILogService[] = [];
+		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
+			loggers.push(
+				new ConsoleLogInMainService(loggerClient, this.environmentService.configuration.logLevel)
+			);
+		}
+
+		// Normal logger: spdylog and console
+		else {
+			loggers.push(
+				new ConsoleLogService(this.environmentService.configuration.logLevel),
+				new SpdLogService(`renderer${this.environmentService.configuration.windowId}`, environmentService.logsPath, this.environmentService.configuration.logLevel)
+			);
+		}
+
+		return new FollowerLogService(loggerClient, new MultiplexLogService(loggers));
 	}
 }
 

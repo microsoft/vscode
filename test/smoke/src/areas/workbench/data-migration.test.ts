@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ApplicationOptions } from '../../application';
+import { Application, ApplicationOptions } from '../../../../automation';
 import { join } from 'path';
 
 export function setup(stableCodePath: string, testDataPath: string) {

@@ -34,6 +34,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -61,7 +62,7 @@ class ReplaceAllAction extends Action {
 	private _searchWidget: SearchWidget | null = null;
 
 	constructor() {
-		super(ReplaceAllAction.ID, '', 'action-replace-all', false);
+		super(ReplaceAllAction.ID, '', 'codicon-replace-all', false);
 	}
 
 	set searchWidget(searchWidget: SearchWidget) {
@@ -75,6 +76,8 @@ class ReplaceAllAction extends Action {
 		return Promise.resolve(null);
 	}
 }
+
+const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 
 export class SearchWidget extends Widget {
 
@@ -277,7 +280,8 @@ export class SearchWidget extends Widget {
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
-		this.toggleReplaceButton.element.classList.add('collapse');
+		this.toggleReplaceButton.element.classList.add('codicon');
+		this.toggleReplaceButton.element.classList.add('codicon-chevron-right');
 		this.toggleReplaceButton.icon = 'toggle-replace-button';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
@@ -361,11 +365,12 @@ export class SearchWidget extends Widget {
 			}
 		}));
 
-		let controls = document.createElement('div');
+		const controls = document.createElement('div');
 		controls.className = 'controls';
 		controls.style.display = 'block';
 		controls.appendChild(this._preserveCase.domNode);
 		replaceBox.appendChild(controls);
+		this.replaceInput.paddingRight = this._preserveCase.width();
 
 		this._register(attachInputBoxStyler(this.replaceInput, this.themeService));
 		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
@@ -392,8 +397,8 @@ export class SearchWidget extends Widget {
 
 	private onToggleReplaceButton(): void {
 		dom.toggleClass(this.replaceContainer, 'disabled');
-		dom.toggleClass(this.toggleReplaceButton.element, 'collapse');
-		dom.toggleClass(this.toggleReplaceButton.element, 'expand');
+		dom.toggleClass(this.toggleReplaceButton.element, 'codicon-chevron-right');
+		dom.toggleClass(this.toggleReplaceButton.element, 'codicon-chevron-down');
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
@@ -426,7 +431,7 @@ export class SearchWidget extends Widget {
 		}
 		try {
 			// tslint:disable-next-line: no-unused-expression
-			new RegExp(value);
+			new RegExp(value, 'u');
 		} catch (e) {
 			return { content: e.message };
 		}
@@ -446,6 +451,11 @@ export class SearchWidget extends Widget {
 	}
 
 	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
+			this.searchInput.inputBox.insertAtCursor('\n');
+			keyboardEvent.preventDefault();
+		}
+
 		if (keyboardEvent.equals(KeyCode.Enter)) {
 			this.submitSearch();
 			keyboardEvent.preventDefault();
@@ -503,6 +513,11 @@ export class SearchWidget extends Widget {
 	}
 
 	private onReplaceInputKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
+			this.searchInput.inputBox.insertAtCursor('\n');
+			keyboardEvent.preventDefault();
+		}
+
 		if (keyboardEvent.equals(KeyCode.Enter)) {
 			this.submitSearch();
 			keyboardEvent.preventDefault();

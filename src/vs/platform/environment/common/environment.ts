@@ -25,7 +25,7 @@ export interface ParsedArgs {
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
-	'prof-startup'?: string;
+	'prof-startup'?: boolean;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
 	verbose?: boolean;
@@ -61,8 +61,8 @@ export interface ParsedArgs {
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
-	'disable-updates'?: string;
-	'disable-crash-reporter'?: string;
+	'disable-updates'?: boolean;
+	'disable-crash-reporter'?: boolean;
 	'skip-add-to-recently-opened'?: boolean;
 	'max-memory'?: string;
 	'file-write'?: boolean;
@@ -71,17 +71,14 @@ export interface ParsedArgs {
 	'driver-verbose'?: boolean;
 	remote?: string;
 	'disable-user-env-probe'?: boolean;
-	'enable-remote-auto-shutdown'?: boolean;
 	'disable-inspect'?: boolean;
 	'force'?: boolean;
-	'gitCredential'?: string;
+	'force-user-env'?: boolean;
+
 	// node flags
-	'js-flags'?: boolean;
+	'js-flags'?: string;
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
-
-	// Web flags
-	'web-user-data-dir'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -117,6 +114,7 @@ export interface IEnvironmentService {
 	// user roaming data
 	userRoamingDataHome: URI;
 	settingsResource: URI;
+	settingsSyncPreviewResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	localeResource: URI;

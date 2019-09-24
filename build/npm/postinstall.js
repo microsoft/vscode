@@ -70,6 +70,7 @@ runtime "${runtime}"`;
 }
 
 yarnInstall(`build`); // node modules required for build
+yarnInstall('test/automation'); // node modules required for smoketest
 yarnInstall('test/smoke'); // node modules required for smoketest
 yarnInstallBuildDependencies(); // node modules for watching, specific to host node version, not electron
 
@@ -78,19 +79,6 @@ const processTreeDts = path.join('node_modules', 'windows-process-tree', 'typing
 if (fs.existsSync(processTreeDts)) {
 	console.log('Removing windows-process-tree.d.ts');
 	fs.unlinkSync(processTreeDts);
-}
-
-// Rewrite the @types/node typings avoid a conflict with es2018 typings.
-// This is caused by our build not understanding `typesVersions` in the package.json
-//
-// TODO: Fix this
-{
-	console.log('Rewriting node_modules/@types/node to workaround lack of typesVersions support');
-	const indexPath = path.join('node_modules', '@types', 'node', 'index.d.ts');
-
-	const contents = fs.readFileSync(indexPath).toString()
-	.replace(/interface IteratorResult<T> \{ \}/, '// VSCODE EDIT — remove IteratorResult\n// interface IteratorResult<T> { }');
-	fs.writeFileSync(indexPath, contents);
 }
 
 function getInstalledVersion(packageName, cwd) {

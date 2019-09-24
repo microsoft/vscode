@@ -18,6 +18,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -32,24 +33,6 @@ export class CloseCurrentWindowAction extends Action {
 		this.windowService.closeWindow();
 
 		return Promise.resolve(true);
-	}
-}
-
-export class NewWindowAction extends Action {
-
-	static readonly ID = 'workbench.action.newWindow';
-	static LABEL = nls.localize('newWindow', "New Window");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		return this.windowsService.openNewWindow();
 	}
 }
 
@@ -150,21 +133,21 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 }
 
-export class ReloadWindowWithExtensionsDisabledAction extends Action {
+export class RestartWithExtensionsDisabledAction extends Action {
 
-	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
-	static LABEL = nls.localize('reloadWindowWithExntesionsDisabled', "Reload Window With Extensions Disabled");
+	static readonly ID = 'workbench.action.restartWithExtensionsDisabled';
+	static LABEL = nls.localize('restartWithExtensionsDisabled', "Restart With Extensions Disabled");
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private readonly windowService: IWindowService
+		@IElectronService private readonly electronService: IElectronService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<boolean> {
-		await this.windowService.reloadWindow({ _: [], 'disable-extensions': true });
+		await this.electronService.relaunch({ addArgs: ['--disable-extensions'] });
 
 		return true;
 	}
@@ -275,25 +258,25 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 }
 
 export const NewWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).newWindowTab();
+	return accessor.get(IElectronService).newWindowTab();
 };
 
 export const ShowPreviousWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).showPreviousWindowTab();
+	return accessor.get(IElectronService).showPreviousWindowTab();
 };
 
 export const ShowNextWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).showNextWindowTab();
+	return accessor.get(IElectronService).showNextWindowTab();
 };
 
 export const MoveWindowTabToNewWindowHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).moveWindowTabToNewWindow();
+	return accessor.get(IElectronService).moveWindowTabToNewWindow();
 };
 
 export const MergeWindowTabsHandlerHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).mergeAllWindowTabs();
+	return accessor.get(IElectronService).mergeAllWindowTabs();
 };
 
 export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).toggleWindowTabsBar();
+	return accessor.get(IElectronService).toggleWindowTabsBar();
 };

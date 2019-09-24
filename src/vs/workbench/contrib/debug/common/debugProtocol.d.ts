@@ -10,7 +10,7 @@ declare module DebugProtocol {
 
 	/** Base class of requests, responses, and events. */
 	export interface ProtocolMessage {
-		/** Sequence number. For protocol messages of type 'request' this number can be used to cancel the request. */
+		/** Sequence number (also known as message ID). For protocol messages of type 'request' this ID can be used to cancel the request. */
 		seq: number;
 		/** Message type.
 			Values: 'request', 'response', 'event', etc.
@@ -41,11 +41,20 @@ declare module DebugProtocol {
 		// type: 'response';
 		/** Sequence number of the corresponding request. */
 		request_seq: number;
-		/** Outcome of the request. */
+		/** Outcome of the request.
+			If true, the request was successful and the 'body' attribute may contain the result of the request.
+			If the value is false, the attribute 'message' contains the error in short form and the 'body' may contain additional information (see 'ErrorResponse.body.error').
+		*/
 		success: boolean;
 		/** The command requested. */
 		command: string;
-		/** Contains error message if success == false. */
+		/** Contains the raw error in short form if 'success' is false.
+			This raw error might be interpreted by the frontend and is not shown in the UI.
+			Some predefined values exist.
+			Values:
+			'cancelled': request was cancelled.
+			etc.
+		*/
 		message?: string;
 		/** Contains request result if success is true and optional error details if success is false. */
 		body?: any;
@@ -60,8 +69,13 @@ declare module DebugProtocol {
 	}
 
 	/** Cancel request; value of command field is 'cancel'.
-		This request can be used to cancel another request. Clients should only call this request if the capability 'supportsCancelRequest' is true.
-		A request that got canceled still needs to send a response back. This can either be a partial result or an error response.
+		The 'cancel' request is used by the frontend to indicate that it is no longer interested in the result produced by a specific request issued earlier.
+		This request has a hint characteristic: a debug adapter can only be expected to make a 'best effort' in honouring this request but there are no guarantees.
+		The 'cancel' request may return an error if it could not cancel an operation but a frontend should refrain from presenting this error to end users.
+		A frontend client should only call this request if the capability 'supportsCancelRequest' is true.
+		The request that got canceled still needs to send a response back.
+		This can either be a normal result ('success' attribute true) or an error response ('success' attribute false and the 'message' set to 'cancelled').
+		Returning partial results from a cancelled request is possible but please note that a frontend client has no generic way for detecting that a response is partial or not.
 	*/
 	export interface CancelRequest extends Request {
 		// command: 'cancel';
@@ -472,6 +486,38 @@ declare module DebugProtocol {
 
 	/** Response to 'terminate' request. This is just an acknowledgement, so no body field is required. */
 	export interface TerminateResponse extends Response {
+	}
+
+	/** BreakpointLocations request; value of command field is 'breakpointLocations'.
+		The 'breakpointLocations' request returns all possible locations for source breakpoints in a given range.
+	*/
+	export interface BreakpointLocationsRequest extends Request {
+		// command: 'breakpointLocations';
+		arguments?: BreakpointLocationsArguments;
+	}
+
+	/** Arguments for 'breakpointLocations' request. */
+	export interface BreakpointLocationsArguments {
+		/** The source location of the breakpoints; either 'source.path' or 'source.reference' must be specified. */
+		source: Source;
+		/** Start line of range to search possible breakpoint locations in. If only the line is specified, the request returns all possible locations in that line. */
+		line: number;
+		/** Optional start column of range to search possible breakpoint locations in. If no start column is given, the first column in the start line is assumed. */
+		column?: number;
+		/** Optional end line of range to search possible breakpoint locations in. If no end line is given, then the end line is assumed to be the start line. */
+		endLine?: number;
+		/** Optional end column of range to search possible breakpoint locations in. If no end column is given, then it is assumed to be in the last column of the end line. */
+		endColumn?: number;
+	}
+
+	/** Response to 'breakpointLocations' request.
+		Contains possible locations for source breakpoints.
+	*/
+	export interface BreakpointLocationsResponse extends Response {
+		body: {
+			/** Sorted set of possible breakpoint locations. */
+			breakpoints: BreakpointLocation[];
+		};
 	}
 
 	/** SetBreakpoints request; value of command field is 'setBreakpoints'.
@@ -1351,6 +1397,8 @@ declare module DebugProtocol {
 		supportsDisassembleRequest?: boolean;
 		/** The debug adapter supports the 'cancel' request. */
 		supportsCancelRequest?: boolean;
+		/** The debug adapter supports the 'breakpointLocations' request. */
+		supportsBreakpointLocationsRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1596,6 +1644,18 @@ declare module DebugProtocol {
 			Values: 'public', 'private', 'protected', 'internal', 'final', etc.
 		*/
 		visibility?: string;
+	}
+
+	/** Properties of a breakpoint location returned from the 'breakpointLocations' request. */
+	export interface BreakpointLocation {
+		/** Start line of breakpoint location. */
+		line: number;
+		/** Optional start column of breakpoint location. */
+		column?: number;
+		/** Optional end line of breakpoint location if the location covers a range. */
+		endLine?: number;
+		/** Optional end column of breakpoint location if the location covers a range. */
+		endColumn?: number;
 	}
 
 	/** Properties of a breakpoint or logpoint passed to the setBreakpoints request. */

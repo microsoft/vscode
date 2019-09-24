@@ -5,9 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { join } from 'vs/base/common/path';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ILogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
@@ -15,23 +12,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-
-export class OpenLogsFolderAction extends Action {
-
-	static ID = 'workbench.action.openLogsFolder';
-	static LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
-
-	constructor(id: string, label: string,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWindowsService private readonly windowsService: IWindowsService,
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		return this.windowsService.showItemInFolder(URI.file(join(this.environmentService.logsPath, 'main.log')));
-	}
-}
 
 export class SetLogLevelAction extends Action {
 

@@ -36,8 +36,6 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 
 	get templateId(): string { return SELECT_OPTION_ENTRY_TEMPLATE_ID; }
 
-	constructor() { }
-
 	renderTemplate(container: HTMLElement): ISelectListTemplateData {
 		const data: ISelectListTemplateData = Object.create(null);
 		data.disposables = [];

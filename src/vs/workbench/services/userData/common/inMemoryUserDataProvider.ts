@@ -50,7 +50,7 @@ class Directory implements IStat {
 
 export type Entry = File | Directory;
 
-export class InMemoryUserDataProvider extends Disposable implements IFileSystemProvider {
+export class InMemoryFileSystemProvider extends Disposable implements IFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.FileReadWrite;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;

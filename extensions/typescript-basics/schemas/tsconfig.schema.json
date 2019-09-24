@@ -1,4 +1,5 @@
 {
+	"allowTrailingCommas": true,
 	"title": "JSON schema for the TypeScript compiler's configuration file",
 	"type": "object",
 	"default": {

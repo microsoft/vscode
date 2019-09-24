@@ -55,7 +55,7 @@
 	"command.syncRebase": "Sync (Rebase)",
 	"command.publish": "Publish Branch",
 	"command.showOutput": "Show Git Output",
-	"command.ignore": "Add File to .gitignore",
+	"command.ignore": "Add to .gitignore",
 	"command.stashIncludeUntracked": "Stash (Include Untracked)",
 	"command.stash": "Stash",
 	"command.stashPop": "Pop Stash...",

@@ -127,11 +127,8 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 		});
 	}
 
-	stopSession(): Promise<void> {
-
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		this.cancelPending();
-
+	async stopSession(): Promise<void> {
+		await this.cancelPendingRequests();
 		if (this.socket) {
 			this.socket.end();
 			this.socket = undefined;
@@ -252,10 +249,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		}
 	}
 
-	stopSession(): Promise<void> {
-
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		this.cancelPending();
+	async stopSession(): Promise<void> {
 
 		if (!this.serverProcess) {
 			return Promise.resolve(undefined);
@@ -264,6 +258,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		// when killing a process in windows its child
 		// processes are *not* killed but become root
 		// processes. Therefore we use TASKKILL.EXE
+		await this.cancelPendingRequests();
 		if (platform.isWindows) {
 			return new Promise<void>((c, e) => {
 				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess!.pid}`, function (err, stdout, stderr) {

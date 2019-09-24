@@ -701,14 +701,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			if (!start) {
 				scope = undefined;
 			} else {
-				const selectedNode = tree.getNode(start);
-				const parentNode = selectedNode.parent;
-
-				if (!parentNode || !parentNode.parent) { // root
-					scope = undefined;
-				} else {
-					scope = parentNode.element;
-				}
+				scope = tree.getParentElement(start);
 			}
 
 			const newSelection: unknown[] = [];

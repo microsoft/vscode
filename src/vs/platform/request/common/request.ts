@@ -17,6 +17,8 @@ export interface IRequestService {
 	_serviceBrand: undefined;
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
+
+	resolveProxy(url: string): Promise<string | undefined>;
 }
 
 function isSuccess(context: IRequestContext): boolean {

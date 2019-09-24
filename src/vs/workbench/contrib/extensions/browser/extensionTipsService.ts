@@ -37,7 +37,7 @@ import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/wo
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { extname } from 'vs/base/common/resources';
-import { IExeBasedExtensionTip, IProductService } from 'vs/platform/product/common/product';
+import { IExeBasedExtensionTip, IProductService } from 'vs/platform/product/common/productService';
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
 import { setImmediate, isWeb } from 'vs/base/common/platform';
@@ -635,16 +635,18 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			}
 		});
 
-		forEach(this.productService.extensionImportantTips, entry => {
-			let { key: id, value } = entry;
-			const { pattern } = value;
-			let ids = this._availableRecommendations[pattern];
-			if (!ids) {
-				this._availableRecommendations[pattern] = [id.toLowerCase()];
-			} else {
-				ids.push(id.toLowerCase());
-			}
-		});
+		if (this.productService.extensionImportantTips) {
+			forEach(this.productService.extensionImportantTips, entry => {
+				let { key: id, value } = entry;
+				const { pattern } = value;
+				let ids = this._availableRecommendations[pattern];
+				if (!ids) {
+					this._availableRecommendations[pattern] = [id.toLowerCase()];
+				} else {
+					ids.push(id.toLowerCase());
+				}
+			});
+		}
 
 		const allRecommendations: string[] = flatten((Object.keys(this._availableRecommendations).map(key => this._availableRecommendations[key])));
 
@@ -697,7 +699,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				let { key: pattern, value: ids } = entry;
 				if (match(pattern, model.uri.toString())) {
 					for (let id of ids) {
-						if (caseInsensitiveGet(this.productService.extensionImportantTips, id)) {
+						if (this.productService.extensionImportantTips && caseInsensitiveGet(this.productService.extensionImportantTips, id)) {
 							recommendationsToSuggest.push(id);
 						}
 						const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
@@ -751,7 +753,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}
 
 		const id = recommendationsToSuggest[0];
-		const entry = caseInsensitiveGet(this.productService.extensionImportantTips, id);
+		const entry = this.productService.extensionImportantTips ? caseInsensitiveGet(this.productService.extensionImportantTips, id) : undefined;
 		if (!entry) {
 			return false;
 		}
@@ -984,7 +986,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 * If user has any of the tools listed in this.productService.exeBasedExtensionTips, fetch corresponding recommendations
 	 */
 	private async fetchExecutableRecommendations(important: boolean): Promise<void> {
-		if (isWeb) {
+		if (isWeb || !this.productService.exeBasedExtensionTips) {
 			return;
 		}
 
