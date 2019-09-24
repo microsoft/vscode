@@ -33,6 +33,7 @@ import { QuickOpenActionContributor } from '../browser/quickOpen';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { RunAutomaticTasks, ManageAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -255,9 +256,8 @@ const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Ac
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
 // tasks.json validation
-let schemaId = 'vscode://schemas/tasks';
 let schema: IJSONSchema = {
-	id: schemaId,
+	id: tasksSchemaId,
 	description: 'Task definition file',
 	type: 'object',
 	allowTrailingCommas: true,
@@ -283,6 +283,7 @@ let schema: IJSONSchema = {
 import schemaVersion1 from '../common/jsonSchema_v1';
 import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
 import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
+import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
@@ -290,9 +291,27 @@ schema.definitions = {
 schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])];
 
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
-jsonRegistry.registerSchema(schemaId, schema);
+jsonRegistry.registerSchema(tasksSchemaId, schema);
 
 ProblemMatcherRegistry.onMatcherChanged(() => {
 	updateProblemMatchers();
-	jsonRegistry.notifySchemaChanged(schemaId);
+	jsonRegistry.notifySchemaChanged(tasksSchemaId);
+});
+
+// Register configuration
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	id: 'task',
+	order: 20,
+	title: nls.localize('tasksConfigurationTitle', "Task"),
+	type: 'object',
+	properties: {
+		'tasks': {
+			type: 'object',
+			description: nls.localize('task.tasks', "Global tasks configuration. Should be used as an alternative to 'tasks.json' that is shared across workspaces."),
+			default: { version: '2.0.0', tasks: [] },
+			$ref: tasksSchemaId
+		}
+	},
+	scope: ConfigurationScope.APPLICATION
 });
