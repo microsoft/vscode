@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, IEnterWorkspaceResult, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { URI } from 'vs/base/common/uri';
@@ -28,15 +28,6 @@ export class WindowsService implements IWindowsService {
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
 		this.channel = mainProcessService.getChannel('windows');
-	}
-
-	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		const result: IEnterWorkspaceResult = await this.channel.call('enterWorkspace', [windowId, path]);
-		if (result) {
-			result.workspace = reviveWorkspaceIdentifier(result.workspace);
-		}
-
-		return result;
 	}
 
 	addRecentlyOpened(recent: IRecent[]): Promise<void> {

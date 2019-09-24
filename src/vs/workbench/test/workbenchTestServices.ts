@@ -35,7 +35,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, IEnterWorkspaceResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -1196,10 +1196,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return Promise.resolve(undefined);
-	}
-
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return Promise.resolve({
 			workspaces: [],
@@ -1292,10 +1288,6 @@ export class TestWindowsService implements IWindowsService {
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(false);
-	}
-
-	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return Promise.resolve(undefined);
 	}
 
 	addRecentlyOpened(_recents: IRecent[]): Promise<void> {

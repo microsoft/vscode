@@ -552,7 +552,7 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('sharedProcess', sharedProcessChannel);
 
 		const workspacesMainService = accessor.get(IWorkspacesMainService);
-		const workspacesChannel = new WorkspacesChannel(workspacesMainService);
+		const workspacesChannel = new WorkspacesChannel(workspacesMainService, accessor.get(IWindowsMainService));
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
 		const windowsService = accessor.get(IWindowsService);

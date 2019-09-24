@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { IWindowsService, OpenContext, IEnterWorkspaceResult, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { app, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
 import { Event } from 'vs/base/common/event';
@@ -71,12 +71,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#showOpenDialog', windowId);
 
 		return this.withWindow(windowId, codeWindow => this.windowsMainService.showOpenDialog(options, codeWindow), () => this.windowsMainService.showOpenDialog(options))!;
-	}
-
-	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		this.logService.trace('windowsService#enterWorkspace', windowId);
-
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.enterWorkspace(codeWindow, path));
 	}
 
 	async addRecentlyOpened(recents: IRecent[]): Promise<void> {

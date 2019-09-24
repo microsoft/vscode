@@ -197,9 +197,8 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
-		const windowsStateStoreData = this.stateService.getItem<WindowsStateStorageData>(WindowsManager.windowsStateStorageKey);
 
-		this.windowsState = restoreWindowsState(windowsStateStoreData);
+		this.windowsState = restoreWindowsState(this.stateService.getItem<WindowsStateStorageData>(WindowsManager.windowsStateStorageKey));
 		if (!Array.isArray(this.windowsState.openedWindows)) {
 			this.windowsState.openedWindows = [];
 		}

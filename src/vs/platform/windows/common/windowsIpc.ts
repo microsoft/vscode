@@ -43,7 +43,6 @@ export class WindowsChannel implements IServerChannel {
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map((recent: IRecent) => {
 				if (isRecentFile(recent)) {
 					recent.fileUri = URI.revive(recent.fileUri);

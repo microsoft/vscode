@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowService, IWindowsService, IEnterWorkspaceResult, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -49,10 +49,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	get windowId(): number {
 		return this._windowId;
-	}
-
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return this.windowsService.enterWorkspace(this.windowId, path);
 	}
 
 	openWindow(uris: IURIToOpen[], options: IOpenSettings = {}): Promise<void> {

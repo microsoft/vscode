@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWindowService, IEnterWorkspaceResult, IURIToOpen, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -86,10 +86,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 
 	isMaximized(): Promise<boolean> {
 		return Promise.resolve(false);
-	}
-
-	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return Promise.resolve(undefined);
 	}
 
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
@@ -221,10 +217,6 @@ export class SimpleWindowsService implements IWindowsService {
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(true);
-	}
-
-	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return Promise.resolve(undefined);
 	}
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void> {
