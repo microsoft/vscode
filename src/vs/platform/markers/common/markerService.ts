@@ -123,7 +123,7 @@ export class MarkerService implements IMarkerService {
 
 	_serviceBrand: undefined;
 
-	private _onMarkerChanged = new Emitter<URI[]>();
+	private readonly _onMarkerChanged = new Emitter<URI[]>();
 	private _onMarkerChangedEvent: Event<URI[]> = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
 	private _byResource: MapMap<IMarker[]> = Object.create(null);
 	private _byOwner: MapMap<IMarker[]> = Object.create(null);

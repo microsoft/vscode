@@ -94,13 +94,13 @@ export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeServi
 
 export class SuggestEnabledInput extends Widget implements IThemable {
 
-	private _onShouldFocusResults = new Emitter<void>();
+	private readonly _onShouldFocusResults = new Emitter<void>();
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
 
-	private _onEnter = new Emitter<void>();
+	private readonly _onEnter = new Emitter<void>();
 	readonly onEnter: Event<void> = this._onEnter.event;
 
-	private _onInputDidChange = new Emitter<string | undefined>();
+	private readonly _onInputDidChange = new Emitter<string | undefined>();
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
 	private readonly inputWidget: CodeEditorWidget;

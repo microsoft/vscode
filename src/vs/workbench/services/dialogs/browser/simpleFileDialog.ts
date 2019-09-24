@@ -117,7 +117,7 @@ export class SimpleFileDialog {
 	private badPath: string | undefined;
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null | undefined;
 	private separator: string = '/';
-	private onBusyChangeEmitter = new Emitter<boolean>();
+	private readonly onBusyChangeEmitter = new Emitter<boolean>();
 	private updatingPromise: CancelablePromise<void> | undefined;
 
 	protected disposables: IDisposable[] = [

@@ -196,7 +196,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	private readonly _disposeOnNewModel = new DisposableStore();
 	private readonly _callOnDispose = new DisposableStore();
-	private _onDidSelectReference = new Emitter<SelectionEvent>();
+	private readonly _onDidSelectReference = new Emitter<SelectionEvent>();
 
 	private _tree!: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
 	private _treeContainer!: HTMLElement;

@@ -460,8 +460,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onPanelPositionChange: Event<string> = Event.None;
 	onLayout = Event.None;
 
-	private _onTitleBarVisibilityChange = new Emitter<void>();
-	private _onMenubarVisibilityChange = new Emitter<Dimension>();
+	private readonly _onTitleBarVisibilityChange = new Emitter<void>();
+	private readonly _onMenubarVisibilityChange = new Emitter<Dimension>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
@@ -1259,9 +1259,9 @@ export class TestLifecycleService implements ILifecycleService {
 	public phase: LifecyclePhase;
 	public startupKind: StartupKind;
 
-	private _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
-	private _onWillShutdown = new Emitter<WillShutdownEvent>();
-	private _onShutdown = new Emitter<void>();
+	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
+	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
+	private readonly _onShutdown = new Emitter<void>();
 
 	when(): Promise<void> {
 		return Promise.resolve();

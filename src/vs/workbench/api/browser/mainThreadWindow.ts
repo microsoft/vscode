@@ -14,8 +14,6 @@ import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, M
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
 
-	private handlePool = 1;
-
 	private readonly proxy: ExtHostWindowShape;
 	private readonly disposables = new DisposableStore();
 	private readonly resolved = new Map<number, IDisposable>();
@@ -49,23 +47,9 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		return this.openerService.open(uri, { openExternal: true, allowTunneling: options.allowTunneling });
 	}
 
-	async $resolveExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<{ handle: number, result: UriComponents }> {
+	async $resolveExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
 		const uri = URI.revive(uriComponents);
-		const handle = ++this.handlePool;
-
 		const result = await this.openerService.resolveExternalUri(uri, options);
-		this.resolved.set(handle, result);
-
-		return { handle, result: result.resolved };
-	}
-
-	async $releaseResolvedExternalUri(handle: number): Promise<boolean> {
-		const entry = this.resolved.get(handle);
-		if (entry) {
-			entry.dispose();
-			this.resolved.delete(handle);
-			return true;
-		}
-		return false;
+		return result.resolved;
 	}
 }

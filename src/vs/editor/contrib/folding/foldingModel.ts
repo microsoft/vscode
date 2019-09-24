@@ -28,7 +28,7 @@ export class FoldingModel {
 	private _editorDecorationIds: string[];
 	private _isInitialized: boolean;
 
-	private _updateEventEmitter = new Emitter<FoldingModelChangeEvent>();
+	private readonly _updateEventEmitter = new Emitter<FoldingModelChangeEvent>();
 	public readonly onDidChange: Event<FoldingModelChangeEvent> = this._updateEventEmitter.event;
 
 	public get regions(): FoldingRegions { return this._regions; }

@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IUserData {
 	ref: string;
@@ -73,6 +74,9 @@ export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUser
 export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
 	readonly conflictsSource: SyncSource | null;
+
+	getRemoteExtensions(): Promise<ISyncExtension[]>;
+	removeExtension(identifier: IExtensionIdentifier): Promise<void>;
 }
 
 export const ISettingsMergeService = createDecorator<ISettingsMergeService>('ISettingsMergeService');
@@ -84,3 +88,5 @@ export interface ISettingsMergeService {
 	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
 
 }
+
+export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
