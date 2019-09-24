@@ -385,7 +385,7 @@ export class OutlinePanel extends ViewletPanel {
 
 	getActions(): IAction[] {
 		return [
-			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action collapse-explorer', true, () => {
+			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action codicon-collapse-all', true, () => {
 				return new CollapseAction(this._tree, true, undefined).run();
 			})
 		];
