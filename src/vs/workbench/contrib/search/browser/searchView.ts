@@ -298,7 +298,7 @@ export class SearchView extends ViewletPanel {
 		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
 
 		this._register(this.searchWidget.searchInput.onInput(() => this.updateActions()));
-		this._register(this.searchWidget.replaceInput.onDidChange(() => this.updateActions()));
+		this._register(this.searchWidget.replaceInput.onInput(() => this.updateActions()));
 
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
@@ -1048,10 +1048,10 @@ export class SearchView extends ViewletPanel {
 			this.searchWidget.searchInput.setValue(args.query);
 		}
 		if (typeof args.replace === 'string') {
-			this.searchWidget.replaceInput.value = args.replace;
+			this.searchWidget.replaceInput.setValue(args.replace);
 		} else {
-			if (this.searchWidget.replaceInput.value !== '') {
-				this.searchWidget.replaceInput.value = '';
+			if (this.searchWidget.replaceInput.getValue() !== '') {
+				this.searchWidget.replaceInput.setValue('');
 			}
 		}
 		if (typeof args.triggerSearch === 'boolean' && args.triggerSearch) {
