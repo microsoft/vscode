@@ -105,7 +105,6 @@ export interface IWindowsService {
 	maximizeWindow(windowId: number): Promise<void>;
 	unmaximizeWindow(windowId: number): Promise<void>;
 	minimizeWindow(windowId: number): Promise<void>;
-	quit(): Promise<void>;
 
 	// macOS Native Tabs
 	newWindowTab(): Promise<void>;

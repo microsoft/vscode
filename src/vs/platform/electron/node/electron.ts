@@ -38,6 +38,7 @@ export interface IElectronService {
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 	reload(): Promise<void>;
 	closeWorkpsace(): Promise<void>;
+	quit(): Promise<void>;
 
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;

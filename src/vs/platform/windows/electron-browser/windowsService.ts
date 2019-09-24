@@ -112,10 +112,6 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('minimizeWindow', windowId);
 	}
 
-	quit(): Promise<void> {
-		return this.channel.call('quit');
-	}
-
 	whenSharedProcessReady(): Promise<void> {
 		return this.channel.call('whenSharedProcessReady');
 	}

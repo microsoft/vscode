@@ -1345,10 +1345,6 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	quit(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	whenSharedProcessReady(): Promise<void> {
 		return Promise.resolve();
 	}

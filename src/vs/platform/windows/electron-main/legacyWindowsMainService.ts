@@ -260,12 +260,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		crashReporter.start(config);
 	}
 
-	async quit(): Promise<void> {
-		this.logService.trace('windowsService#quit');
-
-		this.windowsMainService.quit();
-	}
-
 	async whenSharedProcessReady(): Promise<void> {
 		this.logService.trace('windowsService#whenSharedProcessReady');
 

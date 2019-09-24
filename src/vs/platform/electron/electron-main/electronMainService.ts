@@ -125,6 +125,10 @@ export class ElectronMainService implements ElectronServiceInterface {
 		}
 	}
 
+	async quit(windowId: number): Promise<void> {
+		return this.windowsMainService.quit();
+	}
+
 	//#endregion
 
 	//#region Development
