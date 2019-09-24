@@ -27,7 +27,7 @@ import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -38,6 +38,10 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+
+// TODO@sbatten https://github.com/microsoft/vscode/issues/81360
+// tslint:disable-next-line: import-patterns layering
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -95,7 +99,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@optional(IElectronService) private electronService: IElectronService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -322,7 +327,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.onUpdateAppIconDragBehavior();
 
 			this._register(addDisposableListener(this.appIcon, EventType.DBLCLICK, (e => {
-				this.windowService.closeWindow();
+				this.electronService.closeWindow();
 			})));
 		}
 
@@ -346,15 +351,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.titleUpdater.schedule();
 		}
 
-		// Maximize/Restore on doubleclick
-		if (isMacintosh && !isWeb) {
-			this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
-				EventHelper.stop(e);
-
-				this.onTitleDoubleclick();
-			}));
-		}
-
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
 			this._register(addDisposableListener(this.title, event, e => {
@@ -375,7 +371,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			const minimizeIcon = append(minimizeIconContainer, $('div.window-icon'));
 			addClass(minimizeIcon, 'window-minimize');
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
-				this.windowService.minimizeWindow();
+				this.electronService.minimizeWindow();
 			}));
 
 			// Restore
@@ -383,12 +379,12 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.maxRestoreControl = append(restoreIconContainer, $('div.window-icon'));
 			addClass(this.maxRestoreControl, 'window-max-restore');
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
-				const maximized = await this.windowService.isMaximized();
+				const maximized = await this.electronService.isMaximized();
 				if (maximized) {
-					return this.windowService.unmaximizeWindow();
+					return this.electronService.unmaximizeWindow();
 				}
 
-				return this.windowService.maximizeWindow();
+				return this.electronService.maximizeWindow();
 			}));
 
 			// Close
@@ -397,7 +393,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			const closeIcon = append(closeIconContainer, $('div.window-icon'));
 			addClass(closeIcon, 'window-close');
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
-				this.windowService.closeWindow();
+				this.electronService.closeWindow();
 			}));
 
 			// Resizer
@@ -405,7 +401,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			const isMaximized = this.environmentService.configuration.maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
-			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
+			this._register(this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this));
 		}
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
@@ -475,10 +471,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
 			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : null;
 		}
-	}
-
-	private onTitleDoubleclick(): void {
-		this.windowService.onWindowTitleDoubleClick();
 	}
 
 	private onUpdateAppIconDragBehavior() {

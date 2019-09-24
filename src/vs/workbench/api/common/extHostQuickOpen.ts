@@ -246,10 +246,10 @@ class ExtHostQuickInput implements QuickInput {
 	private _placeholder: string;
 	private _buttons: QuickInputButton[] = [];
 	private _handlesToButtons = new Map<number, QuickInputButton>();
-	private _onDidAcceptEmitter = new Emitter<void>();
-	private _onDidChangeValueEmitter = new Emitter<string>();
-	private _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
-	private _onDidHideEmitter = new Emitter<void>();
+	private readonly _onDidAcceptEmitter = new Emitter<void>();
+	private readonly _onDidChangeValueEmitter = new Emitter<string>();
+	private readonly _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
+	private readonly _onDidHideEmitter = new Emitter<void>();
 	private _updateTimeout: any;
 	private _pendingUpdate: TransferQuickInput = { id: this._id };
 
@@ -486,9 +486,9 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
 	private _activeItems: T[] = [];
-	private _onDidChangeActiveEmitter = new Emitter<T[]>();
+	private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
 	private _selectedItems: T[] = [];
-	private _onDidChangeSelectionEmitter = new Emitter<T[]>();
+	private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 
 	constructor(proxy: MainThreadQuickOpenShape, extensionId: ExtensionIdentifier, enableProposedApi: boolean, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);

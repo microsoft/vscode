@@ -35,17 +35,17 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, IEnterWorkspaceResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration, CrashReporterStartOptions } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
-import { IMenuService, MenuId, IMenu, ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
@@ -71,7 +71,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { isLinux, isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
@@ -460,8 +460,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onPanelPositionChange: Event<string> = Event.None;
 	onLayout = Event.None;
 
-	private _onTitleBarVisibilityChange = new Emitter<void>();
-	private _onMenubarVisibilityChange = new Emitter<Dimension>();
+	private readonly _onTitleBarVisibilityChange = new Emitter<void>();
+	private readonly _onMenubarVisibilityChange = new Emitter<Dimension>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
@@ -1192,18 +1192,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	isMaximized(): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
-	closeWorkspace(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return Promise.resolve(undefined);
-	}
-
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return Promise.resolve({
 			workspaces: [],
@@ -1223,31 +1211,7 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	maximizeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	unmaximizeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	minimizeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
-		return Promise.resolve();
-	}
-
-	closeWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	onWindowTitleDoubleClick(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	updateTouchBar(_items: ISerializableCommandAction[][]): Promise<void> {
 		return Promise.resolve();
 	}
 }
@@ -1259,9 +1223,9 @@ export class TestLifecycleService implements ILifecycleService {
 	public phase: LifecyclePhase;
 	public startupKind: StartupKind;
 
-	private _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
-	private _onWillShutdown = new Emitter<WillShutdownEvent>();
-	private _onShutdown = new Emitter<void>();
+	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
+	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
+	private readonly _onShutdown = new Emitter<void>();
 
 	when(): Promise<void> {
 		return Promise.resolve();
@@ -1306,14 +1270,6 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve(false);
 	}
 
-	closeWorkspace(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return Promise.resolve(undefined);
-	}
-
 	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1337,48 +1293,8 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	closeWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	isMaximized(_windowId: number): Promise<boolean> {
-		return Promise.resolve(false);
-	}
-
-	maximizeWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	minimizeWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	unmaximizeWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	onWindowTitleDoubleClick(_windowId: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	quit(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	whenSharedProcessReady(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleSharedProcess(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	// Global methods
 	openWindow(_windowId: number, _uris: IURIToOpen[], _options: IOpenSettings): Promise<void> {
-		return Promise.resolve();
-	}
-
-	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -1386,47 +1302,8 @@ export class TestWindowsService implements IWindowsService {
 		throw new Error('not implemented');
 	}
 
-	newWindowTab(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	showPreviousWindowTab(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	showNextWindowTab(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	moveWindowTabToNewWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	mergeAllWindowTabs(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleWindowTabsBar(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	updateTouchBar(_windowId: number, _items: ISerializableCommandAction[][]): Promise<void> {
-		return Promise.resolve();
-	}
-
 	getActiveWindowId(): Promise<number | undefined> {
 		return Promise.resolve(undefined);
-	}
-
-	// This needs to be handled from browser process to prevent
-	// foreground ordering issues on Windows
-	openExternal(_url: string): Promise<boolean> {
-		return Promise.resolve(true);
-	}
-
-	// TODO: this is a bit backwards
-	startCrashReporter(_config: CrashReporterStartOptions): Promise<void> {
-		return Promise.resolve();
 	}
 }
 
@@ -1478,6 +1355,9 @@ export class TestSharedProcessService implements ISharedProcessService {
 	}
 
 	registerChannel(channelName: string, channel: any): void { }
+
+	async toggleSharedProcessWindow(): Promise<void> { }
+	async whenSharedProcessReady(): Promise<void> { }
 }
 
 export class RemoteFileSystemProvider implements IFileSystemProvider {
@@ -1517,10 +1397,11 @@ export class TestHostService implements IHostService {
 
 	windowCount = Promise.resolve(1);
 
-	restart(): Promise<void> { return Promise.resolve(); }
-	reload(): Promise<void> { return Promise.resolve(); }
+	async restart(): Promise<void> { }
+	async reload(): Promise<void> { }
+	async closeWorkspace(): Promise<void> { }
 
-	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> { return Promise.resolve(); }
+	async openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> { }
 
-	toggleFullScreen(): Promise<void> { return Promise.resolve(); }
+	async toggleFullScreen(): Promise<void> { }
 }

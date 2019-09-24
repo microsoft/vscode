@@ -150,7 +150,7 @@ class TestTelemetryService implements ITelemetryService {
 
 	public events: any[] = [];
 
-	private emitter = new Emitter<any>();
+	private readonly emitter = new Emitter<any>();
 
 	public get eventLogged(): Event<any> {
 		return this.emitter.event;

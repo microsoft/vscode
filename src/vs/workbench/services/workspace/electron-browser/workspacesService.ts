@@ -8,6 +8,7 @@ import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData,
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IWindowService, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 
 export class WorkspacesService implements IWorkspacesService {
 
@@ -15,8 +16,20 @@ export class WorkspacesService implements IWorkspacesService {
 
 	private channel: IChannel;
 
-	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
+	constructor(
+		@IMainProcessService mainProcessService: IMainProcessService,
+		@IWindowService private readonly windowService: IWindowService
+	) {
 		this.channel = mainProcessService.getChannel('workspaces');
+	}
+
+	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
+		const result: IEnterWorkspaceResult = await this.channel.call('enterWorkspace', [this.windowService.windowId, path]);
+		if (result) {
+			result.workspace = reviveWorkspaceIdentifier(result.workspace);
+		}
+
+		return result;
 	}
 
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {

@@ -50,7 +50,7 @@ class ListElement implements IListElement {
 	saneDescription?: string;
 	saneDetail?: string;
 	hidden = false;
-	private _onChecked = new Emitter<boolean>();
+	private readonly _onChecked = new Emitter<boolean>();
 	onChecked = this._onChecked.event;
 	_checked?: boolean;
 	get checked() {
@@ -222,17 +222,17 @@ export class QuickInputList {
 	matchOnDescription = false;
 	matchOnDetail = false;
 	matchOnLabel = true;
-	private _onChangedAllVisibleChecked = new Emitter<boolean>();
+	private readonly _onChangedAllVisibleChecked = new Emitter<boolean>();
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
-	private _onChangedCheckedCount = new Emitter<number>();
+	private readonly _onChangedCheckedCount = new Emitter<number>();
 	onChangedCheckedCount: Event<number> = this._onChangedCheckedCount.event;
-	private _onChangedVisibleCount = new Emitter<number>();
+	private readonly _onChangedVisibleCount = new Emitter<number>();
 	onChangedVisibleCount: Event<number> = this._onChangedVisibleCount.event;
-	private _onChangedCheckedElements = new Emitter<IQuickPickItem[]>();
+	private readonly _onChangedCheckedElements = new Emitter<IQuickPickItem[]>();
 	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
-	private _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
+	private readonly _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
 	onButtonTriggered = this._onButtonTriggered.event;
-	private _onLeave = new Emitter<void>();
+	private readonly _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
 	private elementDisposables: IDisposable[] = [];

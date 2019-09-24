@@ -303,7 +303,7 @@ export class IssueReporter extends Disposable {
 		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
 		this.logService = new FollowerLogService(loggerClient, logService);
 
-		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
+		const sharedProcess = mainProcessService.getChannel('sharedProcess').call('whenSharedProcessReady')
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
 
 		const instantiationService = new InstantiationService(serviceCollection, true);

@@ -389,14 +389,14 @@ function asTreeElement(node: INode<ISCMResource, ISCMResourceGroup>, incompressi
 }
 
 const enum ViewModelMode {
-	List = 'list',
-	Tree = 'tree'
+	List = 'codicon-filter',
+	Tree = 'codicon-selection'
 }
 
 class ViewModel {
 
 	private _mode = ViewModelMode.Tree;
-	private _onDidChangeMode = new Emitter<ViewModelMode>();
+	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
 	readonly onDidChangeMode = this._onDidChangeMode.event;
 
 	get mode(): ViewModelMode { return this._mode; }
@@ -493,7 +493,7 @@ class ViewModel {
 export class ToggleViewModeAction extends Action {
 
 	static readonly ID = 'workbench.scm.action.toggleViewMode';
-	static readonly LABEL = localize('toggleViewMode', "ToggleViewMode");
+	static readonly LABEL = localize('toggleViewMode', "Toggle View Mode");
 
 	constructor(private viewModel: ViewModel) {
 		super(ToggleViewModeAction.ID, ToggleViewModeAction.LABEL);

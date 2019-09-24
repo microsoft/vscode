@@ -350,6 +350,7 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly hitCondition?: string;
 	readonly logMessage?: string;
 	readonly verified: boolean;
+	readonly supported: boolean;
 	getIdFromAdapter(sessionId: string): number | undefined;
 }
 

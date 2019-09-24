@@ -10,7 +10,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class SaveWorkspaceAsAction extends Action {
 
@@ -67,31 +66,5 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		await this.workspaceEditingService.copyWorkspaceSettings(newWorkspace);
 
 		return this.windowService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
-	}
-}
-
-export class CloseWorkspaceAction extends Action {
-
-	static readonly ID = 'workbench.action.closeFolder';
-	static LABEL = nls.localize('closeWorkspace', "Close Workspace");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IWindowService private readonly windowService: IWindowService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.notificationService.info(nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
-
-			return Promise.resolve(undefined);
-		}
-
-		return this.windowService.closeWorkspace();
 	}
 }

@@ -39,10 +39,10 @@ export class NsfwWatcherService implements IWatcherService {
 	private _verboseLogging: boolean | undefined;
 	private enospcErrorLogged: boolean | undefined;
 
-	private _onWatchEvent = new Emitter<IDiskFileChange[]>();
+	private readonly _onWatchEvent = new Emitter<IDiskFileChange[]>();
 	readonly onWatchEvent = this._onWatchEvent.event;
 
-	private _onLogMessage = new Emitter<ILogMessage>();
+	private readonly _onLogMessage = new Emitter<ILogMessage>();
 	readonly onLogMessage: Event<ILogMessage> = this._onLogMessage.event;
 
 	watch(options: IWatcherOptions): Event<IDiskFileChange[]> {

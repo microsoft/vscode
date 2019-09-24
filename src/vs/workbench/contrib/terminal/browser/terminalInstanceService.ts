@@ -22,8 +22,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	private readonly _onRequestDefaultShellAndArgs = new Emitter<IDefaultShellAndArgsRequest>();
 	public get onRequestDefaultShellAndArgs(): Event<IDefaultShellAndArgsRequest> { return this._onRequestDefaultShellAndArgs.event; }
 
-	constructor() { }
-
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
 			Terminal = (await import('xterm')).Terminal;

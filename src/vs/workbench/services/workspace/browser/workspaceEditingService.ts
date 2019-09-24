@@ -50,7 +50,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IWindowsService private readonly windowsService: IWindowsService,
-		@IWorkspacesService private readonly workspaceService: IWorkspacesService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -123,7 +123,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 			// Don't Save: delete workspace
 			case ConfirmResult.DONT_SAVE:
-				this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
+				this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
 				return false;
 
 			// Save: save workspace, but do not veto unload if path provided
@@ -136,12 +136,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				try {
 					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
 
-					const newWorkspaceIdentifier = await this.workspaceService.getWorkspaceIdentifier(newWorkspacePath);
+					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
 
 					const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
 					this.windowService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
 
-					this.workspaceService.deleteUntitledWorkspace(workspaceIdentifier);
+					this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
 				} catch (error) {
 					// ignore
 				}
@@ -293,7 +293,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		const untitledWorkspace = await this.workspaceService.createUntitledWorkspace(folders, remoteAuthority);
+		const untitledWorkspace = await this.workspacesService.createUntitledWorkspace(folders, remoteAuthority);
 		if (path) {
 			await this.saveWorkspaceAs(untitledWorkspace, path);
 		} else {
@@ -389,7 +389,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			throw new Error('Entering a new workspace is not possible in tests.');
 		}
 
-		const workspace = await this.workspaceService.getWorkspaceIdentifier(path);
+		const workspace = await this.workspacesService.getWorkspaceIdentifier(path);
 
 		// Settings migration (only if we come from a folder workspace)
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
@@ -399,7 +399,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const workspaceImpl = this.contextService as WorkspaceService;
 		await workspaceImpl.initialize(workspace);
 
-		const result = await this.windowService.enterWorkspace(path);
+		const result = await this.workspacesService.enterWorkspace(path);
 		if (result) {
 
 			// Migrate storage to new workspace

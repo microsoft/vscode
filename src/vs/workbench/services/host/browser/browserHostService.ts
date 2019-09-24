@@ -70,6 +70,10 @@ export class BrowserHostService implements IHostService {
 	async reload(): Promise<void> {
 		window.location.reload();
 	}
+
+	async closeWorkspace(): Promise<void> {
+		return this.openEmptyWindow({ reuse: true });
+	}
 }
 
 registerSingleton(IHostService, BrowserHostService, true);

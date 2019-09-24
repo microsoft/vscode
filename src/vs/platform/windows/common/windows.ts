@@ -10,7 +10,6 @@ import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
@@ -21,7 +20,6 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
 export interface INativeOpenDialogOptions {
-	windowId?: number;
 	forceNewWindow?: boolean;
 
 	defaultPath?: string;
@@ -33,16 +31,6 @@ export interface INativeOpenDialogOptions {
 export interface IEnterWorkspaceResult {
 	workspace: IWorkspaceIdentifier;
 	backupPath?: string;
-}
-
-export interface CrashReporterStartOptions {
-	companyName?: string;
-	submitURL: string;
-	productName?: string;
-	uploadToServer?: boolean;
-	ignoreSystemCrashHandler?: boolean;
-	extra?: any;
-	crashesDirectory?: string;
 }
 
 export interface OpenDialogOptions {
@@ -94,49 +82,17 @@ export interface IWindowsService {
 	readonly onWindowUnmaximize: Event<number>;
 	readonly onRecentlyOpenedChange: Event<void>;
 
-	closeWorkspace(windowId: number): Promise<void>;
-	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
 	focusWindow(windowId: number): Promise<void>;
-	closeWindow(windowId: number): Promise<void>;
 	isFocused(windowId: number): Promise<boolean>;
-	isMaximized(windowId: number): Promise<boolean>;
-	maximizeWindow(windowId: number): Promise<void>;
-	unmaximizeWindow(windowId: number): Promise<void>;
-	minimizeWindow(windowId: number): Promise<void>;
-	onWindowTitleDoubleClick(windowId: number): Promise<void>;
-	quit(): Promise<void>;
-
-	// macOS Native Tabs
-	newWindowTab(): Promise<void>;
-	showPreviousWindowTab(): Promise<void>;
-	showNextWindowTab(): Promise<void>;
-	moveWindowTabToNewWindow(): Promise<void>;
-	mergeAllWindowTabs(): Promise<void>;
-	toggleWindowTabsBar(): Promise<void>;
-
-	// macOS TouchBar
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void>;
-
-	// Shared process
-	whenSharedProcessReady(): Promise<void>;
-	toggleSharedProcess(): Promise<void>;
 
 	// Global methods
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
-	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getActiveWindowId(): Promise<number | undefined>;
-
-	// This needs to be handled from browser process to prevent
-	// foreground ordering issues on Windows
-	openExternal(url: string): Promise<boolean>;
-
-	// TODO: this is a bit backwards
-	startCrashReporter(config: CrashReporterStartOptions): Promise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -193,21 +149,12 @@ export interface IWindowService {
 
 	readonly windowId: number;
 
-	closeWorkspace(): Promise<void>;
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	focusWindow(): Promise<void>;
-	closeWindow(): Promise<void>;
 	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
 	isFocused(): Promise<boolean>;
-	isMaximized(): Promise<boolean>;
-	maximizeWindow(): Promise<void>;
-	unmaximizeWindow(): Promise<void>;
-	minimizeWindow(): Promise<void>;
-	onWindowTitleDoubleClick(): Promise<void>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';

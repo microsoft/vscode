@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowService, IWindowsService, IEnterWorkspaceResult, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -52,24 +51,12 @@ export class WindowService extends Disposable implements IWindowService {
 		return this._windowId;
 	}
 
-	closeWorkspace(): Promise<void> {
-		return this.windowsService.closeWorkspace(this.windowId);
-	}
-
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return this.windowsService.enterWorkspace(this.windowId, path);
-	}
-
 	openWindow(uris: IURIToOpen[], options: IOpenSettings = {}): Promise<void> {
 		if (!!this.remoteAuthority) {
 			uris.forEach(u => u.label = u.label || this.getRecentLabel(u));
 		}
 
 		return this.windowsService.openWindow(this.windowId, uris, options);
-	}
-
-	closeWindow(): Promise<void> {
-		return this.windowsService.closeWindow(this.windowId);
 	}
 
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
@@ -90,30 +77,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	isFocused(): Promise<boolean> {
 		return this.windowsService.isFocused(this.windowId);
-	}
-
-	isMaximized(): Promise<boolean> {
-		return this.windowsService.isMaximized(this.windowId);
-	}
-
-	maximizeWindow(): Promise<void> {
-		return this.windowsService.maximizeWindow(this.windowId);
-	}
-
-	unmaximizeWindow(): Promise<void> {
-		return this.windowsService.unmaximizeWindow(this.windowId);
-	}
-
-	minimizeWindow(): Promise<void> {
-		return this.windowsService.minimizeWindow(this.windowId);
-	}
-
-	onWindowTitleDoubleClick(): Promise<void> {
-		return this.windowsService.onWindowTitleDoubleClick(this.windowId);
-	}
-
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void> {
-		return this.windowsService.updateTouchBar(this.windowId, items);
 	}
 
 	private getRecentLabel(u: IURIToOpen): string {

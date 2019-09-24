@@ -43,8 +43,6 @@ export class WindowsChannel implements IServerChannel {
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'closeWorkspace': return this.service.closeWorkspace(arg);
-			case 'enterWorkspace': return this.service.enterWorkspace(arg[0], URI.revive(arg[1]));
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg.map((recent: IRecent) => {
 				if (isRecentFile(recent)) {
 					recent.fileUri = URI.revive(recent.fileUri);
@@ -57,22 +55,9 @@ export class WindowsChannel implements IServerChannel {
 			}));
 			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(arg.map(URI.revive));
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
-			case 'newWindowTab': return this.service.newWindowTab();
-			case 'showPreviousWindowTab': return this.service.showPreviousWindowTab();
-			case 'showNextWindowTab': return this.service.showNextWindowTab();
-			case 'moveWindowTabToNewWindow': return this.service.moveWindowTabToNewWindow();
-			case 'mergeAllWindowTabs': return this.service.mergeAllWindowTabs();
-			case 'toggleWindowTabsBar': return this.service.toggleWindowTabsBar();
-			case 'updateTouchBar': return this.service.updateTouchBar(arg[0], arg[1]);
 			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
-			case 'closeWindow': return this.service.closeWindow(arg);
 			case 'isFocused': return this.service.isFocused(arg);
-			case 'isMaximized': return this.service.isMaximized(arg);
-			case 'maximizeWindow': return this.service.maximizeWindow(arg);
-			case 'unmaximizeWindow': return this.service.unmaximizeWindow(arg);
-			case 'minimizeWindow': return this.service.minimizeWindow(arg);
-			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'openWindow': {
 				const urisToOpen: IURIToOpen[] = arg[1];
 				const options: IOpenSettings = arg[2];
@@ -88,14 +73,9 @@ export class WindowsChannel implements IServerChannel {
 				options.waitMarkerFileURI = options.waitMarkerFileURI && URI.revive(options.waitMarkerFileURI);
 				return this.service.openWindow(arg[0], urisToOpen, options);
 			}
-			case 'openExtensionDevelopmentHostWindow': return this.service.openExtensionDevelopmentHostWindow(arg[0], arg[1]);
+			case 'openExtensionDevelopmentHostWindow': return (this.service as any).openExtensionDevelopmentHostWindow(arg[0], arg[1]); // TODO@Isidor move
 			case 'getWindows': return this.service.getWindows();
-			case 'whenSharedProcessReady': return this.service.whenSharedProcessReady();
-			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
-			case 'quit': return this.service.quit();
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
-			case 'openExternal': return this.service.openExternal(arg);
-			case 'startCrashReporter': return this.service.startCrashReporter(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);

@@ -97,7 +97,7 @@ export function fromMap<T>(original: Map<string, T>): IStringDictionary<T> {
 
 export function mapValues<V>(map: Map<any, V>): V[] {
 	const result: V[] = [];
-	map.forEach((_, v) => result.push(v));
+	map.forEach(v => result.push(v));
 	return result;
 }
 
