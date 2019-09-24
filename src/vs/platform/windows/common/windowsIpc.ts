@@ -79,7 +79,7 @@ export class WindowsChannel implements IServerChannel {
 				options.waitMarkerFileURI = options.waitMarkerFileURI && URI.revive(options.waitMarkerFileURI);
 				return this.service.openWindow(arg[0], urisToOpen, options);
 			}
-			case 'openExtensionDevelopmentHostWindow': return this.service.openExtensionDevelopmentHostWindow(arg[0], arg[1]);
+			case 'openExtensionDevelopmentHostWindow': return (this.service as any).openExtensionDevelopmentHostWindow(arg[0], arg[1]); // TODO@Isidor move
 			case 'getWindows': return this.service.getWindows();
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
 		}
