@@ -228,10 +228,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private registerLayoutListeners(): void {
 
 		// Restore editor if hidden and it changes
+		// The editor service will always trigger this
+		// on startup so we can ignore the first one
+		let firstTimeEditorActivation = true;
 		const showEditorIfHidden = () => {
-			if (this.state.editor.hidden) {
+			if (!firstTimeEditorActivation && this.state.editor.hidden) {
 				this.toggleMaximizedPanel();
 			}
+
+			firstTimeEditorActivation = false;
 		};
 
 		// Restore editor part on any editor change
@@ -409,6 +414,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.sideBar.hidden = true; // we hide sidebar if there is no viewlet to restore
 			}
 		}
+
+		// Editor visibility
+		this.state.editor.hidden = this.storageService.getBoolean(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE, false);
 
 		// Editor centered layout
 		this.state.editor.restoreCentered = this.storageService.getBoolean(Storage.CENTERED_LAYOUT_ENABLED, StorageScope.WORKSPACE, false);
@@ -1180,7 +1188,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// At some point, we will not fall back to old keys from legacy layout, but for now, let's migrate the keys
 		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, this.storageService.getNumber('workbench.sidebar.width', StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300))!);
 		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(this.state.panel.position === Position.BOTTOM ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, workbenchDimensions.height / 3));
-		const wasEditorHidden = this.storageService.getBoolean(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE, false);
 
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;
@@ -1205,14 +1212,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const editorNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.EDITOR_PART },
-			size: this.state.panel.position === Position.BOTTOM ? middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) : editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize),
-			visible: true
+			size: this.state.panel.position === Position.BOTTOM ?
+				middleSectionHeight - (this.state.panel.hidden ? 0 : panelSize) :
+				editorSectionWidth - (this.state.panel.hidden ? 0 : panelSize),
+			visible: !this.state.editor.hidden
 		};
 
 		const panelNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.PANEL_PART },
-			size: wasEditorHidden ? (this.state.panel.position === Position.BOTTOM ? this.state.panel.lastNonMaximizedHeight : this.state.panel.lastNonMaximizedWidth) : panelSize,
+			size: panelSize,
 			visible: !this.state.panel.hidden
 		};
 
