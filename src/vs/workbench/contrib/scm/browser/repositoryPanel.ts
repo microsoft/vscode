@@ -396,7 +396,7 @@ const enum ViewModelMode {
 class ViewModel {
 
 	private _mode = ViewModelMode.Tree;
-	private _onDidChangeMode = new Emitter<ViewModelMode>();
+	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
 	readonly onDidChangeMode = this._onDidChangeMode.event;
 
 	get mode(): ViewModelMode { return this._mode; }

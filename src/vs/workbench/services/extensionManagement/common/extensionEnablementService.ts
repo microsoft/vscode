@@ -26,7 +26,7 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	_serviceBrand: undefined;
 
-	private _onEnablementChanged = new Emitter<IExtension[]>();
+	private readonly _onEnablementChanged = new Emitter<IExtension[]>();
 	public readonly onEnablementChanged: Event<IExtension[]> = this._onEnablementChanged.event;
 
 	private readonly storageManger: StorageManager;

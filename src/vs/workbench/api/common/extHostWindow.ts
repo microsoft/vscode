@@ -18,7 +18,7 @@ export class ExtHostWindow implements ExtHostWindowShape {
 
 	private _proxy: MainThreadWindowShape;
 
-	private _onDidChangeWindowState = new Emitter<WindowState>();
+	private readonly _onDidChangeWindowState = new Emitter<WindowState>();
 	readonly onDidChangeWindowState: Event<WindowState> = this._onDidChangeWindowState.event;
 
 	private _state = ExtHostWindow.InitialState;

@@ -188,12 +188,12 @@ class BranchNode implements ISplitView, IDisposable {
 		return this.orientation === Orientation.HORIZONTAL ? this.maximumSize : this.maximumOrthogonalSize;
 	}
 
-	private _onDidChange = new Emitter<number | undefined>();
+	private readonly _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
 	private childrenChangeDisposable: IDisposable = Disposable.None;
 
-	private _onDidSashReset = new Emitter<number[]>();
+	private readonly _onDidSashReset = new Emitter<number[]>();
 	readonly onDidSashReset: Event<number[]> = this._onDidSashReset.event;
 	private splitviewSashResetDisposable: IDisposable = Disposable.None;
 	private childrenSashResetDisposable: IDisposable = Disposable.None;
@@ -539,7 +539,7 @@ class LeafNode implements ISplitView, IDisposable {
 		this._onDidSetLinkedNode.fire(undefined);
 	}
 
-	private _onDidSetLinkedNode = new Emitter<number | undefined>();
+	private readonly _onDidSetLinkedNode = new Emitter<number | undefined>();
 	private _onDidViewChange: Event<number | undefined>;
 	readonly onDidChange: Event<number | undefined>;
 

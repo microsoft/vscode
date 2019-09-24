@@ -567,7 +567,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private _empty: boolean = false;
 	get empty(): boolean { return this._empty; }
 
-	private _onDidChangeEmptyState = new Emitter<boolean>();
+	private readonly _onDidChangeEmptyState = new Emitter<boolean>();
 	readonly onDidChangeEmptyState: Event<boolean> = Event.latch(this._onDidChangeEmptyState.event);
 
 	private positionClassName = 'ne';
@@ -581,7 +581,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 	private automaticKeyboardNavigation = true;
 	private triggered = false;
 
-	private _onDidChangePattern = new Emitter<string>();
+	private readonly _onDidChangePattern = new Emitter<string>();
 	readonly onDidChangePattern = this._onDidChangePattern.event;
 
 	private enabledDisposables: IDisposable[] = [];
@@ -934,7 +934,7 @@ class Trait<T> {
 	private nodes: ITreeNode<T, any>[] = [];
 	private elements: T[] | undefined;
 
-	private _onDidChange = new Emitter<ITreeEvent<T>>();
+	private readonly _onDidChange = new Emitter<ITreeEvent<T>>();
 	readonly onDidChange = this._onDidChange.event;
 
 	private _nodeSet: Set<ITreeNode<T, any>> | undefined;
@@ -1204,7 +1204,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T, TFilterData>> { return this.model.onDidChangeCollapseState; }
 	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
 
-	private _onWillRefilter = new Emitter<void>();
+	private readonly _onWillRefilter = new Emitter<void>();
 	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
@@ -1213,7 +1213,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get openOnSingleClick(): boolean { return typeof this._options.openOnSingleClick === 'undefined' ? true : this._options.openOnSingleClick; }
 	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
 
-	private _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
+	private readonly _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
 	readonly onDidUpdateOptions: Event<IAbstractTreeOptions<T, TFilterData>> = this._onDidUpdateOptions.event;
 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
