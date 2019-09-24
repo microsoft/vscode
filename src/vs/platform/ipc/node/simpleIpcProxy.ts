@@ -11,6 +11,11 @@ import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 // for a very basic process <=> process communication over methods.
 //
 
+export type AddContextToFunctions<Target, Context> = {
+	//  For every property: IF property is a FUNCTION				ADD context as first parameter and original parameters afterwards with same return type, otherwise preserve as is
+	[K in keyof Target]: Target[K] extends (...args: any) => any ? (context: Context, ...args: Parameters<Target[K]>) => ReturnType<Target[K]> : Target[K]
+};
+
 interface ISimpleChannelProxyContext {
 	__$simpleIPCContextMarker: boolean;
 	proxyContext: unknown;
