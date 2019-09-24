@@ -91,10 +91,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	closeWorkspace(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
 	}
@@ -232,10 +228,6 @@ export class SimpleWindowsService implements IWindowsService {
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(true);
-	}
-
-	closeWorkspace(_windowId: number): Promise<void> {
-		return Promise.resolve();
 	}
 
 	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {

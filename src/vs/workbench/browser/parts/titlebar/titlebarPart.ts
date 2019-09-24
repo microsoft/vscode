@@ -396,7 +396,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			const isMaximized = this.environmentService.configuration.maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
-			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
+			this._register(this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this));
 		}
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the

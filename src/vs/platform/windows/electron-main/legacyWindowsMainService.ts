@@ -81,12 +81,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		return this.withWindow(windowId, codeWindow => codeWindow.updateTouchBar(items));
 	}
 
-	async closeWorkspace(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#closeWorkspace', windowId);
-
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.closeWorkspace(codeWindow));
-	}
-
 	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		this.logService.trace('windowsService#enterWorkspace', windowId);
 

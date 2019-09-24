@@ -93,7 +93,6 @@ export interface IWindowsService {
 	readonly onWindowUnmaximize: Event<number>;
 	readonly onRecentlyOpenedChange: Event<void>;
 
-	closeWorkspace(windowId: number): Promise<void>;
 	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
@@ -191,7 +190,6 @@ export interface IWindowService {
 
 	readonly windowId: number;
 
-	closeWorkspace(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;

@@ -52,10 +52,6 @@ export class WindowService extends Disposable implements IWindowService {
 		return this._windowId;
 	}
 
-	closeWorkspace(): Promise<void> {
-		return this.windowsService.closeWorkspace(this.windowId);
-	}
-
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return this.windowsService.enterWorkspace(this.windowId, path);
 	}

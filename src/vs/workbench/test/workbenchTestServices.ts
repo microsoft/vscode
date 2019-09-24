@@ -1196,10 +1196,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve(false);
 	}
 
-	closeWorkspace(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	enterWorkspace(_path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return Promise.resolve(undefined);
 	}
@@ -1300,10 +1296,6 @@ export class TestWindowsService implements IWindowsService {
 
 	isFocused(_windowId: number): Promise<boolean> {
 		return Promise.resolve(false);
-	}
-
-	closeWorkspace(_windowId: number): Promise<void> {
-		return Promise.resolve();
 	}
 
 	enterWorkspace(_windowId: number, _path: URI): Promise<IEnterWorkspaceResult | undefined> {
@@ -1509,10 +1501,11 @@ export class TestHostService implements IHostService {
 
 	windowCount = Promise.resolve(1);
 
-	restart(): Promise<void> { return Promise.resolve(); }
-	reload(): Promise<void> { return Promise.resolve(); }
+	async restart(): Promise<void> { }
+	async reload(): Promise<void> { }
+	async closeWorkspace(): Promise<void> { }
 
-	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> { return Promise.resolve(); }
+	async openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> { }
 
-	toggleFullScreen(): Promise<void> { return Promise.resolve(); }
+	async toggleFullScreen(): Promise<void> { }
 }

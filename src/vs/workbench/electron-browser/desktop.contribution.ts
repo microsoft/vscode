@@ -9,29 +9,22 @@ import * as os from 'os';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ToggleSharedProcessAction, ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, QuickSwitchWindow, RestartWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
-import { SaveWorkspaceAsAction, DuplicateWorkspaceInNewWindowAction, CloseWorkspaceAction } from 'vs/workbench/electron-browser/actions/workspaceActions';
+import { SaveWorkspaceAsAction, DuplicateWorkspaceInNewWindowAction } from 'vs/workbench/electron-browser/actions/workspaceActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
+import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 
 // Actions
 (function registerActions(): void {
 	const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-
-	// Actions: File
-	(function registerFileActions(): void {
-		const fileCategory = nls.localize('file', "File");
-
-		registry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', fileCategory, SupportsWorkspacesContext);
-	})();
 
 	// Actions: View
 	(function registerViewActions(): void {
@@ -128,27 +121,6 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 		},
 		order: 2,
 		when: SupportsWorkspacesContext
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '6_close',
-		command: {
-			id: CloseWorkspaceAction.ID,
-			title: nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"),
-			precondition: WorkspaceFolderCountContext.notEqualsTo('0')
-		},
-		order: 3,
-		when: WorkbenchStateContext.notEqualsTo('workspace')
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '6_close',
-		command: {
-			id: CloseWorkspaceAction.ID,
-			title: nls.localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace")
-		},
-		order: 3,
-		when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), SupportsWorkspacesContext)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {

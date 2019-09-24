@@ -31,10 +31,6 @@ export class WindowsService implements IWindowsService {
 		this.channel = mainProcessService.getChannel('windows');
 	}
 
-	closeWorkspace(windowId: number): Promise<void> {
-		return this.channel.call('closeWorkspace', windowId);
-	}
-
 	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		const result: IEnterWorkspaceResult = await this.channel.call('enterWorkspace', [windowId, path]);
 		if (result) {
