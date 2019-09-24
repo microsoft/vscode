@@ -21,7 +21,6 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
 export interface INativeOpenDialogOptions {
-	windowId?: number;
 	forceNewWindow?: boolean;
 
 	defaultPath?: string;

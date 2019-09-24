@@ -53,27 +53,19 @@ export class ElectronMainService {
 	}
 
 	async pickFileFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickFileFolderAndOpen(options);
+		return this.windowsMainService.pickFileFolderAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	async pickFileAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickFileAndOpen(options);
+		return this.windowsMainService.pickFileAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	async pickFolderAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickFolderAndOpen(options);
+		return this.windowsMainService.pickFolderAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	async pickWorkspaceAndOpen(windowId: number, options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = windowId;
-
-		return this.windowsMainService.pickWorkspaceAndOpen(options);
+		return this.windowsMainService.pickWorkspaceAndOpen(options, this.windowsMainService.getWindowById(windowId));
 	}
 
 	//#endregion
