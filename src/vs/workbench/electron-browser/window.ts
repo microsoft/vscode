@@ -89,7 +89,6 @@ export class ElectronWindow extends Disposable {
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITitleService private readonly titleService: ITitleService,
@@ -567,7 +566,7 @@ export class ElectronWindow extends Disposable {
 		crashReporter.start(deepClone(options));
 
 		// start crash reporter in the main process
-		return this.windowsService.startCrashReporter(options);
+		return this.electronService.startCrashReporter(options);
 	}
 
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {

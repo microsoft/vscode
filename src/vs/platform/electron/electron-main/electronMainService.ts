@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -143,6 +143,21 @@ export class ElectronMainService implements ElectronServiceInterface {
 
 	//#endregion
 
+	//#region Connectivity
+
+	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {
+		return new Promise(resolve => {
+			const window = this.windowsMainService.getWindowById(windowId);
+			if (window && window.win && window.win.webContents && window.win.webContents.session) {
+				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
+			} else {
+				resolve();
+			}
+		});
+	}
+
+	//#endregion
+
 	//#region Development
 
 	async openDevTools(windowId: number, options?: OpenDevToolsOptions): Promise<void> {
@@ -164,19 +179,8 @@ export class ElectronMainService implements ElectronServiceInterface {
 		}
 	}
 
-	//#endregion
-
-	//#region Connectivity
-
-	async resolveProxy(windowId: number, url: string): Promise<string | undefined> {
-		return new Promise(resolve => {
-			const window = this.windowsMainService.getWindowById(windowId);
-			if (window && window.win && window.win.webContents && window.win.webContents.session) {
-				window.win.webContents.session.resolveProxy(url, proxy => resolve(proxy));
-			} else {
-				resolve();
-			}
-		});
+	async startCrashReporter(windowId: number, options: CrashReporterStartOptions): Promise<void> {
+		crashReporter.start(options);
 	}
 
 	//#endregion

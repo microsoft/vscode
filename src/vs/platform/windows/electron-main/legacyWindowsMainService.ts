@@ -8,7 +8,7 @@ import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IWindowsService, OpenContext, IEnterWorkspaceResult, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { crashReporter, app, Menu, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, CrashReporterStartOptions, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
+import { app, Menu, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -241,12 +241,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 
 	async getActiveWindowId(): Promise<number | undefined> {
 		return this._activeWindowId;
-	}
-
-	async startCrashReporter(config: CrashReporterStartOptions): Promise<void> {
-		this.logService.trace('windowsService#startCrashReporter');
-
-		crashReporter.start(config);
 	}
 
 	async whenSharedProcessReady(): Promise<void> {

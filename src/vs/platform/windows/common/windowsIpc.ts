@@ -90,7 +90,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'whenSharedProcessReady': return this.service.whenSharedProcessReady();
 			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
-			case 'startCrashReporter': return this.service.startCrashReporter(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);

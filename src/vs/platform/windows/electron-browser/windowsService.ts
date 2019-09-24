@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, IEnterWorkspaceResult, CrashReporterStartOptions, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IEnterWorkspaceResult, IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { URI } from 'vs/base/common/uri';
@@ -151,9 +151,5 @@ export class WindowsService implements IWindowsService {
 
 	getActiveWindowId(): Promise<number | undefined> {
 		return this.channel.call('getActiveWindowId');
-	}
-
-	startCrashReporter(config: CrashReporterStartOptions): Promise<void> {
-		return this.channel.call('startCrashReporter', config);
 	}
 }

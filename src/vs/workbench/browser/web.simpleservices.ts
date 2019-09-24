@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWindowService, IEnterWorkspaceResult, IURIToOpen, IWindowsService, IOpenSettings, IWindowSettings, CrashReporterStartOptions } from 'vs/platform/windows/common/windows';
+import { IWindowService, IEnterWorkspaceResult, IURIToOpen, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -319,11 +319,6 @@ export class SimpleWindowsService implements IWindowsService {
 
 	getActiveWindowId(): Promise<number | undefined> {
 		return Promise.resolve(0);
-	}
-
-	// TODO: this is a bit backwards
-	startCrashReporter(_config: CrashReporterStartOptions): Promise<void> {
-		return Promise.resolve();
 	}
 }
 

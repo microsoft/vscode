@@ -33,16 +33,6 @@ export interface IEnterWorkspaceResult {
 	backupPath?: string;
 }
 
-export interface CrashReporterStartOptions {
-	companyName?: string;
-	submitURL: string;
-	productName?: string;
-	uploadToServer?: boolean;
-	ignoreSystemCrashHandler?: boolean;
-	extra?: any;
-	crashesDirectory?: string;
-}
-
 export interface OpenDialogOptions {
 	title?: string;
 	defaultPath?: string;
@@ -122,9 +112,6 @@ export interface IWindowsService {
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getActiveWindowId(): Promise<number | undefined>;
-
-	// TODO: this is a bit backwards
-	startCrashReporter(config: CrashReporterStartOptions): Promise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');

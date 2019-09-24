@@ -35,7 +35,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, IEnterWorkspaceResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration, CrashReporterStartOptions } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IEnterWorkspaceResult, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -1388,11 +1388,6 @@ export class TestWindowsService implements IWindowsService {
 
 	getActiveWindowId(): Promise<number | undefined> {
 		return Promise.resolve(undefined);
-	}
-
-	// TODO: this is a bit backwards
-	startCrashReporter(_config: CrashReporterStartOptions): Promise<void> {
-		return Promise.resolve();
 	}
 }
 
