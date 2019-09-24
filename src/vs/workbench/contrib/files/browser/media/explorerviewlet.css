@@ -86,6 +86,10 @@
 	display: block;
 }
 
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon {
+	color: inherit;
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon-close {
 	width: 8px;
 	height: 22px;

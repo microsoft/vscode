@@ -108,7 +108,7 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 	}
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
-		toggleClass(twistieElement, 'loading', element.slow);
+		toggleClass(twistieElement, 'codicon-loading', element.slow);
 		return false;
 	}
 
@@ -986,7 +986,7 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 	}
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
-		toggleClass(twistieElement, 'loading', element.slow);
+		toggleClass(twistieElement, 'codicon-loading', element.slow);
 		return false;
 	}
 

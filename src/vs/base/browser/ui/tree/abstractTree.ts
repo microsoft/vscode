@@ -300,7 +300,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
 		const el = append(container, $('.monaco-tl-row'));
 		const indent = append(el, $('.monaco-tl-indent'));
-		const twistie = append(el, $('.monaco-tl-twistie'));
+		const twistie = append(el, $('.monaco-tl-twistie.codicon'));
 		const contents = append(el, $('.monaco-tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
@@ -370,8 +370,8 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 			this.renderer.renderTwistie(node.element, templateData.twistie);
 		}
 
-		toggleClass(templateData.twistie, 'collapsible', node.collapsible);
-		toggleClass(templateData.twistie, 'collapsed', node.collapsible && node.collapsed);
+		toggleClass(templateData.twistie, 'codicon-chevron-down', node.collapsible);
+		toggleClass(templateData.twistie, 'codicon-chevron-right', node.collapsible && node.collapsed);
 
 		if (node.collapsible) {
 			templateData.container.setAttribute('aria-expanded', String(!node.collapsed));
