@@ -87,14 +87,6 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('minimizeWindow', windowId);
 	}
 
-	whenSharedProcessReady(): Promise<void> {
-		return this.channel.call('whenSharedProcessReady');
-	}
-
-	toggleSharedProcess(): Promise<void> {
-		return this.channel.call('toggleSharedProcess');
-	}
-
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void> {
 		return this.channel.call('openWindow', [windowId, uris, options]);
 	}

@@ -81,8 +81,6 @@ export class WindowsChannel implements IServerChannel {
 			}
 			case 'openExtensionDevelopmentHostWindow': return this.service.openExtensionDevelopmentHostWindow(arg[0], arg[1]);
 			case 'getWindows': return this.service.getWindows();
-			case 'whenSharedProcessReady': return this.service.whenSharedProcessReady();
-			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
 			case 'getActiveWindowId': return this.service.getActiveWindowId();
 		}
 

@@ -44,12 +44,14 @@ export class SimpleServiceProxyChannel implements IServerChannel {
 		throw new Error(`Events are currently unsupported by SimpleServiceProxyChannel: ${event}`);
 	}
 
-	call(_: unknown, command: string, args: any[]): Promise<any> {
+	call(_: unknown, command: string, args?: any[]): Promise<any> {
 		const target = this.service[command];
 		if (typeof target === 'function') {
-			const context = deserializeContext(args[0]);
-			if (context) {
-				args[0] = context;
+			if (Array.isArray(args)) {
+				const context = deserializeContext(args[0]);
+				if (context) {
+					args[0] = context;
+				}
 			}
 
 			return target.apply(this.service, args);

@@ -95,10 +95,6 @@ export interface IWindowsService {
 	unmaximizeWindow(windowId: number): Promise<void>;
 	minimizeWindow(windowId: number): Promise<void>;
 
-	// Shared process
-	whenSharedProcessReady(): Promise<void>;
-	toggleSharedProcess(): Promise<void>;
-
 	// Global methods
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void>;

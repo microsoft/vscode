@@ -11,7 +11,7 @@ import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/
 import { app, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -40,7 +40,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 	readonly onRecentlyOpenedChange: Event<void> = this.historyMainService.onRecentlyOpenedChange;
 
 	constructor(
-		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
@@ -205,19 +204,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 
 	async getActiveWindowId(): Promise<number | undefined> {
 		return this._activeWindowId;
-	}
-
-	async whenSharedProcessReady(): Promise<void> {
-		this.logService.trace('windowsService#whenSharedProcessReady');
-
-		return this.sharedProcess.whenReady();
-	}
-
-	async toggleSharedProcess(): Promise<void> {
-		this.logService.trace('windowsService#toggleSharedProcess');
-
-		this.sharedProcess.toggle();
-
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {

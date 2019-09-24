@@ -1341,14 +1341,6 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve();
 	}
 
-	whenSharedProcessReady(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleSharedProcess(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	// Global methods
 	openWindow(_windowId: number, _uris: IURIToOpen[], _options: IOpenSettings): Promise<void> {
 		return Promise.resolve();
@@ -1415,6 +1407,9 @@ export class TestSharedProcessService implements ISharedProcessService {
 	}
 
 	registerChannel(channelName: string, channel: any): void { }
+
+	async toggleSharedProcessWindow(): Promise<void> { }
+	async whenSharedProcessReady(): Promise<void> { }
 }
 
 export class RemoteFileSystemProvider implements IFileSystemProvider {
