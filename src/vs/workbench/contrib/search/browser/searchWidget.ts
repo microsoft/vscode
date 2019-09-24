@@ -353,7 +353,7 @@ export class SearchWidget extends Widget {
 		}, this.contextKeyService));
 
 		this._preserveCase = this._register(new Checkbox({
-			actionClassName: 'monaco-preserve-case',
+			actionClassName: 'codicon-preserve-case',
 			title: nls.localize('label.preserveCaseCheckbox', "Preserve Case"),
 			isChecked: !!options.preserveCase,
 		}));
