@@ -59,30 +59,6 @@ export class WindowsService implements IWindowsService {
 		return recentlyOpened;
 	}
 
-	newWindowTab(): Promise<void> {
-		return this.channel.call('newWindowTab');
-	}
-
-	showPreviousWindowTab(): Promise<void> {
-		return this.channel.call('showPreviousWindowTab');
-	}
-
-	showNextWindowTab(): Promise<void> {
-		return this.channel.call('showNextWindowTab');
-	}
-
-	moveWindowTabToNewWindow(): Promise<void> {
-		return this.channel.call('moveWindowTabToNewWindow');
-	}
-
-	mergeAllWindowTabs(): Promise<void> {
-		return this.channel.call('mergeAllWindowTabs');
-	}
-
-	toggleWindowTabsBar(): Promise<void> {
-		return this.channel.call('toggleWindowTabsBar');
-	}
-
 	focusWindow(windowId: number): Promise<void> {
 		return this.channel.call('focusWindow', windowId);
 	}

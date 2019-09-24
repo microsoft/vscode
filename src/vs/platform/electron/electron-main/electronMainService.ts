@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -113,6 +113,34 @@ export class ElectronMainService implements ElectronServiceInterface {
 		if (window) {
 			window.updateTouchBar(items);
 		}
+	}
+
+	//#endregion
+
+	//#region macOS Touchbar
+
+	async newWindowTab(): Promise<void> {
+		this.windowsMainService.openNewTabbedWindow(OpenContext.API);
+	}
+
+	async showPreviousWindowTab(): Promise<void> {
+		Menu.sendActionToFirstResponder('selectPreviousTab:');
+	}
+
+	async showNextWindowTab(): Promise<void> {
+		Menu.sendActionToFirstResponder('selectNextTab:');
+	}
+
+	async moveWindowTabToNewWindow(): Promise<void> {
+		Menu.sendActionToFirstResponder('moveTabToNewWindow:');
+	}
+
+	async mergeAllWindowTabs(): Promise<void> {
+		Menu.sendActionToFirstResponder('mergeAllWindows:');
+	}
+
+	async toggleWindowTabsBar(): Promise<void> {
+		Menu.sendActionToFirstResponder('toggleTabBar:');
 	}
 
 	//#endregion

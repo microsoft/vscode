@@ -37,6 +37,14 @@ export interface IElectronService {
 	openExternal(url: string): Promise<boolean>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 
+	// macOS Touchbar
+	newWindowTab(): Promise<void>;
+	showPreviousWindowTab(): Promise<void>;
+	showNextWindowTab(): Promise<void>;
+	moveWindowTabToNewWindow(): Promise<void>;
+	mergeAllWindowTabs(): Promise<void>;
+	toggleWindowTabsBar(): Promise<void>;
+
 	// Lifecycle
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 	reload(): Promise<void>;

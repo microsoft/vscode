@@ -95,14 +95,6 @@ export interface IWindowsService {
 	unmaximizeWindow(windowId: number): Promise<void>;
 	minimizeWindow(windowId: number): Promise<void>;
 
-	// macOS Native Tabs
-	newWindowTab(): Promise<void>;
-	showPreviousWindowTab(): Promise<void>;
-	showNextWindowTab(): Promise<void>;
-	moveWindowTabToNewWindow(): Promise<void>;
-	mergeAllWindowTabs(): Promise<void>;
-	toggleWindowTabsBar(): Promise<void>;
-
 	// Shared process
 	whenSharedProcessReady(): Promise<void>;
 	toggleSharedProcess(): Promise<void>;

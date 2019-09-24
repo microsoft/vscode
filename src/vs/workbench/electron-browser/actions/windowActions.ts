@@ -258,25 +258,25 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 }
 
 export const NewWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).newWindowTab();
+	return accessor.get(IElectronService).newWindowTab();
 };
 
 export const ShowPreviousWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).showPreviousWindowTab();
+	return accessor.get(IElectronService).showPreviousWindowTab();
 };
 
 export const ShowNextWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).showNextWindowTab();
+	return accessor.get(IElectronService).showNextWindowTab();
 };
 
 export const MoveWindowTabToNewWindowHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).moveWindowTabToNewWindow();
+	return accessor.get(IElectronService).moveWindowTabToNewWindow();
 };
 
 export const MergeWindowTabsHandlerHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).mergeAllWindowTabs();
+	return accessor.get(IElectronService).mergeAllWindowTabs();
 };
 
 export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IWindowsService).toggleWindowTabsBar();
+	return accessor.get(IElectronService).toggleWindowTabsBar();
 };

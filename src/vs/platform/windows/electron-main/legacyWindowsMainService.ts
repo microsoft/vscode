@@ -8,7 +8,7 @@ import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IWindowsService, OpenContext, IEnterWorkspaceResult, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { app, Menu, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
+import { app, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { IWindowsMainService, ISharedProcess, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -101,42 +101,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#getRecentlyOpened', windowId);
 
 		return this.withWindow(windowId, codeWindow => this.historyMainService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpenOrCreate), () => this.historyMainService.getRecentlyOpened())!;
-	}
-
-	async newWindowTab(): Promise<void> {
-		this.logService.trace('windowsService#newWindowTab');
-
-		this.windowsMainService.openNewTabbedWindow(OpenContext.API);
-	}
-
-	async showPreviousWindowTab(): Promise<void> {
-		this.logService.trace('windowsService#showPreviousWindowTab');
-
-		Menu.sendActionToFirstResponder('selectPreviousTab:');
-	}
-
-	async showNextWindowTab(): Promise<void> {
-		this.logService.trace('windowsService#showNextWindowTab');
-
-		Menu.sendActionToFirstResponder('selectNextTab:');
-	}
-
-	async moveWindowTabToNewWindow(): Promise<void> {
-		this.logService.trace('windowsService#moveWindowTabToNewWindow');
-
-		Menu.sendActionToFirstResponder('moveTabToNewWindow:');
-	}
-
-	async mergeAllWindowTabs(): Promise<void> {
-		this.logService.trace('windowsService#mergeAllWindowTabs');
-
-		Menu.sendActionToFirstResponder('mergeAllWindows:');
-	}
-
-	async toggleWindowTabsBar(): Promise<void> {
-		this.logService.trace('windowsService#toggleWindowTabsBar');
-
-		Menu.sendActionToFirstResponder('toggleTabBar:');
 	}
 
 	async focusWindow(windowId: number): Promise<void> {

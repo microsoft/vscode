@@ -1362,30 +1362,6 @@ export class TestWindowsService implements IWindowsService {
 		throw new Error('not implemented');
 	}
 
-	newWindowTab(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	showPreviousWindowTab(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	showNextWindowTab(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	moveWindowTabToNewWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	mergeAllWindowTabs(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	toggleWindowTabsBar(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	getActiveWindowId(): Promise<number | undefined> {
 		return Promise.resolve(undefined);
 	}

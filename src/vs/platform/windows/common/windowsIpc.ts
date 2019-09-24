@@ -56,12 +56,6 @@ export class WindowsChannel implements IServerChannel {
 			}));
 			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(arg.map(URI.revive));
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
-			case 'newWindowTab': return this.service.newWindowTab();
-			case 'showPreviousWindowTab': return this.service.showPreviousWindowTab();
-			case 'showNextWindowTab': return this.service.showNextWindowTab();
-			case 'moveWindowTabToNewWindow': return this.service.moveWindowTabToNewWindow();
-			case 'mergeAllWindowTabs': return this.service.mergeAllWindowTabs();
-			case 'toggleWindowTabsBar': return this.service.toggleWindowTabsBar();
 			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
 			case 'closeWindow': return this.service.closeWindow(arg);
