@@ -42,7 +42,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			return Promise.reject(new Error('No settings sync store url configured.'));
 		}
 
-		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
+		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), 'resource', key, 'latest').toString();
 		const headers: IHeaders = {};
 		if (oldValue) {
 			headers['If-None-Match'] = oldValue.ref;
@@ -68,7 +68,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			return Promise.reject(new Error('No settings sync store url configured.'));
 		}
 
-		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), key).toString();
+		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), 'resource', key).toString();
 		const headers: IHeaders = { 'Content-Type': 'text/plain' };
 		if (ref) {
 			headers['If-Match'] = ref;
