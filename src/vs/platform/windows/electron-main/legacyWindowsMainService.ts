@@ -250,10 +250,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		return this._activeWindowId;
 	}
 
-	async openExternal(url: string): Promise<boolean> {
-		return this.windowsMainService.openExternal(url);
-	}
-
 	async startCrashReporter(config: CrashReporterStartOptions): Promise<void> {
 		this.logService.trace('windowsService#startCrashReporter');
 

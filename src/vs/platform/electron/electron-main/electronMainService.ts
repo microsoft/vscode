@@ -103,6 +103,10 @@ export class ElectronMainService implements ElectronServiceInterface {
 		}
 	}
 
+	async openExternal(windowId: number, url: string): Promise<boolean> {
+		return this.windowsMainService.openExternal(url);
+	}
+
 	//#endregion
 
 	//#region Lifecycle

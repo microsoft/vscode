@@ -154,10 +154,6 @@ export class WindowsService implements IWindowsService {
 		return this.channel.call('getActiveWindowId');
 	}
 
-	openExternal(url: string): Promise<boolean> {
-		return this.channel.call('openExternal', url);
-	}
-
 	startCrashReporter(config: CrashReporterStartOptions): Promise<void> {
 		return this.channel.call('startCrashReporter', config);
 	}

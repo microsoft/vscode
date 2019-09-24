@@ -33,6 +33,7 @@ export interface IElectronService {
 	showItemInFolder(path: string): Promise<void>;
 	setRepresentedFilename(path: string): Promise<void>;
 	setDocumentEdited(edited: boolean): Promise<void>;
+	openExternal(url: string): Promise<boolean>;
 
 	// Lifecycle
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;

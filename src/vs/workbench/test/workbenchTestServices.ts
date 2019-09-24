@@ -1398,12 +1398,6 @@ export class TestWindowsService implements IWindowsService {
 		return Promise.resolve(undefined);
 	}
 
-	// This needs to be handled from browser process to prevent
-	// foreground ordering issues on Windows
-	openExternal(_url: string): Promise<boolean> {
-		return Promise.resolve(true);
-	}
-
 	// TODO: this is a bit backwards
 	startCrashReporter(_config: CrashReporterStartOptions): Promise<void> {
 		return Promise.resolve();

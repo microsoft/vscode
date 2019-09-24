@@ -127,10 +127,6 @@ export interface IWindowsService {
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getActiveWindowId(): Promise<number | undefined>;
 
-	// This needs to be handled from browser process to prevent
-	// foreground ordering issues on Windows
-	openExternal(url: string): Promise<boolean>;
-
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): Promise<void>;
 }
