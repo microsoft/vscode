@@ -15,11 +15,11 @@ export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChan
 
 	static readonly ChannelName = 'extensionhostdebugservice';
 
-	private _onCloseEmitter = new Emitter<ICloseSessionEvent>();
-	private _onReloadEmitter = new Emitter<IReloadSessionEvent>();
-	private _onTerminateEmitter = new Emitter<ITerminateSessionEvent>();
-	private _onLogToEmitter = new Emitter<ILogToSessionEvent>();
-	private _onAttachEmitter = new Emitter<IAttachSessionEvent>();
+	private readonly _onCloseEmitter = new Emitter<ICloseSessionEvent>();
+	private readonly _onReloadEmitter = new Emitter<IReloadSessionEvent>();
+	private readonly _onTerminateEmitter = new Emitter<ITerminateSessionEvent>();
+	private readonly _onLogToEmitter = new Emitter<ILogToSessionEvent>();
+	private readonly _onAttachEmitter = new Emitter<IAttachSessionEvent>();
 
 	call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		switch (command) {

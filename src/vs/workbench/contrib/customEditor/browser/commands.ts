@@ -90,14 +90,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
-	order: 40,
-	command: {
-		id: REOPEN_WITH_COMMAND_ID,
-		title: REOPEN_WITH_TITLE,
-	}
-});
-
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: REOPEN_WITH_COMMAND_ID,

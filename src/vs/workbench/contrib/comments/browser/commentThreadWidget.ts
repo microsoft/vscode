@@ -65,8 +65,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _commentForm: HTMLElement;
 	private _reviewThreadReplyButton: HTMLElement;
 	private _resizeObserver: any;
-	private _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
-	private _onDidCreateThread = new Emitter<ReviewZoneWidget>();
+	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
+	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isExpanded?: boolean;
 	private _collapseAction: Action;
 	private _commentGlyph?: CommentGlyphWidget;

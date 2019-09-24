@@ -6,7 +6,7 @@
 import 'vs/css!./media/keybindings';
 import * as nls from 'vs/nls';
 import { OS } from 'vs/base/common/platform';
-import { Disposable, dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -36,7 +36,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	private _chordPart: ResolvedKeybinding | null;
 	private _inputValue: string;
 
-	private recordDisposables: IDisposable[] = [];
+	private readonly recordDisposables = this._register(new DisposableStore());
 
 	private _onKeybinding = this._register(new Emitter<[ResolvedKeybinding | null, ResolvedKeybinding | null]>());
 	readonly onKeybinding: Event<[ResolvedKeybinding | null, ResolvedKeybinding | null]> = this._onKeybinding.event;
@@ -69,9 +69,9 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	}
 
 	startRecordingKeys(): void {
-		this.recordDisposables.push(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => this._onKeyDown(new StandardKeyboardEvent(e))));
-		this.recordDisposables.push(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.BLUR, () => this._onBlur.fire()));
-		this.recordDisposables.push(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.INPUT, () => {
+		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => this._onKeyDown(new StandardKeyboardEvent(e))));
+		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.BLUR, () => this._onBlur.fire()));
+		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.INPUT, () => {
 			// Prevent other characters from showing up
 			this.setInputValue(this._inputValue);
 		}));
@@ -79,7 +79,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 	stopRecordingKeys(): void {
 		this._reset();
-		dispose(this.recordDisposables);
+		this.recordDisposables.dispose();
 	}
 
 	setInputValue(value: string): void {

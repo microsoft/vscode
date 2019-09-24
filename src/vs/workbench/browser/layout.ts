@@ -58,7 +58,8 @@ enum Storage {
 	PANEL_HIDDEN = 'workbench.panel.hidden',
 	PANEL_POSITION = 'workbench.panel.location',
 	PANEL_SIZE = 'workbench.panel.size',
-	PANEL_SIZE_BEFORE_MAXIMIZED = 'workbench.panel.sizeBeforeMaximized',
+	PANEL_LAST_NON_MAXIMIZED_WIDTH = 'workbench.panel.lastNonMaximizedWidth',
+	PANEL_LAST_NON_MAXIMIZED_HEIGHT = 'workbench.panel.lastNonMaximizedHeight',
 
 	EDITOR_HIDDEN = 'workbench.editor.hidden',
 
@@ -165,8 +166,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		panel: {
 			hidden: false,
-			sizeBeforeMaximize: 0,
 			position: Position.BOTTOM,
+			lastNonMaximizedWidth: 300,
+			lastNonMaximizedHeight: 300,
 			panelToRestore: undefined as string | undefined
 		},
 
@@ -437,7 +439,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Panel size before maximized
-		this.state.panel.sizeBeforeMaximize = this.storageService.getNumber(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, StorageScope.GLOBAL, 0);
+		this.state.panel.lastNonMaximizedHeight = this.storageService.getNumber(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, StorageScope.GLOBAL, 300);
+		this.state.panel.lastNonMaximizedWidth = this.storageService.getNumber(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, StorageScope.GLOBAL, 300);
 
 		// Statusbar visibility
 		this.state.statusBar.hidden = !this.configurationService.getValue<string>(Settings.STATUSBAR_VISIBLE);
@@ -1065,17 +1068,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	toggleMaximizedPanel(): void {
 		const size = this.workbenchGrid.getViewSize(this.panelPartView);
 		if (!this.isPanelMaximized()) {
-			if (this.state.panel.hidden) {
-				this.state.panel.sizeBeforeMaximize = this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView) || this.panelPartView.minimumHeight;
-			} else {
-				this.state.panel.sizeBeforeMaximize = this.state.panel.position === Position.BOTTOM ? size.height : size.width;
+			if (!this.state.panel.hidden) {
+				if (this.state.panel.position === Position.BOTTOM) {
+					this.state.panel.lastNonMaximizedHeight = size.height;
+					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, this.state.panel.lastNonMaximizedHeight, StorageScope.GLOBAL);
+				} else {
+					this.state.panel.lastNonMaximizedWidth = size.width;
+					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, this.state.panel.lastNonMaximizedWidth, StorageScope.GLOBAL);
+				}
 			}
 
-			this.storageService.store(Storage.PANEL_SIZE_BEFORE_MAXIMIZED, this.state.panel.sizeBeforeMaximize, StorageScope.GLOBAL);
 			this.setEditorHidden(true);
 		} else {
 			this.setEditorHidden(false);
-			this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.sizeBeforeMaximize, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.sizeBeforeMaximize : size.height });
+			this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.lastNonMaximizedWidth, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.lastNonMaximizedHeight : size.height });
 		}
 	}
 
@@ -1128,6 +1134,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
+		// Save panel position
 		this.storageService.store(Storage.PANEL_POSITION, positionToString(this.state.panel.position), StorageScope.WORKSPACE);
 
 		// Adjust CSS
@@ -1141,10 +1148,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const size = this.workbenchGrid.getViewSize(this.panelPartView);
 		const sideBarSize = this.workbenchGrid.getViewSize(this.sideBarPartView);
 
+		// Save last non-maximized size for panel before move
+		if (newPositionValue !== oldPositionValue && !this.state.editor.hidden) {
+
+			// Save the current size of the panel for the new orthogonal direction
+			// If moving down, save the width of the panel
+			// Otherwise, save the height of the panel
+			if (position === Position.BOTTOM) {
+				this.state.panel.lastNonMaximizedWidth = size.width;
+			} else {
+				this.state.panel.lastNonMaximizedHeight = size.height;
+			}
+		}
+
 		if (position === Position.BOTTOM) {
-			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.height : size.width, this.editorPartView, Direction.Down);
+			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.height : this.state.panel.lastNonMaximizedHeight, this.editorPartView, Direction.Down);
 		} else {
-			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.width : size.height, this.editorPartView, Direction.Right);
+			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.width : this.state.panel.lastNonMaximizedWidth, this.editorPartView, Direction.Right);
 		}
 
 		// Reset sidebar to original size before shifting the panel
@@ -1192,7 +1212,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.PANEL_PART },
-			size: wasEditorHidden ? this.state.panel.sizeBeforeMaximize : panelSize,
+			size: wasEditorHidden ? (this.state.panel.position === Position.BOTTOM ? this.state.panel.lastNonMaximizedHeight : this.state.panel.lastNonMaximizedWidth) : panelSize,
 			visible: !this.state.panel.hidden
 		};
 
