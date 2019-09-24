@@ -51,7 +51,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IUserDataSyncService, IUserDataSyncStoreService, ISettingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncStoreService, ISettingsMergeService, registerConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService, UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
@@ -122,11 +122,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	const windowsService = new WindowsService(mainProcessService);
 	services.set(IWindowsService, windowsService);
 
-	const activeWindowManager = new ActiveWindowManager(windowsService);
-	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
-	const settingsMergeChannel = server.getChannel('settingsMerge', activeWindowRouter);
-	services.set(ISettingsMergeService, new SettingsMergeChannelClient(settingsMergeChannel));
-
 	// Files
 	const fileService = new FileService(logService);
 	services.set(IFileService, fileService);
@@ -173,8 +168,15 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
+
+		// User Data Sync Contributions
+		const activeWindowManager = new ActiveWindowManager(windowsService);
+		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
+		const settingsMergeChannel = server.getChannel('settingsMerge', activeWindowRouter);
+		services.set(ISettingsMergeService, new SettingsMergeChannelClient(settingsMergeChannel));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
+		registerConfiguration();
 
 		const instantiationService2 = instantiationService.createChild(services);
 

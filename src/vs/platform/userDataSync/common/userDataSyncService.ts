@@ -134,8 +134,7 @@ export class UserDataAutoSync extends Disposable {
 	}
 
 	private isSyncEnabled(): boolean {
-		const { user: userLocal } = this.configurationService.inspect<boolean>('userConfiguration.enableSync');
-		return userLocal === undefined || userLocal;
+		return this.configurationService.getValue<boolean>('userConfiguration.enableSync');
 	}
 
 }

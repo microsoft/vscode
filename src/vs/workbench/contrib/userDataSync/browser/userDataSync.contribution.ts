@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, registerConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -37,27 +36,7 @@ class UserDataSyncConfigurationContribution implements IWorkbenchContribution {
 		@IProductService productService: IProductService
 	) {
 		if (productService.settingsSyncStoreUrl) {
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-				.registerConfiguration({
-					id: 'userConfiguration',
-					order: 30,
-					title: localize('userConfiguration', "User Configuration"),
-					type: 'object',
-					properties: {
-						'userConfiguration.enableSync': {
-							type: 'boolean',
-							description: localize('userConfiguration.enableSync', "When enabled, synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
-							default: true,
-							scope: ConfigurationScope.APPLICATION
-						},
-						'userConfiguration.syncExtensions': {
-							type: 'boolean',
-							description: localize('userConfiguration.syncExtensions', "When enabled extensions are synchronised while synchronising user configuration."),
-							default: true,
-							scope: ConfigurationScope.APPLICATION
-						}
-					}
-				});
+			registerConfiguration();
 		}
 	}
 }

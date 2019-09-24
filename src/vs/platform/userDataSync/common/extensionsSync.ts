@@ -70,8 +70,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	}
 
 	async sync(): Promise<boolean> {
-		const syncExtensions = this.configurationService.getValue<boolean>('userConfiguration.syncExtensions');
-		if (syncExtensions === false) {
+		if (!this.configurationService.getValue<boolean>('userConfiguration.syncExtensions')) {
 			return false;
 		}
 

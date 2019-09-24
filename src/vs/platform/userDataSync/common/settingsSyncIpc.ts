@@ -6,6 +6,7 @@
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
 import { ISettingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export class SettingsMergeChannel implements IServerChannel {
 
@@ -17,7 +18,8 @@ export class SettingsMergeChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'merge': return this.service.merge(args[0], args[1], args[2]);
+			case 'merge': return this.service.merge(args[0], args[1], args[2], args[3]);
+			case 'computeRemoteContent': return this.service.computeRemoteContent(args[0], args[1], args[2]);
 		}
 		throw new Error('Invalid call');
 	}
@@ -30,8 +32,12 @@ export class SettingsMergeChannelClient implements ISettingsMergeService {
 	constructor(private readonly channel: IChannel) {
 	}
 
-	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
-		return this.channel.call('merge', [localContent, remoteContent, baseContent]);
+	merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: IStringDictionary<boolean>): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
+		return this.channel.call('merge', [localContent, remoteContent, baseContent, ignoredSettings]);
+	}
+
+	computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: IStringDictionary<boolean>): Promise<string> {
+		return this.channel.call('computeRemoteContent', [localContent, remoteContent, ignoredSettings]);
 	}
 
 }

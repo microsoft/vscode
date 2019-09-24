@@ -15,6 +15,8 @@ import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -47,6 +49,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@ISettingsMergeService private readonly settingsMergeService: ISettingsMergeService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.lastSyncSettingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncSettings.json');
@@ -135,7 +138,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 			let { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged } = await this.syncPreviewResultPromise;
 			if (hasRemoteChanged) {
-				const ref = await this.writeToRemote(content, remoteUserData.ref);
+				const remoteContent = remoteUserData.content ? await this.settingsMergeService.computeRemoteContent(content, remoteUserData.content, this.getIgnoredSettings()) : content;
+				const ref = await this.writeToRemote(remoteContent, remoteUserData.ref);
 				remoteUserData = { ref, content };
 			}
 			if (hasLocalChanged) {
@@ -176,43 +180,38 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		let hasRemoteChanged: boolean = false;
 		let hasConflicts: boolean = false;
 
-		// First time sync to remote
-		if (fileContent && !remoteContent) {
-			this.logService.trace('Settings Sync: Remote contents does not exist. So sync with settings file.');
-			hasRemoteChanged = true;
-			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(fileContent.value.toString()));
-			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
-		}
-
-		// Settings file does not exist, so sync with remote contents.
-		if (remoteContent && !fileContent) {
-			this.logService.trace('Settings Sync: Settings file does not exist. So sync with remote contents');
-			hasLocalChanged = true;
-			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
-			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
-		}
-
-		if (fileContent && remoteContent) {
-			const localContent: string = fileContent.value.toString();
+		if (remoteContent) {
+			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
 			if (!lastSyncData // First time sync
 				|| lastSyncData.content !== localContent // Local has moved forwarded
 				|| lastSyncData.content !== remoteContent // Remote has moved forwarded
 			) {
 				this.logService.trace('Settings Sync: Merging remote contents with settings file.');
-				const result = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null);
+				const result = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, this.getIgnoredSettings());
 				// Sync only if there are changes
 				if (result.hasChanges) {
 					hasLocalChanged = result.mergeContent !== localContent;
 					hasRemoteChanged = result.mergeContent !== remoteContent;
 					hasConflicts = result.hasConflicts;
 					await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(result.mergeContent));
-					return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 				}
 			}
+			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 		}
 
-		this.logService.trace('Settings Sync: No changes.');
+		// First time sync to remote
+		if (fileContent) {
+			this.logService.trace('Settings Sync: Remote contents does not exist. So sync with settings file.');
+			hasRemoteChanged = true;
+			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(fileContent.value.toString()));
+			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
+		}
+
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
+	}
+
+	private getIgnoredSettings(): IStringDictionary<boolean> {
+		return this.configurationService.getValue<IStringDictionary<boolean>>('userConfiguration.ignoreSettings');
 	}
 
 	private async getLastSyncUserData(): Promise<IUserData | null> {
