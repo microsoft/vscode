@@ -151,16 +151,6 @@ function asTreeContextMenuEvent<TInput, T>(e: ITreeContextMenuEvent<IAsyncDataTr
 	};
 }
 
-export enum ChildrenResolutionReason {
-	Refresh,
-	Expand
-}
-
-export interface IChildrenResolutionEvent<T> {
-	readonly element: T | null;
-	readonly reason: ChildrenResolutionReason;
-}
-
 function asAsyncDataTreeDragAndDropData<TInput, T>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
 		const nodes = (data as ElementsDragAndDropData<IAsyncDataTreeNode<TInput, T>>).elements;
@@ -473,7 +463,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			await Event.toPromise(this._onDidRender.event);
 		}
 
-		await this.refreshAndRenderNode(this.getDataNode(element), recursive, ChildrenResolutionReason.Refresh, viewStateContext);
+		await this.refreshAndRenderNode(this.getDataNode(element), recursive, viewStateContext);
 	}
 
 	resort(element: TInput | T = this.root.element, recursive = true): void {
@@ -655,18 +645,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return node;
 	}
 
-	private async refreshAndRenderNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, reason: ChildrenResolutionReason, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
+	private async refreshAndRenderNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
 		await this.refreshNode(node, recursive, viewStateContext);
 		this.render(node, viewStateContext);
-
-		if (node !== this.root && this.autoExpandSingleChildren && reason === ChildrenResolutionReason.Expand) {
-			const treeNode = this.tree.getNode(node);
-			const visibleChildren = treeNode.children.filter(node => node.visible);
-
-			if (visibleChildren.length === 1) {
-				await this.tree.expand(visibleChildren[0].element, false);
-			}
-		}
 	}
 
 	private async refreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
@@ -772,7 +753,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			if (deep) {
 				this.collapse(node.element.element as T);
 			} else {
-				this.refreshAndRenderNode(node.element, false, ChildrenResolutionReason.Expand)
+				this.refreshAndRenderNode(node.element, false)
 					.catch(onUnexpectedError);
 			}
 		}
@@ -867,6 +848,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		node.children.splice(0, node.children.length, ...children);
+
+		// TODO@joao this doesn't take filter into account
+		if (node !== this.root && this.autoExpandSingleChildren && children.length === 1 && childrenToRefresh.length === 0) {
+			children[0].collapsedByDefault = false;
+			childrenToRefresh.push(children[0]);
+		}
 
 		return childrenToRefresh;
 	}
