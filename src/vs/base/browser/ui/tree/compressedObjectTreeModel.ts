@@ -90,11 +90,11 @@ export function decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>): IC
 }
 
 function splice<T>(treeElement: ICompressedTreeElement<T>, element: T, children: Iterator<ICompressedTreeElement<T>>): ICompressedTreeElement<T> {
-	if (treeElement.element !== element) {
-		children = Iterator.map(Iterator.from(treeElement.children), e => splice(e, element, children));
+	if (treeElement.element === element) {
+		return { ...treeElement, children };
 	}
 
-	return { ...treeElement, children };
+	return { ...treeElement, children: Iterator.map(Iterator.from(treeElement.children), e => splice(e, element, children)) };
 }
 
 interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<ICompressedTreeNode<T>, TFilterData> { }
