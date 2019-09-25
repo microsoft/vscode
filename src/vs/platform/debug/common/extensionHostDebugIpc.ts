@@ -8,16 +8,18 @@ import { IReloadSessionEvent, ICloseSessionEvent, IAttachSessionEvent, ILogToSes
 import { Event, Emitter } from 'vs/base/common/event';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChannel<TContext> {
 
 	static readonly ChannelName = 'extensionhostdebugservice';
 
-	private _onCloseEmitter = new Emitter<ICloseSessionEvent>();
-	private _onReloadEmitter = new Emitter<IReloadSessionEvent>();
-	private _onTerminateEmitter = new Emitter<ITerminateSessionEvent>();
-	private _onLogToEmitter = new Emitter<ILogToSessionEvent>();
-	private _onAttachEmitter = new Emitter<IAttachSessionEvent>();
+	private readonly _onCloseEmitter = new Emitter<ICloseSessionEvent>();
+	private readonly _onReloadEmitter = new Emitter<IReloadSessionEvent>();
+	private readonly _onTerminateEmitter = new Emitter<ITerminateSessionEvent>();
+	private readonly _onLogToEmitter = new Emitter<ILogToSessionEvent>();
+	private readonly _onAttachEmitter = new Emitter<IAttachSessionEvent>();
 
 	call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		switch (command) {
@@ -98,5 +100,11 @@ export class ExtensionHostDebugChannelClient extends Disposable implements IExte
 
 	get onTerminateSession(): Event<ITerminateSessionEvent> {
 		return this.channel.listen('terminate');
+	}
+
+	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
+		// TODO@Isidor
+		//return this.channel.call('openExtensionDevelopmentHostWindow', [args, env]);
+		return Promise.resolve();
 	}
 }

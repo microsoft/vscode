@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -53,68 +51,12 @@ export class WindowService extends Disposable implements IWindowService {
 		return this._windowId;
 	}
 
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = this.windowId;
-
-		return this.windowsService.pickFileFolderAndOpen(options);
-	}
-
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = this.windowId;
-
-		return this.windowsService.pickFileAndOpen(options);
-	}
-
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = this.windowId;
-
-		return this.windowsService.pickFolderAndOpen(options);
-	}
-
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> {
-		options.windowId = this.windowId;
-
-		return this.windowsService.pickWorkspaceAndOpen(options);
-	}
-
-	reloadWindow(args?: ParsedArgs): Promise<void> {
-		return this.windowsService.reloadWindow(this.windowId, args);
-	}
-
-	openDevTools(options?: IDevToolsOptions): Promise<void> {
-		return this.windowsService.openDevTools(this.windowId, options);
-	}
-
-	toggleDevTools(): Promise<void> {
-		return this.windowsService.toggleDevTools(this.windowId);
-	}
-
-	closeWorkspace(): Promise<void> {
-		return this.windowsService.closeWorkspace(this.windowId);
-	}
-
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		return this.windowsService.enterWorkspace(this.windowId, path);
-	}
-
 	openWindow(uris: IURIToOpen[], options: IOpenSettings = {}): Promise<void> {
 		if (!!this.remoteAuthority) {
 			uris.forEach(u => u.label = u.label || this.getRecentLabel(u));
 		}
 
 		return this.windowsService.openWindow(this.windowId, uris, options);
-	}
-
-	closeWindow(): Promise<void> {
-		return this.windowsService.closeWindow(this.windowId);
-	}
-
-	toggleFullScreen(target?: HTMLElement): Promise<void> {
-		return this.windowsService.toggleFullScreen(this.windowId);
-	}
-
-	setRepresentedFilename(fileName: string): Promise<void> {
-		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
 	}
 
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
@@ -135,50 +77,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	isFocused(): Promise<boolean> {
 		return this.windowsService.isFocused(this.windowId);
-	}
-
-	isMaximized(): Promise<boolean> {
-		return this.windowsService.isMaximized(this.windowId);
-	}
-
-	maximizeWindow(): Promise<void> {
-		return this.windowsService.maximizeWindow(this.windowId);
-	}
-
-	unmaximizeWindow(): Promise<void> {
-		return this.windowsService.unmaximizeWindow(this.windowId);
-	}
-
-	minimizeWindow(): Promise<void> {
-		return this.windowsService.minimizeWindow(this.windowId);
-	}
-
-	onWindowTitleDoubleClick(): Promise<void> {
-		return this.windowsService.onWindowTitleDoubleClick(this.windowId);
-	}
-
-	setDocumentEdited(flag: boolean): Promise<void> {
-		return this.windowsService.setDocumentEdited(this.windowId, flag);
-	}
-
-	showMessageBox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
-		return this.windowsService.showMessageBox(this.windowId, options);
-	}
-
-	showSaveDialog(options: Electron.SaveDialogOptions): Promise<string> {
-		return this.windowsService.showSaveDialog(this.windowId, options);
-	}
-
-	showOpenDialog(options: Electron.OpenDialogOptions): Promise<string[]> {
-		return this.windowsService.showOpenDialog(this.windowId, options);
-	}
-
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void> {
-		return this.windowsService.updateTouchBar(this.windowId, items);
-	}
-
-	resolveProxy(url: string): Promise<string | undefined> {
-		return this.windowsService.resolveProxy(this.windowId, url);
 	}
 
 	private getRecentLabel(u: IURIToOpen): string {

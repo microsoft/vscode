@@ -8,7 +8,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 	VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
-	LINUX_NO_SANDBOX="--no-sandbox" # workaround Electron 6 issue on Linux when running tests in container
+	LINUX_NO_SANDBOX="--no-sandbox" # Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox.
 fi
 
 cd $ROOT
@@ -34,7 +34,7 @@ else
 fi
 
 # Integration tests in AMD
-./scripts/test.sh $LINUX_NO_SANDBOX --runGlob **/*.integrationTest.js "$@"
+./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
 
 # Tests in the extension host
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_NO_SANDBOX $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/singlefolder-tests --disable-telemetry --disable-crash-reporter --disable-updates --disable-extensions --skip-getting-started --disable-inspect --user-data-dir=$VSCODEUSERDATADIR

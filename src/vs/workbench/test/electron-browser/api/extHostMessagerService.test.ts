@@ -20,12 +20,16 @@ const emptyDialogService = new class implements IDialogService {
 	confirm(): never {
 		throw new Error('not implemented');
 	}
+
+	about(): never {
+		throw new Error('not implemented');
+	}
 };
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
-	onWillExecuteCommand: () => ({ dispose: () => { } }),
-	onDidExecuteCommand: () => ({ dispose: () => { } }),
+	onWillExecuteCommand: () => Disposable.None,
+	onDidExecuteCommand: () => Disposable.None,
 	executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 		return Promise.resolve(undefined);
 	}

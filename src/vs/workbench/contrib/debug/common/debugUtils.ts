@@ -27,7 +27,7 @@ export function startDebugging(debugService: IDebugService, historyService: IHis
 		configurationManager.selectConfiguration(launch);
 	}
 
-	return debugService.startDebugging(launch, undefined, noDebug);
+	return debugService.startDebugging(launch, undefined, { noDebug });
 }
 
 export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {

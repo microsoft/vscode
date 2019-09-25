@@ -61,8 +61,6 @@ suite('EditorGroupsService', () => {
 
 		class TestEditorInputFactory implements IEditorInputFactory {
 
-			constructor() { }
-
 			serialize(editorInput: EditorInput): string {
 				const testEditorInput = <TestEditorInput>editorInput;
 				const testInput: ISerializedTestEditorInput = {

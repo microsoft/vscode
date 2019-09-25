@@ -16,7 +16,7 @@ export interface IURLCallbackProvider {
 	 * Indicates that a Uri has been opened outside of VSCode. The Uri
 	 * will be forwarded to all installed Uri handlers in the system.
 	 */
-	readonly onCallback: Event<UriComponents>;
+	readonly onCallback: Event<URI>;
 
 	/**
 	 * Creates a Uri that - if opened in a browser - must result in
@@ -54,7 +54,7 @@ export class BrowserURLService extends AbstractURLService {
 
 	private registerListeners(): void {
 		if (this.provider) {
-			this._register(this.provider.onCallback(uri => this.open(URI.revive(uri))));
+			this._register(this.provider.onCallback(uri => this.open(uri)));
 		}
 	}
 

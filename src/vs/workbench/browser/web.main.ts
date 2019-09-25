@@ -13,8 +13,8 @@ import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProductService } from 'vs/platform/product/common/product';
-import product from 'vs/platform/product/browser/product';
+import { IProductService } from 'vs/platform/product/common/productService';
+import product from 'vs/platform/product/common/product';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -39,7 +39,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
-import { InMemoryUserDataProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
+import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
@@ -74,6 +74,11 @@ class CodeRendererMain extends Disposable {
 
 		// Layout
 		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
+
+		// Prevent the back/forward gestures in macOS
+		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
+			e.preventDefault();
+		}, { passive: false }));
 
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
@@ -222,7 +227,7 @@ class CodeRendererMain extends Disposable {
 
 		// User data
 		if (!this.configuration.userDataProvider) {
-			this.configuration.userDataProvider = this._register(new InMemoryUserDataProvider());
+			this.configuration.userDataProvider = this._register(new InMemoryFileSystemProvider());
 		}
 		fileService.registerProvider(Schemas.userData, this.configuration.userDataProvider);
 	}
@@ -261,12 +266,12 @@ class CodeRendererMain extends Disposable {
 
 		// Multi-root workspace
 		if (this.configuration.workspaceUri) {
-			return { id: hash(URI.revive(this.configuration.workspaceUri).toString()).toString(16), configPath: URI.revive(this.configuration.workspaceUri) };
+			return { id: hash(this.configuration.workspaceUri.toString()).toString(16), configPath: this.configuration.workspaceUri };
 		}
 
 		// Single-folder workspace
 		if (this.configuration.folderUri) {
-			return { id: hash(URI.revive(this.configuration.folderUri).toString()).toString(16), folder: URI.revive(this.configuration.folderUri) };
+			return { id: hash(this.configuration.folderUri.toString()).toString(16), folder: this.configuration.folderUri };
 		}
 
 		return { id: 'empty-window' };

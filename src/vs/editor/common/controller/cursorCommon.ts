@@ -460,7 +460,7 @@ export class CursorState {
 		return CursorState.fromModelState(modelState);
 	}
 
-	public static fromModelSelections(modelSelections: ISelection[]): PartialModelCursorState[] {
+	public static fromModelSelections(modelSelections: readonly ISelection[]): PartialModelCursorState[] {
 		let states: PartialModelCursorState[] = [];
 		for (let i = 0, len = modelSelections.length; i < len; i++) {
 			states[i] = this.fromModelSelection(modelSelections[i]);

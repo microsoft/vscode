@@ -58,7 +58,8 @@
 		20
 	];
 
-	const isMac = getSettings().isMac;
+	const settings = getSettings();
+	const isMac = settings.isMac;
 
 	const vscode = acquireVsCodeApi();
 
@@ -71,7 +72,7 @@
 
 	// Elements
 	const container =  /** @type {HTMLElement} */(document.querySelector('body'));
-	const image = document.querySelector('img');
+	const image = document.createElement('img');
 
 	function updateScale(newScale) {
 		if (!image || !image.parentElement) {
@@ -247,6 +248,9 @@
 			window.scrollTo(initialState.offsetX, initialState.offsetY);
 		}
 	});
+
+	image.src = decodeURI(settings.src);
+	document.body.append(image);
 
 	window.addEventListener('message', e => {
 		switch (e.data.type) {

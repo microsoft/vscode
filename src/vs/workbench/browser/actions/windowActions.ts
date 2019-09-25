@@ -7,13 +7,13 @@ import 'vs/css!./media/actions';
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService, IURIToOpen, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IsFullscreenContext, IsDevelopmentContext, IsMacNativeContext } from 'vs/workbench/browser/contextkeys';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -30,6 +30,7 @@ import { IKeyMods } from 'vs/base/parts/quickopen/common/quickOpen';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -162,7 +163,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 	}
 }
 
-export class QuickOpenRecentAction extends BaseOpenRecentAction {
+class QuickOpenRecentAction extends BaseOpenRecentAction {
 
 	static readonly ID = 'workbench.action.quickOpenRecent';
 	static readonly LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
@@ -186,7 +187,7 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 	}
 }
 
-export class ToggleFullScreenAction extends Action {
+class ToggleFullScreenAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleFullScreen';
 	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
@@ -194,15 +195,13 @@ export class ToggleFullScreenAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private readonly windowService: IWindowService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService) {
+		@IHostService private readonly hostService: IHostService
+	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		const container = this.layoutService.getWorkbenchElement();
-
-		return this.windowService.toggleFullScreen(container);
+		return this.hostService.toggleFullScreen();
 	}
 }
 
@@ -214,19 +213,19 @@ export class ReloadWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private readonly windowService: IWindowService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<boolean> {
-		await this.windowService.reloadWindow();
+		await this.hostService.reload();
 
 		return true;
 	}
 }
 
-export class ShowAboutDialogAction extends Action {
+class ShowAboutDialogAction extends Action {
 
 	static readonly ID = 'workbench.action.showAboutDialog';
 	static readonly LABEL = nls.localize('about', "About");
@@ -234,13 +233,31 @@ export class ShowAboutDialogAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private readonly windowsService: IWindowsService
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		return this.windowsService.openAboutDialog();
+		return this.dialogService.about();
+	}
+}
+
+export class NewWindowAction extends Action {
+
+	static readonly ID = 'workbench.action.newWindow';
+	static LABEL = nls.localize('newWindow', "New Window");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHostService private readonly hostService: IHostService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<void> {
+		return this.hostService.openEmptyWindow();
 	}
 }
 
@@ -249,6 +266,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActio
 // --- Actions Registration
 
 const fileCategory = nls.localize('file', "File");
+registry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowAction, NewWindowAction.ID, NewWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', fileCategory);
 
@@ -293,6 +311,15 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 
 // --- Menu Registration
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '1_new',
+	command: {
+		id: NewWindowAction.ID,
+		title: nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")
+	},
+	order: 2
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	title: nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent"),

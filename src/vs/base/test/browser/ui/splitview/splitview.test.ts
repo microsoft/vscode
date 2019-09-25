@@ -10,7 +10,7 @@ import { Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 
 class TestView implements IView {
 
-	private _onDidChange = new Emitter<number | undefined>();
+	private readonly _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
 	get minimumSize(): number { return this._minimumSize; }
@@ -22,17 +22,17 @@ class TestView implements IView {
 	private _element: HTMLElement = document.createElement('div');
 	get element(): HTMLElement { this._onDidGetElement.fire(); return this._element; }
 
-	private _onDidGetElement = new Emitter<void>();
+	private readonly _onDidGetElement = new Emitter<void>();
 	readonly onDidGetElement = this._onDidGetElement.event;
 
 	private _size = 0;
 	get size(): number { return this._size; }
 	private _orthogonalSize: number | undefined = 0;
 	get orthogonalSize(): number | undefined { return this._orthogonalSize; }
-	private _onDidLayout = new Emitter<{ size: number; orthogonalSize: number | undefined }>();
+	private readonly _onDidLayout = new Emitter<{ size: number; orthogonalSize: number | undefined }>();
 	readonly onDidLayout = this._onDidLayout.event;
 
-	private _onDidFocus = new Emitter<void>();
+	private readonly _onDidFocus = new Emitter<void>();
 	readonly onDidFocus = this._onDidFocus.event;
 
 	constructor(

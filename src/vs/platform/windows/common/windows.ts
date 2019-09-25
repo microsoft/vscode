@@ -10,7 +10,6 @@ import { IProcessEnvironment, isMacintosh, isLinux, isWeb } from 'vs/base/common
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
@@ -21,7 +20,6 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
 export interface INativeOpenDialogOptions {
-	windowId?: number;
 	forceNewWindow?: boolean;
 
 	defaultPath?: string;
@@ -33,16 +31,6 @@ export interface INativeOpenDialogOptions {
 export interface IEnterWorkspaceResult {
 	workspace: IWorkspaceIdentifier;
 	backupPath?: string;
-}
-
-export interface CrashReporterStartOptions {
-	companyName?: string;
-	submitURL: string;
-	productName?: string;
-	uploadToServer?: boolean;
-	ignoreSystemCrashHandler?: boolean;
-	extra?: any;
-	crashesDirectory?: string;
 }
 
 export interface OpenDialogOptions {
@@ -83,15 +71,6 @@ export interface SaveDialogOptions {
 	showsTagField?: boolean;
 }
 
-export interface INewWindowOptions {
-	remoteAuthority?: string;
-	reuseWindow?: boolean;
-}
-
-export interface IDevToolsOptions {
-	mode: 'right' | 'bottom' | 'undocked' | 'detach';
-}
-
 export interface IWindowsService {
 
 	_serviceBrand: undefined;
@@ -103,80 +82,20 @@ export interface IWindowsService {
 	readonly onWindowUnmaximize: Event<number>;
 	readonly onRecentlyOpenedChange: Event<void>;
 
-	// Dialogs
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	showMessageBox(windowId: number, options: MessageBoxOptions): Promise<IMessageBoxResult>;
-	showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<string>;
-	showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<string[]>;
-
-	reloadWindow(windowId: number, args?: ParsedArgs): Promise<void>;
-	openDevTools(windowId: number, options?: IDevToolsOptions): Promise<void>;
-	toggleDevTools(windowId: number): Promise<void>;
-	closeWorkspace(windowId: number): Promise<void>;
-	enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	toggleFullScreen(windowId: number): Promise<void>;
-	setRepresentedFilename(windowId: number, fileName: string): Promise<void>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
 	focusWindow(windowId: number): Promise<void>;
-	closeWindow(windowId: number): Promise<void>;
 	isFocused(windowId: number): Promise<boolean>;
-	isMaximized(windowId: number): Promise<boolean>;
-	maximizeWindow(windowId: number): Promise<void>;
-	unmaximizeWindow(windowId: number): Promise<void>;
-	minimizeWindow(windowId: number): Promise<void>;
-	onWindowTitleDoubleClick(windowId: number): Promise<void>;
-	setDocumentEdited(windowId: number, flag: boolean): Promise<void>;
-	quit(): Promise<void>;
-	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
-
-	// macOS Native Tabs
-	newWindowTab(): Promise<void>;
-	showPreviousWindowTab(): Promise<void>;
-	showNextWindowTab(): Promise<void>;
-	moveWindowTabToNewWindow(): Promise<void>;
-	mergeAllWindowTabs(): Promise<void>;
-	toggleWindowTabsBar(): Promise<void>;
-
-	// macOS TouchBar
-	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void>;
-
-	// Shared process
-	whenSharedProcessReady(): Promise<void>;
-	toggleSharedProcess(): Promise<void>;
 
 	// Global methods
 	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
-	openNewWindow(options?: INewWindowOptions): Promise<void>;
-	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
-	getWindowCount(): Promise<number>;
-	log(severity: string, args: string[]): Promise<void>;
-	showItemInFolder(path: URI): Promise<void>;
 	getActiveWindowId(): Promise<number | undefined>;
-
-	// This needs to be handled from browser process to prevent
-	// foreground ordering issues on Windows
-	openExternal(url: string): Promise<boolean>;
-
-	// TODO: this is a bit backwards
-	startCrashReporter(config: CrashReporterStartOptions): Promise<void>;
-
-	openAboutDialog(): Promise<void>;
-	resolveProxy(windowId: number, url: string): Promise<string | undefined>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
-
-export interface IMessageBoxResult {
-	button: number;
-	checkboxChecked?: boolean;
-}
 
 export interface IOpenSettings {
 	forceNewWindow?: boolean;
@@ -230,37 +149,12 @@ export interface IWindowService {
 
 	readonly windowId: number;
 
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	reloadWindow(args?: ParsedArgs): Promise<void>;
-	openDevTools(options?: IDevToolsOptions): Promise<void>;
-	toggleDevTools(): Promise<void>;
-	closeWorkspace(): Promise<void>;
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	// rationale: will eventually move to electron-browser
-	// tslint:disable-next-line: no-dom-globals
-	toggleFullScreen(target?: HTMLElement): Promise<void>;
-	setRepresentedFilename(fileName: string): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	focusWindow(): Promise<void>;
-	closeWindow(): Promise<void>;
 	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
 	isFocused(): Promise<boolean>;
-	setDocumentEdited(flag: boolean): Promise<void>;
-	isMaximized(): Promise<boolean>;
-	maximizeWindow(): Promise<void>;
-	unmaximizeWindow(): Promise<void>;
-	minimizeWindow(): Promise<void>;
-	onWindowTitleDoubleClick(): Promise<void>;
-	showMessageBox(options: MessageBoxOptions): Promise<IMessageBoxResult>;
-	showSaveDialog(options: SaveDialogOptions): Promise<string>;
-	showOpenDialog(options: OpenDialogOptions): Promise<string[]>;
-	resolveProxy(url: string): Promise<string | undefined>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';

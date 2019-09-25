@@ -186,6 +186,10 @@ export class SimpleDialogService implements IDialogService {
 	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
 		return Promise.resolve({ choice: 0 });
 	}
+
+	public about(): Promise<void> {
+		return Promise.resolve(undefined);
+	}
 }
 
 export class SimpleNotificationService implements INotificationService {
@@ -416,7 +420,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 	_serviceBrand: undefined;
 
-	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	private readonly _configuration: Configuration;

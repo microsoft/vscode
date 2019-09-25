@@ -141,8 +141,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Development
 		IsDevelopmentContext.bindTo(this.contextKeyService).set(!this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment);
 
-		// File Pickers
-		SupportsWorkspacesContext.bindTo(this.contextKeyService);
+		// Workspaces Support
+		// - web: only if already in workspace state
+		// - desktop: always
+		SupportsWorkspacesContext.bindTo(this.contextKeyService).set(isWeb ? this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE : true);
 
 		// Editors
 		this.activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);

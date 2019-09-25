@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 
 export namespace Schemas {
@@ -60,7 +60,7 @@ class RemoteAuthoritiesImpl {
 	private readonly _ports: { [authority: string]: number; };
 	private readonly _connectionTokens: { [authority: string]: string; };
 	private _preferredWebSchema: 'http' | 'https';
-	private _delegate: ((uri: URI) => UriComponents) | null;
+	private _delegate: ((uri: URI) => URI) | null;
 
 	constructor() {
 		this._hosts = Object.create(null);
@@ -74,7 +74,7 @@ class RemoteAuthoritiesImpl {
 		this._preferredWebSchema = schema;
 	}
 
-	public setDelegate(delegate: (uri: URI) => UriComponents): void {
+	public setDelegate(delegate: (uri: URI) => URI): void {
 		this._delegate = delegate;
 	}
 
@@ -89,8 +89,7 @@ class RemoteAuthoritiesImpl {
 
 	public rewrite(uri: URI): URI {
 		if (this._delegate) {
-			const result = this._delegate(uri);
-			return URI.revive(result);
+			return this._delegate(uri);
 		}
 		const authority = uri.authority;
 		const host = this._hosts[authority];

@@ -5,7 +5,7 @@
 
 /* Checkbox */
 
-.monaco-checkbox .label {
+.monaco-checkbox .codicon-selection {
 	width: 12px;
 	height: 12px;
 	border: 1px solid black;
@@ -24,7 +24,7 @@
 	border: 0;
 }
 
-.monaco-checkbox .checkbox:checked + .label {
+.monaco-checkbox .checkbox:checked + .codicon-selection {
 	background-color: black;
 }
 
@@ -166,6 +166,9 @@
 	background-position: center center;
 	background-repeat: no-repeat;
 	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .monaco-editor .find-widget .button:not(.disabled):hover {
@@ -200,14 +203,6 @@
 	display: none;
 }
 
-.monaco-editor .find-widget .previous {
-	background-image: url('images/chevron-previous-light.svg');
-}
-
-.monaco-editor .find-widget .next {
-	background-image: url('images/chevron-next-light.svg');
-}
-
 .monaco-editor .find-widget .disabled {
 	opacity: 0.3;
 	cursor: default;
@@ -221,52 +216,30 @@
 	margin-left: 3px;
 }
 
-.monaco-editor .find-widget .monaco-checkbox .label {
-	content: '';
-	display: inline-block;
-	background-repeat: no-repeat;
-	background-position: center;
-	background-image: url('images/find-selection-light.svg');
+.monaco-editor .find-widget .monaco-checkbox .codicon-selection {
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	width: 20px;
 	height: 20px;
 	border: none;
 }
 
-.monaco-editor .find-widget .monaco-checkbox .checkbox:disabled + .label {
+.monaco-editor .find-widget .monaco-checkbox .checkbox:disabled + .codicon-selection {
 	opacity: 0.3;
 	cursor: default;
 }
 
-.monaco-editor .find-widget .monaco-checkbox .checkbox:not(:disabled) + .label {
+.monaco-editor .find-widget .monaco-checkbox .checkbox:not(:disabled) + .codicon-selection {
 	cursor: pointer;
 }
 
-.monaco-editor .find-widget .monaco-checkbox .checkbox:not(:disabled):hover:before + .label {
+.monaco-editor .find-widget .monaco-checkbox .checkbox:not(:disabled):hover:before + .codicon-selection {
 	background-color: #DDD;
 }
 
-.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label {
+.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .codicon-selection {
 	background-color: rgba(100, 100, 100, 0.2);
-}
-
-.monaco-editor .find-widget .close-fw {
-	background-image: url('images/close-light.svg');
-}
-
-.monaco-editor .find-widget .expand {
-	background-image: url('images/tree-expanded-light.svg');
-}
-
-.monaco-editor .find-widget .collapse {
-	background-image: url('images/tree-collapsed-light.svg');
-}
-
-.monaco-editor .find-widget .replace {
-	background-image: url('images/replace-light.svg');
-}
-
-.monaco-editor .find-widget .replace-all {
-	background-image: url('images/replace-all-light.svg');
 }
 
 .monaco-editor .find-widget > .replace-part {
@@ -329,52 +302,13 @@
 	margin-left: -4px;
 }
 
-.monaco-editor.hc-black .find-widget .previous,
-.monaco-editor.vs-dark .find-widget .previous {
-	background-image: url('images/chevron-previous-dark.svg');
-}
-
-.monaco-editor.hc-black .find-widget .next,
-.monaco-editor.vs-dark .find-widget .next {
-	background-image: url('images/chevron-next-dark.svg');
-}
-
-.monaco-editor.hc-black .find-widget .monaco-checkbox .label,
-.monaco-editor.vs-dark .find-widget .monaco-checkbox .label {
-	background-image: url('images/find-selection-dark.svg');
-}
-
-.monaco-editor.vs-dark .find-widget .monaco-checkbox .checkbox:not(:disabled):hover:before + .label {
+.monaco-editor.vs-dark .find-widget .monaco-checkbox .checkbox:not(:disabled):hover:before + .codicon-selection {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-editor.hc-black .find-widget .close-fw,
-.monaco-editor.vs-dark .find-widget .close-fw {
-	background-image: url('images/close-dark.svg');
-}
-
-.monaco-editor.hc-black .find-widget .replace,
-.monaco-editor.vs-dark .find-widget .replace {
-	background-image: url('images/replace-dark.svg');
-}
-
-.monaco-editor.hc-black .find-widget .replace-all,
-.monaco-editor.vs-dark .find-widget .replace-all {
-	background-image: url('images/replace-all-dark.svg');
-}
-
-.monaco-editor.hc-black .find-widget .expand,
-.monaco-editor.vs-dark .find-widget .expand {
-	background-image: url('images/tree-expanded-dark.svg');
-}
-
-.monaco-editor.hc-black .find-widget .collapse,
-.monaco-editor.vs-dark .find-widget .collapse {
-	background-image: url('images/tree-collapsed-dark.svg');
-}
-
 .monaco-editor.hc-black .find-widget .button:not(.disabled):hover,
-.monaco-editor.vs-dark .find-widget .button:not(.disabled):hover {
+.monaco-editor.vs-dark .find-widget .button:not(.disabled):hover,
+.monaco-editor.vs-dark .find-widget .monaco-checkbox:not(.disabled):hover {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -384,6 +318,6 @@
 	left: 2px;
 }
 
-.monaco-editor.hc-black .find-widget .monaco-checkbox .checkbox:checked + .label {
+.monaco-editor.hc-black .find-widget .monaco-checkbox .checkbox:checked + .codicon-selection {
 	background-color: rgba(255, 255, 255, 0.1);
 }

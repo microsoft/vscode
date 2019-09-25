@@ -723,7 +723,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.modifiedEditor.setSelection(something);
 	}
 
-	public setSelections(ranges: ISelection[]): void {
+	public setSelections(ranges: readonly ISelection[]): void {
 		this.modifiedEditor.setSelections(ranges);
 	}
 

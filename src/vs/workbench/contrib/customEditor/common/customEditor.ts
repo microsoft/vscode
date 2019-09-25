@@ -9,7 +9,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { EditorInput, IEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
-
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
 export interface ICustomEditorService {
@@ -32,6 +31,7 @@ export const enum CustomEditorDiscretion {
 export interface CustomEditorSelector {
 	readonly scheme?: string;
 	readonly filenamePattern?: string;
+	readonly mime?: string;
 }
 
 export interface CustomEditorInfo {

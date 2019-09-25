@@ -11,6 +11,7 @@ export function getPathFromAmdModule(requirefn: typeof require, relativePath: st
 
 /**
  * Reference a resource that might be inlined.
+ * Do not inline icons that will be used by the native mac touchbar.
  * Do not rename this method unless you adopt the build scripts.
  */
 export function registerAndGetAmdImageURL(absolutePath: string): string {
