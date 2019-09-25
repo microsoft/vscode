@@ -152,7 +152,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		}
 	}
 
-	private report(): void {
+	private async report(): Promise<void> {
 
 		// Workspace Stats
 		this.workspaceStatsService.getTags()
@@ -164,7 +164,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportProxyStats();
 
 		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
-		this.getWorkspaceInformation().then(stats => diagnosticsChannel.call('reportWorkspaceStats', stats));
+		const stats: IWorkspaceInformation = await this.getWorkspaceInformation();
+
+		diagnosticsChannel.call('reportWorkspaceStats', stats);
 	}
 
 	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {
