@@ -772,7 +772,8 @@
 		"ms-vscode-remote.remote-wsl-nightly",
 		"ms-vscode-remote.vscode-remote-extensionpack",
 		"ms-vscode-remote.vscode-remote-extensionpack-nightly",
-		"ms-azuretools.vscode-docker"
+		"ms-azuretools.vscode-docker",
+		"ms-vscode.azure-account"
 	],
 	"experimentsUrl": "https://az764295.vo.msecnd.net/experiments/vscode-experiments.json",
 	"uiExtensions": [
