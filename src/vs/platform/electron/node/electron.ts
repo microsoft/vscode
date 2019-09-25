@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions, IOpenedWindow, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
@@ -13,6 +14,15 @@ export const IElectronService = createDecorator<IElectronService>('electronServi
 export interface IElectronService {
 
 	_serviceBrand: undefined;
+
+	// Events
+	readonly onWindowOpen: Event<number>;
+
+	readonly onWindowMaximize: Event<number>;
+	readonly onWindowUnmaximize: Event<number>;
+
+	readonly onWindowFocus: Event<number>;
+	readonly onWindowBlur: Event<number>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
