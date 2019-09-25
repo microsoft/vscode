@@ -116,7 +116,7 @@ export interface IWindowService {
 	isFocused(): Promise<boolean>;
 }
 
-export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
+export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export interface IWindowsConfiguration {
 	window: IWindowSettings;
