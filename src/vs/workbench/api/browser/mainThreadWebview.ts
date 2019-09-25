@@ -250,7 +250,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				return webviewEditorInput.getTypeId() !== WebviewInput.typeId && webviewEditorInput.viewType === viewType;
 			},
 			resolveWebview: async (webview) => {
-				const handle = generateUuid();
+				const handle = webview.id;
 				this._webviewEditorInputs.add(handle, webview);
 				this.hookupWebviewEventDelegate(handle, webview);
 
