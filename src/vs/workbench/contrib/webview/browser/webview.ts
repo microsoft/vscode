@@ -40,8 +40,6 @@ export interface IWebviewService {
 	): WebviewEditorOverlay;
 }
 
-export const WebviewResourceScheme = 'vscode-resource';
-
 export interface WebviewOptions {
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;

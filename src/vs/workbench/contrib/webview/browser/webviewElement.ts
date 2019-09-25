@@ -118,9 +118,10 @@ export class IFrameWebview extends Disposable implements Webview {
 
 				case 'load-resource':
 					{
-						const requestPath = e.data.data.path;
-						const uri = URI.file(decodeURIComponent(requestPath));
-						this.loadResource(requestPath, uri);
+						const rawPath = e.data.data.path;
+						const normalizedPath = decodeURIComponent(rawPath);
+						const uri = URI.parse(normalizedPath.replace(/^\/(\w+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
+						this.loadResource(rawPath, uri);
 						return;
 					}
 
@@ -190,7 +191,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private preprocessHtml(value: string): string {
 		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
-			`${startQuote}${this.externalEndpoint}/vscode-resource${path}${endQuote}`);
+			`${startQuote}${this.externalEndpoint}/vscode-resource/file${path}${endQuote}`);
 	}
 
 	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OnBeforeRequestDetails, OnHeadersReceivedDetails, Response, WebviewTag, WebContents, FindInPageOptions } from 'electron';
+import { FindInPageOptions, OnBeforeRequestDetails, OnHeadersReceivedDetails, Response, WebContents, WebviewTag } from 'electron';
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
@@ -19,12 +19,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { Webview, WebviewContentOptions, WebviewOptions, WebviewResourceScheme } from 'vs/workbench/contrib/webview/browser/webview';
+import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
+import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { areWebviewInputOptionsEqual } from '../browser/webviewEditorService';
-import { WebviewFindWidget, WebviewFindDelegate } from '../browser/webviewFindWidget';
+import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
 
 interface IKeydownEvent {
 	key: string;
