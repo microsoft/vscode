@@ -56,6 +56,10 @@
 	overflow: hidden;
 }
 
+.monaco-tl-twistie.collapsed::before {
+	transform: rotate(-90deg);
+}
+
 .monaco-tl-twistie.codicon-loading {
 	animation: codicon-spin 1.25s linear infinite;
 }

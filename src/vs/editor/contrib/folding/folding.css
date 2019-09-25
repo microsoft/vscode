@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .margin-view-overlays .codicon {
+.monaco-editor .margin-view-overlays .codicon-chevron-right,
+.monaco-editor .margin-view-overlays .codicon-chevron-down {
 	cursor: pointer;
 	opacity: 0;
 	transition: opacity 0.5s;
