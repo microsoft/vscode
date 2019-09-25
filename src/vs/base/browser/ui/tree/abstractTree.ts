@@ -1248,6 +1248,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			});
 		});
 
+		// Make sure the `forEach` always runs
+		onDidModelSplice(() => null, null, this.disposables);
+
 		// Active nodes can change when the model changes or when focus or selection change.
 		// We debouce it with 0 delay since these events may fire in the same stack and we only
 		// want to run this once. It also doesn't matter if it runs on the next tick since it's only
