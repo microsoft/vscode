@@ -166,11 +166,11 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.syncStart',
-				title: localize('start sync', "Sync: Start")
+				title: localize('start sync', "Configuration Sync: Turn On")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.userConfiguration.enableSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not('config.configurationSync.enable')),
 		};
-		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.configurationService.updateValue('userConfiguration.enableSync', true));
+		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.configurationService.updateValue('configurationSync.enable', true));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, startSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, startSyncMenuItem);
 
@@ -178,11 +178,11 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.stopSync',
-				title: localize('stop sync', "Sync: Stop")
+				title: localize('stop sync', "Configuration Sync: Turn Off")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.enableSync')),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.configurationSync.enable')),
 		};
-		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.configurationService.updateValue('userConfiguration.enableSync', false));
+		CommandsRegistry.registerCommand(stopSyncMenuItem.command.id, () => this.configurationService.updateValue('configurationSync.enable', false));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, stopSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, stopSyncMenuItem);
 
@@ -190,7 +190,7 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			group: '5_sync',
 			command: {
 				id: 'sync.resolveConflicts',
-				title: localize('resolveConflicts', "Sync: Resolve Conflicts"),
+				title: localize('resolveConflicts', "Configuration Sync: Resolve Conflicts"),
 			},
 			when: CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts),
 		};
@@ -203,14 +203,14 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue")
+				title: localize('continue sync', "Configuration Sync: Continue")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts)),
 		});
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			command: {
 				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue"),
+				title: localize('continue sync', "Configuration Sync: Continue"),
 				iconLocation: {
 					light: SYNC_PUSH_LIGHT_ICON_URI,
 					dark: SYNC_PUSH_DARK_ICON_URI

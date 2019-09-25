@@ -112,7 +112,7 @@ export class UserDataAutoSync extends Disposable {
 		super();
 		if (userDataSyncStoreService.enabled) {
 			this.sync(true);
-			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('userConfiguration.enableSync'))(() => this.sync(true)));
+			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => this.sync(true)));
 
 			// Sync immediately if there is a local change.
 			this._register(Event.debounce(this.userDataSyncService.onDidChangeLocal, () => undefined, 500)(() => this.sync(false)));
@@ -134,7 +134,7 @@ export class UserDataAutoSync extends Disposable {
 	}
 
 	private isSyncEnabled(): boolean {
-		return this.configurationService.getValue<boolean>('userConfiguration.enableSync');
+		return this.configurationService.getValue<boolean>('configurationSync.enable');
 	}
 
 }

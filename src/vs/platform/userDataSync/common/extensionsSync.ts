@@ -70,7 +70,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	}
 
 	async sync(): Promise<boolean> {
-		if (!this.configurationService.getValue<boolean>('userConfiguration.syncExtensions')) {
+		if (!this.configurationService.getValue<boolean>('configurtionSync.enableExtensions')) {
 			return false;
 		}
 
@@ -144,7 +144,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	 * - Update remote with those local extension which are newly added or updated or removed and untouched in remote.
 	 */
 	private merge(localExtensions: ISyncExtension[], remoteExtensions: ISyncExtension[] | null, lastSyncExtensions: ISyncExtension[] | null): { added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], remote: ISyncExtension[] | null } {
-		const ignoredExtensions = this.configurationService.getValue<string[]>('userConfiguration.ignoredExtensions') || [];
+		const ignoredExtensions = this.configurationService.getValue<string[]>('configurtionSync.extensionsToIgnore') || [];
 		// First time sync
 		if (!remoteExtensions) {
 			return { added: [], removed: [], updated: [], remote: localExtensions.filter(({ identifier }) => ignoredExtensions.some(id => id.toLowerCase() === identifier.id.toLowerCase())) };

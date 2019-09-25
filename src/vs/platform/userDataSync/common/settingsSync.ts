@@ -80,7 +80,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	async sync(_continue?: boolean): Promise<boolean> {
-		if (!this.configurationService.getValue<boolean>('userConfiguration.syncSettings')) {
+		if (!this.configurationService.getValue<boolean>('configurtionSync.enableSettings')) {
 			return false;
 		}
 
@@ -214,7 +214,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	private getIgnoredSettings(settingsContent?: string): string[] {
-		const value: string[] = (settingsContent ? parse(settingsContent)['userConfiguration.ignoredSettings'] : this.configurationService.getValue<string[]>('userConfiguration.ignoredSettings')) || [];
+		const value: string[] = (settingsContent ? parse(settingsContent)['configurtionSync.settingsToIgnore'] : this.configurationService.getValue<string[]>('configurtionSync.settingsToIgnore')) || [];
 		const added: string[] = [], removed: string[] = [];
 		for (const key of value) {
 			if (startsWith(key, '-')) {
