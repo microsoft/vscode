@@ -395,7 +395,6 @@ const enum ViewModelMode {
 
 class ViewModel {
 
-	private _mode = ViewModelMode.Tree;
 	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
 	readonly onDidChangeMode = this._onDidChangeMode.event;
 
@@ -413,7 +412,8 @@ class ViewModel {
 
 	constructor(
 		private groups: ISequence<ISCMResourceGroup>,
-		private tree: ObjectTree<TreeElement, FuzzyScore>
+		private tree: ObjectTree<TreeElement, FuzzyScore>,
+		private _mode: ViewModelMode
 	) { }
 
 	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
@@ -694,7 +694,8 @@ export class RepositoryPanel extends ViewletPanel {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
-		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree);
+		const mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+		this.viewModel = new ViewModel(this.repository.provider.groups, this.tree, mode);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
