@@ -1617,7 +1617,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected getConfiguration(workspaceFolder: IWorkspaceFolder): { config: TaskConfig.ExternalTaskRunnerConfiguration | undefined; hasParseErrors: boolean } {
 		let result = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY
-			? Objects.deepClone(this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri }))
+			? Objects.deepClone(this.configurationService.inspect<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri }).workspaceFolder)
 			: undefined;
 		if (!result) {
 			return { config: undefined, hasParseErrors: false };
