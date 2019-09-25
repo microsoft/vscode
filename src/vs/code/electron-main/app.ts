@@ -34,7 +34,7 @@ import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { SimpleServiceProxyChannel } from 'vs/platform/ipc/node/simpleIpcProxy';
+import { createChannelReceiver } from 'vs/platform/ipc/node/ipcChannelCreator';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -541,15 +541,15 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('update', updateChannel);
 
 		const issueService = accessor.get(IIssueService);
-		const issueChannel = new SimpleServiceProxyChannel(issueService);
+		const issueChannel = createChannelReceiver(issueService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
 		const electronService = accessor.get(IElectronService);
-		const electronChannel = new SimpleServiceProxyChannel(electronService);
+		const electronChannel = createChannelReceiver(electronService);
 		electronIpcServer.registerChannel('electron', electronChannel);
 
 		const sharedProcessMainService = accessor.get(ISharedProcessMainService);
-		const sharedProcessChannel = new SimpleServiceProxyChannel(sharedProcessMainService);
+		const sharedProcessChannel = createChannelReceiver(sharedProcessMainService);
 		electronIpcServer.registerChannel('sharedProcess', sharedProcessChannel);
 
 		const workspacesMainService = accessor.get(IWorkspacesMainService);
@@ -562,7 +562,7 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('windows', windowsChannel));
 
 		const menubarService = accessor.get(IMenubarService);
-		const menubarChannel = new SimpleServiceProxyChannel(menubarService);
+		const menubarChannel = createChannelReceiver(menubarService);
 		electronIpcServer.registerChannel('menubar', menubarChannel);
 
 		const urlService = accessor.get(IURLService);
