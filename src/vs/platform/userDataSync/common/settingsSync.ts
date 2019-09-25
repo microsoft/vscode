@@ -79,6 +79,9 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	async sync(_continue?: boolean): Promise<boolean> {
+		if (!this.configurationService.getValue<boolean>('userConfiguration.syncSettings')) {
+			return false;
+		}
 
 		if (_continue) {
 			return this.continueSync();

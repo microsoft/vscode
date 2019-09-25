@@ -29,6 +29,12 @@ export function registerConfiguration(): IDisposable {
 				default: true,
 				scope: ConfigurationScope.APPLICATION
 			},
+			'userConfiguration.syncSettings': {
+				type: 'boolean',
+				description: localize('userConfiguration.syncSettings', "When enabled settings are synchronised while synchronising user configuration."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
 			'userConfiguration.syncExtensions': {
 				type: 'boolean',
 				description: localize('userConfiguration.syncExtensions', "When enabled extensions are synchronised while synchronising user configuration."),
