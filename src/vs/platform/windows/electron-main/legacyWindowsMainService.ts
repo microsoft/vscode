@@ -8,7 +8,7 @@ import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { app, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -53,24 +53,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		// remember last active window id
 		Event.latch(Event.any(this.onWindowOpen, this.onWindowFocus))
 			(id => this._activeWindowId = id, null, this.disposables);
-	}
-
-	async showMessageBox(windowId: number, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		this.logService.trace('windowsService#showMessageBox', windowId);
-
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.showMessageBox(options, codeWindow), () => this.windowsMainService.showMessageBox(options))!;
-	}
-
-	async showSaveDialog(windowId: number, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
-		this.logService.trace('windowsService#showSaveDialog', windowId);
-
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.showSaveDialog(options, codeWindow), () => this.windowsMainService.showSaveDialog(options))!;
-	}
-
-	async showOpenDialog(windowId: number, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
-		this.logService.trace('windowsService#showOpenDialog', windowId);
-
-		return this.withWindow(windowId, codeWindow => this.windowsMainService.showOpenDialog(options, codeWindow), () => this.windowsMainService.showOpenDialog(options))!;
 	}
 
 	async addRecentlyOpened(recents: IRecent[]): Promise<void> {
@@ -127,12 +109,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 			title: window.win.getTitle(),
 			filename: window.getRepresentedFilename()
 		}));
-	}
-
-	async getWindowCount(): Promise<number> {
-		this.logService.trace('windowsService#getWindowCount');
-
-		return this.windowsMainService.getWindows().length;
 	}
 
 	async getActiveWindowId(): Promise<number | undefined> {
