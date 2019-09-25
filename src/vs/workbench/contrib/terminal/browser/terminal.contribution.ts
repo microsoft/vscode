@@ -219,10 +219,11 @@ configurationRegistry.registerConfiguration({
 		},
 		'terminal.integrated.rightClickBehavior': {
 			type: 'string',
-			enum: ['default', 'copyPaste', 'selectWord'],
+			enum: ['default', 'copyPaste', 'paste', 'selectWord'],
 			enumDescriptions: [
 				nls.localize('terminal.integrated.rightClickBehavior.default', "Show the context menu."),
 				nls.localize('terminal.integrated.rightClickBehavior.copyPaste', "Copy when there is a selection, otherwise paste."),
+				nls.localize('terminal.integrated.rightClickBehavior.paste', "Paste on right click."),
 				nls.localize('terminal.integrated.rightClickBehavior.selectWord', "Select the word under the cursor and show the context menu.")
 			],
 			default: platform.isMacintosh ? 'selectWord' : platform.isWindows ? 'copyPaste' : 'default',
