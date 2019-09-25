@@ -14,6 +14,12 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
+export const DEFAULT_IGNORED_SETTINGS = [
+	'userConfiguration.enableSync',
+	'userConfiguration.syncSettings',
+	'userConfiguration.syncExtensions',
+];
+
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -41,19 +47,20 @@ export function registerConfiguration(): IDisposable {
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
-			'userConfiguration.ignoreSettings': {
+			'userConfiguration.ignoredExtensions': {
 				'type': 'array',
-				description: localize('userConfiguration.ignoreSettings', "Configure settings to be ignored while syncing"),
-				'default': [
-					'userConfiguration.enableSync',
-					'userConfiguration.syncExtensions',
-					'userConfiguration.ignoreSettings'
-				],
+				description: localize('userConfiguration.ignoredExtensions', "Configure extensions which will be ignored while syncing."),
+				'default': [],
+				'scope': ConfigurationScope.APPLICATION,
+				uniqueItems: true
+			},
+			'userConfiguration.ignoredSettings': {
+				'type': 'array',
+				description: localize('userConfiguration.ignoredSettings', "Configure settings which will be ignored while syncing. \nDefault Ignored Settings:\n\n{0}", DEFAULT_IGNORED_SETTINGS.sort().map(setting => `- ${setting}`).join('\n')),
+				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				$ref: ignoredSettingsSchemaId,
 				additionalProperties: true,
-				allowTrailingCommas: true,
-				allowComments: true,
 				uniqueItems: true
 			}
 		}
@@ -63,7 +70,7 @@ export function registerConfiguration(): IDisposable {
 		const ignoredSettingsSchema: IJSONSchema = {
 			items: {
 				type: 'string',
-				enum: Object.keys(allSettings.properties)
+				enum: [...Object.keys(allSettings.properties).filter(setting => DEFAULT_IGNORED_SETTINGS.indexOf(setting) === -1), ...DEFAULT_IGNORED_SETTINGS.map(setting => `-${setting}`)]
 			}
 		};
 		jsonRegistry.registerSchema(ignoredSettingsSchemaId, ignoredSettingsSchema);

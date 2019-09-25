@@ -144,10 +144,10 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	 * - Update remote with those local extension which are newly added or updated or removed and untouched in remote.
 	 */
 	private merge(localExtensions: ISyncExtension[], remoteExtensions: ISyncExtension[] | null, lastSyncExtensions: ISyncExtension[] | null): { added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], remote: ISyncExtension[] | null } {
-
+		const ignoredExtensions = this.configurationService.getValue<string[]>('userConfiguration.ignoredExtensions') || [];
 		// First time sync
 		if (!remoteExtensions) {
-			return { added: [], removed: [], updated: [], remote: localExtensions };
+			return { added: [], removed: [], updated: [], remote: localExtensions.filter(({ identifier }) => ignoredExtensions.some(id => id.toLowerCase() === identifier.id.toLowerCase())) };
 		}
 
 		const uuids: Map<string, string> = new Map<string, string>();
@@ -168,8 +168,12 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		const remoteExtensionsMap = remoteExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>());
 		const newRemoteExtensionsMap = remoteExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>());
 		const lastSyncExtensionsMap = lastSyncExtensions ? lastSyncExtensions.reduce(addExtensionToMap, new Map<string, ISyncExtension>()) : null;
+		const ignoredExtensionsSet = ignoredExtensions.reduce((set, id) => {
+			const uuid = uuids.get(id.toLowerCase());
+			return set.add(uuid ? `uuid:${uuid}` : `id:${id.toLowerCase()}`);
+		}, new Set<string>());
 
-		const localToRemote = this.compare(localExtensionsMap, remoteExtensionsMap);
+		const localToRemote = this.compare(localExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet);
 		if (localToRemote.added.size === 0 && localToRemote.removed.size === 0 && localToRemote.updated.size === 0) {
 			// No changes found between local and remote.
 			return { added: [], removed: [], updated: [], remote: null };
@@ -179,8 +183,8 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		const removed: IExtensionIdentifier[] = [];
 		const updated: ISyncExtension[] = [];
 
-		const baseToLocal = lastSyncExtensionsMap ? this.compare(lastSyncExtensionsMap, localExtensionsMap) : { added: keys(localExtensionsMap).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-		const baseToRemote = lastSyncExtensionsMap ? this.compare(lastSyncExtensionsMap, remoteExtensionsMap) : { added: keys(remoteExtensionsMap).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+		const baseToLocal = lastSyncExtensionsMap ? this.compare(lastSyncExtensionsMap, localExtensionsMap, ignoredExtensionsSet) : { added: keys(localExtensionsMap).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+		const baseToRemote = lastSyncExtensionsMap ? this.compare(lastSyncExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet) : { added: keys(remoteExtensionsMap).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
 
 		const massageSyncExtension = (extension: ISyncExtension, key: string): ISyncExtension => {
 			return {
@@ -256,14 +260,14 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			}
 		}
 
-		const remoteChanges = this.compare(remoteExtensionsMap, newRemoteExtensionsMap);
+		const remoteChanges = this.compare(remoteExtensionsMap, newRemoteExtensionsMap, new Set<string>());
 		const remote = remoteChanges.added.size > 0 || remoteChanges.updated.size > 0 || remoteChanges.removed.size > 0 ? values(newRemoteExtensionsMap) : null;
 		return { added, removed, updated, remote };
 	}
 
-	private compare(from: Map<string, ISyncExtension>, to: Map<string, ISyncExtension>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
-		const fromKeys = keys(from);
-		const toKeys = keys(to);
+	private compare(from: Map<string, ISyncExtension>, to: Map<string, ISyncExtension>, ignoredExtensions: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
+		const fromKeys = keys(from).filter(key => !ignoredExtensions.has(key));
+		const toKeys = keys(to).filter(key => !ignoredExtensions.has(key));
 		const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 		const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 		const updated: Set<string> = new Set<string>();

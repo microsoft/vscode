@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService, DEFAULT_IGNORED_SETTINGS } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -16,6 +16,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { startsWith } from 'vs/base/common/strings';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -139,13 +140,13 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			}
 
 			let { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged } = await this.syncPreviewResultPromise;
-			if (hasRemoteChanged) {
-				const remoteContent = remoteUserData.content ? await this.settingsMergeService.computeRemoteContent(content, remoteUserData.content, this.getIgnoredSettings()) : content;
-				const ref = await this.writeToRemote(remoteContent, remoteUserData.ref);
-				remoteUserData = { ref, content };
-			}
 			if (hasLocalChanged) {
 				await this.writeToLocal(content, fileContent);
+			}
+			if (hasRemoteChanged) {
+				const remoteContent = remoteUserData.content ? await this.settingsMergeService.computeRemoteContent(content, remoteUserData.content, this.getIgnoredSettings(content)) : content;
+				const ref = await this.writeToRemote(remoteContent, remoteUserData.ref);
+				remoteUserData = { ref, content };
 			}
 			if (remoteUserData.content) {
 				await this.updateLastSyncValue(remoteUserData);
@@ -188,7 +189,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 				|| lastSyncData.content !== localContent // Local has moved forwarded
 				|| lastSyncData.content !== remoteContent // Remote has moved forwarded
 			) {
-				this.logService.trace('Settings Sync: Merging remote contents with settings file.');
+				this.logService.info('Settings Sync: Merging remote contents with settings file.');
 				const result = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, this.getIgnoredSettings());
 				// Sync only if there are changes
 				if (result.hasChanges) {
@@ -212,8 +213,17 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 	}
 
-	private getIgnoredSettings(): string[] {
-		return this.configurationService.getValue<string[]>('userConfiguration.ignoreSettings');
+	private getIgnoredSettings(settingsContent?: string): string[] {
+		const value: string[] = (settingsContent ? parse(settingsContent)['userConfiguration.ignoredSettings'] : this.configurationService.getValue<string[]>('userConfiguration.ignoredSettings')) || [];
+		const added: string[] = [], removed: string[] = [];
+		for (const key of value) {
+			if (startsWith(key, '-')) {
+				removed.push(key.substring(1));
+			} else {
+				added.push(key);
+			}
+		}
+		return [...DEFAULT_IGNORED_SETTINGS, ...added].filter(setting => removed.indexOf(setting) === -1);
 	}
 
 	private async getLastSyncUserData(): Promise<IUserData | null> {
