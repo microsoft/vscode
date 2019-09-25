@@ -389,8 +389,8 @@ function asTreeElement(node: INode<ISCMResource, ISCMResourceGroup>, incompressi
 }
 
 const enum ViewModelMode {
-	List = 'codicon-filter',
-	Tree = 'codicon-selection'
+	List,
+	Tree
 }
 
 class ViewModel {
@@ -507,7 +507,8 @@ export class ToggleViewModeAction extends Action {
 	}
 
 	private onDidChangeMode(mode: ViewModelMode): void {
-		this.class = `scm-action toggle-view-mode ${mode}`;
+		const iconClass = mode === ViewModelMode.List ? 'codicon-filter' : 'codicon-selection';
+		this.class = `scm-action toggle-view-mode ${iconClass}`;
 	}
 }
 
