@@ -16,8 +16,8 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 export const DEFAULT_IGNORED_SETTINGS = [
 	'configurationSync.enable',
-	'configurtionSync.enableSettings',
-	'configurtionSync.enableExtensions',
+	'configurationSync.enableSettings',
+	'configurationSync.enableExtensions',
 ];
 
 export function registerConfiguration(): IDisposable {
@@ -35,28 +35,28 @@ export function registerConfiguration(): IDisposable {
 				default: true,
 				scope: ConfigurationScope.APPLICATION
 			},
-			'configurtionSync.enableSettings': {
+			'configurationSync.enableSettings': {
 				type: 'boolean',
-				description: localize('configurtionSync.enableSettings', "When enabled settings are synchronised while synchronising configuration."),
+				description: localize('configurationSync.enableSettings', "When enabled settings are synchronised while synchronising configuration."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
-			'configurtionSync.enableExtensions': {
+			'configurationSync.enableExtensions': {
 				type: 'boolean',
-				description: localize('configurtionSync.enableExtensions', "When enabled extensions are synchronised while synchronising configuration."),
+				description: localize('configurationSync.enableExtensions', "When enabled extensions are synchronised while synchronising configuration."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
-			'configurtionSync.extensionsToIgnore': {
+			'configurationSync.extensionsToIgnore': {
 				'type': 'array',
-				description: localize('configurtionSync.extensionsToIgnore', "Configure extensions to be ignored while syncing."),
+				description: localize('configurationSync.extensionsToIgnore', "Configure extensions to be ignored while syncing."),
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				uniqueItems: true
 			},
-			'configurtionSync.settingsToIgnore': {
+			'configurationSync.settingsToIgnore': {
 				'type': 'array',
-				description: localize('configurtionSync.settingsToIgnore', "Configure settings to be ignored while syncing. \nDefault Ignored Settings:\n\n{0}", DEFAULT_IGNORED_SETTINGS.sort().map(setting => `- ${setting}`).join('\n')),
+				description: localize('configurationSync.settingsToIgnore', "Configure settings to be ignored while syncing. \nDefault Ignored Settings:\n\n{0}", DEFAULT_IGNORED_SETTINGS.sort().map(setting => `- ${setting}`).join('\n')),
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				$ref: ignoredSettingsSchemaId,
