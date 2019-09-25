@@ -137,6 +137,7 @@ export interface ISynchroniser {
 	readonly onDidChangeLocal: Event<void>;
 
 	sync(_continue?: boolean): Promise<boolean>;
+	stop(): void;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');

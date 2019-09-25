@@ -29,6 +29,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { isWeb } from 'vs/base/common/platform';
 import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IEditorInput } from 'vs/workbench/common/editor';
 
 class UserDataSyncConfigurationContribution implements IWorkbenchContribution {
 
@@ -111,16 +112,20 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 				handle.onDidClose(() => this.conflictsWarningDisposable.clear());
 			}
 		} else {
+			const previewEditorInput = this.getPreviewEditorInput();
+			if (previewEditorInput) {
+				previewEditorInput.dispose();
+			}
 			this.conflictsWarningDisposable.clear();
 		}
 	}
 
 	private async continueSync(): Promise<void> {
 		// Get the preview editor
-		const editorInput = this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource))[0];
+		const previewEditorInput = this.getPreviewEditorInput();
 		// Save the preview
-		if (editorInput && editorInput.isDirty()) {
-			await this.textFileService.save(editorInput.getResource()!);
+		if (previewEditorInput && previewEditorInput.isDirty()) {
+			await this.textFileService.save(previewEditorInput.getResource()!);
 		}
 		try {
 			// Continue Sync
@@ -130,9 +135,13 @@ class SyncActionsContribution extends Disposable implements IWorkbenchContributi
 			return;
 		}
 		// Close the preview editor
-		if (editorInput) {
-			editorInput.dispose();
+		if (previewEditorInput) {
+			previewEditorInput.dispose();
 		}
+	}
+
+	private getPreviewEditorInput(): IEditorInput | undefined {
+		return this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource))[0];
 	}
 
 	private async handleConflicts(): Promise<void> {

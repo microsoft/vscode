@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { startsWith } from 'vs/base/common/strings';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -119,6 +120,15 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		}
 	}
 
+	stop(): void {
+		if (this.syncPreviewResultPromise) {
+			this.syncPreviewResultPromise.cancel();
+			this.syncPreviewResultPromise = null;
+		}
+		this.fileService.del(this.environmentService.settingsSyncPreviewResource);
+		this.setStatus(SyncStatus.Idle);
+	}
+
 	private async continueSync(): Promise<boolean> {
 		if (this.status !== SyncStatus.HasConflicts) {
 			return false;
@@ -168,12 +178,12 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 
 	private getPreview(): Promise<ISyncPreviewResult> {
 		if (!this.syncPreviewResultPromise) {
-			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview());
+			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(token));
 		}
 		return this.syncPreviewResultPromise;
 	}
 
-	private async generatePreview(): Promise<ISyncPreviewResult> {
+	private async generatePreview(token: CancellationToken): Promise<ISyncPreviewResult> {
 		const lastSyncData = await this.getLastSyncUserData();
 		const remoteUserData = await this.userDataSyncStoreService.read(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY, lastSyncData);
 		const remoteContent: string | null = remoteUserData.content;
@@ -182,6 +192,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		let hasLocalChanged: boolean = false;
 		let hasRemoteChanged: boolean = false;
 		let hasConflicts: boolean = false;
+		let previewContent = null;
 
 		if (remoteContent) {
 			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
@@ -196,18 +207,20 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 					hasLocalChanged = result.mergeContent !== localContent;
 					hasRemoteChanged = result.mergeContent !== remoteContent;
 					hasConflicts = result.hasConflicts;
-					await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(result.mergeContent));
+					previewContent = result.mergeContent;
 				}
 			}
-			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 		}
 
 		// First time sync to remote
-		if (fileContent) {
+		else if (fileContent) {
 			this.logService.trace('Settings Sync: Remote contents does not exist. So sync with settings file.');
 			hasRemoteChanged = true;
-			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(fileContent.value.toString()));
-			return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
+			previewContent = fileContent.value.toString();
+		}
+
+		if (previewContent && !token.isCancellationRequested) {
+			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(previewContent));
 		}
 
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };

@@ -96,6 +96,8 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		return true;
 	}
 
+	stop(): void { }
+
 	async getRemoteExtensions(): Promise<ISyncExtension[]> {
 		const remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, null);
 		return remoteData.content ? JSON.parse(remoteData.content) : [];

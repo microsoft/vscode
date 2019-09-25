@@ -57,6 +57,15 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return true;
 	}
 
+	stop(): void {
+		if (!this.userDataSyncStoreService.enabled) {
+			throw new Error('Not enabled');
+		}
+		for (const synchroniser of this.synchronisers) {
+			synchroniser.stop();
+		}
+	}
+
 	getRemoteExtensions(): Promise<ISyncExtension[]> {
 		return this.extensionsSynchroniser.getRemoteExtensions();
 	}
@@ -112,7 +121,13 @@ export class UserDataAutoSync extends Disposable {
 		super();
 		if (userDataSyncStoreService.enabled) {
 			this.sync(true);
-			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => this.sync(true)));
+			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => {
+				if (this.isSyncEnabled()) {
+					this.sync(true);
+				} else {
+					this.userDataSyncService.stop();
+				}
+			}));
 
 			// Sync immediately if there is a local change.
 			this._register(Event.debounce(this.userDataSyncService.onDidChangeLocal, () => undefined, 500)(() => this.sync(false)));
