@@ -540,36 +540,37 @@ export class DiagnosticsService implements IDiagnosticsService {
 					type WorkspaceStatsClassification = {
 						'workspace.id': { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 						rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						configTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-						launchConfigs: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 					};
 					type WorkspaceStatsEvent = {
 						'workspace.id': string | undefined;
 						rendererSessionId: string;
-						configTypes: WorkspaceStatItem[];
-						launchConfigs: WorkspaceStatItem[];
 					};
 					this.telemetryService.publicLog2<WorkspaceStatsEvent, WorkspaceStatsClassification>('workspace.stats', {
 						'workspace.id': workspace.telemetryId,
-						rendererSessionId: workspace.rendererSessionId,
-						configTypes: stats.configFiles,
-						launchConfigs: stats.launchConfigFiles
+						rendererSessionId: workspace.rendererSessionId
 					});
-					stats.fileTypes.forEach(e => {
-						type WorkspaceStatsFileClassification = {
-							rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-							fileType: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-							fileCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-						};
-						type WorkspaceStatsFileEvent = {
-							rendererSessionId: string;
-							fileType: string;
-							fileCount: number;
-						};
-						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.file', {
-							rendererSessionId: workspace.rendererSessionId,
-							fileType: e.name,
-							fileCount: e.count
+					type WorkspaceStatsFileClassification = {
+						rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+						name: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					};
+					type WorkspaceStatsFileEvent = {
+						rendererSessionId: string;
+						name: string;
+						count: number;
+					};
+					const eventMapping = {
+						'workspace.stats.file': stats.fileTypes,
+						'workspace.stats.launchConfigFile': stats.launchConfigFiles,
+						'workspace.stats.configFile': stats.configFiles
+					};
+					Object.keys(eventMapping).forEach((eventName: 'workspace.stats.file' | 'workspace.stats.launchConfigFile' | 'workspace.stats.configFile') => {
+						eventMapping[eventName].forEach(e => {
+							this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>(eventName, {
+								rendererSessionId: workspace.rendererSessionId,
+								name: e.name,
+								count: e.count
+							});
 						});
 					});
 				}).catch(_ => {
