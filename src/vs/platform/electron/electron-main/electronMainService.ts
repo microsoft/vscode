@@ -6,11 +6,13 @@
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { OpenContext, INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { AddContextToFunctions } from 'vs/platform/ipc/node/simpleIpcProxy';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { URI } from 'vs/base/common/uri';
 
 export class ElectronMainService implements AddContextToFunctions<IElectronService, number> {
 
@@ -18,7 +20,8 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 	}
 
@@ -30,6 +33,39 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 
 	async openEmptyWindow(windowId: number, options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> {
 		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
+	}
+
+	async openInWindow(windowId: number, toOpen: IWindowOpenable[], options: IOpenInWindowOptions = Object.create(null)): Promise<void> {
+		if (toOpen.length > 0) {
+
+			// Revive URIs
+			toOpen.forEach(openable => {
+				if (isWorkspaceToOpen(openable)) {
+					openable.workspaceUri = URI.revive(openable.workspaceUri);
+				} else if (isFolderToOpen(openable)) {
+					openable.folderUri = URI.revive(openable.folderUri);
+				} else {
+					openable.fileUri = URI.revive(openable.fileUri);
+				}
+			});
+
+			options.waitMarkerFileURI = options.waitMarkerFileURI && URI.revive(options.waitMarkerFileURI);
+
+			// Open via Windows Service
+			this.windowsMainService.open({
+				context: OpenContext.API,
+				contextWindowId: windowId,
+				urisToOpen: toOpen,
+				cli: options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
+				forceNewWindow: options.forceNewWindow,
+				forceReuseWindow: options.forceReuseWindow,
+				diffMode: options.diffMode,
+				addMode: options.addMode,
+				gotoLineMode: options.gotoLineMode,
+				noRecentEntry: options.noRecentEntry,
+				waitMarkerFileURI: options.waitMarkerFileURI
+			});
+		}
 	}
 
 	async toggleFullScreen(windowId: number): Promise<void> {

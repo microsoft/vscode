@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWindowService, IWindowsService, IOpenSettings, IURIToOpen, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -20,7 +19,6 @@ export class WindowService extends Disposable implements IWindowService {
 	_serviceBrand: undefined;
 
 	private _windowId: number;
-	private remoteAuthority: string | undefined;
 
 	private _hasFocus: boolean;
 	get hasFocus(): boolean { return this._hasFocus; }
@@ -28,12 +26,10 @@ export class WindowService extends Disposable implements IWindowService {
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWindowsService private readonly windowsService: IWindowsService,
-		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
 		this._windowId = environmentService.configuration.windowId;
-		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 
 		const onThisWindowFocus = Event.map(Event.filter(windowsService.onWindowFocus, id => id === this._windowId), _ => true);
 		const onThisWindowBlur = Event.map(Event.filter(windowsService.onWindowBlur, id => id === this._windowId), _ => false);
@@ -51,14 +47,6 @@ export class WindowService extends Disposable implements IWindowService {
 		return this._windowId;
 	}
 
-	openWindow(uris: IURIToOpen[], options: IOpenSettings = {}): Promise<void> {
-		if (!!this.remoteAuthority) {
-			uris.forEach(u => u.label = u.label || this.getRecentLabel(u));
-		}
-
-		return this.windowsService.openWindow(this.windowId, uris, options);
-	}
-
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return this.windowsService.getRecentlyOpened(this.windowId);
 	}
@@ -73,16 +61,6 @@ export class WindowService extends Disposable implements IWindowService {
 
 	isFocused(): Promise<boolean> {
 		return this.windowsService.isFocused(this.windowId);
-	}
-
-	private getRecentLabel(u: IURIToOpen): string {
-		if (isFolderToOpen(u)) {
-			return this.labelService.getWorkspaceLabel(u.folderUri, { verbose: true });
-		} else if (isWorkspaceToOpen(u)) {
-			return this.labelService.getWorkspaceLabel({ id: '', configPath: u.workspaceUri }, { verbose: true });
-		} else {
-			return this.labelService.getUriLabel(u.fileUri);
-		}
 	}
 }
 

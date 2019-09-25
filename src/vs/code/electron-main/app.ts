@@ -6,7 +6,7 @@
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService, OpenContext, ActiveWindowManager, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, ActiveWindowManager, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { LegacyWindowsMainService } from 'vs/platform/windows/electron-main/legacyWindowsMainService';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -213,14 +213,14 @@ export class CodeApplication extends Disposable {
 			});
 		});
 
-		let macOpenFileURIs: IURIToOpen[] = [];
+		let macOpenFileURIs: IWindowOpenable[] = [];
 		let runningTimeout: NodeJS.Timeout | null = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
-			macOpenFileURIs.push(this.getURIToOpenFromPathSync(path));
+			macOpenFileURIs.push(this.getWindowOpenableFromPathSync(path));
 
 			// Clear previous handler if any
 			if (runningTimeout !== null) {
@@ -649,7 +649,7 @@ export class CodeApplication extends Disposable {
 			return windowsMainService.open({
 				context: OpenContext.DOCK,
 				cli: args,
-				urisToOpen: macOpenFiles.map(file => this.getURIToOpenFromPathSync(file)),
+				urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
 				noRecentEntry,
 				waitMarkerFileURI,
 				gotoLineMode: false,
@@ -670,7 +670,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private getURIToOpenFromPathSync(path: string): IURIToOpen {
+	private getWindowOpenableFromPathSync(path: string): IWindowOpenable {
 		try {
 			const fileStat = statSync(path);
 			if (fileStat.isDirectory()) {

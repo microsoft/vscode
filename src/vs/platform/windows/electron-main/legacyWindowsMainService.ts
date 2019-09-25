@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { IWindowsService, OpenContext, IOpenSettings, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { app, MessageBoxReturnValue, SaveDialogReturnValue, OpenDialogReturnValue, BrowserWindow, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron';
 import { Event } from 'vs/base/common/event';
@@ -102,27 +102,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		return this.withWindow(windowId, codeWindow => codeWindow.win.isFocused(), () => false)!;
 	}
 
-	async openWindow(windowId: number, urisToOpen: IURIToOpen[], options: IOpenSettings): Promise<void> {
-		this.logService.trace('windowsService#openWindow');
-		if (!urisToOpen || !urisToOpen.length) {
-			return undefined;
-		}
-
-		this.windowsMainService.open({
-			context: OpenContext.API,
-			contextWindowId: windowId,
-			urisToOpen: urisToOpen,
-			cli: options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
-			forceNewWindow: options.forceNewWindow,
-			forceReuseWindow: options.forceReuseWindow,
-			diffMode: options.diffMode,
-			addMode: options.addMode,
-			gotoLineMode: options.gotoLineMode,
-			noRecentEntry: options.noRecentEntry,
-			waitMarkerFileURI: options.waitMarkerFileURI
-		});
-	}
-
 	async openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		this.logService.trace('windowsService#openExtensionDevelopmentHostWindow ' + JSON.stringify(args));
 
@@ -164,16 +143,16 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 
 		// Catch file URLs
 		if (uri.authority === Schemas.file && !!uri.path) {
-			this.openFileForURI({ fileUri: URI.file(uri.fsPath) }); // using fsPath on a non-file URI...
+			this.openFileForURI(URI.file(uri.fsPath)); // using fsPath on a non-file URI...
 			return true;
 		}
 
 		return false;
 	}
 
-	private openFileForURI(uri: IURIToOpen): void {
+	private openFileForURI(uri: URI): void {
 		const cli = assign(Object.create(null), this.environmentService.args);
-		const urisToOpen = [uri];
+		const urisToOpen = [{ fileUri: uri }];
 
 		this.windowsMainService.open({ context: OpenContext.API, cli, urisToOpen, gotoLineMode: true });
 	}

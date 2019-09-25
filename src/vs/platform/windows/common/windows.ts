@@ -89,14 +89,13 @@ export interface IWindowsService {
 	isFocused(windowId: number): Promise<boolean>;
 
 	// Global methods
-	openWindow(windowId: number, uris: IURIToOpen[], options: IOpenSettings): Promise<void>;
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getActiveWindowId(): Promise<number | undefined>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
 
-export interface IOpenSettings {
+export interface IOpenInWindowOptions {
 	forceNewWindow?: boolean;
 	forceReuseWindow?: boolean;
 	diffMode?: boolean;
@@ -107,35 +106,35 @@ export interface IOpenSettings {
 	args?: ParsedArgs;
 }
 
-export type IURIToOpen = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
+export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 
-export interface IWorkspaceToOpen {
+export interface IBaseWindowOpenable {
+	label?: string;
+}
+
+export interface IWorkspaceToOpen extends IBaseWindowOpenable {
 	workspaceUri: URI;
-	label?: string;
 }
 
-export interface IFolderToOpen {
+export interface IFolderToOpen extends IBaseWindowOpenable {
 	folderUri: URI;
-	label?: string;
 }
 
-export interface IFileToOpen {
+export interface IFileToOpen extends IBaseWindowOpenable {
 	fileUri: URI;
-	label?: string;
 }
 
-export function isWorkspaceToOpen(uriToOpen: IURIToOpen): uriToOpen is IWorkspaceToOpen {
-	return !!(uriToOpen as IWorkspaceToOpen)['workspaceUri'];
+export function isWorkspaceToOpen(uriToOpen: IWindowOpenable): uriToOpen is IWorkspaceToOpen {
+	return !!(uriToOpen as IWorkspaceToOpen).workspaceUri;
 }
 
-export function isFolderToOpen(uriToOpen: IURIToOpen): uriToOpen is IFolderToOpen {
-	return !!(uriToOpen as IFolderToOpen)['folderUri'];
+export function isFolderToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFolderToOpen {
+	return !!(uriToOpen as IFolderToOpen).folderUri;
 }
 
-export function isFileToOpen(uriToOpen: IURIToOpen): uriToOpen is IFileToOpen {
-	return !!(uriToOpen as IFileToOpen)['fileUri'];
+export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOpen {
+	return !!(uriToOpen as IFileToOpen).fileUri;
 }
-
 
 export interface IWindowService {
 
@@ -151,7 +150,6 @@ export interface IWindowService {
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
-	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
 	isFocused(): Promise<boolean>;
 }
 

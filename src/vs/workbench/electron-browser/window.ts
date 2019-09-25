@@ -60,6 +60,7 @@ import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -691,7 +692,8 @@ class NativeMenubarControl extends MenubarControl {
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IMenubarService private readonly menubarService: IMenubarService
+		@IMenubarService private readonly menubarService: IMenubarService,
+		@IHostService hostService: IHostService
 	) {
 		super(
 			menuService,
@@ -706,7 +708,9 @@ class NativeMenubarControl extends MenubarControl {
 			notificationService,
 			preferencesService,
 			environmentService,
-			accessibilityService);
+			accessibilityService,
+			hostService
+		);
 
 		if (isMacintosh) {
 			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));

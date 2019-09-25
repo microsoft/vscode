@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -34,6 +34,7 @@ import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { isFullscreen } from 'vs/base/browser/browser';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export abstract class MenubarControl extends Disposable {
 
@@ -87,7 +88,8 @@ export abstract class MenubarControl extends Disposable {
 		protected readonly notificationService: INotificationService,
 		protected readonly preferencesService: IPreferencesService,
 		protected readonly environmentService: IEnvironmentService,
-		protected readonly accessibilityService: IAccessibilityService
+		protected readonly accessibilityService: IAccessibilityService,
+		private readonly hostService: IHostService
 	) {
 
 		super();
@@ -191,29 +193,29 @@ export abstract class MenubarControl extends Disposable {
 		let label: string;
 		let uri: URI;
 		let commandId: string;
-		let uriToOpen: IURIToOpen;
+		let openable: IWindowOpenable;
 
 		if (isRecentFolder(recent)) {
 			uri = recent.folderUri;
 			label = recent.label || this.labelService.getWorkspaceLabel(uri, { verbose: true });
 			commandId = 'openRecentFolder';
-			uriToOpen = { folderUri: uri };
+			openable = { folderUri: uri };
 		} else if (isRecentWorkspace(recent)) {
 			uri = recent.workspace.configPath;
 			label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
 			commandId = 'openRecentWorkspace';
-			uriToOpen = { workspaceUri: uri };
+			openable = { workspaceUri: uri };
 		} else {
 			uri = recent.fileUri;
 			label = recent.label || this.labelService.getUriLabel(uri);
 			commandId = 'openRecentFile';
-			uriToOpen = { fileUri: uri };
+			openable = { fileUri: uri };
 		}
 
 		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, (event) => {
 			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 
-			return this.windowService.openWindow([uriToOpen], {
+			return this.hostService.openInWindow([openable], {
 				forceNewWindow: openInNewWindow
 			});
 		});
@@ -273,7 +275,8 @@ export class CustomMenubarControl extends MenubarControl {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IHostService hostService: IHostService
 	) {
 
 		super(
@@ -289,7 +292,9 @@ export class CustomMenubarControl extends MenubarControl {
 			notificationService,
 			preferencesService,
 			environmentService,
-			accessibilityService);
+			accessibilityService,
+			hostService
+		);
 
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
 		this._onFocusStateChange = this._register(new Emitter<boolean>());

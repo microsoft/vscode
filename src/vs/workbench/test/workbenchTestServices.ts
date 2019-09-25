@@ -35,7 +35,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, MenuBarVisibility, IURIToOpen, IOpenSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, MenuBarVisibility, IWindowConfiguration, IWindowOpenable, IOpenInWindowOptions } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -1206,10 +1206,6 @@ export class TestWindowService implements IWindowService {
 	removeFromRecentlyOpened(_paths: URI[]): Promise<void> {
 		return Promise.resolve();
 	}
-
-	openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
-		return Promise.resolve();
-	}
 }
 
 export class TestLifecycleService implements ILifecycleService {
@@ -1283,11 +1279,6 @@ export class TestWindowsService implements IWindowsService {
 			workspaces: [],
 			files: []
 		});
-	}
-
-	// Global methods
-	openWindow(_windowId: number, _uris: IURIToOpen[], _options: IOpenSettings): Promise<void> {
-		return Promise.resolve();
 	}
 
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
@@ -1396,6 +1387,7 @@ export class TestHostService implements IHostService {
 	async focus(): Promise<void> { }
 
 	async openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> { }
+	async openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }
 }

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWindowOpenable, IOpenInWindowOptions } from 'vs/platform/windows/common/windows';
 
 export const IHostService = createDecorator<IHostService>('hostService');
 
@@ -17,6 +18,11 @@ export interface IHostService {
 	 * The number of windows that belong to the current client session.
 	 */
 	readonly windowCount: Promise<number>;
+
+	/**
+	 * Opens the provided array of openables in a window with the provided options.
+	 */
+	openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void>;
 
 	/**
 	 * Opens an empty window. The optional parameter allows to define if

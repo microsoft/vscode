@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IWindowService, IURIToOpen, FileFilter } from 'vs/platform/windows/common/windows';
+import { FileFilter, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -20,13 +20,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IFileService } from 'vs/platform/files/common/files';
 import { isWeb } from 'vs/base/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class AbstractFileDialogService {
 
 	_serviceBrand: undefined;
 
 	constructor(
-		@IWindowService protected readonly windowService: IWindowService,
+		@IHostService protected readonly hostService: IHostService,
 		@IWorkspaceContextService protected readonly contextService: IWorkspaceContextService,
 		@IHistoryService protected readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
@@ -97,9 +98,9 @@ export class AbstractFileDialogService {
 		if (uri) {
 			const stat = await this.fileService.resolve(uri);
 
-			const toOpen: IURIToOpen = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
+			const toOpen: IWindowOpenable = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
-				return this.windowService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
+				return this.hostService.openInWindow([toOpen], { forceNewWindow: options.forceNewWindow });
 			} else {
 				return this.openerService.open(uri);
 			}
@@ -113,7 +114,7 @@ export class AbstractFileDialogService {
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
 			if (options.forceNewWindow || preferNewWindow) {
-				return this.windowService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
+				return this.hostService.openInWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
 			} else {
 				return this.openerService.open(uri);
 			}
@@ -126,7 +127,7 @@ export class AbstractFileDialogService {
 
 		const uri = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
-			return this.windowService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow });
+			return this.hostService.openInWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow });
 		}
 	}
 
@@ -137,7 +138,7 @@ export class AbstractFileDialogService {
 
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems });
 		if (uri) {
-			return this.windowService.openWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow });
+			return this.hostService.openInWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow });
 		}
 	}
 

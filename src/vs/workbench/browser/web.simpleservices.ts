@@ -10,15 +10,11 @@ import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWindowService, IURIToOpen, IWindowsService, IOpenSettings, IWindowSettings } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
-import { pathsToEditors } from 'vs/workbench/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 
 //#region Window
@@ -37,9 +33,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
@@ -133,44 +126,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 	private async saveRecentlyOpened(data: IRecentlyOpened): Promise<void> {
 		return this.storageService.store(SimpleWindowService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL);
 	}
-
-	async openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
-		const { openFolderInNewWindow } = this.shouldOpenNewWindow(_options);
-		for (let i = 0; i < _uris.length; i++) {
-			const uri = _uris[i];
-			if ('folderUri' in uri) {
-				const newAddress = `${document.location.origin}${document.location.pathname}?folder=${uri.folderUri.path}`;
-				if (openFolderInNewWindow) {
-					window.open(newAddress);
-				} else {
-					window.location.href = newAddress;
-				}
-			}
-			if ('workspaceUri' in uri) {
-				const newAddress = `${document.location.origin}${document.location.pathname}?workspace=${uri.workspaceUri.path}`;
-				if (openFolderInNewWindow) {
-					window.open(newAddress);
-				} else {
-					window.location.href = newAddress;
-				}
-			}
-			if ('fileUri' in uri) {
-				const inputs: IResourceEditor[] = await pathsToEditors([uri], this.fileService);
-				this.editorService.openEditors(inputs);
-			}
-		}
-		return Promise.resolve();
-	}
-
-	private shouldOpenNewWindow(_options: IOpenSettings = {}): { openFolderInNewWindow: boolean } {
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
-		let openFolderInNewWindow = !!_options.forceNewWindow && !_options.forceReuseWindow;
-		if (!_options.forceNewWindow && !_options.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
-			openFolderInNewWindow = (openFolderInNewWindowConfig === 'on');
-		}
-		return { openFolderInNewWindow };
-	}
 }
 
 registerSingleton(IWindowService, SimpleWindowService);
@@ -213,10 +168,6 @@ export class SimpleWindowsService implements IWindowsService {
 	}
 
 	// Global methods
-	openWindow(_windowId: number, _uris: IURIToOpen[], _options: IOpenSettings): Promise<void> {
-		return Promise.resolve();
-	}
-
 	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
 		return Promise.resolve([]);
 	}

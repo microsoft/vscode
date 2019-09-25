@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowService, OpenDialogOptions, SaveDialogOptions, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { OpenDialogOptions, SaveDialogOptions, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -23,7 +24,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	_serviceBrand: undefined;
 
 	constructor(
-		@IWindowService windowService: IWindowService,
+		@IHostService hostService: IHostService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IHistoryService historyService: IHistoryService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -32,7 +33,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IFileService fileService: IFileService,
 		@IOpenerService openerService: IOpenerService,
 		@IElectronService private readonly electronService: IElectronService
-	) { super(windowService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService); }
+	) { super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService); }
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
 		return {

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IWindowService, IURIToOpen, IOpenSettings, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenInWindowOptions, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -78,23 +78,23 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
-export const openWindowCommand = (accessor: ServicesAccessor, urisToOpen: IURIToOpen[], options?: IOpenSettings) => {
-	if (Array.isArray(urisToOpen)) {
-		const windowService = accessor.get(IWindowService);
+export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenInWindowOptions) => {
+	if (Array.isArray(toOpen)) {
+		const hostService = accessor.get(IHostService);
 		const environmentService = accessor.get(IEnvironmentService);
 
 		// rewrite untitled: workspace URIs to the absolute path on disk
-		urisToOpen = urisToOpen.map(uriToOpen => {
-			if (isWorkspaceToOpen(uriToOpen) && uriToOpen.workspaceUri.scheme === Schemas.untitled) {
+		toOpen = toOpen.map(openable => {
+			if (isWorkspaceToOpen(openable) && openable.workspaceUri.scheme === Schemas.untitled) {
 				return {
-					workspaceUri: joinPath(environmentService.untitledWorkspacesHome, uriToOpen.workspaceUri.path, UNTITLED_WORKSPACE_NAME)
+					workspaceUri: joinPath(environmentService.untitledWorkspacesHome, openable.workspaceUri.path, UNTITLED_WORKSPACE_NAME)
 				};
 			}
 
-			return uriToOpen;
+			return openable;
 		});
 
-		windowService.openWindow(urisToOpen, options);
+		hostService.openInWindow(toOpen, options);
 	}
 };
 

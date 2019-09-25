@@ -18,7 +18,7 @@ import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, IURIToOpen, isFileToOpen, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, IPathsToWaitFor, IEnterWorkspaceResult, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/code/node/windowsFinder';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
@@ -1018,13 +1018,14 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 		return undefined;
 	}
 
-	private parseUri(uriToOpen: IURIToOpen, options: IPathParseOptions = {}): IPathToOpen | undefined {
-		if (!uriToOpen) {
+	private parseUri(toOpen: IWindowOpenable, options: IPathParseOptions = {}): IPathToOpen | undefined {
+		if (!toOpen) {
 			return undefined;
 		}
-		let uri = resourceFromURIToOpen(uriToOpen);
+
+		let uri = resourceFromURIToOpen(toOpen);
 		if (uri.scheme === Schemas.file) {
-			return this.parsePath(uri.fsPath, options, isFileToOpen(uriToOpen));
+			return this.parsePath(uri.fsPath, options, isFileToOpen(toOpen));
 		}
 
 		// open remote if either specified in the cli or if it's a remotehost URI
@@ -1038,7 +1039,8 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 			uri = removeTrailingPathSeparator(uri);
 		}
 
-		if (isFileToOpen(uriToOpen)) {
+		// File
+		if (isFileToOpen(toOpen)) {
 			if (options.gotoLineMode) {
 				const parsedPath = parseLineAndColumnAware(uri.path);
 				return {
@@ -1052,12 +1054,17 @@ export class WindowsManager extends Disposable implements IWindowsMainService {
 				fileUri: uri,
 				remoteAuthority
 			};
-		} else if (isWorkspaceToOpen(uriToOpen)) {
+		}
+
+		// Workspace
+		else if (isWorkspaceToOpen(toOpen)) {
 			return {
 				workspace: getWorkspaceIdentifier(uri),
 				remoteAuthority
 			};
 		}
+
+		// Folder
 		return {
 			folderUri: uri,
 			remoteAuthority
@@ -2098,14 +2105,14 @@ class WorkspacesManager {
 	}
 }
 
-function resourceFromURIToOpen(u: IURIToOpen): URI {
-	if (isWorkspaceToOpen(u)) {
-		return u.workspaceUri;
+function resourceFromURIToOpen(openable: IWindowOpenable): URI {
+	if (isWorkspaceToOpen(openable)) {
+		return openable.workspaceUri;
 	}
 
-	if (isFolderToOpen(u)) {
-		return u.folderUri;
+	if (isFolderToOpen(openable)) {
+		return openable.folderUri;
 	}
 
-	return u.fileUri;
+	return openable.fileUri;
 }
