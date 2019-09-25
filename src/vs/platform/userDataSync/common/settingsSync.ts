@@ -15,7 +15,6 @@ import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
-import { IStringDictionary } from 'vs/base/common/collections';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface ISyncPreviewResult {
@@ -210,8 +209,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 	}
 
-	private getIgnoredSettings(): IStringDictionary<boolean> {
-		return this.configurationService.getValue<IStringDictionary<boolean>>('userConfiguration.ignoreSettings');
+	private getIgnoredSettings(): string[] {
+		return this.configurationService.getValue<string[]>('userConfiguration.ignoreSettings');
 	}
 
 	private async getLastSyncUserData(): Promise<IUserData | null> {

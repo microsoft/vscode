@@ -7,51 +7,62 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IStringDictionary } from 'vs/base/common/collections';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, allSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-export function registerConfiguration() {
-	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-		.registerConfiguration({
-			id: 'userConfiguration',
-			order: 30,
-			title: localize('userConfiguration', "User Configuration"),
-			type: 'object',
-			properties: {
-				'userConfiguration.enableSync': {
-					type: 'boolean',
-					description: localize('userConfiguration.enableSync', "When enabled, synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
-					default: true,
-					scope: ConfigurationScope.APPLICATION
-				},
-				'userConfiguration.syncExtensions': {
-					type: 'boolean',
-					description: localize('userConfiguration.syncExtensions', "When enabled extensions are synchronised while synchronising user configuration."),
-					default: true,
-					scope: ConfigurationScope.APPLICATION,
-				},
-				'userConfiguration.ignoreSettings': {
-					'type': 'object',
-					description: localize('userConfiguration.ignoreSettings', "Configure settings to be ignored while syncing"),
-					'default': {
-						'userConfiguration.enableSync': true,
-						'userConfiguration.syncExtensions': true,
-						'userConfiguration.ignoreSettings': true
-					},
-					'scope': ConfigurationScope.APPLICATION,
-					'additionalProperties': {
-						'anyOf': [
-							{
-								'type': 'boolean',
-								'description': localize('ignoredSetting', "Id of the stting to be ignored. Set to true or false to enable or disable."),
-							}
-						]
-					}
-				}
+export function registerConfiguration(): IDisposable {
+	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	configurationRegistry.registerConfiguration({
+		id: 'userConfiguration',
+		order: 30,
+		title: localize('userConfiguration', "User Configuration"),
+		type: 'object',
+		properties: {
+			'userConfiguration.enableSync': {
+				type: 'boolean',
+				description: localize('userConfiguration.enableSync', "When enabled, synchronises User Configuration: Settings, Keybindings, Extensions & Snippets."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION
+			},
+			'userConfiguration.syncExtensions': {
+				type: 'boolean',
+				description: localize('userConfiguration.syncExtensions', "When enabled extensions are synchronised while synchronising user configuration."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'userConfiguration.ignoreSettings': {
+				'type': 'array',
+				description: localize('userConfiguration.ignoreSettings', "Configure settings to be ignored while syncing"),
+				'default': [
+					'userConfiguration.enableSync',
+					'userConfiguration.syncExtensions',
+					'userConfiguration.ignoreSettings'
+				],
+				'scope': ConfigurationScope.APPLICATION,
+				$ref: ignoredSettingsSchemaId,
+				additionalProperties: true,
+				allowTrailingCommas: true,
+				allowComments: true,
+				uniqueItems: true
 			}
-		});
+		}
+	});
+	const registerIgnoredSettingsSchema = () => {
+		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+		const ignoredSettingsSchema: IJSONSchema = {
+			items: {
+				type: 'string',
+				enum: Object.keys(allSettings.properties)
+			}
+		};
+		jsonRegistry.registerSchema(ignoredSettingsSchemaId, ignoredSettingsSchema);
+	};
+	return configurationRegistry.onDidUpdateConfiguration(() => registerIgnoredSettingsSchema());
 }
 
 export interface IUserData {
@@ -131,9 +142,9 @@ export interface ISettingsMergeService {
 
 	_serviceBrand: undefined;
 
-	merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: IStringDictionary<boolean>): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
+	merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[]): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
 
-	computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: IStringDictionary<boolean>): Promise<string>;
+	computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: string[]): Promise<string>;
 
 }
 
