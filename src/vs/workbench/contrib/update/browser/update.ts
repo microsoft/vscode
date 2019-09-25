@@ -27,7 +27,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
@@ -123,11 +123,10 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWindowService windowService: IWindowService,
-		@IWindowsService windowsService: IWindowsService,
 		@IProductService productService: IProductService
 	) {
-		windowsService.getActiveWindowId().then(async windowId => {
-			if (windowId !== windowService.windowId) {
+		windowService.isFocused().then(async isFocused => {
+			if (!isFocused) {
 				return;
 			}
 

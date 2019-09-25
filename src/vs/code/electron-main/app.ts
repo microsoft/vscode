@@ -6,7 +6,8 @@
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService, OpenContext, ActiveWindowManager, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { ActiveWindowManager } from 'vs/platform/windows/node/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { LegacyWindowsMainService } from 'vs/platform/windows/electron-main/legacyWindowsMainService';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';

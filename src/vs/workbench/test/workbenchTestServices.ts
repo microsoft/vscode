@@ -1280,10 +1280,6 @@ export class TestWindowsService implements IWindowsService {
 			files: []
 		});
 	}
-
-	getActiveWindowId(): Promise<number | undefined> {
-		return Promise.resolve(undefined);
-	}
 }
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
