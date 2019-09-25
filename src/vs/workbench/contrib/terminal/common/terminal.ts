@@ -116,6 +116,7 @@ export interface ITerminalConfiguration {
 	windowsEnableConpty: boolean;
 	experimentalRefreshOnResume: boolean;
 	experimentalUseTitleEvent: boolean;
+	enableFileLinks: boolean;
 }
 
 export interface ITerminalConfigHelper {

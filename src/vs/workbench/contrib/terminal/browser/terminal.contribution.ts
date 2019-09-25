@@ -310,6 +310,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
 			type: 'boolean',
 			default: false
+		},
+		'terminal.integrated.enableFileLinks': {
+			description: nls.localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system."),
+			type: 'boolean',
+			default: true
 		}
 	}
 });
