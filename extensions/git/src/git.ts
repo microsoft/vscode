@@ -670,6 +670,7 @@ export enum ForcePushMode {
 }
 
 export class Repository {
+	private filters = new Set<string>();
 
 	constructor(
 		private _git: Git,
@@ -783,7 +784,7 @@ export class Repository {
 	streamShow(object: string, filter?: string): cp.ChildProcess {
 		const args = ['show', object];
 		const options: SpawnOptions = {};
-		if (filter) {
+		if (filter && this.filters.has(filter)) {
 			args.push('|', filter, 'smudge');
 			options.shell = true;
 		}
@@ -817,7 +818,11 @@ export class Repository {
 
 	async getGitFilter(path: string): Promise<string | null> {
 		const { stdout } = await this.run(['check-attr', '-z', 'filter', '--', path]);
-		return parseGitFilterAttribute(stdout);
+		const filter = parseGitFilterAttribute(stdout);
+		if (filter) {
+			this.filters.add(filter);
+		}
+		return filter;
 	}
 
 	async getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
