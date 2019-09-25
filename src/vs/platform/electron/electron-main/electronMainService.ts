@@ -56,7 +56,7 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 				context: OpenContext.API,
 				contextWindowId: windowId,
 				urisToOpen: toOpen,
-				cli: options.args ? { ...this.environmentService.args, ...options.args } : this.environmentService.args,
+				cli: this.environmentService.args,
 				forceNewWindow: options.forceNewWindow,
 				forceReuseWindow: options.forceReuseWindow,
 				diffMode: options.diffMode,
