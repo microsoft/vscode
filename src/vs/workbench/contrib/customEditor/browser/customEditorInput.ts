@@ -38,7 +38,7 @@ export class CustomFileEditorInput extends WebviewInput {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
-		super(id, viewType, '', undefined, webview);
+		super(id, viewType, '', webview);
 		this._editorResource = resource;
 	}
 

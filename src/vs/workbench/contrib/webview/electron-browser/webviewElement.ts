@@ -92,7 +92,7 @@ class WebviewSession extends Disposable {
 class WebviewProtocolProvider extends Disposable {
 	constructor(
 		webview: WebviewTag,
-		private readonly _extensionLocation: URI | undefined,
+		private readonly _getExtensionLocation: () => URI | undefined,
 		private readonly _getLocalResourceRoots: () => ReadonlyArray<URI>,
 		private readonly _fileService: IFileService,
 	) {
@@ -111,7 +111,7 @@ class WebviewProtocolProvider extends Disposable {
 			return;
 		}
 
-		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._extensionLocation, () =>
+		registerFileProtocol(contents, WebviewResourceScheme, this._fileService, this._getExtensionLocation(), () =>
 			this._getLocalResourceRoots()
 		);
 	}
@@ -123,12 +123,12 @@ class WebviewPortMappingProvider extends Disposable {
 
 	constructor(
 		session: WebviewSession,
-		extensionLocation: URI | undefined,
+		getExtensionLocation: () => URI | undefined,
 		mappings: () => ReadonlyArray<modes.IWebviewPortMapping>,
 		tunnelService: ITunnelService,
 	) {
 		super();
-		this._manager = this._register(new WebviewPortMappingManager(extensionLocation, mappings, tunnelService));
+		this._manager = this._register(new WebviewPortMappingManager(getExtensionLocation, mappings, tunnelService));
 
 		session.onBeforeRequest(async details => {
 			const redirect = await this._manager.getRedirect(details.url);
@@ -233,8 +233,13 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
+	public extension: {
+		readonly location: URI;
+		readonly id?: ExtensionIdentifier;
+	} | undefined;
+
 	constructor(
-		private readonly _options: WebviewOptions,
+		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -279,13 +284,13 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 
 		this._register(new WebviewProtocolProvider(
 			this._webview,
-			this._options.extension ? this._options.extension.location : undefined,
+			() => this.extension ? this.extension.location : undefined,
 			() => (this.content.options.localResourceRoots || []),
 			fileService));
 
 		this._register(new WebviewPortMappingProvider(
 			session,
-			_options.extension ? _options.extension.location : undefined,
+			() => this.extension ? this.extension.location : undefined,
 			() => (this.content.options.portMapping || []),
 			tunnelService,
 		));
@@ -382,7 +387,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			this._send('devtools-opened');
 		}));
 
-		if (_options.enableFindWidget) {
+		if (options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 
 			this._register(addDisposableListener(this._webview, 'found-in-page', e => {
@@ -529,9 +534,9 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 		}
 		this._hasAlertedAboutMissingCsp = true;
 
-		if (this._options.extension && this._options.extension.id) {
+		if (this.extension && this.extension.id) {
 			if (this._environementService.isExtensionDevelopment) {
-				this._onMissingCsp.fire(this._options.extension.id);
+				this._onMissingCsp.fire(this.extension.id);
 			}
 
 			type TelemetryClassification = {
@@ -542,7 +547,7 @@ export class ElectronWebviewBasedWebview extends Disposable implements Webview, 
 			};
 
 			this._telemetryService.publicLog2<TelemetryData, TelemetryClassification>('webviewMissingCsp', {
-				extension: this._options.extension.id.value
+				extension: this.extension.id.value
 			});
 		}
 	}

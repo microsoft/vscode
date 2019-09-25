@@ -8,7 +8,6 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { startsWith } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -171,6 +170,11 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	public $setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void {
 		const webview = this.getWebviewEditorInput(handle);
 		webview.webview.contentOptions = reviveWebviewOptions(options as any /*todo@mat */);
+	}
+
+	public $setExtension(handle: WebviewPanelHandle, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void {
+		const webview = this.getWebviewEditorInput(handle);
+		webview.webview.extension = { id: extensionId, location: URI.revive(extensionLocation) };
 	}
 
 	public $reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void {
