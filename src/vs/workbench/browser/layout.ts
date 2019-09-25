@@ -571,7 +571,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.TITLEBAR_PART:
 				if (getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
 					return false;
-				} else if (!this.state.fullscreen) {
+				} else if (!this.state.fullscreen && !isWeb) {
 					return true;
 				} else if (isMacintosh && isNative) {
 					return false;

@@ -26,6 +26,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'getConflictsSource': return Promise.resolve(this.service.conflictsSource);
 			case 'getRemoteExtensions': return this.service.getRemoteExtensions();
 			case 'removeExtension': return this.service.removeExtension(args[0]);
+			case 'stop': this.service.stop(); return Promise.resolve();
 		}
 		throw new Error('Invalid call');
 	}

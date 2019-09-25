@@ -91,6 +91,12 @@ interface IWorkbenchConstructionOptions {
 	 */
 	updateProvider?: IUpdateProvider;
 
+
+	/**
+	 * Experimental: Support adding additional properties to telemetry.
+	 */
+	resolveCommonTelemetryProperties?: () => { [key: string]: any };
+
 	/**
 	 * Experimental: Resolves an external uri before it is opened.
 	 */

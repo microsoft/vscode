@@ -105,6 +105,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.countBadge', "Controls the Source Control count badge."),
 			default: 'all'
+		},
+		'scm.defaultViewMode': {
+			type: 'string',
+			enum: ['tree', 'list'],
+			enumDescriptions: [
+				localize('scm.defaultViewMode.tree', "Show the repository changes as a tree."),
+				localize('scm.defaultViewMode.list', "Show the repository changes as a list.")
+			],
+			description: localize('scm.defaultViewMode', "Controls the default Source Control repository view mode."),
+			default: 'tree'
 		}
 	}
 });
