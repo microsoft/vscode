@@ -164,16 +164,18 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportProxyStats();
 
 		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
-		diagnosticsChannel.call('reportWorkspaceStats', this.getWorkspaceInformation());
+		this.getWorkspaceInformation().then(stats => diagnosticsChannel.call('reportWorkspaceStats', stats));
 	}
 
-	private getWorkspaceInformation(): IWorkspaceInformation {
+	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {
 		const workspace = this.contextService.getWorkspace();
 		const state = this.contextService.getWorkbenchState();
-		const id = this.workspaceStatsService.getTelemetryWorkspaceId(workspace, state);
+		const telemetryId = this.workspaceStatsService.getTelemetryWorkspaceId(workspace, state);
+		const rendererSessionId = (await this.telemetryService.getTelemetryInfo()).sessionId;
 		return {
 			id: workspace.id,
-			telemetryId: id,
+			telemetryId,
+			rendererSessionId,
 			folders: workspace.folders,
 			configuration: workspace.configuration
 		};

@@ -539,21 +539,38 @@ export class DiagnosticsService implements IDiagnosticsService {
 				collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
 					type WorkspaceStatsClassification = {
 						'workspace.id': { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						fileTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 						configTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 						launchConfigs: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 					};
 					type WorkspaceStatsEvent = {
 						'workspace.id': string | undefined;
-						fileTypes: WorkspaceStatItem[];
+						rendererSessionId: string;
 						configTypes: WorkspaceStatItem[];
 						launchConfigs: WorkspaceStatItem[];
 					};
 					this.telemetryService.publicLog2<WorkspaceStatsEvent, WorkspaceStatsClassification>('workspace.stats', {
 						'workspace.id': workspace.telemetryId,
-						fileTypes: stats.fileTypes,
+						rendererSessionId: workspace.rendererSessionId,
 						configTypes: stats.configFiles,
 						launchConfigs: stats.launchConfigFiles
+					});
+					stats.fileTypes.forEach(e => {
+						type WorkspaceStatsFileClassification = {
+							rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+							fileType: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+							fileCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+						};
+						type WorkspaceStatsFileEvent = {
+							rendererSessionId: string;
+							fileType: string;
+							fileCount: number;
+						};
+						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.file', {
+							rendererSessionId: workspace.rendererSessionId,
+							fileType: e.name,
+							fileCount: e.count
+						});
 					});
 				}).catch(_ => {
 					// Report nothing if collecting metadata fails.
