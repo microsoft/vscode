@@ -1609,7 +1609,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 export class ShowSyncedExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.listSyncedExtensions';
-	static LABEL = localize('showSyncedExtensions', "Show My Accoount Extensions");
+	static LABEL = localize('showSyncedExtensions', "Show My Account Extensions");
 
 	constructor(
 		id: string,

@@ -58,7 +58,7 @@ import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsView
 import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { MementoObject } from 'vs/workbench/common/memento';
-import { SyncStatus, CONTEXT_SYNC_STATE } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, CONTEXT_SYNC_STATE, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
@@ -366,7 +366,8 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
@@ -400,6 +401,15 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey));
 			}
 		}, this));
+
+		let status = this.userDataSyncService.status;
+		this._register(this.userDataSyncService.onDidChangeStatus(() => {
+			const oldStatus = status;
+			status = this.userDataSyncService.status;
+			if (oldStatus === SyncStatus.Uninitialized || status === SyncStatus.Uninitialized) {
+				this.updateTitleArea();
+			}
+		}));
 	}
 
 	create(parent: HTMLElement): void {
@@ -483,7 +493,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				this.instantiationService.createInstance(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, ShowBuiltInExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
-				this.instantiationService.createInstance(ShowSyncedExtensionsAction, ShowSyncedExtensionsAction.ID, ShowSyncedExtensionsAction.LABEL),
+				...(this.userDataSyncService.status !== SyncStatus.Uninitialized ? [this.instantiationService.createInstance(ShowSyncedExtensionsAction, ShowSyncedExtensionsAction.ID, ShowSyncedExtensionsAction.LABEL)] : []),
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs'),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Sort By: Rating"), this.onSearchChange, 'rating'),
