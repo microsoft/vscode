@@ -980,7 +980,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
-		this.repl.appendToRepl(data, severity, source);
+		this.repl.appendToRepl(this, data, severity, source);
 		this._onDidChangeREPLElements.fire();
 	}
 

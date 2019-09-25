@@ -106,6 +106,13 @@ export function setup() {
 			await app.workbench.debug.waitForReplCommand('2 + 2', r => r === '4');
 		});
 
+		it('debug console link', async function () {
+			const app = this.app as Application;
+
+			await app.workbench.debug.waitForReplCommand('"./app.js:5:1"', r => r.includes('app.js'));
+			await app.workbench.debug.waitForLink();
+		});
+
 		it('stop debugging', async function () {
 			const app = this.app as Application;
 
