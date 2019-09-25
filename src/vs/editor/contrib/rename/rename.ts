@@ -254,6 +254,8 @@ class RenameController extends Disposable implements IEditorContribution {
 		if (this._activeRename) {
 			this._activeRename.operation.cancel();
 			this._activeRename = undefined;
+
+			this.cancelRenameInput();
 		}
 	}
 }
