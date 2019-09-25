@@ -1057,6 +1057,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
+		// If not maximized and hiding, unmaximize before hiding to allow caching of size
+		if (this.isPanelMaximized() && hidden) {
+			this.toggleMaximizedPanel();
+		}
+
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
 
