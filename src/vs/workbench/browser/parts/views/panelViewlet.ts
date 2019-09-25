@@ -71,7 +71,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	private readonly showActionsAlways: boolean = false;
 	private headerContainer: HTMLElement;
 	private titleContainer: HTMLElement;
-	private twistiesContainer: HTMLElement;
+	protected twistiesContainer: HTMLElement;
 
 	constructor(
 		options: IViewletPanelOptions,
