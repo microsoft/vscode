@@ -14,7 +14,6 @@ import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -95,20 +94,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 				userEnv: Object.keys(env).length > 0 ? env : undefined
 			});
 		}
-	}
-
-	async getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		this.logService.trace('windowsService#getWindows');
-
-		const windows = this.windowsMainService.getWindows();
-
-		return windows.map(window => ({
-			id: window.id,
-			workspace: window.openedWorkspace,
-			folderUri: window.openedFolderUri,
-			title: window.win.getTitle(),
-			filename: window.getRepresentedFilename()
-		}));
 	}
 
 	async getActiveWindowId(): Promise<number | undefined> {

@@ -6,13 +6,12 @@
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { OpenContext, INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions, isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
+import { OpenContext, INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions, IOpenedWindow, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { AddContextToFunctions } from 'vs/platform/ipc/node/simpleIpcProxy';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
 
 export class ElectronMainService implements AddContextToFunctions<IElectronService, number> {
 
@@ -27,31 +26,28 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 
 	//#region Window
 
-	async windowCount(windowId: number): Promise<number> {
+	async getWindows(): Promise<IOpenedWindow[]> {
+		const windows = this.windowsMainService.getWindows();
+
+		return windows.map(window => ({
+			id: window.id,
+			workspace: window.openedWorkspace,
+			folderUri: window.openedFolderUri,
+			title: window.win.getTitle(),
+			filename: window.getRepresentedFilename()
+		}));
+	}
+
+	async getWindowCount(windowId: number): Promise<number> {
 		return this.windowsMainService.getWindowCount();
 	}
 
-	async openEmptyWindow(windowId: number, options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> {
+	async openEmptyWindow(windowId: number, options?: IOpenEmptyWindowOptions): Promise<void> {
 		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
 	}
 
 	async openInWindow(windowId: number, toOpen: IWindowOpenable[], options: IOpenInWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
-
-			// Revive URIs
-			toOpen.forEach(openable => {
-				if (isWorkspaceToOpen(openable)) {
-					openable.workspaceUri = URI.revive(openable.workspaceUri);
-				} else if (isFolderToOpen(openable)) {
-					openable.folderUri = URI.revive(openable.folderUri);
-				} else {
-					openable.fileUri = URI.revive(openable.fileUri);
-				}
-			});
-
-			options.waitMarkerFileURI = options.waitMarkerFileURI && URI.revive(options.waitMarkerFileURI);
-
-			// Open via Windows Service
 			this.windowsMainService.open({
 				context: OpenContext.API,
 				contextWindowId: windowId,
@@ -112,7 +108,11 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 		}
 	}
 
-	async focusWindow(windowId: number): Promise<void> {
+	async focusWindow(windowId: number, options?: { windowId?: number; }): Promise<void> {
+		if (options && typeof options.windowId === 'number') {
+			windowId = options.windowId;
+		}
+
 		const window = this.windowsMainService.getWindowById(windowId);
 		if (window) {
 			if (isMacintosh) {

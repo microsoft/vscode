@@ -7,7 +7,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -20,7 +20,7 @@ import { BackupFileService } from 'vs/workbench/services/backup/common/backupFil
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
 import { isLinux, isWindows, isMacintosh, isWeb } from 'vs/base/common/platform';
-import { isEqual, basename, isEqualOrParent, getComparisonKey } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent, getComparisonKey } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -28,7 +28,6 @@ import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -49,13 +48,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IWindowsService private readonly windowsService: IWindowsService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@ILifecycleService readonly lifecycleService: ILifecycleService,
-		@ILabelService readonly labelService: ILabelService,
+		@IDialogService protected readonly dialogService: IDialogService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		this.registerListeners();
@@ -319,22 +317,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
-		const windows = await this.windowsService.getWindows();
-
-		// Prevent overwriting a workspace that is currently opened in another window
-		if (windows.some(window => !!window.workspace && isEqual(window.workspace.configPath, path))) {
-			await this.dialogService.show(
-				Severity.Info,
-				nls.localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
-				[nls.localize('ok', "OK")],
-				{
-					detail: nls.localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
-				}
-			);
-
-			return false;
-		}
-
 		return true; // OK
 	}
 
@@ -461,5 +443,3 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return undefined;
 	}
 }
-
-registerSingleton(IWorkspaceEditingService, WorkspaceEditingService, true);

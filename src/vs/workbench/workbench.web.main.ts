@@ -65,6 +65,8 @@ import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';
 import { IUserDataSyncStoreService, IUserDataSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { WorkspaceEditingService } from 'vs/workbench/services/workspace/browser/workspaceEditingService';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
@@ -75,6 +77,7 @@ registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ITunnelService, NoOpTunnelService, true);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
+registerSingleton(IWorkspaceEditingService, WorkspaceEditingService, true);
 
 //#endregion
 

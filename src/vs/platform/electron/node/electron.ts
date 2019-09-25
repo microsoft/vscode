@@ -5,7 +5,7 @@
 
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions } from 'vs/platform/windows/common/windows';
+import { INativeOpenDialogOptions, IWindowOpenable, IOpenInWindowOptions, IOpenedWindow, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
@@ -15,9 +15,10 @@ export interface IElectronService {
 	_serviceBrand: undefined;
 
 	// Window
-	windowCount(): Promise<number>;
+	getWindows(): Promise<IOpenedWindow[]>;
+	getWindowCount(): Promise<number>;
 
-	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void>;
+	openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void>;
 
 	toggleFullScreen(): Promise<void>;
@@ -29,7 +30,7 @@ export interface IElectronService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 
-	focusWindow(): Promise<void>;
+	focusWindow(options?: { windowId?: number }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;

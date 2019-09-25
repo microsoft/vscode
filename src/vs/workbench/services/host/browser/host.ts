@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowOpenable, IOpenInWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenInWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 
 export const IHostService = createDecorator<IHostService>('hostService');
 
@@ -28,7 +28,7 @@ export interface IHostService {
 	 * Opens an empty window. The optional parameter allows to define if
 	 * a new window should open or the existing one change to an empty.
 	 */
-	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void>;
+	openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 
 	/**
 	 * Switch between fullscreen and normal window.

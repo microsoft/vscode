@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { toResource, IEditorCommandsContext, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IWindowOpenable, IOpenInWindowOptions, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenInWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -98,7 +98,7 @@ export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpe
 	}
 };
 
-export const newWindowCommand = (accessor: ServicesAccessor, options?: { reuse?: boolean, remoteAuthority?: string }) => {
+export const newWindowCommand = (accessor: ServicesAccessor, options?: IOpenEmptyWindowOptions) => {
 	const hostService = accessor.get(IHostService);
 	hostService.openEmptyWindow(options);
 };

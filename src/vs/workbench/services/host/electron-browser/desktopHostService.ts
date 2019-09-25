@@ -8,7 +8,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowOpenable, IOpenInWindowOptions, isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenInWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 
 export class DesktopHostService implements IHostService {
 
@@ -22,7 +22,7 @@ export class DesktopHostService implements IHostService {
 
 	//#region Window
 
-	get windowCount(): Promise<number> { return this.electronService.windowCount(); }
+	get windowCount(): Promise<number> { return this.electronService.getWindowCount(); }
 
 	openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void> {
 		if (!!this.environmentService.configuration.remoteAuthority) {
@@ -44,7 +44,7 @@ export class DesktopHostService implements IHostService {
 		return this.labelService.getUriLabel(openable.fileUri);
 	}
 
-	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> {
+	openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
 		return this.electronService.openEmptyWindow(options);
 	}
 

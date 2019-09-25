@@ -35,7 +35,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, MenuBarVisibility, IWindowConfiguration, IWindowOpenable, IOpenInWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, MenuBarVisibility, IWindowConfiguration, IWindowOpenable, IOpenInWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -1281,10 +1281,6 @@ export class TestWindowsService implements IWindowsService {
 		});
 	}
 
-	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]> {
-		throw new Error('not implemented');
-	}
-
 	getActiveWindowId(): Promise<number | undefined> {
 		return Promise.resolve(undefined);
 	}
@@ -1386,7 +1382,7 @@ export class TestHostService implements IHostService {
 
 	async focus(): Promise<void> { }
 
-	async openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> { }
+	async openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> { }
 	async openInWindow(toOpen: IWindowOpenable[], options?: IOpenInWindowOptions): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }

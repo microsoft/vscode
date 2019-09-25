@@ -8,7 +8,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IResourceEditor, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenInWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, IWindowOpenable, IOpenInWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -88,7 +88,7 @@ export class BrowserHostService implements IHostService {
 		return { openFolderInNewWindow };
 	}
 
-	async openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> {
+	async openEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
 		// TODO@Ben delegate to embedder
 		const targetHref = `${document.location.origin}${document.location.pathname}?ew=true`;
 		if (options && options.reuse) {

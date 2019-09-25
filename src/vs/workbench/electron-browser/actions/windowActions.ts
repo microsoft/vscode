@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -19,7 +19,6 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -168,14 +167,12 @@ export abstract class BaseSwitchWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private windowsService: IWindowsService,
 		private windowService: IWindowService,
 		private quickInputService: IQuickInputService,
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
 		private modeService: IModeService,
-		private electronService: IElectronService,
-		private hostService: IHostService
+		private electronService: IElectronService
 	) {
 		super(id, label);
 	}
@@ -185,7 +182,7 @@ export abstract class BaseSwitchWindow extends Action {
 	async run(): Promise<void> {
 		const currentWindowId = this.windowService.windowId;
 
-		const windows = await this.windowsService.getWindows();
+		const windows = await this.electronService.getWindows();
 		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
 		const picks = windows.map(win => {
 			const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? win.workspace.configPath : undefined;
@@ -212,7 +209,7 @@ export abstract class BaseSwitchWindow extends Action {
 		});
 
 		if (pick) {
-			this.hostService.focus();
+			this.electronService.focusWindow({ windowId: pick.payload });
 		}
 	}
 }
@@ -225,16 +222,14 @@ export class SwitchWindow extends BaseSwitchWindow {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService windowsService: IWindowsService,
 		@IWindowService windowService: IWindowService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IElectronService electronService: IElectronService,
-		@IHostService hostService: IHostService
+		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService, electronService, hostService);
+		super(id, label, windowService, quickInputService, keybindingService, modelService, modeService, electronService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -250,16 +245,14 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService windowsService: IWindowsService,
 		@IWindowService windowService: IWindowService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IElectronService electronService: IElectronService,
-		@IHostService hostService: IHostService
+		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService, electronService, hostService);
+		super(id, label, windowService, quickInputService, keybindingService, modelService, modeService, electronService);
 	}
 
 	protected isQuickNavigate(): boolean {

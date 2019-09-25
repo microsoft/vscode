@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { revive } from 'vs/base/common/marshalling';
 
 //
 // Use both `SimpleServiceProxyChannel` and `createSimpleChannelProxy`
@@ -53,9 +54,16 @@ export class SimpleServiceProxyChannel implements IServerChannel {
 		const target = this.service[command];
 		if (typeof target === 'function') {
 			if (Array.isArray(args)) {
+
+				// Deserialize context if any
 				const context = deserializeContext(args[0]);
 				if (context) {
 					args[0] = context;
+				}
+
+				// Revive: handles URIs and RegExp
+				for (let i = 0; i < args.length; i++) {
+					args[i] = revive(args[i]);
 				}
 			}
 
@@ -72,7 +80,9 @@ export function createSimpleChannelProxy<T>(channel: IChannel, context?: unknown
 	return new Proxy({}, {
 		get(_target, propKey, _receiver) {
 			if (typeof propKey === 'string') {
-				return function (...args: any[]) {
+				return async function (...args: any[]) {
+
+					// Serialize context if any
 					let methodArgs: any[];
 					if (serializedContext) {
 						methodArgs = [context, ...args];
@@ -80,7 +90,8 @@ export function createSimpleChannelProxy<T>(channel: IChannel, context?: unknown
 						methodArgs = args;
 					}
 
-					return channel.call(propKey, methodArgs);
+					// Revive: handles URIs and RegExp
+					return revive(await channel.call(propKey, methodArgs));
 				};
 			}
 

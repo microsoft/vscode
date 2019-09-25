@@ -45,12 +45,18 @@ export interface IWindowsService {
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
 	isFocused(windowId: number): Promise<boolean>;
 
-	// Global methods
-	getWindows(): Promise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getActiveWindowId(): Promise<number | undefined>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
+
+export interface IOpenedWindow {
+	id: number;
+	workspace?: IWorkspaceIdentifier;
+	folderUri?: ISingleFolderWorkspaceIdentifier;
+	title: string;
+	filename?: string;
+}
 
 export interface IOpenInWindowOptions {
 	forceNewWindow?: boolean;
@@ -60,6 +66,11 @@ export interface IOpenInWindowOptions {
 	gotoLineMode?: boolean;
 	noRecentEntry?: boolean;
 	waitMarkerFileURI?: URI;
+}
+
+export interface IOpenEmptyWindowOptions {
+	reuse?: boolean;
+	remoteAuthority?: string;
 }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
