@@ -613,6 +613,50 @@ class RenameAdapter {
 	}
 }
 
+class SemanticColoringAdapter {
+
+	// private readonly _cache = new Cache<vscode.SignatureHelp>('SignatureHelp');
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.SemanticColoringProvider,
+	) { }
+
+	provideSignatureHelp(resource: URI, token: CancellationToken): Promise<extHostProtocol.ISignatureHelpDto | undefined> {
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Position.to(position);
+		const vscodeContext = this.reviveContext(context);
+
+		return asPromise(() => this._provider.provideSignatureHelp(doc, pos, token, vscodeContext)).then(value => {
+			if (value) {
+				const id = this._cache.add([value]);
+				return { ...typeConvert.SignatureHelp.from(value), id };
+			}
+			return undefined;
+		});
+	}
+
+	private reviveContext(context: extHostProtocol.ISignatureHelpContextDto): vscode.SignatureHelpContext {
+		let activeSignatureHelp: vscode.SignatureHelp | undefined = undefined;
+		if (context.activeSignatureHelp) {
+			const revivedSignatureHelp = typeConvert.SignatureHelp.to(context.activeSignatureHelp);
+			const saved = this._cache.get(context.activeSignatureHelp.id, 0);
+			if (saved) {
+				activeSignatureHelp = saved;
+				activeSignatureHelp.activeSignature = revivedSignatureHelp.activeSignature;
+				activeSignatureHelp.activeParameter = revivedSignatureHelp.activeParameter;
+			} else {
+				activeSignatureHelp = revivedSignatureHelp;
+			}
+		}
+		return { ...context, activeSignatureHelp };
+	}
+
+	releaseSignatureHelp(id: number): any {
+		this._cache.delete(id);
+	}
+}
+
 class SuggestAdapter {
 
 	static supportsResolving(provider: vscode.CompletionItemProvider): boolean {
@@ -767,6 +811,7 @@ class SuggestAdapter {
 		return result;
 	}
 }
+
 
 class SignatureHelpAdapter {
 
@@ -1038,8 +1083,9 @@ class CallHierarchyAdapter {
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
-	| ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter | SelectionRangeAdapter | CallHierarchyAdapter;
+	| SemanticColoringAdapter | SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter
+	| ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter
+	| DeclarationAdapter | SelectionRangeAdapter | CallHierarchyAdapter;
 
 class AdapterData {
 	constructor(
@@ -1362,6 +1408,16 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	$resolveRenameLocation(handle: number, resource: URI, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position, token), undefined);
 	}
+
+	//#region semantic coloring
+
+	registerSemanticColoringProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SemanticColoringProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new SemanticColoringAdapter(this._documents, provider), extension);
+		this._proxy.$registerSemanticColoringProvider(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	//#endregion
 
 	// --- suggestion
 
