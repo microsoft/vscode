@@ -29,6 +29,11 @@ export interface IHostService {
 	 */
 	toggleFullScreen(): Promise<void>;
 
+	/**
+	 * Attempt to bring the window to the foreground and focus it.
+	 */
+	focus(): Promise<void>;
+
 	//#endregion
 
 	//#region Lifecycle

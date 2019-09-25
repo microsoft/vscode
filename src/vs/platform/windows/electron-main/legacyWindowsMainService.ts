@@ -16,7 +16,7 @@ import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
-import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
 // @deprecated this should eventually go away and be implemented by host & electron service
@@ -94,16 +94,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		this.logService.trace('windowsService#getRecentlyOpened', windowId);
 
 		return this.withWindow(windowId, codeWindow => this.historyMainService.getRecentlyOpened(codeWindow.config.workspace, codeWindow.config.folderUri, codeWindow.config.filesToOpenOrCreate), () => this.historyMainService.getRecentlyOpened())!;
-	}
-
-	async focusWindow(windowId: number): Promise<void> {
-		this.logService.trace('windowsService#focusWindow', windowId);
-
-		if (isMacintosh) {
-			return this.withWindow(windowId, codeWindow => codeWindow.win.show());
-		} else {
-			return this.withWindow(windowId, codeWindow => codeWindow.win.focus());
-		}
 	}
 
 	async isFocused(windowId: number): Promise<boolean> {

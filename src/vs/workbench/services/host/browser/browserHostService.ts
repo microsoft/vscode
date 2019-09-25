@@ -61,6 +61,10 @@ export class BrowserHostService implements IHostService {
 		}
 	}
 
+	async focus(): Promise<void> {
+		window.focus();
+	}
+
 	//#endregion
 
 	async restart(): Promise<void> {

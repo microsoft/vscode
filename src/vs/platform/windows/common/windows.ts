@@ -86,7 +86,6 @@ export interface IWindowsService {
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
-	focusWindow(windowId: number): Promise<void>;
 	isFocused(windowId: number): Promise<boolean>;
 
 	// Global methods
@@ -152,7 +151,6 @@ export interface IWindowService {
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;
-	focusWindow(): Promise<void>;
 	openWindow(uris: IURIToOpen[], options?: IOpenSettings): Promise<void>;
 	isFocused(): Promise<boolean>;
 }

@@ -56,7 +56,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(arg.map(URI.revive));
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
 			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
-			case 'focusWindow': return this.service.focusWindow(arg);
 			case 'isFocused': return this.service.isFocused(arg);
 			case 'openWindow': {
 				const urisToOpen: IURIToOpen[] = arg[1];

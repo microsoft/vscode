@@ -134,10 +134,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		return this.storageService.store(SimpleWindowService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL);
 	}
 
-	focusWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	async openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
 		const { openFolderInNewWindow } = this.shouldOpenNewWindow(_options);
 		for (let i = 0; i < _uris.length; i++) {
@@ -214,10 +210,6 @@ export class SimpleWindowsService implements IWindowsService {
 			workspaces: [],
 			files: []
 		});
-	}
-
-	focusWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
 	}
 
 	// Global methods

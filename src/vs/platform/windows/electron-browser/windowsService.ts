@@ -50,10 +50,6 @@ export class WindowsService implements IWindowsService {
 		return recentlyOpened;
 	}
 
-	focusWindow(windowId: number): Promise<void> {
-		return this.channel.call('focusWindow', windowId);
-	}
-
 	isFocused(windowId: number): Promise<boolean> {
 		return this.channel.call('isFocused', windowId);
 	}

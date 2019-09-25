@@ -76,6 +76,17 @@ export class ElectronMainService implements AddContextToFunctions<IElectronServi
 		}
 	}
 
+	async focusWindow(windowId: number): Promise<void> {
+		const window = this.windowsMainService.getWindowById(windowId);
+		if (window) {
+			if (isMacintosh) {
+				window.win.show();
+			} else {
+				window.win.focus();
+			}
+		}
+	}
+
 	//#endregion
 
 	//#region Dialog

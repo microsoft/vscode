@@ -16,14 +16,19 @@ export interface IElectronService {
 
 	// Window
 	windowCount(): Promise<number>;
+
 	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void>;
+
 	toggleFullScreen(): Promise<void>;
+
 	handleTitleDoubleClick(): Promise<void>;
 
 	isMaximized(): Promise<boolean>;
 	maximizeWindow(): Promise<void>;
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
+
+	focusWindow(): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;

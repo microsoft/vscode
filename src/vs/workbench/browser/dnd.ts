@@ -32,6 +32,7 @@ import { IRecentFile } from 'vs/platform/history/common/history';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -166,7 +167,8 @@ export class ResourcesDropHandler {
 		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IHostService private readonly hostService: IHostService
 	) {
 	}
 
@@ -177,7 +179,7 @@ export class ResourcesDropHandler {
 		}
 
 		// Make the window active to handle the drop properly within
-		await this.windowService.focusWindow();
+		await this.hostService.focus();
 
 		// Check for special things being dropped
 		const isWorkspaceOpening = await this.doHandleDrop(untitledOrFileResources);
@@ -292,7 +294,7 @@ export class ResourcesDropHandler {
 		}
 
 		// Pass focus to window
-		this.windowService.focusWindow();
+		this.hostService.focus();
 
 		// Open in separate windows if we drop workspaces or just one folder
 		if (urisToOpen.length > folderURIs.length || folderURIs.length === 1) {

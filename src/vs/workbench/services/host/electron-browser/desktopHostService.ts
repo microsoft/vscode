@@ -25,6 +25,10 @@ export class DesktopHostService implements IHostService {
 		return this.electronService.toggleFullScreen();
 	}
 
+	focus(): Promise<void> {
+		return this.electronService.focusWindow();
+	}
+
 	//#endregion
 
 	restart(): Promise<void> {

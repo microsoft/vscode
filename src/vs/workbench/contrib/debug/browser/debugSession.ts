@@ -22,7 +22,7 @@ import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspac
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
@@ -70,7 +70,7 @@ export class DebugSession implements IDebugSession {
 		options: IDebugSessionOptions | undefined,
 		@IDebugService private readonly debugService: IDebugService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -731,7 +731,7 @@ export class DebugSession implements IDebugSession {
 								}
 
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak) {
-									this.windowService.focusWindow();
+									this.hostService.focus();
 								}
 							}
 						}

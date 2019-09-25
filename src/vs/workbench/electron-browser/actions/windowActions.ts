@@ -19,6 +19,7 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -173,10 +174,10 @@ export abstract class BaseSwitchWindow extends Action {
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
 		private modeService: IModeService,
-		private electronService: IElectronService
+		private electronService: IElectronService,
+		private hostService: IHostService
 	) {
 		super(id, label);
-
 	}
 
 	protected abstract isQuickNavigate(): boolean;
@@ -211,7 +212,7 @@ export abstract class BaseSwitchWindow extends Action {
 		});
 
 		if (pick) {
-			this.windowsService.focusWindow(pick.payload);
+			this.hostService.focus();
 		}
 	}
 }
@@ -230,9 +231,10 @@ export class SwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IElectronService electronService: IElectronService
+		@IElectronService electronService: IElectronService,
+		@IHostService hostService: IHostService
 	) {
-		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService, electronService, hostService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -254,9 +256,10 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IElectronService electronService: IElectronService
+		@IElectronService electronService: IElectronService,
+		@IHostService hostService: IHostService
 	) {
-		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, windowsService, windowService, quickInputService, keybindingService, modelService, modeService, electronService, hostService);
 	}
 
 	protected isQuickNavigate(): boolean {

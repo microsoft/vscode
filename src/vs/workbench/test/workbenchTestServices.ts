@@ -1207,10 +1207,6 @@ export class TestWindowService implements IWindowService {
 		return Promise.resolve();
 	}
 
-	focusWindow(): Promise<void> {
-		return Promise.resolve();
-	}
-
 	openWindow(_uris: IURIToOpen[], _options?: IOpenSettings): Promise<void> {
 		return Promise.resolve();
 	}
@@ -1287,10 +1283,6 @@ export class TestWindowsService implements IWindowsService {
 			workspaces: [],
 			files: []
 		});
-	}
-
-	focusWindow(_windowId: number): Promise<void> {
-		return Promise.resolve();
 	}
 
 	// Global methods
@@ -1400,6 +1392,8 @@ export class TestHostService implements IHostService {
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async closeWorkspace(): Promise<void> { }
+
+	async focus(): Promise<void> { }
 
 	async openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void> { }
 
