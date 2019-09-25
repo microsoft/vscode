@@ -206,6 +206,7 @@
 	background-position: center;
 	background-repeat: no-repeat;
 	background-size: 16px;
+	cursor: pointer;
 	width: 100%;
 	height: 100%;
 }

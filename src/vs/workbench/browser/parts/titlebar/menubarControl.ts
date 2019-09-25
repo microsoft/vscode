@@ -18,7 +18,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
@@ -315,18 +315,22 @@ export class CustomMenubarControl extends MenubarControl {
 				`);
 			}
 
-			const activityBarFgColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
-			if (activityBarFgColor) {
+			const activityBarInactiveFgColor = theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND);
+			if (activityBarInactiveFgColor) {
 				collector.addRule(`
 				.monaco-workbench .menubar.compact > .menubar-menu-button {
-					color: ${activityBarFgColor};
+					color: ${activityBarInactiveFgColor};
 				}
 
 				.monaco-workbench .menubar.compact .toolbar-toggle-more {
-					background-color: ${activityBarFgColor}
+					background-color: ${activityBarInactiveFgColor}
 				}
 				`);
 
+			}
+
+			const activityBarFgColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+			if (activityBarFgColor) {
 				collector.addRule(`
 				.monaco-workbench .menubar.compact > .menubar-menu-button.open,
 				.monaco-workbench .menubar.compact > .menubar-menu-button:focus,
