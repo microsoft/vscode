@@ -29,7 +29,7 @@ class SessionFileWatcher extends Disposable {
 		this._environmentService = environmentService;
 		this._watcherRequests = new Map();
 
-		const localChangeEmitter = this._register(new Emitter<IFileChange[]>());
+		const localChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
 		this._fileWatcher = this._register(new DiskFileSystemProvider(logService, this.getWatcherOptions()));
 		this._register(localChangeEmitter.event((events) => {
 			emitter.fire(
