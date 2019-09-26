@@ -559,18 +559,25 @@ export class DiagnosticsService implements IDiagnosticsService {
 						name: string;
 						count: number;
 					};
-					const eventMapping = {
-						'workspace.stats.file': stats.fileTypes,
-						'workspace.stats.launchConfigFile': stats.launchConfigFiles,
-						'workspace.stats.configFile': stats.configFiles
-					};
-					Object.keys(eventMapping).forEach((eventName: 'workspace.stats.file' | 'workspace.stats.launchConfigFile' | 'workspace.stats.configFile') => {
-						eventMapping[eventName].forEach(e => {
-							this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>(eventName, {
-								rendererSessionId: workspace.rendererSessionId,
-								name: e.name,
-								count: e.count
-							});
+					stats.fileTypes.forEach(e => {
+						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.file', {
+							rendererSessionId: workspace.rendererSessionId,
+							name: e.name,
+							count: e.count
+						});
+					});
+					stats.launchConfigFiles.forEach(e => {
+						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.launchConfigFile', {
+							rendererSessionId: workspace.rendererSessionId,
+							name: e.name,
+							count: e.count
+						});
+					});
+					stats.configFiles.forEach(e => {
+						this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.configFiles', {
+							rendererSessionId: workspace.rendererSessionId,
+							name: e.name,
+							count: e.count
 						});
 					});
 				}).catch(_ => {
