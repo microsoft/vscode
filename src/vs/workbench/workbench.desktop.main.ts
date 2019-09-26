@@ -154,4 +154,7 @@ import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribu
 // Welcome
 import 'vs/workbench/contrib/welcome/gettingStarted/electron-browser/openWebsite.contribution';
 
+// Configuration Exporter
+import 'vs/workbench/contrib/configExporter/node/configurationExportHelper.contribution';
+
 //#endregion

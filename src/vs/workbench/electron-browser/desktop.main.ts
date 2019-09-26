@@ -44,7 +44,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
-import { DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationExportHelper';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { SignService } from 'vs/platform/sign/node/signService';
@@ -54,12 +53,13 @@ import { basename } from 'vs/base/common/resources';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 
-class CodeRendererMain extends Disposable {
+class DesktopMain extends Disposable {
 
 	private readonly environmentService: WorkbenchEnvironmentService;
 
 	constructor(configuration: IWindowConfiguration) {
 		super();
+
 		this.environmentService = new WorkbenchEnvironmentService(configuration, configuration.execPath);
 
 		this.init();
@@ -113,18 +113,15 @@ class CodeRendererMain extends Disposable {
 
 	async open(): Promise<void> {
 		const services = await this.initServices();
+
 		await domContentLoaded();
 		mark('willStartWorkbench');
 
 		// Create Workbench
 		const workbench = new Workbench(document.body, services.serviceCollection, services.logService);
 
-		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true, workbench)));
-
-		// Workbench Lifecycle
-		this._register(workbench.onShutdown(() => this.dispose()));
-		this._register(workbench.onWillShutdown(event => event.join(services.storageService.close())));
+		// Listeners
+		this.registerListeners(workbench, services.storageService);
 
 		// Startup
 		const instantiationService = workbench.startup();
@@ -137,13 +134,18 @@ class CodeRendererMain extends Disposable {
 			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor)));
 		}
 
-		// Config Exporter
-		if (this.environmentService.configuration['export-default-configuration']) {
-			instantiationService.createInstance(DefaultConfigurationExportHelper);
-		}
-
 		// Logging
 		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));
+	}
+
+	private registerListeners(workbench: Workbench, storageService: StorageService): void {
+
+		// Layout
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true, workbench)));
+
+		// Workbench Lifecycle
+		this._register(workbench.onShutdown(() => this.dispose()));
+		this._register(workbench.onWillShutdown(event => event.join(storageService.close())));
 	}
 
 	private onWindowResize(e: Event, retry: boolean, workbench: Workbench): void {
@@ -368,7 +370,7 @@ class CodeRendererMain extends Disposable {
 }
 
 export function main(configuration: IWindowConfiguration): Promise<void> {
-	const renderer = new CodeRendererMain(configuration);
+	const renderer = new DesktopMain(configuration);
 
 	return renderer.open();
 }

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as browser from 'vs/base/browser/browser';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -13,7 +12,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened, IRecent, isRecentFile, isRecentFolder } from 'vs/platform/history/common/history';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
 
 //#region Window
@@ -34,7 +32,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 		super();
 
 		this.addWorkspaceToRecentlyOpened();
-		this.registerListeners();
 	}
 
 	private addWorkspaceToRecentlyOpened(): void {
@@ -47,24 +44,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! } }]);
 				break;
 		}
-	}
-
-	private registerListeners(): void {
-		this._register(addDisposableListener(document, EventType.FULLSCREEN_CHANGE, () => {
-			if (document.fullscreenElement || (<any>document).webkitFullscreenElement) {
-				browser.setFullscreen(true);
-			} else {
-				browser.setFullscreen(false);
-			}
-		}));
-
-		this._register(addDisposableListener(document, EventType.WK_FULLSCREEN_CHANGE, () => {
-			if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
-				browser.setFullscreen(true);
-			} else {
-				browser.setFullscreen(false);
-			}
-		}));
 	}
 
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {

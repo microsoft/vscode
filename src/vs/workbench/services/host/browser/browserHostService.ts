@@ -36,6 +36,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 	) {
 		super();
 
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Track Focus on Window
 		const focusTracker = this._register(trackFocus(window));
 		this._onDidChangeFocus = Event.any(
 			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
