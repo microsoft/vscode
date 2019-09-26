@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IRecent, IRecentlyOpened, isRecentFolder, isRecentFile } from 'vs/platform/history/common/history';
 import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
@@ -12,21 +12,35 @@ import { StorageScope, IStorageService } from 'vs/platform/storage/common/storag
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class BrowserWorkspacesHistoryService implements IWorkspacesHistoryService {
+export class BrowserWorkspacesHistoryService extends Disposable implements IWorkspacesHistoryService {
 
 	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
 
 	_serviceBrand: undefined;
 
-	readonly onRecentlyOpenedChange: Event<void> = Event.None;
+	private readonly _onRecentlyOpenedChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onRecentlyOpenedChange: Event<void> = this._onRecentlyOpenedChange.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 	) {
+		super();
+
 		this.addWorkspaceToRecentlyOpened();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.storageService.onDidChangeStorage(event => {
+			if (event.key === BrowserWorkspacesHistoryService.RECENTLY_OPENED_KEY && event.scope === StorageScope.GLOBAL) {
+				this._onRecentlyOpenedChange.fire();
+			}
+		}));
 	}
 
 	private addWorkspaceToRecentlyOpened(): void {
