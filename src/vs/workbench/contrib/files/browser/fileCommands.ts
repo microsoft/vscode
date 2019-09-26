@@ -37,7 +37,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { basename, toLocalResource, joinPath } from 'vs/base/common/resources';
+import { basename, toLocalResource, joinPath, isEqual } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -142,7 +142,7 @@ async function doSaveAs(
 	const activeTextEditorWidget = getCodeEditor(editorService.activeTextEditorWidget);
 	if (activeTextEditorWidget) {
 		const activeResource = toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
-		if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && activeResource.toString() === resource.toString()) {
+		if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && isEqual(activeResource, resource)) {
 			viewStateOfSource = activeTextEditorWidget.saveViewState();
 		}
 	}
@@ -166,7 +166,7 @@ async function doSaveAs(
 		target = await textFileService.saveAs(resource, undefined, options);
 	}
 
-	if (!target || target.toString() === resource.toString()) {
+	if (!target || isEqual(target, resource)) {
 		return false; // save canceled or same resource used
 	}
 
@@ -197,7 +197,7 @@ async function doSave(
 	// Pin the active editor if we are saving it
 	const activeControl = editorService.activeControl;
 	const activeEditorResource = activeControl && activeControl.input && activeControl.input.getResource();
-	if (activeControl && activeEditorResource && activeEditorResource.toString() === resource.toString()) {
+	if (activeControl && activeEditorResource && isEqual(activeEditorResource, resource)) {
 		activeControl.group.pinEditor(activeControl.input);
 	}
 
@@ -236,7 +236,7 @@ async function saveAll(saveAllArguments: any, editorService: IEditorService, unt
 					encoding: untitledEditorService.getEncoding(resource),
 					resource,
 					options: {
-						inactive: activeEditorResource ? activeEditorResource.toString() !== resource.toString() : true,
+						inactive: activeEditorResource ? !isEqual(activeEditorResource, resource) : true,
 						pinned: true,
 						preserveFocus: true,
 						index: group.getIndexOfEditor(e)
@@ -252,7 +252,7 @@ async function saveAll(saveAllArguments: any, editorService: IEditorService, unt
 	// Update untitled resources to the saved ones, so we open the proper files
 	groupIdToUntitledResourceInput.forEach((inputs, groupId) => {
 		inputs.forEach(i => {
-			const targetResult = result.results.filter(r => r.success && r.source.toString() === i.resource.toString()).pop();
+			const targetResult = result.results.filter(r => r.success && isEqual(r.source, i.resource)).pop();
 			if (targetResult && targetResult.target) {
 				i.resource = targetResult.target;
 			}
@@ -588,7 +588,7 @@ CommandsRegistry.registerCommand({
 		const workspace = contextService.getWorkspace();
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService)).filter(r =>
 			// Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
-			workspace.folders.some(f => f.uri.toString() === r.toString())
+			workspace.folders.some(f => isEqual(f.uri, r))
 		);
 
 		return workspaceEditingService.removeFolders(resources);
