@@ -11,7 +11,8 @@ import { isUpperAsciiLetter } from 'vs/base/common/strings';
 
 //
 // Use both `createChannelReceiver` and `createChannelSender`
-// for automated process <=> process communication over methods.
+// for automated process <=> process communication over methods
+// and events.
 //
 
 export interface IBaseChannelOptions {

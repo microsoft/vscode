@@ -24,7 +24,7 @@ import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { webFrame } from 'electron';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ConsoleLogService, MultiplexLogService, ILogService, ConsoleLogInMainService } from 'vs/platform/log/common/log';
-import { StorageService } from 'vs/platform/storage/node/storageService';
+import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/common/extpath';
@@ -139,7 +139,7 @@ class DesktopMain extends Disposable {
 		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));
 	}
 
-	private registerListeners(workbench: Workbench, storageService: StorageService): void {
+	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
 
 		// Layout
 		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true, workbench)));
@@ -167,7 +167,7 @@ class DesktopMain extends Disposable {
 		}
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: StorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -335,9 +335,9 @@ class DesktopMain extends Disposable {
 		}
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService): Promise<StorageService> {
+	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
 		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage'));
-		const storageService = new StorageService(globalStorageDatabase, logService, this.environmentService);
+		const storageService = new NativeStorageService(globalStorageDatabase, logService, this.environmentService);
 
 		try {
 			await storageService.initialize(payload);

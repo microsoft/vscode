@@ -5,7 +5,7 @@
 
 import { IMenubarService } from 'vs/platform/menubar/node/menubar';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { createChannelSender } from 'vs/platform/ipc/node/ipcChannelCreator';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipcChannelCreator';
 
 export class MenubarService {
 
