@@ -40,6 +40,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 // tslint:disable-next-line: import-patterns layering TODO@sbatten
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+// tslint:disable-next-line: import-patterns layering TODO@sbatten
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
 
 export abstract class MenubarControl extends Disposable {
 
@@ -283,7 +285,8 @@ export class CustomMenubarControl extends MenubarControl {
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IHostService protected readonly hostService: IHostService,
-		@optional(IElectronService) private readonly electronService: IElectronService
+		@optional(IElectronService) private readonly electronService: IElectronService,
+		@optional(IElectronEnvironmentService) private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 
 		super(
@@ -434,7 +437,7 @@ export class CustomMenubarControl extends MenubarControl {
 				return null;
 
 			case StateType.Idle:
-				const windowId = this.environmentService.configuration.windowId;
+				const windowId = this.electronEnvironmentService.windowId;
 				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
 					this.updateService.checkForUpdates({ windowId }));
 
@@ -643,8 +646,8 @@ export class CustomMenubarControl extends MenubarControl {
 		// Listen for maximize/unmaximize
 		if (!isWeb) {
 			this._register(Event.any(
-				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.environmentService.configuration.windowId), _ => true),
-				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.environmentService.configuration.windowId), _ => false)
+				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronEnvironmentService.windowId), _ => true),
+				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronEnvironmentService.windowId), _ => false)
 			)(e => this.updateMenubar()));
 		}
 

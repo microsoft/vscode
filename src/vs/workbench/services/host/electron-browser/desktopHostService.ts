@@ -11,6 +11,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowOpenable, IOpenInWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
 
 export class DesktopHostService extends Disposable implements IHostService {
 
@@ -20,8 +21,8 @@ export class DesktopHostService extends Disposable implements IHostService {
 
 	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
 	private _onDidChangeFocus: Event<boolean> = Event.any(
-		Event.map(Event.filter(this.electronService.onWindowFocus, id => id === this.environmentService.configuration.windowId), _ => true),
-		Event.map(Event.filter(this.electronService.onWindowBlur, id => id === this.environmentService.configuration.windowId), _ => false)
+		Event.map(Event.filter(this.electronService.onWindowFocus, id => id === this.electronEnvironmentService.windowId), _ => true),
+		Event.map(Event.filter(this.electronService.onWindowBlur, id => id === this.electronEnvironmentService.windowId), _ => false)
 	);
 
 	//#endregion
@@ -29,7 +30,8 @@ export class DesktopHostService extends Disposable implements IHostService {
 	constructor(
 		@IElectronService private readonly electronService: IElectronService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 		super();
 

@@ -8,7 +8,7 @@ import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData,
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
 
 export class WorkspacesService implements IWorkspacesService {
 
@@ -18,13 +18,13 @@ export class WorkspacesService implements IWorkspacesService {
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 		this.channel = mainProcessService.getChannel('workspaces');
 	}
 
 	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		const result: IEnterWorkspaceResult = await this.channel.call('enterWorkspace', [this.environmentService.configuration.windowId, path]);
+		const result: IEnterWorkspaceResult = await this.channel.call('enterWorkspace', [this.electronEnvironmentService.windowId, path]);
 		if (result) {
 			result.workspace = reviveWorkspaceIdentifier(result.workspace);
 		}

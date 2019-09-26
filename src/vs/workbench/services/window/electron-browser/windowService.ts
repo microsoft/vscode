@@ -7,22 +7,22 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
 
 export class WindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: undefined;
 
 	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService,
 		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super();
 	}
 
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
-		return this.windowsService.getRecentlyOpened(this.environmentService.configuration.windowId);
+		return this.windowsService.getRecentlyOpened(this.electronEnvironmentService.windowId);
 	}
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void> {

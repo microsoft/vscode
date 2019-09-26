@@ -52,15 +52,16 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { basename } from 'vs/base/common/resources';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
+import { ElectronEnvironmentService, IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
 
 class DesktopMain extends Disposable {
 
 	private readonly environmentService: WorkbenchEnvironmentService;
 
-	constructor(configuration: IWindowConfiguration) {
+	constructor(private configuration: IWindowConfiguration) {
 		super();
 
-		this.environmentService = new WorkbenchEnvironmentService(configuration, configuration.execPath);
+		this.environmentService = new WorkbenchEnvironmentService(configuration, configuration.execPath, configuration.windowId);
 
 		this.init();
 	}
@@ -175,11 +176,15 @@ class DesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Main Process
-		const mainProcessService = this._register(new MainProcessService(this.environmentService.configuration.windowId));
+		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		// Environment
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
+		serviceCollection.set(IElectronEnvironmentService, new ElectronEnvironmentService(
+			this.configuration.windowId,
+			this.environmentService.sharedIPCHandle
+		));
 
 		// Product
 		serviceCollection.set(IProductService, { _serviceBrand: undefined, ...product });
@@ -361,7 +366,7 @@ class DesktopMain extends Disposable {
 		else {
 			loggers.push(
 				new ConsoleLogService(this.environmentService.configuration.logLevel),
-				new SpdLogService(`renderer${this.environmentService.configuration.windowId}`, environmentService.logsPath, this.environmentService.configuration.logLevel)
+				new SpdLogService(`renderer${this.configuration.windowId}`, environmentService.logsPath, this.environmentService.configuration.logLevel)
 			);
 		}
 

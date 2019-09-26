@@ -11,7 +11,7 @@ import { URLService } from 'vs/platform/url/node/urlService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
 
 export class RelayURLService extends URLService implements IURLHandler {
 
@@ -20,7 +20,7 @@ export class RelayURLService extends URLService implements IURLHandler {
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService
+		@IElectronEnvironmentService private electronEnvironmentService: IElectronEnvironmentService
 	) {
 		super();
 
@@ -35,9 +35,9 @@ export class RelayURLService extends URLService implements IURLHandler {
 
 		let query = uri.query;
 		if (!query) {
-			query = `windowId=${encodeURIComponent(this.environmentService.configuration.windowId)}`;
+			query = `windowId=${encodeURIComponent(this.electronEnvironmentService.windowId)}`;
 		} else {
-			query += `&windowId=${encodeURIComponent(this.environmentService.configuration.windowId)}`;
+			query += `&windowId=${encodeURIComponent(this.electronEnvironmentService.windowId)}`;
 		}
 
 		return uri.with({ query });

@@ -24,6 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as perf from 'vs/base/common/performance';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironment';
 
 class PartsSplash {
 
@@ -40,6 +41,7 @@ class PartsSplash {
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IWorkbenchEnvironmentService private readonly _envService: IWorkbenchEnvironmentService,
+		@IElectronEnvironmentService private readonly _electronEnvService: IElectronEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService configService: IConfigurationService,
@@ -103,7 +105,7 @@ class PartsSplash {
 			// the color needs to be in hex
 			const backgroundColor = this._themeService.getTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getTheme());
 			const payload = JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) });
-			ipc.send('vscode:changeColorTheme', this._envService.configuration.windowId, payload);
+			ipc.send('vscode:changeColorTheme', this._electronEnvService.windowId, payload);
 		}
 	}
 

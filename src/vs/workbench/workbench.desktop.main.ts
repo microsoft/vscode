@@ -31,7 +31,7 @@ import 'vs/workbench/services/dialogs/electron-browser/fileDialogService';
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/search/node/searchService';
-import 'vs/workbench/services/output/node/outputChannelModelService';
+import 'vs/workbench/services/output/electron-browser/outputChannelModelService';
 import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
