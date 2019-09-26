@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IRecent, IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IRecent, IRecentlyOpened } from 'vs/platform/workspaces/common/workspacesHistory';
 
 export const IWorkspacesHistoryService = createDecorator<IWorkspacesHistoryService>('workspacesHistoryService');
 

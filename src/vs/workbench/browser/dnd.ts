@@ -29,7 +29,7 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IRecentFile } from 'vs/platform/history/common/history';
+import { IRecentFile } from 'vs/platform/workspaces/common/workspacesHistory';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { IRecentlyOpened, isRecentFolder } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, isRecentFolder } from 'vs/platform/workspaces/common/workspacesHistory';
 import { ILogService } from 'vs/platform/log/common/log';
 
 interface ISerializedRecentlyOpened {

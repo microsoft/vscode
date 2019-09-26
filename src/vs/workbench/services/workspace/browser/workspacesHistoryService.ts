@@ -5,9 +5,9 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IRecent, IRecentlyOpened, isRecentFolder, isRecentFile } from 'vs/platform/history/common/history';
+import { IRecent, IRecentlyOpened, isRecentFolder, isRecentFile } from 'vs/platform/workspaces/common/workspacesHistory';
 import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
-import { restoreRecentlyOpened, toStoreData } from 'vs/platform/history/common/historyStorage';
+import { restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspacesHistoryStorage';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';

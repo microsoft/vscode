@@ -8,8 +8,8 @@ import * as path from 'vs/base/common/path';
 
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
-import { IRecentlyOpened, isRecentFolder, IRecentFolder, IRecentWorkspace } from 'vs/platform/history/common/history';
-import { toStoreData, restoreRecentlyOpened } from 'vs/platform/history/common/historyStorage';
+import { IRecentlyOpened, isRecentFolder, IRecentFolder, IRecentWorkspace } from 'vs/platform/workspaces/common/workspacesHistory';
+import { toStoreData, restoreRecentlyOpened } from 'vs/platform/workspaces/common/workspacesHistoryStorage';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 function toWorkspace(uri: URI): IWorkspaceIdentifier {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IRecent, IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IRecent, IRecentlyOpened } from 'vs/platform/workspaces/common/workspacesHistory';
 import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IElectronService } from 'vs/platform/electron/node/electron';

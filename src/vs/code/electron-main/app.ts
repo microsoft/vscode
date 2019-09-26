@@ -64,7 +64,7 @@ import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIp
 import { startsWith } from 'vs/base/common/strings';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { HistoryMainService, IHistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
+import { WorkspacesHistoryMainService, IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { URLService } from 'vs/platform/url/node/urlService';
 import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { statSync } from 'fs';
@@ -466,7 +466,7 @@ export class CodeApplication extends Disposable {
 		const backupMainService = new BackupMainService(this.environmentService, this.configurationService, this.logService);
 		services.set(IBackupMainService, backupMainService);
 
-		services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
+		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
 		services.set(IURLService, new SyncDescriptor(URLService));
 		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 

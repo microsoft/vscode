@@ -14,7 +14,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IOpenInWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { IRecent } from 'vs/platform/history/common/history';
+import { IRecent } from 'vs/platform/workspaces/common/workspacesHistory';
 import { Schemas } from 'vs/base/common/network';
 
 // -----------------------------------------------------------------

@@ -17,7 +17,7 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace } from 'vs/platform/workspaces/common/workspacesHistory';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { URI } from 'vs/base/common/uri';

@@ -22,7 +22,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IRecentWorkspace, IRecentFolder, IRecentFile, IRecent, isRecentFolder, isRecentWorkspace } from 'vs/platform/history/common/history';
+import { IRecentWorkspace, IRecentFolder, IRecentFile, IRecent, isRecentFolder, isRecentWorkspace } from 'vs/platform/workspaces/common/workspacesHistory';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';

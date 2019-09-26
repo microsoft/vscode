@@ -14,21 +14,21 @@ import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile } from 'vs/platform/workspaces/common/workspacesHistory';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isEqual as areResourcesEqual, dirname, originalFSPath, basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getSimpleWorkspaceLabel } from 'vs/platform/label/common/label';
-import { toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/history/common/historyStorage';
+import { toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData } from 'vs/platform/workspaces/common/workspacesHistoryStorage';
 import { exists } from 'vs/base/node/pfs';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
+export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
-export interface IHistoryMainService {
+export interface IWorkspacesHistoryMainService {
 
 	_serviceBrand: undefined;
 
@@ -42,7 +42,7 @@ export interface IHistoryMainService {
 	updateWindowsJumpList(): void;
 }
 
-export class HistoryMainService implements IHistoryMainService {
+export class WorkspacesHistoryMainService implements IWorkspacesHistoryMainService {
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
 
@@ -108,7 +108,7 @@ export class HistoryMainService implements IHistoryMainService {
 			// File
 			else {
 				const alreadyExistsInHistory = indexOfFile(files, curr.fileUri) >= 0;
-				const shouldBeFiltered = curr.fileUri.scheme === Schemas.file && HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(curr.fileUri)) >= 0;
+				const shouldBeFiltered = curr.fileUri.scheme === Schemas.file && WorkspacesHistoryMainService.COMMON_FILES_FILTER.indexOf(basename(curr.fileUri)) >= 0;
 
 				if (!alreadyExistsInHistory && !shouldBeFiltered) {
 					files.push(curr);
@@ -123,12 +123,12 @@ export class HistoryMainService implements IHistoryMainService {
 
 		this.addEntriesFromStorage(workspaces, files);
 
-		if (workspaces.length > HistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
-			workspaces.length = HistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
+		if (workspaces.length > WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
+			workspaces.length = WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
 		}
 
-		if (files.length > HistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
-			files.length = HistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
+		if (files.length > WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
+			files.length = WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES;
 		}
 
 		this.saveRecentlyOpened({ workspaces, files });
@@ -180,7 +180,7 @@ export class HistoryMainService implements IHistoryMainService {
 		// Collect max-N recent workspaces that are known to exist
 		const workspaceEntries: string[] = [];
 		let entries = 0;
-		for (let i = 0; i < mru.workspaces.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_WORKSPACES; i++) {
+		for (let i = 0; i < mru.workspaces.length && entries < WorkspacesHistoryMainService.MAX_MACOS_DOCK_RECENT_WORKSPACES; i++) {
 			const loc = location(mru.workspaces[i]);
 			if (loc.scheme === Schemas.file) {
 				const workspacePath = originalFSPath(loc);
@@ -193,12 +193,12 @@ export class HistoryMainService implements IHistoryMainService {
 
 		// Collect max-N recent files that are known to exist
 		const fileEntries: string[] = [];
-		for (let i = 0; i < mru.files.length && entries < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL; i++) {
+		for (let i = 0; i < mru.files.length && entries < WorkspacesHistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL; i++) {
 			const loc = location(mru.files[i]);
 			if (loc.scheme === Schemas.file) {
 				const filePath = originalFSPath(loc);
 				if (
-					HistoryMainService.COMMON_FILES_FILTER.indexOf(basename(loc)) !== -1 || // skip some well known file entries
+					WorkspacesHistoryMainService.COMMON_FILES_FILTER.indexOf(basename(loc)) !== -1 || // skip some well known file entries
 					workspaceEntries.indexOf(filePath) !== -1								// prefer a workspace entry over a file entry (e.g. for .code-workspace)
 				) {
 					continue;
@@ -285,7 +285,7 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
-		const storedRecents = this.stateService.getItem<RecentlyOpenedStorageData>(HistoryMainService.recentlyOpenedStorageKey);
+		const storedRecents = this.stateService.getItem<RecentlyOpenedStorageData>(WorkspacesHistoryMainService.recentlyOpenedStorageKey);
 
 		return restoreRecentlyOpened(storedRecents, this.logService);
 	}
@@ -293,7 +293,7 @@ export class HistoryMainService implements IHistoryMainService {
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
 		const serialized = toStoreData(recent);
 
-		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, serialized);
+		this.stateService.setItem(WorkspacesHistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 
 	updateWindowsJumpList(): void {
