@@ -11,7 +11,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass, addDisposableListener, addStandardDisposableListener } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent, IListGestureEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -524,7 +524,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}));
 		this.toDispose.add(themeService.onThemeChange(t => this.onThemeChange(t)));
 		this.toDispose.add(editor.onDidLayoutChange(() => this.onEditorLayoutChange()));
-		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDown(e)));
+		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDownOrTap(e)));
+		this.toDispose.add(this.list.onTap(e => this.onListMouseDownOrTap(e)));
 		this.toDispose.add(this.list.onSelectionChange(e => this.onListSelection(e)));
 		this.toDispose.add(this.list.onFocusChange(e => this.onListFocus(e)));
 		this.toDispose.add(this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()));
@@ -572,7 +573,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
-	private onListMouseDown(e: IListMouseEvent<CompletionItem>): void {
+	private onListMouseDownOrTap(e: IListMouseEvent<CompletionItem> | IListGestureEvent<CompletionItem>): void {
 		if (typeof e.element === 'undefined' || typeof e.index === 'undefined') {
 			return;
 		}
