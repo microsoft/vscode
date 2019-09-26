@@ -15,21 +15,23 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isEqual, basename } from 'vs/base/common/resources';
+import { isEqual, basename, isEqualOrParent } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { WorkspaceEditingService } from 'vs/workbench/services/workspace/browser/workspaceEditingService';
+import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspace/browser/abstractWorkspaceEditingService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
+import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
-export class NativeWorkspaceEditingService extends WorkspaceEditingService {
+export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
 	_serviceBrand: undefined;
 
@@ -45,16 +47,104 @@ export class NativeWorkspaceEditingService extends WorkspaceEditingService {
 		@ICommandService commandService: ICommandService,
 		@IFileService fileService: IFileService,
 		@ITextFileService textFileService: ITextFileService,
-		@IWorkspacesHistoryService workspacesHistoryService: IWorkspacesHistoryService,
+		@IWorkspacesHistoryService private readonly workspacesHistoryService: IWorkspacesHistoryService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IDialogService protected dialogService: IDialogService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@ILabelService labelService: ILabelService,
-		@IHostService hostService: IHostService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IHostService hostService: IHostService,
 	) {
-		super(jsonEditingService, contextService, workspacesHistoryService, configurationService, storageService, extensionService, backupFileService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, lifecycleService, labelService, hostService);
+		super(jsonEditingService, contextService, configurationService, storageService, extensionService, backupFileService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.lifecycleService.onBeforeShutdown(e => {
+			const saveOperation = this.saveUntitedBeforeShutdown(e.reason);
+			if (saveOperation) {
+				e.veto(saveOperation);
+			}
+		});
+	}
+
+	private async saveUntitedBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
+		if (reason !== ShutdownReason.LOAD && reason !== ShutdownReason.CLOSE) {
+			return false; // only interested when window is closing or loading
+		}
+
+		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
+		if (!workspaceIdentifier || !isEqualOrParent(workspaceIdentifier.configPath, this.environmentService.untitledWorkspacesHome)) {
+			return false; // only care about untitled workspaces to ask for saving
+		}
+
+		const windowCount = await this.hostService.windowCount;
+
+		if (reason === ShutdownReason.CLOSE && !isMacintosh && windowCount === 1) {
+			return false; // Windows/Linux: quits when last window is closed, so do not ask then
+		}
+
+		enum ConfirmResult {
+			SAVE,
+			DONT_SAVE,
+			CANCEL
+		}
+
+		const save = { label: mnemonicButtonLabel(nls.localize('save', "Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: mnemonicButtonLabel(nls.localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE };
+		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
+
+		const buttons: { label: string; result: ConfirmResult; }[] = [];
+		if (isWindows) {
+			buttons.push(save, dontSave, cancel);
+		} else if (isLinux) {
+			buttons.push(dontSave, cancel, save);
+		} else {
+			buttons.push(save, cancel, dontSave);
+		}
+
+		const message = nls.localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
+		const detail = nls.localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
+		const cancelId = buttons.indexOf(cancel);
+
+		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId });
+
+		switch (buttons[choice].result) {
+
+			// Cancel: veto unload
+			case ConfirmResult.CANCEL:
+				return true;
+
+			// Don't Save: delete workspace
+			case ConfirmResult.DONT_SAVE:
+				this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+				return false;
+
+			// Save: save workspace, but do not veto unload if path provided
+			case ConfirmResult.SAVE: {
+				const newWorkspacePath = await this.pickNewWorkspacePath();
+				if (!newWorkspacePath) {
+					return true; // keep veto if no target was provided
+				}
+
+				try {
+					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
+
+					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
+
+					const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
+					this.workspacesHistoryService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
+
+					this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+				} catch (error) {
+					// ignore
+				}
+
+				return false;
+			}
+		}
 	}
 
 	async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
