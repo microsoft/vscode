@@ -148,7 +148,7 @@ export interface IViewDescriptor {
 	// For contributed remote explorer views
 	readonly group?: string;
 
-	readonly remoteAuthority?: string;
+	readonly remoteAuthority?: string | string[];
 }
 
 export interface IViewDescriptorCollection extends IDisposable {
