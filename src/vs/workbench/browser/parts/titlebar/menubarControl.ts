@@ -25,7 +25,7 @@ import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
 import { SubmenuAction, Direction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
@@ -93,7 +93,7 @@ export abstract class MenubarControl extends Disposable {
 		protected readonly storageService: IStorageService,
 		protected readonly notificationService: INotificationService,
 		protected readonly preferencesService: IPreferencesService,
-		protected readonly environmentService: IEnvironmentService,
+		protected readonly environmentService: IWorkbenchEnvironmentService,
 		protected readonly accessibilityService: IAccessibilityService,
 		protected readonly hostService: IHostService
 	) {
@@ -278,7 +278,7 @@ export class CustomMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -434,7 +434,7 @@ export class CustomMenubarControl extends MenubarControl {
 				return null;
 
 			case StateType.Idle:
-				const windowId = this.windowService.windowId;
+				const windowId = this.environmentService.configuration.windowId;
 				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
 					this.updateService.checkForUpdates({ windowId }));
 
@@ -643,8 +643,8 @@ export class CustomMenubarControl extends MenubarControl {
 		// Listen for maximize/unmaximize
 		if (!isWeb) {
 			this._register(Event.any(
-				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.windowService.windowId), _ => true),
-				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.windowService.windowId), _ => false)
+				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.environmentService.configuration.windowId), _ => true),
+				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.environmentService.configuration.windowId), _ => false)
 			)(e => this.updateMenubar()));
 		}
 

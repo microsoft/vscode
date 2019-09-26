@@ -1181,8 +1181,6 @@ export class TestWindowService implements IWindowService {
 
 	public _serviceBrand: undefined;
 
-	readonly windowId = 0;
-
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
 		return Promise.resolve({
 			workspaces: [],

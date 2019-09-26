@@ -97,8 +97,6 @@ export interface IWindowService {
 
 	_serviceBrand: undefined;
 
-	readonly windowId: number;
-
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeFromRecentlyOpened(paths: URI[]): Promise<void>;

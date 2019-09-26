@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, IWindowService } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
@@ -89,7 +89,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -102,6 +101,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
+		@IWindowService windowService: IWindowService,
 		@optional(IElectronService) private electronService: IElectronService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
@@ -434,8 +434,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.onDidChangeMaximized(isMaximized);
 
 			this._register(Event.any(
-				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.windowService.windowId), _ => true),
-				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.windowService.windowId), _ => false)
+				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.environmentService.configuration.windowId), _ => true),
+				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.environmentService.configuration.windowId), _ => false)
 			)(e => this.onDidChangeMaximized(e)));
 		}
 

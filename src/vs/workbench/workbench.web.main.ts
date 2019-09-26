@@ -52,13 +52,13 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserAccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { BrowserLifecycleService } from 'vs/platform/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';

@@ -20,8 +20,6 @@ export class SimpleWindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: undefined;
 
-	readonly windowId = 0;
-
 	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
 
 	constructor(

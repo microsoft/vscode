@@ -14,23 +14,15 @@ export class WindowService extends Disposable implements IWindowService {
 
 	_serviceBrand: undefined;
 
-	private _windowId: number;
-
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWindowsService private readonly windowsService: IWindowsService
 	) {
 		super();
-
-		this._windowId = environmentService.configuration.windowId;
-	}
-
-	get windowId(): number {
-		return this._windowId;
 	}
 
 	getRecentlyOpened(): Promise<IRecentlyOpened> {
-		return this.windowsService.getRecentlyOpened(this.windowId);
+		return this.windowsService.getRecentlyOpened(this.environmentService.configuration.windowId);
 	}
 
 	addRecentlyOpened(recents: IRecent[]): Promise<void> {

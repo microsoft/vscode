@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ShutdownReason, StartupKind, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, StartupKind, handleVetos, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class LifecycleService extends AbstractLifecycleService {
 
@@ -23,7 +24,7 @@ export class LifecycleService extends AbstractLifecycleService {
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService readonly storageService: IStorageService,
 		@ILogService readonly logService: ILogService
 	) {
@@ -53,7 +54,7 @@ export class LifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		const windowId = this.windowService.windowId;
+		const windowId = this.environmentService.configuration.windowId;
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipc.on('vscode:onBeforeUnload', (_event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
@@ -132,3 +133,5 @@ export class LifecycleService extends AbstractLifecycleService {
 		}
 	}
 }
+
+registerSingleton(ILifecycleService, LifecycleService);

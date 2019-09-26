@@ -25,7 +25,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostProcessManager } from 'vs/workbench/services/extensions/common/extensionHostProcessManager';
@@ -67,7 +66,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IWindowService protected readonly _windowService: IWindowService,
 		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
 		@IElectronService private readonly _electronService: IElectronService,
 		@IHostService private readonly _hostService: IHostService
@@ -93,7 +91,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		this._remoteExtensionsEnvironmentData = new Map<string, IRemoteAgentEnvironment>();
 
-		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._windowService.windowId}`));
+		this._extensionHostLogsLocation = URI.file(path.join(this._environmentService.logsPath, `exthost${this._environmentService.configuration.windowId}`));
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 		this._deltaExtensionsQueue = [];
 
