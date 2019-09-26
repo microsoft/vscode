@@ -42,7 +42,6 @@ export interface IWindowsService {
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(windowId: number): Promise<IRecentlyOpened>;
 	isFocused(windowId: number): Promise<boolean>;
-	getActiveWindowId(): Promise<number | undefined>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');

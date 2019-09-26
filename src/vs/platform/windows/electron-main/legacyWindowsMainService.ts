@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
@@ -22,10 +22,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 export class LegacyWindowsMainService extends Disposable implements IWindowsService, IURLHandler {
 
 	_serviceBrand: undefined;
-
-	private readonly disposables = this._register(new DisposableStore());
-
-	private _activeWindowId: number | undefined;
 
 	readonly onWindowOpen: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (_, w: BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 	readonly onWindowBlur: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (_, w: BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
@@ -48,10 +44,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 		super();
 
 		urlService.registerHandler(this);
-
-		// remember last active window id
-		Event.latch(Event.any(this.onWindowOpen, this.onWindowFocus))
-			(id => this._activeWindowId = id, null, this.disposables);
 	}
 
 	async addRecentlyOpened(recents: IRecent[]): Promise<void> {
@@ -94,10 +86,6 @@ export class LegacyWindowsMainService extends Disposable implements IWindowsServ
 				userEnv: Object.keys(env).length > 0 ? env : undefined
 			});
 		}
-	}
-
-	async getActiveWindowId(): Promise<number | undefined> {
-		return this._activeWindowId;
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {

@@ -165,10 +165,6 @@ export class SimpleWindowsService implements IWindowsService {
 			files: []
 		});
 	}
-
-	getActiveWindowId(): Promise<number | undefined> {
-		return Promise.resolve(0);
-	}
 }
 
 registerSingleton(IWindowsService, SimpleWindowsService);

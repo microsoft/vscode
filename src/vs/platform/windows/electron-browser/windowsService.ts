@@ -57,8 +57,4 @@ export class WindowsService implements IWindowsService {
 	openExtensionDevelopmentHostWindow(args: ParsedArgs, env: IProcessEnvironment): Promise<void> {
 		return this.channel.call('openExtensionDevelopmentHostWindow', [args, env]);
 	}
-
-	getActiveWindowId(): Promise<number | undefined> {
-		return this.channel.call('getActiveWindowId');
-	}
 }

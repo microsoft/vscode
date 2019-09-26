@@ -58,7 +58,6 @@ export class WindowsChannel implements IServerChannel {
 			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
 			case 'isFocused': return this.service.isFocused(arg);
 			case 'openExtensionDevelopmentHostWindow': return (this.service as any).openExtensionDevelopmentHostWindow(arg[0], arg[1]); // TODO@Isidor move
-			case 'getActiveWindowId': return this.service.getActiveWindowId();
 		}
 
 		throw new Error(`Call not found: ${command}`);
