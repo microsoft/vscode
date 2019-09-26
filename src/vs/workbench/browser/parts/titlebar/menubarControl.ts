@@ -6,7 +6,8 @@
 import * as nls from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService, MenuBarVisibility, IWindowsService, getTitleBarStyle, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -16,7 +17,7 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace } from 'vs/platform/history/common/history';
+import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace } from 'vs/platform/workspaces/common/workspacesHistory';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { URI } from 'vs/base/common/uri';
@@ -25,7 +26,7 @@ import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { MenuBar } from 'vs/base/browser/ui/menu/menubar';
 import { SubmenuAction, Direction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
@@ -40,6 +41,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 // tslint:disable-next-line: import-patterns layering TODO@sbatten
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+// tslint:disable-next-line: import-patterns layering TODO@sbatten
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 export abstract class MenubarControl extends Disposable {
 
@@ -83,8 +86,7 @@ export abstract class MenubarControl extends Disposable {
 
 	constructor(
 		protected readonly menuService: IMenuService,
-		protected readonly windowService: IWindowService,
-		protected readonly windowsService: IWindowsService,
+		protected readonly workspacesHistoryService: IWorkspacesHistoryService,
 		protected readonly contextKeyService: IContextKeyService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly configurationService: IConfigurationService,
@@ -93,7 +95,7 @@ export abstract class MenubarControl extends Disposable {
 		protected readonly storageService: IStorageService,
 		protected readonly notificationService: INotificationService,
 		protected readonly preferencesService: IPreferencesService,
-		protected readonly environmentService: IEnvironmentService,
+		protected readonly environmentService: IWorkbenchEnvironmentService,
 		protected readonly accessibilityService: IAccessibilityService,
 		protected readonly hostService: IHostService
 	) {
@@ -126,7 +128,7 @@ export abstract class MenubarControl extends Disposable {
 		this.updateService.onStateChange(() => this.updateMenubar());
 
 		// Listen for changes in recently opened menu
-		this._register(this.windowsService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
+		this._register(this.workspacesHistoryService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
 
 		// Listen to keybindings change
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateMenubar()));
@@ -188,7 +190,7 @@ export abstract class MenubarControl extends Disposable {
 	}
 
 	private onRecentlyOpenedChange(): void {
-		this.windowService.getRecentlyOpened().then(recentlyOpened => {
+		this.workspacesHistoryService.getRecentlyOpened().then(recentlyOpened => {
 			this.recentlyOpened = recentlyOpened;
 			this.updateMenubar();
 		});
@@ -268,8 +270,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 	constructor(
 		@IMenuService menuService: IMenuService,
-		@IWindowService windowService: IWindowService,
-		@IWindowsService windowsService: IWindowsService,
+		@IWorkspacesHistoryService workspacesHistoryService: IWorkspacesHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -278,18 +279,18 @@ export class CustomMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IHostService protected readonly hostService: IHostService,
-		@optional(IElectronService) private readonly electronService: IElectronService
+		@optional(IElectronService) private readonly electronService: IElectronService,
+		@optional(IElectronEnvironmentService) private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 
 		super(
 			menuService,
-			windowService,
-			windowsService,
+			workspacesHistoryService,
 			contextKeyService,
 			keybindingService,
 			configurationService,
@@ -306,7 +307,7 @@ export class CustomMenubarControl extends MenubarControl {
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
-		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
+		this.workspacesHistoryService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
 		});
 
@@ -434,7 +435,7 @@ export class CustomMenubarControl extends MenubarControl {
 				return null;
 
 			case StateType.Idle:
-				const windowId = this.windowService.windowId;
+				const windowId = this.electronEnvironmentService.windowId;
 				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
 					this.updateService.checkForUpdates({ windowId }));
 
@@ -643,8 +644,8 @@ export class CustomMenubarControl extends MenubarControl {
 		// Listen for maximize/unmaximize
 		if (!isWeb) {
 			this._register(Event.any(
-				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.windowService.windowId), _ => true),
-				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.windowService.windowId), _ => false)
+				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronEnvironmentService.windowId), _ => true),
+				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronEnvironmentService.windowId), _ => false)
 			)(e => this.updateMenubar()));
 		}
 

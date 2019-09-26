@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { IWindowService, MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
@@ -43,6 +43,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 // TODO@sbatten https://github.com/microsoft/vscode/issues/81360
 // tslint:disable-next-line: import-patterns layering
 import { IElectronService } from 'vs/platform/electron/node/electron';
+// tslint:disable-next-line: import-patterns layering
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -89,7 +91,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -102,7 +103,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@optional(IElectronService) private electronService: IElectronService
+		@optional(IElectronService) private electronService: IElectronService,
+		@optional(IElectronEnvironmentService) private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -434,8 +436,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.onDidChangeMaximized(isMaximized);
 
 			this._register(Event.any(
-				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.windowService.windowId), _ => true),
-				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.windowService.windowId), _ => false)
+				Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronEnvironmentService.windowId), _ => true),
+				Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronEnvironmentService.windowId), _ => false)
 			)(e => this.onDidChangeMaximized(e)));
 		}
 

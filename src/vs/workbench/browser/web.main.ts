@@ -216,8 +216,8 @@ class BrowserMain extends Disposable {
 
 				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
 			} catch (error) {
-				(<ILogService>logService).info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
-				(<ILogService>logService).error(error);
+				logService.info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
+				logService.error(error);
 
 				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
 			}

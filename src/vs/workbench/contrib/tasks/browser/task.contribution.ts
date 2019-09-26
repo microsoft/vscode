@@ -255,9 +255,8 @@ const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Ac
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
 // tasks.json validation
-let schemaId = 'vscode://schemas/tasks';
 let schema: IJSONSchema = {
-	id: schemaId,
+	id: tasksSchemaId,
 	description: 'Task definition file',
 	type: 'object',
 	allowTrailingCommas: true,
@@ -283,6 +282,7 @@ let schema: IJSONSchema = {
 import schemaVersion1 from '../common/jsonSchema_v1';
 import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
 import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
+import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
@@ -290,9 +290,9 @@ schema.definitions = {
 schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])];
 
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
-jsonRegistry.registerSchema(schemaId, schema);
+jsonRegistry.registerSchema(tasksSchemaId, schema);
 
 ProblemMatcherRegistry.onMatcherChanged(() => {
 	updateProblemMatchers();
-	jsonRegistry.notifySchemaChanged(schemaId);
+	jsonRegistry.notifySchemaChanged(tasksSchemaId);
 });

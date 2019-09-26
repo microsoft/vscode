@@ -114,10 +114,13 @@ export interface IEnvironmentService {
 	// user roaming data
 	userRoamingDataHome: URI;
 	settingsResource: URI;
-	settingsSyncPreviewResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	localeResource: URI;
+
+	// sync resources
+	userDataSyncLogResource: URI;
+	settingsSyncPreviewResource: URI;
 
 	machineSettingsHome: URI;
 	machineSettingsResource: URI;
