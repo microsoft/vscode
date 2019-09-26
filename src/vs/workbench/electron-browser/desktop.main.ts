@@ -33,7 +33,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { registerWindowDriver } from 'vs/workbench/electron-browser/driver';
+import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -132,7 +132,7 @@ class DesktopMain extends Disposable {
 
 		// Driver
 		if (this.environmentService.configuration.driver) {
-			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor)));
+			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
 		}
 
 		// Logging

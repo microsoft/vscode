@@ -16,7 +16,6 @@ export interface IElectronEnvironmentService {
 	readonly sharedIPCHandle: string;
 }
 
-
 export class ElectronEnvironmentService implements IElectronEnvironmentService {
 
 	_serviceBrand: undefined;

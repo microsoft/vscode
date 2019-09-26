@@ -25,7 +25,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { generateUuid } from 'vs/base/common/uuid';
-import { renderMarkdownDocument } from 'vs/workbench/common/markdownDocumentRenderer';
+import { renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
 
 export class ReleaseNotesManager {
 

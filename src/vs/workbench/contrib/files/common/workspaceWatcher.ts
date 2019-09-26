@@ -7,10 +7,7 @@ import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ResourceMap } from 'vs/base/common/map';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
@@ -152,5 +149,3 @@ export class WorkspaceWatcher extends Disposable {
 		this.unwatchWorkspaces();
 	}
 }
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceWatcher, LifecyclePhase.Restored);

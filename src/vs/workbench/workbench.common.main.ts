@@ -123,9 +123,6 @@ registerSingleton(IOpenerService, OpenerService, true);
 
 //#region --- workbench contributions
 
-// Workspace File Watching
-import 'vs/workbench/services/files/common/workspaceWatcher';
-
 // Telemetry
 import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
 
