@@ -42,7 +42,7 @@
 		"Ionide.Ionide-fsharp": "{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}",
 		"dbaeumer.vscode-eslint": "{**/*.js,**/*.jsx,**/*.es6,**/.eslintrc.*,**/.eslintrc,**/.babelrc,**/jsconfig.json}",
 		"dbaeumer.jshint": "{**/*.js,**/*.jsx,**/*.es6,**/.babelrc,**/jsconfig.json,**/.jshintrc,**/.jshintignore}",
-		"ms-vscode.vscode-typescript-tslint-plugin": "{**/*.ts,**/*.tsx,**/tslint.json,**/tsconfig.json}",
+		"ms-vscode.vscode-typescript-tslint-plugin": "{**/tslint.json}",
 		"bmewburn.vscode-intelephense-client": "{**/*.php,**/php.ini}",
 		"felixfbecker.php-intellisense": "{**/*.php,**/php.ini}",
 		"felixfbecker.php-debug": "{**/*.php,**/php.ini}",
