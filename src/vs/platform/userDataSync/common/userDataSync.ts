@@ -147,7 +147,6 @@ export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
 	readonly conflictsSource: SyncSource | null;
 
-	getRemoteExtensions(): Promise<ISyncExtension[]>;
 	removeExtension(identifier: IExtensionIdentifier): Promise<void>;
 }
 

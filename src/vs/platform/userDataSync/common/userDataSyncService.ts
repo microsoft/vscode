@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISyncExtension, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
@@ -64,10 +64,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		for (const synchroniser of this.synchronisers) {
 			synchroniser.stop();
 		}
-	}
-
-	getRemoteExtensions(): Promise<ISyncExtension[]> {
-		return this.extensionsSynchroniser.getRemoteExtensions();
 	}
 
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
