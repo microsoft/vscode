@@ -5691,7 +5691,7 @@ declare module 'vscode' {
 		 * event should fire for resources that are being [watched](#FileSystemProvider.watch)
 		 * by clients of this provider.
 		 */
-		readonly onDidChangeFile: Event<FileChangeEvent[]>;
+		readonly onDidChangeFile: Event<readonly FileChangeEvent[]>;
 
 		/**
 		 * Subscribe to events in the file or folder denoted by `uri`.
@@ -6398,7 +6398,7 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the array of [visible editors](#window.visibleTextEditors)
 		 * has changed.
 		 */
-		export const onDidChangeVisibleTextEditors: Event<TextEditor[]>;
+		export const onDidChangeVisibleTextEditors: Event<readonly TextEditor[]>;
 
 		/**
 		 * An [event](#Event) which fires when the selection in an editor has changed.
@@ -7593,7 +7593,7 @@ declare module 'vscode' {
 		/**
 		 * An event signaling when the active items have changed.
 		 */
-		readonly onDidChangeActive: Event<T[]>;
+		readonly onDidChangeActive: Event<readonly T[]>;
 
 		/**
 		 * Selected items. This can be read and updated by the extension.
@@ -7603,7 +7603,7 @@ declare module 'vscode' {
 		/**
 		 * An event signaling when the selected items have changed.
 		 */
-		readonly onDidChangeSelection: Event<T[]>;
+		readonly onDidChangeSelection: Event<readonly T[]>;
 	}
 
 	/**
