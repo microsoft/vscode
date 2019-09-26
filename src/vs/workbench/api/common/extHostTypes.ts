@@ -2043,7 +2043,8 @@ export class Task implements vscode.Task2 {
 export enum ProgressLocation {
 	SourceControl = 1,
 	Window = 10,
-	Notification = 15
+	Notification = 15,
+	Dialog = 20,
 }
 
 @es5ClassCompat

@@ -1022,6 +1022,7 @@ export namespace ProgressLocation {
 			case types.ProgressLocation.SourceControl: return MainProgressLocation.Scm;
 			case types.ProgressLocation.Window: return MainProgressLocation.Window;
 			case types.ProgressLocation.Notification: return MainProgressLocation.Notification;
+			case types.ProgressLocation.Dialog: return MainProgressLocation.Dialog;
 		}
 		throw new Error(`Unknown 'ProgressLocation'`);
 	}

@@ -7405,7 +7405,12 @@ declare module 'vscode' {
 		/**
 		 * Show progress as notification with an optional cancel button. Supports to show infinite and discrete progress.
 		 */
-		Notification = 15
+		Notification = 15,
+
+		/**
+		 * Show progress as a full screen modal. Supports showing infinite and discrete progress.
+		 */
+		Dialog = 20
 	}
 
 	/**
