@@ -154,7 +154,7 @@ export class ViewItem implements IViewItem {
 	}
 
 	set loading(value: boolean) {
-		value ? this.addClass('loading') : this.removeClass('loading');
+		value ? this.addClass('codicon-loading') : this.removeClass('codicon-loading');
 	}
 
 	set draggable(value: boolean) {
