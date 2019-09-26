@@ -34,22 +34,22 @@ export interface IUntitledEditorService {
 	/**
 	 * Events for when untitled editors content changes (e.g. any keystroke).
 	 */
-	onDidChangeContent: Event<URI>;
+	readonly onDidChangeContent: Event<URI>;
 
 	/**
 	 * Events for when untitled editors change (e.g. getting dirty, saved or reverted).
 	 */
-	onDidChangeDirty: Event<URI>;
+	readonly onDidChangeDirty: Event<URI>;
 
 	/**
 	 * Events for when untitled editor encodings change.
 	 */
-	onDidChangeEncoding: Event<URI>;
+	readonly onDidChangeEncoding: Event<URI>;
 
 	/**
 	 * Events for when untitled editors are disposed.
 	 */
-	onDidDisposeModel: Event<URI>;
+	readonly onDidDisposeModel: Event<URI>;
 
 	/**
 	 * Returns if an untitled resource with the given URI exists.
