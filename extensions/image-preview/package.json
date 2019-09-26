@@ -2,6 +2,7 @@
   "name": "image-preview",
   "displayName": "%displayName%",
   "description": "%description%",
+  "extensionKind": "ui",
   "version": "1.0.0",
   "publisher": "vscode",
   "icon": "icon.png",

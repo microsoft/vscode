@@ -108,7 +108,9 @@ export class TerminalLinkHandler {
 
 		this.registerWebLinkHandler();
 		if (this._processManager) {
-			this.registerLocalLinkHandler();
+			if (this._configHelper.config.enableFileLinks) {
+				this.registerLocalLinkHandler();
+			}
 			this.registerGitDiffLinkHandlers();
 		}
 	}

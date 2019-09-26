@@ -26,10 +26,9 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
-import { WindowsService } from 'vs/platform/windows/electron-browser/windowsService';
+import { ActiveWindowManager } from 'vs/platform/windows/node/windows';
 import { ipcRenderer } from 'electron';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, ILoggerService } from 'vs/platform/log/common/log';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
@@ -51,14 +50,19 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IUserDataSyncService, IUserDataSyncStoreService, ISettingsMergeService, registerConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncStoreService, ISettingsMergeService, registerConfiguration, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService, UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { SettingsMergeChannelClient } from 'vs/platform/userDataSync/common/settingsSyncIpc';
+import { createChannelSender } from 'vs/platform/ipc/node/ipcChannelCreator';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
+	readonly windowId: number;
 }
 
 export function startup(configuration: ISharedProcessConfiguration) {
@@ -115,12 +119,16 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(ILoggerService, new SyncDescriptor(LoggerService));
 
 	const mainProcessService = new MainProcessService(server, mainRouter);
 	services.set(IMainProcessService, mainProcessService);
 
-	const windowsService = new WindowsService(mainProcessService);
-	services.set(IWindowsService, windowsService);
+	const electronService = createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: configuration.windowId });
+	services.set(IElectronService, electronService);
+
+	const activeWindowManager = new ActiveWindowManager(electronService);
+	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 
 	// Files
 	const fileService = new FileService(logService);
@@ -169,9 +177,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
-		// User Data Sync Contributions
-		const activeWindowManager = new ActiveWindowManager(windowsService);
-		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
+		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
 		const settingsMergeChannel = server.getChannel('settingsMerge', activeWindowRouter);
 		services.set(ISettingsMergeService, new SettingsMergeChannelClient(settingsMergeChannel));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));

@@ -17,7 +17,6 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { toSlashes } from 'vs/base/common/extpath';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
@@ -90,6 +89,11 @@ export interface IWorkspaceFolderCreationData {
 export interface IUntitledWorkspaceInfo {
 	workspace: IWorkspaceIdentifier;
 	remoteAuthority?: string;
+}
+
+export interface IEnterWorkspaceResult {
+	workspace: IWorkspaceIdentifier;
+	backupPath?: string;
 }
 
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');

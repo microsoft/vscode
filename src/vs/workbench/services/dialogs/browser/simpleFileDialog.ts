@@ -210,7 +210,7 @@ export class SimpleFileDialog {
 		return resources.toLocalResource(URI.from({ scheme: this.scheme, path }), this.scheme === Schemas.file ? undefined : this.remoteAuthority);
 	}
 
-	private getScheme(available: string[] | undefined, defaultUri: URI | undefined): string {
+	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
 		if (available) {
 			if (defaultUri && (available.indexOf(defaultUri.scheme) >= 0)) {
 				return defaultUri.scheme;
@@ -321,7 +321,7 @@ export class SimpleFileDialog {
 				isAcceptHandled = true;
 				isResolving++;
 				if (this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
-					this.options.availableFileSystems.shift();
+					this.options.availableFileSystems = this.options.availableFileSystems.slice(1);
 				}
 				this.filePickBox.hide();
 				if (isSave) {

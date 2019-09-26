@@ -571,7 +571,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.TITLEBAR_PART:
 				if (getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
 					return false;
-				} else if (!this.state.fullscreen) {
+				} else if (!this.state.fullscreen && !isWeb) {
 					return true;
 				} else if (isMacintosh && isNative) {
 					return false;
@@ -1055,6 +1055,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				const focus = !skipLayout;
 				this.panelService.openPanel(panelToOpen, focus);
 			}
+		}
+
+		// If not maximized and hiding, unmaximize before hiding to allow caching of size
+		if (this.isPanelMaximized() && hidden) {
+			this.toggleMaximizedPanel();
 		}
 
 		// Propagate to grid

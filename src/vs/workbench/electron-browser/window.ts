@@ -14,7 +14,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IRunKeybindingInWindowRequest, getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -50,7 +50,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from '../services/preferences/common/preferences';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMenubarService, IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/node/menubar';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
@@ -60,6 +59,9 @@ import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { IWorkspacesHistoryService } from 'vs/workbench/services/workspace/common/workspacesHistoryService';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), undefined, true, () => Promise.resolve(document.execCommand('undo'))),
@@ -89,7 +91,6 @@ export class ElectronWindow extends Disposable {
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITitleService private readonly titleService: ITitleService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
@@ -111,7 +112,8 @@ export class ElectronWindow extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IElectronService private readonly electronService: IElectronService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 		super();
 
@@ -389,7 +391,7 @@ export class ElectronWindow extends Disposable {
 		this.setupOpenHandlers();
 
 		// Emit event when vscode is ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.windowService.windowId));
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.electronEnvironmentService.windowId));
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
@@ -679,8 +681,7 @@ export class ElectronWindow extends Disposable {
 class NativeMenubarControl extends MenubarControl {
 	constructor(
 		@IMenuService menuService: IMenuService,
-		@IWindowService windowService: IWindowService,
-		@IWindowsService windowsService: IWindowsService,
+		@IWorkspacesHistoryService workspacesHistoryService: IWorkspacesHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -689,14 +690,15 @@ class NativeMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IMenubarService private readonly menubarService: IMenubarService
+		@IMenubarService private readonly menubarService: IMenubarService,
+		@IHostService hostService: IHostService,
+		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService
 	) {
 		super(
 			menuService,
-			windowService,
-			windowsService,
+			workspacesHistoryService,
 			contextKeyService,
 			keybindingService,
 			configurationService,
@@ -706,7 +708,9 @@ class NativeMenubarControl extends MenubarControl {
 			notificationService,
 			preferencesService,
 			environmentService,
-			accessibilityService);
+			accessibilityService,
+			hostService
+		);
 
 		if (isMacintosh) {
 			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
@@ -720,11 +724,11 @@ class NativeMenubarControl extends MenubarControl {
 			}
 		}
 
-		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
-			this.recentlyOpened = recentlyOpened;
+		(async () => {
+			this.recentlyOpened = await this.workspacesHistoryService.getRecentlyOpened();
 
 			this.doUpdateMenubar(true);
-		});
+		})();
 
 		this.registerListeners();
 	}
@@ -734,7 +738,7 @@ class NativeMenubarControl extends MenubarControl {
 		// Send menus to main process to be rendered by Electron
 		const menubarData = { menus: {}, keybindings: {} };
 		if (this.getMenubarMenus(menubarData)) {
-			this.menubarService.updateMenubar(this.windowService.windowId, menubarData);
+			this.menubarService.updateMenubar(this.electronEnvironmentService.windowId, menubarData);
 		}
 	}
 

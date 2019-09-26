@@ -271,6 +271,8 @@ export namespace Event {
 		filter(fn: (e: T) => boolean): IChainableEvent<T>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R>;
 		latch(): IChainableEvent<T>;
+		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
+		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
 		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
 		once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 	}
@@ -297,6 +299,12 @@ export namespace Event {
 
 		latch(): IChainableEvent<T> {
 			return new ChainableEvent(latch(this.event));
+		}
+
+		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
+		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
+		debounce<R>(merge: (last: R | undefined, event: T) => R, delay: number = 100, leading = false, leakWarningThreshold?: number): IChainableEvent<R> {
+			return new ChainableEvent(debounce(this.event, merge, delay, leading, leakWarningThreshold));
 		}
 
 		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[] | DisposableStore) {

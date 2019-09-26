@@ -5,13 +5,13 @@
 
 import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { createSimpleChannelProxy } from 'vs/platform/ipc/node/simpleIpcProxy';
+import { createChannelSender } from 'vs/platform/ipc/node/ipcChannelCreator';
 
 export class IssueService {
 
 	_serviceBrand: undefined;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		return createSimpleChannelProxy<IIssueService>(mainProcessService.getChannel('issue'));
+		return createChannelSender<IIssueService>(mainProcessService.getChannel('issue'));
 	}
 }

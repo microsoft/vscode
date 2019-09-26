@@ -9,8 +9,10 @@ import { isWindows } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { URI } from 'vs/base/common/uri';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
+export const ILoggerService = createServiceDecorator<ILoggerService>('loggerService');
 
 function now(): string {
 	return new Date().toISOString();
@@ -28,18 +30,27 @@ export enum LogLevel {
 
 export const DEFAULT_LOG_LEVEL: LogLevel = LogLevel.Info;
 
-export interface ILogService extends IDisposable {
-	_serviceBrand: undefined;
+export interface ILogger extends IDisposable {
 	onDidChangeLogLevel: Event<LogLevel>;
-
 	getLevel(): LogLevel;
 	setLevel(level: LogLevel): void;
+
 	trace(message: string, ...args: any[]): void;
 	debug(message: string, ...args: any[]): void;
 	info(message: string, ...args: any[]): void;
 	warn(message: string, ...args: any[]): void;
 	error(message: string | Error, ...args: any[]): void;
 	critical(message: string | Error, ...args: any[]): void;
+}
+
+export interface ILogService extends ILogger {
+	_serviceBrand: undefined;
+}
+
+export interface ILoggerService {
+	_serviceBrand: undefined;
+
+	getLogger(file: URI): ILogger;
 }
 
 export abstract class AbstractLogService extends Disposable {

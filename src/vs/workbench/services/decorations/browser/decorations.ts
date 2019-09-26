@@ -28,7 +28,7 @@ export interface IDecoration {
 
 export interface IDecorationsProvider {
 	readonly label: string;
-	readonly onDidChange: Event<URI[]>;
+	readonly onDidChange: Event<readonly URI[]>;
 	provideDecorations(uri: URI, token: CancellationToken): IDecorationData | Promise<IDecorationData | undefined> | undefined;
 }
 

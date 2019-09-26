@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, AbstractLogService, ILoggerService, ILogger } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { dirname, joinPath, basename } from 'vs/base/common/resources';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const MAX_FILE_SIZE = 1024 * 1024 * 5;
 
@@ -16,6 +18,7 @@ export class FileLogService extends AbstractLogService implements ILogService {
 
 	_serviceBrand: undefined;
 
+	private readonly initializePromise: Promise<void>;
 	private readonly queue: Queue<void>;
 	private backupIndex: number = 1;
 
@@ -28,6 +31,7 @@ export class FileLogService extends AbstractLogService implements ILogService {
 		super();
 		this.setLevel(level);
 		this.queue = this._register(new Queue<void>());
+		this.initializePromise = this.initialize();
 	}
 
 	trace(): void {
@@ -82,8 +86,13 @@ export class FileLogService extends AbstractLogService implements ILogService {
 		this._log(level, this.format(args));
 	}
 
+	private async initialize(): Promise<void> {
+		await this.fileService.createFile(this.resource);
+	}
+
 	private _log(level: LogLevel, message: string): void {
 		this.queue.queue(async () => {
+			await this.initializePromise;
 			let content = await this.loadContent();
 			if (content.length > MAX_FILE_SIZE) {
 				await this.fileService.writeFile(this.getBackupResource(), VSBuffer.fromString(content));
@@ -143,5 +152,35 @@ export class FileLogService extends AbstractLogService implements ILogService {
 		}
 
 		return result;
+	}
+}
+
+export class FileLoggerService extends Disposable implements ILoggerService {
+
+	_serviceBrand: undefined;
+
+	private readonly loggers = new Map<string, ILogger>();
+
+	constructor(
+		@ILogService private logService: ILogService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(logService.onDidChangeLogLevel(level => this.loggers.forEach(logger => logger.setLevel(level))));
+	}
+
+	getLogger(resource: URI): ILogger {
+		let logger = this.loggers.get(resource.toString());
+		if (!logger) {
+			logger = this.instantiationService.createInstance(FileLogService, basename(resource), resource, this.logService.getLevel());
+			this.loggers.set(resource.toString(), logger);
+		}
+		return logger;
+	}
+
+	dispose(): void {
+		this.loggers.forEach(logger => logger.dispose());
+		this.loggers.clear();
+		super.dispose();
 	}
 }

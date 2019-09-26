@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
@@ -57,8 +57,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return true;
 	}
 
-	getRemoteExtensions(): Promise<ISyncExtension[]> {
-		return this.extensionsSynchroniser.getRemoteExtensions();
+	stop(): void {
+		if (!this.userDataSyncStoreService.enabled) {
+			throw new Error('Not enabled');
+		}
+		for (const synchroniser of this.synchronisers) {
+			synchroniser.stop();
+		}
 	}
 
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
@@ -108,11 +113,20 @@ export class UserDataAutoSync extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncLogService private readonly userDataSyncLogService: IUserDataSyncLogService,
 	) {
 		super();
 		if (userDataSyncStoreService.enabled) {
 			this.sync(true);
-			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('userConfiguration.enableSync'))(() => this.sync(true)));
+			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => {
+				if (this.isSyncEnabled()) {
+					userDataSyncLogService.info('Syncing configuration started...');
+					this.sync(true);
+				} else {
+					this.userDataSyncService.stop();
+					userDataSyncLogService.info('Syncing configuration stopped.');
+				}
+			}));
 
 			// Sync immediately if there is a local change.
 			this._register(Event.debounce(this.userDataSyncService.onDidChangeLocal, () => undefined, 500)(() => this.sync(false)));
@@ -124,7 +138,7 @@ export class UserDataAutoSync extends Disposable {
 			try {
 				await this.userDataSyncService.sync();
 			} catch (e) {
-				// Ignore errors
+				this.userDataSyncLogService.error(e);
 			}
 			if (loop) {
 				await timeout(1000 * 5); // Loop sync for every 5s.
@@ -134,7 +148,7 @@ export class UserDataAutoSync extends Disposable {
 	}
 
 	private isSyncEnabled(): boolean {
-		return this.configurationService.getValue<boolean>('userConfiguration.enableSync');
+		return this.configurationService.getValue<boolean>('configurationSync.enable');
 	}
 
 }
