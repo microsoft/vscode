@@ -233,11 +233,6 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 				'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
 				'default': true,
 				'tags': ['usesOnlineServices']
-			},
-			'workbench.octiconsUpdate.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'description': nls.localize('workbench.octiconsUpdate.enabled', "Controls the visibility of the new Octicons style in the workbench.")
 			}
 		}
 	});

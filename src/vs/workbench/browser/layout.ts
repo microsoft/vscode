@@ -47,8 +47,6 @@ enum Settings {
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
 
-	// TODO @misolori update this when finished
-	OCTICONS_UPDATE_ENABLED = 'workbench.octiconsUpdate.enabled',
 }
 
 enum Storage {
@@ -186,10 +184,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			transitionDisposables: new DisposableStore()
 		},
 
-		// TODO @misolori update this when finished
-		octiconsUpdate: {
-			enabled: false
-		}
 	};
 
 	constructor(
@@ -335,10 +329,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Settings.MENUBAR_VISIBLE);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 
-		// TODO @misolori update this when finished
-		const newOcticonsUpdate = this.configurationService.getValue<boolean>(Settings.OCTICONS_UPDATE_ENABLED);
-		this.setOcticonsUpdate(newOcticonsUpdate);
-
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -451,9 +441,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Zen mode enablement
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
 
-		// TODO @misolori update this when finished
-		this.state.octiconsUpdate.enabled = this.configurationService.getValue<boolean>(Settings.OCTICONS_UPDATE_ENABLED);
-		this.setOcticonsUpdate(this.state.octiconsUpdate.enabled);
 	}
 
 	private resolveEditorsToOpen(fileService: IFileService): Promise<IResourceEditor[]> | IResourceEditor[] {
@@ -758,18 +745,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.statusBarPartView, !hidden);
-	}
-
-	// TODO @misolori update this when finished
-	private setOcticonsUpdate(enabled: boolean): void {
-		this.state.octiconsUpdate.enabled = enabled;
-
-		// Update DOM
-		if (enabled) {
-			document.body.dataset.octiconsUpdate = 'enabled';
-		} else {
-			document.body.dataset.octiconsUpdate = '';
-		}
 	}
 
 	protected createWorkbenchLayout(instantiationService: IInstantiationService): void {
