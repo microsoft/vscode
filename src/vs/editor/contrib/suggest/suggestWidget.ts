@@ -524,8 +524,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}));
 		this.toDispose.add(themeService.onThemeChange(t => this.onThemeChange(t)));
 		this.toDispose.add(editor.onDidLayoutChange(() => this.onEditorLayoutChange()));
-		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDown(e)));
-		this.toDispose.add(this.list.onTap(e => this.onListTap(e)));
+		this.toDispose.add(this.list.onMouseDown(e => this.onListMouseDownOrTap(e)));
+		this.toDispose.add(this.list.onTap(e => this.onListMouseDownOrTap(e)));
 		this.toDispose.add(this.list.onSelectionChange(e => this.onListSelection(e)));
 		this.toDispose.add(this.list.onFocusChange(e => this.onListFocus(e)));
 		this.toDispose.add(this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()));
@@ -573,19 +573,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 	}
 
-	private onListTap(e: IListGestureEvent<CompletionItem>): void {
-		if (typeof e.element === 'undefined' || typeof e.index === 'undefined') {
-			return;
-		}
-
-		// prevent stealing browser focus from the editor
-		e.browserEvent.preventDefault();
-		e.browserEvent.stopPropagation();
-
-		this.select(e.element, e.index);
-	}
-
-	private onListMouseDown(e: IListMouseEvent<CompletionItem>): void {
+	private onListMouseDownOrTap(e: IListMouseEvent<CompletionItem> | IListGestureEvent<CompletionItem>): void {
 		if (typeof e.element === 'undefined' || typeof e.index === 'undefined') {
 			return;
 		}
