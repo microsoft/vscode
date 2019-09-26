@@ -35,14 +35,13 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, MenuBarVisibility, IWindowConfiguration, IWindowOpenable, IOpenInWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, IWindowConfiguration, IWindowOpenable, IOpenInWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IRecentlyOpened, IRecent } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
@@ -306,12 +305,10 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
-	instantiationService.stub(IWindowService, new TestWindowService());
 	instantiationService.stub(IMenuService, new TestMenuService());
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(IDecorationsService, new TestDecorationsService());
 	instantiationService.stub(IExtensionService, new TestExtensionService());
-	instantiationService.stub(IWindowsService, new TestWindowsService());
 	instantiationService.stub(IHostService, <IHostService>instantiationService.createInstance(TestHostService));
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -1177,26 +1174,6 @@ export class TestCodeEditorService implements ICodeEditorService {
 	openCodeEditor(_input: IResourceInput, _source: ICodeEditor, _sideBySide?: boolean): Promise<ICodeEditor | undefined> { return Promise.resolve(undefined); }
 }
 
-export class TestWindowService implements IWindowService {
-
-	public _serviceBrand: undefined;
-
-	getRecentlyOpened(): Promise<IRecentlyOpened> {
-		return Promise.resolve({
-			workspaces: [],
-			files: []
-		});
-	}
-
-	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
-		return Promise.resolve();
-	}
-
-	removeFromRecentlyOpened(_paths: URI[]): Promise<void> {
-		return Promise.resolve();
-	}
-}
-
 export class TestLifecycleService implements ILifecycleService {
 
 	public _serviceBrand: undefined;
@@ -1233,32 +1210,6 @@ export class TestLifecycleService implements ILifecycleService {
 
 	public get onShutdown(): Event<void> {
 		return this._onShutdown.event;
-	}
-}
-
-export class TestWindowsService implements IWindowsService {
-
-	_serviceBrand: undefined;
-
-	readonly onRecentlyOpenedChange: Event<void> = Event.None;
-
-	addRecentlyOpened(_recents: IRecent[]): Promise<void> {
-		return Promise.resolve();
-	}
-
-	removeFromRecentlyOpened(_paths: URI[]): Promise<void> {
-		return Promise.resolve();
-	}
-
-	clearRecentlyOpened(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	getRecentlyOpened(_windowId: number): Promise<IRecentlyOpened> {
-		return Promise.resolve({
-			workspaces: [],
-			files: []
-		});
 	}
 }
 
