@@ -446,7 +446,7 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private onEnablementChanged(platformExtensions: IPlatformExtension[]) {
+	private onEnablementChanged(platformExtensions: readonly IPlatformExtension[]) {
 		const extensions = this.local.filter(e => platformExtensions.some(p => areSameExtensions(e.identifier, p.identifier)));
 		for (const extension of extensions) {
 			if (extension.local) {
